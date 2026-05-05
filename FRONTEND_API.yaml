@@ -1,0 +1,1531 @@
+openapi: 3.0.3
+info:
+  title: NHCX Wrapper Frontend API
+  version: 1.2.0
+  description: >
+    Minimal frontend-facing API contract for payer discovery, policy fetch,
+    cashless preparation, and preauthorization. These endpoints are hospital UI
+    APIs exposed by the wrapper; the frontend does not call NHCX or granular
+    workflow APIs directly.
+servers:
+  - url: http://localhost:8082/api/v1/insurance
+    description: Local wrapper API
+
+tags:
+  - name: Dashboard
+    description: Dashboard summary and child lookup APIs.
+  - name: Cashless Preparation
+    description: Payer, policy, InsurancePlan, and CoverageEligibility preparation for the frontend.
+  - name: Preauthorization
+    description: Core preauth draft, submit, and status APIs for the frontend.
+
+paths:
+  /cashless/dashboard/stats:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardStats
+      summary: Fetch dashboard claim stats
+      description: >
+        Returns claim-style dashboard stats using `nhcx_cashless_cases` as the
+        current claim workflow source.
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+              examples:
+                success:
+                  value:
+                    claims:
+                      total: 18
+                      pending: 6
+                      partial: 2
+                      complete: 9
+                      failed: 1
+                      preauth_pending: 4
+                    patients:
+                      with_claims: 13
+
+  /cashless/child:
+    get:
+      tags: [Dashboard]
+      operationId: searchChildren
+      summary: Search children
+      description: Returns children from the shared `children` table for patient selection.
+      parameters:
+        - name: child_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: mobile
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Child search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChildSearchResponse"
+              examples:
+                success:
+                  value:
+                    total_count: 1
+                    limit: 20
+                    offset: 0
+                    children:
+                      - child_id: 12
+                        name: "Arjun Mehta"
+                        gender: "male"
+                        dob: "2020-01-01"
+                        mobile: "9999999999"
+                        created_at: "2026-05-04T10:30:00+05:30"
+                        cashless_cases_count: 1
+                        latest_claim:
+                          case_id: 4
+                          claim_id: 101
+                          status: "pending"
+                          current_step: "insurance_and_eligibility"
+                          payer_code: "1518@hcx"
+                          policy_number: "POL-91711234567890-2026"
+                          preauth_status: "pending"
+                          created_at: "2026-05-04T10:35:00+05:30"
+
+  /cashless/payers/search:
+    get:
+      tags: [Cashless Preparation]
+      operationId: searchPayers
+      summary: Search payers for the dropdown
+      description: Returns payer participants that can be shown in the frontend payer dropdown.
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          example: "National"
+        - name: scheme
+          in: query
+          required: false
+          schema:
+            type: string
+          example: "PMJAY"
+        - name: from_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Payer search results
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/Payer"
+                  - type: object
+              examples:
+                success:
+                  value:
+                    - participant_code: "1518@hcx"
+                      name: "Sample Payer"
+                      scheme_type: "PMJAY"
+                      status: "active"
+
+  /cashless/policies/fetch:
+    post:
+      tags: [Cashless Preparation]
+      operationId: fetchPolicies
+      summary: Fetch policies after payer selection
+      description: >
+        Synchronous policy lookup used after the user selects a payer from the
+        dropdown. This is a preparatory lookup, not an async NHCX FHIR workflow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FetchPoliciesRequest"
+            examples:
+              abha:
+                value:
+                  patientId: "91711234567890"
+                  admissionId: "ADM123"
+                  payerCode: "1518@hcx"
+                  forceRefresh: true
+      responses:
+        "200":
+          description: Policies fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FetchPoliciesResponse"
+              examples:
+                success:
+                  value:
+                    status: "success"
+                    data:
+                      patient_id: "12"
+                      payer_code: "1518@hcx"
+                      identifier_used:
+                        type: "PatientId"
+                        value: "12"
+                      policies:
+                        - policyNumber: "POL-91711234567890-2026"
+                          productName: "GeneralHealth-2026"
+                          payerId: "1518@hcx"
+                          payerName: "Sample Payer"
+                          status: "active"
+                          sumInsured: 500000
+                          currency: "INR"
+                          effectiveFrom: "2026-01-01"
+                          effectiveTo: "2026-12-31"
+                      fetched_at: "2026-05-04T10:40:00+05:30"
+        "422":
+          description: Missing required patient identifier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cashless/prepare:
+    post:
+      tags: [Cashless Preparation]
+      operationId: prepareCashless
+      summary: Start cashless preparation
+      description: >
+        Minimal frontend API after policy selection. The wrapper reuses one
+        cashless case per claim, derives payer and procedures from the DB,
+        triggers InsurancePlan and CoverageEligibility internally, and returns
+        one aggregated case response.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CashlessPrepareRequest"
+            examples:
+              selected_policy:
+                value:
+                  claim_id: 101
+                  child_id: 1
+                  policyNumber: "POL-91711234567890-2026"
+                  forceRefresh: false
+      responses:
+        "202":
+          description: Cashless preparation accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashlessCase"
+              examples:
+                accepted:
+                  value:
+                    case_id: 4
+                    claim_id: 101
+                    child_id: 12
+                    payer_code: "1518@hcx"
+                    policy_number: "POL-91711234567890-2026"
+                    status: "pending"
+                    current_step: "insurance_and_eligibility"
+                    next_actions: ["refresh"]
+                    procedures:
+                      source: "claim_db"
+                      items:
+                        - category: "SE"
+                          code: "47562"
+                          name: "Laparoscopic cholecystectomy"
+                    insurance_plan:
+                      status: "pending"
+                      correlation_id: "550e8400-e29b-41d4-a716-446655440000"
+                      plan_details:
+                        name: "GeneralHealth-2026"
+                        status: "active"
+                      inclusions:
+                        - code: "ROOM"
+                          name: "Room rent"
+                      exclusions:
+                        - code: "COSMETIC"
+                          name: "Cosmetic surgery"
+                      pricing:
+                        sum_insured: 500000
+                        currency: "INR"
+                      document_requirements:
+                        - name: "Admission note"
+                      raw_payload:
+                        resourceType: "InsurancePlan"
+                      stored_record:
+                        id: 7
+                        request_id: "550e8400-e29b-41d4-a716-446655440000"
+                        child_id: 12
+                        payer_code: "1518@hcx"
+                        updated_at: "2026-05-04T10:41:00+05:30"
+                    coverage_eligibility:
+                      status: "pending"
+                      correlation_id: "9e5c60bf-4014-4b72-a2f0-1fe4f9a75e61"
+                      outcome: null
+                      disposition: "Coverage eligibility request submitted; waiting for payer response"
+                      inforce: null
+                      auth_required: null
+                      insurance_items:
+                        - coverage: "Coverage/POL-91711234567890-2026"
+                          inforce: null
+                          items:
+                            - sequence: 1
+                              category:
+                                code: "SE"
+                                display: "Surgical"
+                              productOrService:
+                                code: "47562"
+                                display: "Laparoscopic cholecystectomy"
+                              excluded: false
+                              benefit:
+                                - type:
+                                    code: "benefit"
+                                    display: "Expected benefit"
+                                  allowed: null
+                                  used: null
+                              authorizationRequired: null
+                              authorizationSupporting:
+                                - code: "MEDICAL_CERTIFICATE"
+                                  display: "Medical Certificate"
+                                - code: "ESTIMATE"
+                                  display: "Estimated bill"
+                      errors: []
+
+  /cashless/{case_id}:
+    get:
+      tags: [Cashless Preparation]
+      operationId: getCashlessStatus
+      summary: Read aggregated cashless case status
+      description: >
+        Returns the current frontend state for InsurancePlan, CoverageEligibility,
+        DB-derived procedures, and available next actions.
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Aggregated cashless case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashlessCase"
+              examples:
+                complete:
+                  value:
+                    case_id: 4
+                    claim_id: 101
+                    child_id: 12
+                    payer_code: "1518@hcx"
+                    policy_number: "POL-91711234567890-2026"
+                    status: "complete"
+                    current_step: "preauth_ready"
+                    next_actions: ["prepare_preauth"]
+                    procedures:
+                      source: "claim_db"
+                      items:
+                        - category: "SE"
+                          code: "47562"
+                          name: "Laparoscopic cholecystectomy"
+                    insurance_plan:
+                      status: "complete"
+                      correlation_id: "550e8400-e29b-41d4-a716-446655440000"
+                      plan_details: {}
+                      inclusions: []
+                      exclusions: []
+                      pricing: []
+                      document_requirements: []
+                      raw_payload:
+                        resourceType: "InsurancePlan"
+                      stored_record:
+                        id: 7
+                        request_id: "550e8400-e29b-41d4-a716-446655440000"
+                        child_id: 12
+                        payer_code: "1518@hcx"
+                        updated_at: "2026-05-04T10:41:00+05:30"
+                    coverage_eligibility:
+                      status: "complete"
+                      correlation_id: "9e5c60bf-4014-4b72-a2f0-1fe4f9a75e61"
+                      outcome: "complete"
+                      disposition: "Eligible"
+                      inforce: true
+                      auth_required: true
+                      insurance_items:
+                        - coverage: "Coverage/POL-91711234567890-2026"
+                          inforce: true
+                          items:
+                            - sequence: 1
+                              category:
+                                code: "SE"
+                                display: "Surgical"
+                              productOrService:
+                                code: "47562"
+                                display: "Laparoscopic cholecystectomy"
+                              excluded: false
+                              benefit:
+                                - type:
+                                    code: "benefit"
+                                    display: "Benefit"
+                                  allowed:
+                                    type: "Money"
+                                    value: 50000
+                                    currency: "INR"
+                                  used:
+                                    type: "Money"
+                                    value: 10000
+                                    currency: "INR"
+                              authorizationRequired: true
+                              authorizationSupporting:
+                                - code: "MEDICAL_CERTIFICATE"
+                                  display: "Medical Certificate"
+                                - code: "ESTIMATE"
+                                  display: "Estimated bill"
+                            - sequence: 2
+                              category:
+                                code: "ROOM"
+                                display: "Room and nursing"
+                              productOrService:
+                                code: "WARD-PRIVATE"
+                                display: "Private ward room rent"
+                              excluded: false
+                              benefit:
+                                - type:
+                                    code: "room-rent"
+                                    display: "Room rent limit"
+                                  allowed:
+                                    type: "Money"
+                                    value: 3000
+                                    currency: "INR"
+                                  used:
+                                    type: "Money"
+                                    value: 0
+                                    currency: "INR"
+                                - type:
+                                    code: "days"
+                                    display: "Allowed days"
+                                  allowed:
+                                    type: "UnsignedInt"
+                                    value: 5
+                                    currency: null
+                                  used:
+                                    type: "UnsignedInt"
+                                    value: 0
+                                    currency: null
+                              authorizationRequired: false
+                              authorizationSupporting: []
+                            - sequence: 3
+                              category:
+                                code: "INV"
+                                display: "Investigation"
+                              productOrService:
+                                code: "USG-ABD"
+                                display: "Ultrasound abdomen"
+                              excluded: false
+                              benefit:
+                                - type:
+                                    code: "benefit"
+                                    display: "Investigation benefit"
+                                  allowed:
+                                    type: "Money"
+                                    value: 5000
+                                    currency: "INR"
+                                  used:
+                                    type: "Money"
+                                    value: 1200
+                                    currency: "INR"
+                              authorizationRequired: true
+                              authorizationSupporting:
+                                - code: "INVESTIGATION_REPORT"
+                                  display: "Investigation report"
+                      errors:
+                        - code:
+                            code: "warning"
+                            system: "https://nrces.in/ndhm/fhir/r4/CodeSystem/coverageeligibility-error"
+                            display: "Document required"
+                          detail: "Investigation report is required before final preauth approval"
+        "404":
+          description: Cashless case not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cashless/preauth/prepare:
+    get:
+      tags: [Preauthorization]
+      operationId: preparePreauth
+      summary: Fetch preauth draft details
+      description: >
+        Reads wrapper claim data and, when available in the shared hospital DB,
+        admission, clinical, invoice, ABHA, and record details. The response is
+        editable by the frontend before raising preauth.
+      parameters:
+        - name: claim_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: admission_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: appointment_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: child_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: payer_code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: policyNumber
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Preauth draft details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreauthDraft"
+              examples:
+                success:
+                  value:
+                    claim_id: 101
+                    payer_code: "1518@hcx"
+                    policy_number: "POL-91711234567890-2026"
+                    patient:
+                      id: 12
+                      name: "Arjun Mehta"
+                      gender: "male"
+                      dob: "2020-01-01"
+                      abha: "91-7112-3456-7890"
+                      member_id: "MEMB-123"
+                    admission_date: "2026-05-04"
+                    inpatient: true
+                    urgent: false
+                    diagnoses:
+                      - code: "K80.20"
+                        name: "Calculus of gallbladder"
+                        primary: true
+                        on_admission: true
+                    procedures:
+                      - code: "47562"
+                        name: "Laparoscopic cholecystectomy"
+                        date: "2026-05-04"
+                    items:
+                      - service_code: "47562"
+                        service_name: "Laparoscopic cholecystectomy"
+                        category: "SE"
+                        service_start_date: "2026-05-04"
+                        quantity: 1
+                        unit_price: 50000
+                        net_amount: 50000
+                        care_team_sequence: [1]
+                        diagnosis_sequence: [1]
+                        procedure_sequence: [1]
+                    care_team:
+                      - doc_id: "DOC-1"
+                        doc_name: "Dr. Sharma"
+                        speciality: "MS"
+                        speciality_display: "General Surgery"
+                    supporting_documents:
+                      - category: "admission_note"
+                        name: "Admission Note"
+                        code: "ADM_NOTE"
+                        event_date: "2026-05-04"
+                        url: "https://hospital.example/records/101/admission-note.pdf"
+                    total_amount: 50000
+                    eligibility:
+                      correlation_id: "9e5c60bf-4014-4b72-a2f0-1fe4f9a75e61"
+                      status: "complete"
+                      outcome: "complete"
+                      inforce: true
+                      auth_required: true
+                      insurance_items: []
+                      errors: []
+                    missing_fields: []
+
+  /cashless/preauth/submit:
+    post:
+      tags: [Preauthorization]
+      operationId: submitPreauth
+      summary: Submit preauthorization request
+      description: >
+        Asynchronous NHCX workflow 12. The frontend submits the selected or
+        edited preauth draft. The wrapper builds the FHIR Claim preauthorization
+        bundle, encrypts it, and sends it to NHCX.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreauthSubmitRequest"
+            examples:
+              submit:
+                value:
+                  claim_id: 101
+                  payer_code: "1518@hcx"
+                  policyNumber: "POL-91711234567890-2026"
+                  eligibility_correlation_id: "9e5c60bf-4014-4b72-a2f0-1fe4f9a75e61"
+                  diagnoses:
+                    - code: "K80.20"
+                      name: "Calculus of gallbladder"
+                      primary: true
+                      on_admission: true
+                  procedures:
+                    - code: "47562"
+                      name: "Laparoscopic cholecystectomy"
+                      date: "2026-05-04"
+                  items:
+                    - service_code: "47562"
+                      service_name: "Laparoscopic cholecystectomy"
+                      category: "SE"
+                      service_start_date: "2026-05-04"
+                      quantity: 1
+                      unit_price: 50000
+                      net_amount: 50000
+                      care_team_sequence: [1]
+                      diagnosis_sequence: [1]
+                      procedure_sequence: [1]
+                  care_team:
+                    - doc_id: "DOC-1"
+                      doc_name: "Dr. Sharma"
+                      speciality: "MS"
+                      speciality_display: "General Surgery"
+                  supporting_documents:
+                    - category: "admission_note"
+                      name: "Admission Note"
+                      code: "ADM_NOTE"
+                      event_date: "2026-05-04"
+                      url: "https://hospital.example/records/101/admission-note.pdf"
+                  total_amount: 50000
+      responses:
+        "202":
+          description: Preauth submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreauthAcceptedResponse"
+              examples:
+                accepted:
+                  value:
+                    correlation_id: "5c2a6db0-b4c1-47e2-bf6d-3db2ed6e8f11"
+                    preauth_ref: null
+                    policy_number: "POL-91711234567890-2026"
+                    status: "submitted"
+                    message: "Preauthorization request submitted"
+        "422":
+          description: Missing required preauth details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cashless/preauth/status/{correlation_id}:
+    get:
+      tags: [Preauthorization]
+      operationId: getPreauthStatus
+      summary: Check preauthorization callback result
+      parameters:
+        - name: correlation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Preauth status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreauthStatusResponse"
+              examples:
+                complete:
+                  value:
+                    correlation_id: "5c2a6db0-b4c1-47e2-bf6d-3db2ed6e8f11"
+                    claim_id: 101
+                    workflow: "preauth"
+                    status: "complete"
+                    decision: "APPROVED"
+                    preauth_ref: "PA-2026-00001"
+                    items:
+                      - sequence: 1
+                        detail_sequence: 1
+                        adjudication:
+                          submitted:
+                            value: 50000
+                            currency: "INR"
+                          eligible:
+                            value: 45000
+                            currency: "INR"
+                          benefit:
+                            value: 40000
+                            currency: "INR"
+                          copay:
+                            value: 5000
+                            currency: "INR"
+                          deductible: null
+                        notes: [1]
+                    totals:
+                      submitted:
+                        value: 50000
+                        currency: "INR"
+                      eligible:
+                        value: 45000
+                        currency: "INR"
+                      benefit:
+                        value: 40000
+                        currency: "INR"
+                      copay:
+                        value: 5000
+                        currency: "INR"
+                    errors: []
+                    process_notes:
+                      - number: 1
+                        type: "display"
+                        text: "Preauth approved for package amount"
+                        language: "en"
+
+components:
+  schemas:
+    DashboardStats:
+      type: object
+      properties:
+        claims:
+          type: object
+          properties:
+            total:
+              type: integer
+            pending:
+              type: integer
+            partial:
+              type: integer
+            complete:
+              type: integer
+            failed:
+              type: integer
+            preauth_pending:
+              type: integer
+        patients:
+          type: object
+          properties:
+            with_claims:
+              type: integer
+
+    ChildSearchResponse:
+      type: object
+      properties:
+        total_count:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/Child"
+
+    Child:
+      type: object
+      properties:
+        child_id:
+          type: integer
+        name:
+          type: string
+        gender:
+          type: string
+        dob:
+          type: string
+          format: date
+          nullable: true
+        mobile:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        cashless_cases_count:
+          type: integer
+        latest_claim:
+          type: object
+          nullable: true
+          properties:
+            case_id:
+              type: integer
+            claim_id:
+              type: integer
+            status:
+              type: string
+            current_step:
+              type: string
+            payer_code:
+              type: string
+            policy_number:
+              type: string
+            preauth_status:
+              type: string
+              nullable: true
+            created_at:
+              type: string
+              format: date-time
+
+    Payer:
+      type: object
+      properties:
+        participant_code:
+          type: string
+          example: "1518@hcx"
+        name:
+          type: string
+          example: "Sample Payer"
+        scheme_type:
+          type: string
+          example: "PMJAY"
+        status:
+          type: string
+          example: "active"
+
+    FetchPoliciesRequest:
+      type: object
+      required: [patientId, payerCode]
+      properties:
+        patientId:
+          type: string
+          description: ABHA number, scheme member ID, mobile number, or hospital patient identifier.
+          example: "91711234567890"
+        admissionId:
+          type: string
+          nullable: true
+          example: "ADM123"
+        payerCode:
+          type: string
+          description: Selected payer participant code from payer search.
+          example: "1518@hcx"
+        forceRefresh:
+          type: boolean
+          default: false
+
+    FetchPoliciesResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        data:
+          type: object
+          properties:
+            patient_id:
+              type: string
+            payer_code:
+              type: string
+            identifier_used:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [AbhaNumber, MemberId, MobileNo, PatientId]
+                value:
+                  type: string
+            policies:
+              type: array
+              items:
+                $ref: "#/components/schemas/Policy"
+            fetched_at:
+              type: string
+              format: date-time
+
+    Policy:
+      type: object
+      properties:
+        policyNumber:
+          type: string
+        productName:
+          type: string
+        payerId:
+          type: string
+        payerName:
+          type: string
+        status:
+          type: string
+        sumInsured:
+          type: number
+        currency:
+          type: string
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+
+    CashlessPrepareRequest:
+      type: object
+      required: [claim_id, child_id, policyNumber]
+      properties:
+        claim_id:
+          type: integer
+        child_id:
+          type: integer
+        policyNumber:
+          type: string
+          description: Selected policy number. Snake case `policy_number` is also accepted.
+        forceRefresh:
+          type: boolean
+          default: false
+
+    CashlessCase:
+      type: object
+      properties:
+        case_id:
+          type: integer
+        claim_id:
+          type: integer
+        child_id:
+          type: integer
+        payer_code:
+          type: string
+        policy_number:
+          type: string
+        status:
+          type: string
+          enum: [pending, partial, complete, failed]
+        current_step:
+          type: string
+          example: insurance_and_eligibility
+        next_actions:
+          type: array
+          items:
+            type: string
+        procedures:
+          $ref: "#/components/schemas/ProcedureBlock"
+        insurance_plan:
+          $ref: "#/components/schemas/InsurancePlanSummary"
+        coverage_eligibility:
+          $ref: "#/components/schemas/CoverageEligibilitySummary"
+
+    ProcedureBlock:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [claim_db, none]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Procedure"
+
+    Procedure:
+      type: object
+      properties:
+        category:
+          type: string
+          example: "GM"
+        code:
+          type: string
+          example: "99221"
+        name:
+          type: string
+          example: "Initial hospital care"
+        modifiers:
+          type: array
+          items:
+            type: object
+
+    InsurancePlanSummary:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, complete, not_found]
+        correlation_id:
+          type: string
+        plan_details:
+          type: object
+        inclusions:
+          type: array
+          items:
+            type: object
+        exclusions:
+          type: array
+          items:
+            type: object
+        pricing:
+          oneOf:
+            - type: object
+            - type: array
+              items:
+                type: object
+        document_requirements:
+          type: array
+          items:
+            type: object
+        raw_payload:
+          type: object
+          nullable: true
+        stored_record:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            request_id:
+              type: string
+            child_id:
+              type: integer
+            payer_code:
+              type: string
+            updated_at:
+              type: string
+              format: date-time
+              nullable: true
+
+    CoverageEligibilitySummary:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, complete, not_found]
+        correlation_id:
+          type: string
+        outcome:
+          type: string
+          nullable: true
+        disposition:
+          type: string
+          nullable: true
+        inforce:
+          type: boolean
+          nullable: true
+        auth_required:
+          type: boolean
+          nullable: true
+        insurance_items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityInsurance"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityError"
+
+    CoverageEligibilityInsurance:
+      type: object
+      properties:
+        coverage:
+          type: string
+          nullable: true
+          example: "Coverage/POL-91711234567890-2026"
+        inforce:
+          type: boolean
+          nullable: true
+          example: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityItem"
+
+    CoverageEligibilityItem:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          nullable: true
+          example: 1
+        category:
+          $ref: "#/components/schemas/CodedValue"
+        productOrService:
+          $ref: "#/components/schemas/CodedValue"
+        excluded:
+          type: boolean
+          example: false
+        benefit:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityBenefit"
+        authorizationRequired:
+          type: boolean
+          example: true
+        authorizationSupporting:
+          type: array
+          items:
+            $ref: "#/components/schemas/CodedValue"
+
+    CoverageEligibilityBenefit:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/CodedValue"
+        allowed:
+          $ref: "#/components/schemas/CoverageEligibilityBenefitValue"
+        used:
+          $ref: "#/components/schemas/CoverageEligibilityBenefitValue"
+
+    CoverageEligibilityBenefitValue:
+      type: object
+      nullable: true
+      properties:
+        type:
+          type: string
+          enum: [Money, UnsignedInt, String]
+          example: "Money"
+        value:
+          oneOf:
+            - type: number
+            - type: integer
+            - type: string
+          example: 50000
+        currency:
+          type: string
+          nullable: true
+          example: "INR"
+
+    CoverageEligibilityError:
+      type: object
+      properties:
+        code:
+          type: object
+          properties:
+            code:
+              type: string
+            system:
+              type: string
+            display:
+              type: string
+        detail:
+          type: string
+          nullable: true
+
+    CodedValue:
+      type: object
+      properties:
+        code:
+          type: string
+          nullable: true
+        display:
+          type: string
+          nullable: true
+
+    PreauthDraft:
+      type: object
+      properties:
+        claim_id:
+          type: integer
+        source:
+          $ref: "#/components/schemas/PreauthSource"
+          description: Shared hospital DB record references used to build the draft.
+        patient:
+          $ref: "#/components/schemas/PreauthPatient"
+        payer_code:
+          type: string
+        policy_number:
+          type: string
+        admission_date:
+          type: string
+          format: date
+        discharge_date:
+          type: string
+          format: date
+          nullable: true
+        inpatient:
+          type: boolean
+        urgent:
+          type: boolean
+        diagnoses:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthDiagnosis"
+        procedures:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthProcedure"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthLineItem"
+        care_team:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthCareTeamMember"
+        supporting_documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthSupportingDocument"
+        total_amount:
+          type: number
+        eligibility:
+          $ref: "#/components/schemas/PreauthEligibility"
+          nullable: true
+        missing_fields:
+          type: array
+          items:
+            type: string
+
+    PreauthSubmitRequest:
+      allOf:
+        - $ref: "#/components/schemas/PreauthDraft"
+        - type: object
+          required: [claim_id, payer_code, policyNumber]
+          properties:
+            policyNumber:
+              type: string
+              description: Selected policy number. Snake case `policy_number` is also accepted.
+            eligibility_correlation_id:
+              type: string
+              nullable: true
+
+    PreauthSource:
+      type: object
+      properties:
+        parent_schema_available:
+          type: boolean
+          example: true
+        admission_id:
+          type: integer
+          nullable: true
+        appointment_id:
+          type: integer
+          nullable: true
+        child_id:
+          type: integer
+          nullable: true
+        ipd_invoice_id:
+          type: integer
+          nullable: true
+        clinical_note_id:
+          type: integer
+          nullable: true
+
+    PreauthPatient:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+        dob:
+          type: string
+          format: date
+          nullable: true
+        abha:
+          type: string
+          nullable: true
+        member_id:
+          type: string
+          nullable: true
+
+    PreauthDiagnosis:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        primary:
+          type: boolean
+        on_admission:
+          type: boolean
+
+    PreauthProcedure:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+          nullable: true
+
+    PreauthLineItem:
+      type: object
+      properties:
+        service_code:
+          type: string
+        service_name:
+          type: string
+        category:
+          type: string
+          nullable: true
+        service_start_date:
+          type: string
+          format: date
+          nullable: true
+        quantity:
+          type: number
+        unit_price:
+          type: number
+        net_amount:
+          type: number
+        care_team_sequence:
+          type: array
+          items:
+            type: integer
+        diagnosis_sequence:
+          type: array
+          items:
+            type: integer
+        procedure_sequence:
+          type: array
+          items:
+            type: integer
+
+    PreauthCareTeamMember:
+      type: object
+      properties:
+        doc_id:
+          oneOf:
+            - type: string
+            - type: integer
+          nullable: true
+        doc_name:
+          type: string
+          nullable: true
+        speciality:
+          type: string
+          nullable: true
+        speciality_display:
+          type: string
+          nullable: true
+
+    PreauthSupportingDocument:
+      type: object
+      properties:
+        category:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        event_date:
+          type: string
+          format: date
+          nullable: true
+        url:
+          type: string
+          nullable: true
+
+    PreauthEligibility:
+      type: object
+      nullable: true
+      properties:
+        correlation_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        outcome:
+          type: string
+          nullable: true
+        inforce:
+          type: boolean
+          nullable: true
+        auth_required:
+          type: boolean
+          nullable: true
+        insurance_items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityInsurance"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityError"
+
+    PreauthAcceptedResponse:
+      type: object
+      properties:
+        correlation_id:
+          type: string
+        preauth_ref:
+          type: string
+          nullable: true
+        policy_number:
+          type: string
+        status:
+          type: string
+          example: submitted
+        message:
+          type: string
+
+    PreauthStatusResponse:
+      type: object
+      properties:
+        correlation_id:
+          type: string
+        claim_id:
+          type: integer
+        workflow:
+          type: string
+          example: preauth
+        status:
+          type: string
+          enum: [pending, complete, not_found]
+        decision:
+          type: string
+          nullable: true
+        preauth_ref:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthAdjudicationItem"
+        totals:
+          $ref: "#/components/schemas/PreauthTotals"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthError"
+        process_notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthProcessNote"
+
+    PreauthAdjudicationItem:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          nullable: true
+        detail_sequence:
+          type: integer
+          nullable: true
+        adjudication:
+          $ref: "#/components/schemas/PreauthAdjudication"
+        notes:
+          type: array
+          items:
+            type: integer
+
+    PreauthAdjudication:
+      type: object
+      properties:
+        submitted:
+          $ref: "#/components/schemas/PreauthMoney"
+        eligible:
+          $ref: "#/components/schemas/PreauthMoney"
+        benefit:
+          $ref: "#/components/schemas/PreauthMoney"
+        copay:
+          $ref: "#/components/schemas/PreauthMoney"
+        deductible:
+          $ref: "#/components/schemas/PreauthMoney"
+
+    PreauthTotals:
+      type: object
+      properties:
+        submitted:
+          $ref: "#/components/schemas/PreauthMoney"
+        eligible:
+          $ref: "#/components/schemas/PreauthMoney"
+        benefit:
+          $ref: "#/components/schemas/PreauthMoney"
+        copay:
+          $ref: "#/components/schemas/PreauthMoney"
+
+    PreauthMoney:
+      type: object
+      nullable: true
+      properties:
+        value:
+          type: number
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+
+    PreauthError:
+      type: object
+      properties:
+        code:
+          type: string
+          nullable: true
+        display:
+          type: string
+          nullable: true
+        detail:
+          type: string
+          nullable: true
+
+    PreauthProcessNote:
+      type: object
+      properties:
+        number:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          nullable: true
+        text:
+          type: string
+          nullable: true
+        language:
+          type: string
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
