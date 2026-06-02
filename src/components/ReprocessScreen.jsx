@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, XCircle, RefreshCw, Send, ArrowRight, FileText } from 'lucide-react';
 import { api } from '../api';
-import { Card, Button, StatusBadge, PageHeader } from './Common';
+import { Card, Button, PageHeader } from './Common';
 
 const REASON_CODES = [
   { value: 'claimrejected', label: 'Claim Rejected' },
@@ -77,7 +77,7 @@ const ReprocessScreen = ({ patient, payer, policy, cashlessCase, preauthData, on
         <div className="context-field"><span className="ctx-label">Claim ID</span><span className="ctx-value">#{claimId}</span></div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'start' }}>
+      <div className="layout-sidebar-right">
         <div>
           {!result ? (
             <Card title="Appeal Details">

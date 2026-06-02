@@ -21,9 +21,11 @@ import {
   Sun,
   Moon,
   Bell,
+  Users,
 } from "lucide-react";
 import "./App.css";
 import Dashboard from "./components/Dashboard";
+import ChildRegistry from "./components/ChildRegistry";
 import PayerPolicySelection from "./components/PayerPolicySelection";
 import CashlessPreparation from "./components/CashlessPreparation";
 import PreauthReview from "./components/PreauthReview";
@@ -184,6 +186,7 @@ function App() {
       label: "Cashless Cases",
       match: (p) => p === "/" || p.startsWith("/claims"),
     },
+    { to: "/registry", icon: Users, label: "Child Registry" },
     { to: "/communications", icon: MessageSquare, label: "Communications" },
     { to: "/payments", icon: CreditCard, label: "Payments" },
   ];
@@ -193,6 +196,7 @@ function App() {
     if (parts.length === 0) return [{ label: "Cashless Cases" }];
     const map = {
       "work-queue": "Work Queue",
+      registry: "Child Registry",
       communications: "Communications",
       payments: "Payments",
       "new-cashless": "New Cashless",
@@ -396,6 +400,10 @@ function App() {
                     onNavigate={(path) => navigate(path)}
                   />
                 }
+              />
+              <Route
+                path="/registry"
+                element={<ChildRegistry startNewWorkflow={startNewWorkflow} />}
               />
 
               {/* New Cashless — starts patient search at root */}

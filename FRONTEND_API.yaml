@@ -26,6 +26,8 @@ tags:
     description: Frontend work queues derived from NHCX callbacks and workflow state.
   - name: Communications
     description: Payer communication review APIs exposed to the hospital UI.
+  - name: Facility Management
+    description: Admin APIs for onboarding and managing HCX facility participants and their RSA decryption keys.
 
 paths:
   /health:
@@ -998,6 +1000,158 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /cashless/preauth/enhancement/prepare:
+    get:
+      tags: [Preauthorization]
+      operationId: preparePreauthEnhancement
+      summary: Preview what changed since the approved preauth
+      description: >
+        Use this BEFORE `POST /cashless/preauth/enhancement`. The frontend does
+        not know what treatment scope was added after the original preauth was
+        approved — this endpoint computes the delta. The wrapper re-derives the
+        live clinical and billing record from DB (latest `ipd_clinical_notes`,
+        revised `ipd_invoices`, discharge date) and diffs it against the snapshot
+        of the last submitted/approved preauth for the same `claim_id`.
+        The response lists `new_procedures[]` and `new_items[]` (scope present now
+        but not in the original authorization), the `delta_amount`, and a
+        `suggested_request` body. The frontend shows these, lets the user pick
+        which new lines to include, and submits the selection to
+        `/cashless/preauth/enhancement`.
+        `enhanceable` is false (with a `reason`) when no prior preauth exists or
+        nothing new was found — the UI should disable the enhancement action then.
+      parameters:
+        - name: claim_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: admission_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: child_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: payer_code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: policy_number
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Enhancement preview (delta vs. authorized preauth)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreauthEnhancementPreview"
+              examples:
+                additional_scope:
+                  value:
+                    claim_id: 101
+                    payer_code: "1518@hcx"
+                    policy_number: "POL-91711234567890-2026"
+                    preauth_ref: "PA-2026-00001"
+                    enhanceable: true
+                    reason: null
+                    authorized:
+                      total_amount: 50000
+                      approved_amount: 40000
+                      procedures:
+                        - code: "47562"
+                          name: "Laparoscopic cholecystectomy"
+                      items:
+                        - service_code: "PKG-LAP-CHOLE"
+                          service_name: "Laparoscopic cholecystectomy package"
+                          quantity: 1
+                          unit_price: 50000
+                          net_amount: 50000
+                    current:
+                      total_amount: 75000
+                      procedures:
+                        - code: "47562"
+                          name: "Laparoscopic cholecystectomy"
+                        - code: "44970"
+                          name: "Laparoscopic appendectomy"
+                      items:
+                        - service_code: "PKG-LAP-CHOLE"
+                          service_name: "Laparoscopic cholecystectomy package"
+                          quantity: 1
+                          unit_price: 50000
+                          net_amount: 50000
+                        - service_code: "PKG-LAP-APPE"
+                          service_name: "Laparoscopic appendectomy package"
+                          quantity: 1
+                          unit_price: 25000
+                          net_amount: 25000
+                    new_procedures:
+                      - code: "44970"
+                        name: "Laparoscopic appendectomy"
+                        date: "2026-05-06"
+                        is_new: true
+                    new_items:
+                      - service_code: "PKG-LAP-APPE"
+                        service_name: "Laparoscopic appendectomy package"
+                        category: "SE"
+                        quantity: 1
+                        unit_price: 25000
+                        net_amount: 25000
+                        is_new: true
+                    delta_amount: 25000
+                    supporting_documents:
+                      - category: "revised_estimate"
+                        name: "Revised Estimate"
+                        code: "REVISED_ESTIMATE"
+                        event_date: "2026-05-06"
+                        url: null
+                    missing_fields: []
+                    suggested_request:
+                      claim_id: 101
+                      total_amount: 75000
+                      items:
+                        - service_code: "PKG-LAP-CHOLE"
+                          service_name: "Laparoscopic cholecystectomy package"
+                          quantity: 1
+                          unit_price: 50000
+                          net_amount: 50000
+                        - service_code: "PKG-LAP-APPE"
+                          service_name: "Laparoscopic appendectomy package"
+                          quantity: 1
+                          unit_price: 25000
+                          net_amount: 25000
+                nothing_new:
+                  value:
+                    claim_id: 101
+                    preauth_ref: "PA-2026-00001"
+                    enhanceable: false
+                    reason: "No new procedures or billing found since the approved preauth."
+                    authorized:
+                      total_amount: 50000
+                      approved_amount: 40000
+                      procedures: []
+                      items: []
+                    current:
+                      total_amount: 50000
+                      procedures: []
+                      items: []
+                    new_procedures: []
+                    new_items: []
+                    delta_amount: 0
+                    missing_fields: []
+        "404":
+          description: No approved/submitted preauth to enhance for this claim
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /cashless/preauth/enhancement:
     post:
       tags: [Preauthorization]
@@ -1330,6 +1484,68 @@ paths:
                         registration_no: "MCI-12345"
                         role: "primary"
                     missing_fields: []
+
+  /cashless/claims/{claim_id}/patient-context:
+    patch:
+      tags: [Claims]
+      operationId: setClaimPatientContext
+      summary: Supply patient/admission attributes the hospital DB cannot provide
+      description: >
+        NHCX requires a beneficiary identifier (ABHA number or PMJAY member id),
+        patient DOB, and admission/discharge dates. When these are not resolvable
+        from the hospital DB, `preauth/prepare` and `claims/prepare` list them in
+        `missing_fields` (e.g. `patient.identifier`, `patient.dob`, `admission_date`).
+        Use this endpoint to supply them. The values are persisted on the cashless
+        case and merged into every subsequent preauth/claim draft and submission —
+        no need to resend them on submit. Returns the refreshed `missing_fields`
+        so the UI can confirm the blockers are cleared before submitting.
+        Only the fields you pass are updated; omitted fields keep their stored value.
+      parameters:
+        - name: claim_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatientContextRequest"
+            examples:
+              member_id:
+                value:
+                  patient_context:
+                    member_id: "PMJAY-MEM-00123"
+              full:
+                value:
+                  patient_context:
+                    abha: "91-7112-3456-7890"
+                    member_id: "PMJAY-MEM-00123"
+                    dob: "2018-04-12"
+                    admission_date: "2026-05-04"
+      responses:
+        "200":
+          description: Patient context stored; refreshed draft validation returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatientContextResponse"
+              examples:
+                cleared:
+                  value:
+                    claim_id: 101
+                    status: "updated"
+                    patient_context:
+                      patient_member_id: "PMJAY-MEM-00123"
+                      patient_dob: "2018-04-12"
+                    missing_fields: []
+        "400":
+          description: No supported patient context attributes provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /cashless/claims/discharge:
     post:
@@ -1930,8 +2146,189 @@ paths:
               schema:
                 $ref: "#/components/schemas/GatewayStatusResponse"
 
+  /facilities:
+    get:
+      tags: [Facility Management]
+      operationId: listFacilities
+      summary: List registered HCX facilities
+      description: >
+        Returns all registered NHCX facility participants. Each record shows
+        whether a decryption key is stored (`private_key_set: true/false`) but
+        never exposes the PEM itself. Use before uploading a key to confirm
+        the `facility_code` for the target facility.
+      responses:
+        "200":
+          description: Facility list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacilityListResponse"
+              examples:
+                success:
+                  value:
+                    facilities:
+                      - facility_code: "HOSP-001"
+                        name: "City General Hospital"
+                        hcx_participant_code: "hosp001@hcx"
+                        active: true
+                        private_key_set: true
+                        environment: "production"
+                        registry_id: "HFR-12345"
+
+  /facilities/{facility_code}:
+    get:
+      tags: [Facility Management]
+      operationId: getFacility
+      summary: Get a single facility
+      parameters:
+        - name: facility_code
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "HOSP-001"
+      responses:
+        "200":
+          description: Facility record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Facility"
+        "404":
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /facilities/{facility_code}/private_key:
+    put:
+      tags: [Facility Management]
+      operationId: uploadFacilityPrivateKey
+      summary: Upload or replace the RSA private key for a facility
+      description: >
+        Stores the facility's RSA private key PEM in `nhcx_facilities.private_key_pem`.
+        This key is used to decrypt inbound NHCX callbacks addressed to this
+        facility's `hcx_participant_code`. The full PEM string including
+        `-----BEGIN RSA PRIVATE KEY-----` / `-----END RSA PRIVATE KEY-----`
+        (or PKCS#8 `-----BEGIN PRIVATE KEY-----`) must be provided.
+        Calling this endpoint replaces any previously stored key and immediately
+        invalidates the in-process key cache so the new key takes effect on the
+        next callback.
+        **Security note**: the key is stored as plaintext in the database.
+        Ensure DB access is restricted at the infrastructure level.
+      parameters:
+        - name: facility_code
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "HOSP-001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FacilityPrivateKeyRequest"
+            examples:
+              rsa_key:
+                value:
+                  private_key_pem: "-----BEGIN RSA PRIVATE KEY-----\nMIIEow...base64...\n-----END RSA PRIVATE KEY-----\n"
+              pkcs8_key:
+                value:
+                  private_key_pem: "-----BEGIN PRIVATE KEY-----\nMIIEvQ...base64...\n-----END PRIVATE KEY-----\n"
+      responses:
+        "200":
+          description: Key stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacilityPrivateKeyResponse"
+              examples:
+                success:
+                  value:
+                    facility_code: "HOSP-001"
+                    private_key_set: true
+        "404":
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Invalid or non-private PEM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                not_private:
+                  value:
+                    error:
+                      code: "WRAPPER-ERROR:4221"
+                      message: "PEM is not a private key"
+                malformed:
+                  value:
+                    error:
+                      code: "WRAPPER-ERROR:4222"
+                      message: "Invalid PEM: Neither PUB key nor PRIV key: nested asn1 error"
+
 components:
   schemas:
+    Facility:
+      type: object
+      properties:
+        facility_code:
+          type: string
+          description: Unique short code for this facility (e.g. HOSP-001).
+        name:
+          type: string
+        hcx_participant_code:
+          type: string
+          description: HCX participant address (e.g. hosp001@hcx). Used as sender_code in all NHCX requests.
+        active:
+          type: boolean
+        private_key_set:
+          type: boolean
+          description: True when a private key PEM is stored for this facility. The PEM itself is never returned.
+        environment:
+          type: string
+          nullable: true
+          example: production
+        registry_id:
+          type: string
+          nullable: true
+          description: HFR/NPI registry identifier.
+
+    FacilityListResponse:
+      type: object
+      properties:
+        facilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Facility"
+
+    FacilityPrivateKeyRequest:
+      type: object
+      required: [private_key_pem]
+      properties:
+        private_key_pem:
+          type: string
+          description: >
+            Full RSA private key in PEM format. Must include the
+            `-----BEGIN ... KEY-----` / `-----END ... KEY-----` header and footer.
+            Both traditional RSA (`BEGIN RSA PRIVATE KEY`) and PKCS#8
+            (`BEGIN PRIVATE KEY`) formats are accepted.
+          example: "-----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n-----END RSA PRIVATE KEY-----\n"
+
+    FacilityPrivateKeyResponse:
+      type: object
+      properties:
+        facility_code:
+          type: string
+        private_key_set:
+          type: boolean
+
     DashboardStats:
       type: object
       properties:
@@ -2998,6 +3395,153 @@ components:
           nullable: true
         missing_fields:
           type: array
+          items:
+            type: string
+
+    PreauthEnhancementPreview:
+      type: object
+      description: >
+        Delta between the last authorized preauth and the current hospital
+        record. Lets the frontend show the user exactly what new scope exists
+        before submitting a UC3 enhancement, then POST the selection to
+        `/cashless/preauth/enhancement`.
+      properties:
+        claim_id:
+          type: integer
+        payer_code:
+          type: string
+          nullable: true
+        policy_number:
+          type: string
+          nullable: true
+        preauth_ref:
+          type: string
+          nullable: true
+          description: Reference of the preauth being enhanced (from the prior approval).
+        enhanceable:
+          type: boolean
+          description: >
+            True when a prior successful preauth exists AND the current record
+            adds scope. When false, the UI disables the Submit Enhancement action.
+        reason:
+          type: string
+          nullable: true
+          description: Why enhancement is unavailable. Populated only when `enhanceable` is false.
+        authorized:
+          type: object
+          description: Snapshot of the last submitted/approved preauth for this claim.
+          properties:
+            total_amount:
+              type: number
+              nullable: true
+            approved_amount:
+              type: number
+              nullable: true
+            procedures:
+              type: array
+              items:
+                $ref: "#/components/schemas/PreauthProcedure"
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/PreauthLineItem"
+        current:
+          type: object
+          description: Live state re-derived from the hospital DB at request time.
+          properties:
+            total_amount:
+              type: number
+              nullable: true
+            procedures:
+              type: array
+              items:
+                $ref: "#/components/schemas/PreauthProcedure"
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/PreauthLineItem"
+        new_procedures:
+          type: array
+          description: "Procedures present in `current` but absent from `authorized`. Each carries `is_new: true`."
+          items:
+            $ref: "#/components/schemas/PreauthProcedure"
+        new_items:
+          type: array
+          description: "Invoice line items present in `current` but absent from `authorized`. Each carries `is_new: true`."
+          items:
+            $ref: "#/components/schemas/PreauthLineItem"
+        delta_amount:
+          type: number
+          nullable: true
+          description: "`current.total_amount` minus `authorized.total_amount`."
+        supporting_documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreauthSupportingDocument"
+        missing_fields:
+          type: array
+          items:
+            type: string
+        suggested_request:
+          type: object
+          description: >
+            Ready-to-submit `POST /cashless/preauth/enhancement` body seeded with
+            the full current scope (authorized + new). The frontend may prune
+            `items`/`procedures` the user chose not to include before submitting.
+          additionalProperties: true
+
+    PatientContextRequest:
+      type: object
+      description: >
+        Patient/admission attributes supplied by the frontend when they cannot be
+        resolved from the hospital DB. May be sent flat or nested under
+        `patient_context`. All fields optional; at least one must be present.
+      properties:
+        patient_context:
+          type: object
+          properties:
+            name:
+              type: string
+              nullable: true
+            gender:
+              type: string
+              nullable: true
+            dob:
+              type: string
+              format: date
+              nullable: true
+            abha:
+              type: string
+              nullable: true
+              description: ABHA number / health id used as the beneficiary identifier.
+            member_id:
+              type: string
+              nullable: true
+              description: PMJAY / payer member id used as the beneficiary identifier.
+            admission_date:
+              type: string
+              format: date
+              nullable: true
+            discharge_date:
+              type: string
+              format: date
+              nullable: true
+
+    PatientContextResponse:
+      type: object
+      properties:
+        claim_id:
+          type: integer
+        status:
+          type: string
+          example: updated
+        patient_context:
+          type: object
+          description: The merged stored overrides, keyed by the internal draft override names.
+          additionalProperties: true
+        missing_fields:
+          type: array
+          description: Refreshed preauth-draft validation after applying the context.
           items:
             type: string
 

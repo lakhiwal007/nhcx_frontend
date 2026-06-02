@@ -46,10 +46,10 @@ const CommunicationsScreen = () => {
     <div className="comms-screen">
       <PageHeader title="Payer Communications" subtitle="Review payer-initiated messages, TAT queries, and information requests." />
 
-      <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 440px' : '1fr', gap: '24px' }}>
+      <div className={`comms-layout ${selected ? 'has-selected' : ''}`}>
         {/* List */}
         <div>
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center' }}>
             <Button variant="outline" icon={Filter} style={{ fontSize: '13px' }}>Filter</Button>
             <Button variant="outline" icon={RefreshCw} onClick={fetchComms} style={{ fontSize: '13px' }}>Refresh</Button>
           </div>
@@ -65,7 +65,7 @@ const CommunicationsScreen = () => {
               </div>
             </Card>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {comms.map((comm) => (
                 <motion.div
                   key={comm.correlation_id}
@@ -87,7 +87,7 @@ const CommunicationsScreen = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '10px' }}>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '8px' }}>
                     <span className="text-muted" style={{ fontSize: '12px' }}>Payer: <strong style={{ color: 'var(--text-main)' }}>{comm.payer_code}</strong></span>
                     <span className="text-muted" style={{ fontSize: '12px' }}>Reason: <strong style={{ color: 'var(--text-main)' }}>{comm.reason_display}</strong></span>
                     {comm.claim_reference && (
@@ -97,7 +97,7 @@ const CommunicationsScreen = () => {
                   </div>
 
                   {comm.pending_tasks?.length > 0 && (
-                    <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+                    <div style={{ marginTop: '8px', display: 'flex', gap: '6px' }}>
                       <AlertCircle size={13} color="var(--warning)" />
                       <span style={{ fontSize: '12px', color: 'var(--warning)', fontWeight: 600 }}>
                         {comm.pending_tasks.length} pending task{comm.pending_tasks.length > 1 ? 's' : ''}
@@ -122,7 +122,7 @@ const CommunicationsScreen = () => {
                 {detailLoading ? (
                   <div className="flex-center flex-col py-8"><div className="spinner" /></div>
                 ) : detail && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div className="drawer-meta">
                       <div className="meta-row"><span className="meta-label">Payer</span><span>{detail.payer_code}</span></div>
                       <div className="meta-row"><span className="meta-label">Reason</span><span>{detail.reason_display}</span></div>
@@ -133,8 +133,8 @@ const CommunicationsScreen = () => {
 
                     {/* Payload content */}
                     {detail.payload?.map((item, i) => (
-                      <div key={i} style={{ background: 'var(--bg-main)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                      <div key={i} style={{ background: 'var(--bg-main)', borderRadius: '8px', padding: '12px', border: '1px solid var(--border-color)' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>
                           {item.content_type === 'text' ? 'Message' : item.content_type}
                         </div>
                         {item.content_type === 'text' ? (
@@ -149,8 +149,8 @@ const CommunicationsScreen = () => {
 
                     {/* Pending task link */}
                     {detail.pending_tasks?.length > 0 && (
-                      <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid var(--warning)', borderRadius: '10px', padding: '14px' }}>
-                        <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '6px', color: 'var(--warning)' }}>Pending Tasks</div>
+                      <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid var(--warning)', borderRadius: '8px', padding: '12px' }}>
+                        <div style={{ fontWeight: 700, fontSize: '12px', marginBottom: '6px', color: 'var(--warning)' }}>Pending Tasks</div>
                         {detail.pending_tasks.map(t => (
                           <div key={t.task_id} style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <AlertCircle size={13} color="var(--warning)" />

@@ -605,7 +605,7 @@ const mock = {
     await delay(800);
     return {
       correlation_id: "val-1234-5678",
-      status: "submitted"
+      status: "submitted",
     };
   },
 
@@ -613,7 +613,7 @@ const mock = {
     await delay(800);
     return {
       correlation_id: "ben-1234-5678",
-      status: "submitted"
+      status: "submitted",
     };
   },
 
@@ -626,7 +626,7 @@ const mock = {
       disposition: "Eligible",
       inforce: true,
       auth_required: true,
-      insurance_items: []
+      insurance_items: [],
     };
   },
 
@@ -1115,7 +1115,7 @@ const real = {
   getDashboardClaims: (params = {}) =>
     http.get("/cashless/dashboard/claims", params),
 
-  searchChildren: (params = {}) => http.get("/children/search", params),
+  searchChildren: (params = {}) => http.get("/cashless/child", params),
 
   searchPayers: (params = {}) => http.get("/payers/search", params),
 
@@ -1142,9 +1142,12 @@ const real = {
   cancelPreauth: (data) => http.post("/cashless/preauth/cancel", data),
 
   // ─── Specific Coverage Eligibility APIs ─────────────────────────────────────
-  validateCoverage: (data) => http.post("/cashless/coverage_eligibility/validation", data),
-  checkBenefits: (data) => http.post("/cashless/coverage_eligibility/benefits", data),
-  getCoverageEligibilityStatus: (correlation_id) => http.get(`/cashless/coverage_eligibility/status/${correlation_id}`),
+  validateCoverage: (data) =>
+    http.post("/cashless/coverage_eligibility/validation", data),
+  checkBenefits: (data) =>
+    http.post("/cashless/coverage_eligibility/benefits", data),
+  getCoverageEligibilityStatus: (correlation_id) =>
+    http.get(`/cashless/coverage_eligibility/status/${correlation_id}`),
 
   getPreauthStatus: (correlation_id) =>
     http.get(`/cashless/preauth/status/${correlation_id}`),

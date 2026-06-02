@@ -132,7 +132,7 @@ const StepDraft = ({ draft, onProceed }) => {
 
       {/* Summary row */}
       <Card title="Claim Summary">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '20px' }}>
+        <div className="grid-1-to-4" style={{ gap: '20px' }}>
           {[
             { label: 'Admission Date', value: draft?.admission_date || '—' },
             { label: 'Discharge Date', value: draft?.discharge_date || <span className="badge-modern badge-warning" style={{ fontSize: '11px' }}>Not yet</span> },
@@ -151,7 +151,7 @@ const StepDraft = ({ draft, onProceed }) => {
 
       {/* Diagnoses & Procedures */}
       <Card title="Clinical Details">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        <div className="grid-1-to-2" style={{ gap: '24px' }}>
           <div>
             <div className="pm-sub-title"><Stethoscope size={13} /> Diagnoses</div>
             {draft?.diagnoses?.map((d, i) => (
@@ -176,7 +176,7 @@ const StepDraft = ({ draft, onProceed }) => {
 
       {/* Bill Items */}
       <Card title="Bill Items">
-        <div className="table-container-modern">
+        <div className="table-responsive-wrapper mt-6">
           <table className="table-modern">
             <thead>
               <tr>
@@ -353,7 +353,7 @@ const StepFinal = ({ draft, dischargeCorrelationId, onSubmitted }) => {
 
       {/* Final summary */}
       <Card title="Final Bill Summary">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+        <div className="grid-1-to-3" style={{ gap: '20px', marginBottom: '20px' }}>
           {[
             { label: 'Total Billed', value: `₹${draft?.total_amount?.toLocaleString()}` },
             { label: 'Discharge Date', value: draft?.discharge_date || '—' },
@@ -366,7 +366,7 @@ const StepFinal = ({ draft, dischargeCorrelationId, onSubmitted }) => {
             </div>
           ))}
         </div>
-        <div className="table-container-modern">
+        <div className="table-responsive-wrapper">
           <table className="table-modern">
             <thead><tr><th>Service</th><th>Qty</th><th>Net Amount</th></tr></thead>
             <tbody>
@@ -480,7 +480,7 @@ const StepDecision = ({ correlationId, onDone, onNavigateReprocess }) => {
           {/* Adjudication totals */}
           {claimStatus.totals && (
             <Card title="Adjudication Summary">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
+              <div className="grid-1-to-4" style={{ gap: '16px' }}>
                 {Object.entries(claimStatus.totals).map(([k, v]) => (
                   <div key={k} style={{ background: 'var(--bg-main)', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>{k}</div>

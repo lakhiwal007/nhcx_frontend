@@ -36,7 +36,7 @@ const PaymentEventCard = ({ event, expanded, onToggle }) => {
 
       {expanded && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="pec-body">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginTop: '16px' }}>
+          <div className="grid-1-to-3 mt-4" style={{ gap: '16px' }}>
             {[
               { label: 'Notice Amount', value: `₹${event.notice_amount?.toLocaleString()}` },
               { label: 'Gross Amount', value: `₹${event.gross_amount?.toLocaleString()}` },
@@ -129,7 +129,7 @@ const PaymentScreen = ({ patient, payer, policy, cashlessCase, onBack, onDone })
       {/* Summary */}
       {paymentData && paymentData.status !== 'not_found' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
+          <div className="grid-1-to-3" style={{ gap: '16px' }}>
             {[
               { label: 'Latest Stage', value: <StatusBadge status={paymentData.latest_stage} /> },
               { label: 'Settled', value: paymentData.settled ? <span className="badge-modern badge-success"><CheckCircle2 size={12} />Yes</span> : <span className="badge-modern badge-warning"><Clock size={12} />No</span> },
@@ -177,7 +177,7 @@ const PaymentScreen = ({ patient, payer, policy, cashlessCase, onBack, onDone })
                   </button>
 
                   {showOverride && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                    <div className="grid-1-to-3" style={{ gap: '12px', marginBottom: '16px' }}>
                       {[
                         { key: 'claim_number', label: 'Claim Number', placeholder: 'CLM-101' },
                         { key: 'amount_received', label: 'Amount Received', placeholder: '40000' },

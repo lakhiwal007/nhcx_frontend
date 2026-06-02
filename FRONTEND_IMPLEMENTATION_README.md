@@ -13,8 +13,9 @@ Primary areas:
 | Area | User Intent | Main APIs |
 |---|---|---|
 | Dashboard | Know what needs attention today | `GET /cashless/dashboard/stats`, `GET /cashless/dashboard/claims`, `GET /cashless/tasks` |
+| Patient Profile | See everything about one patient before acting | `GET /cashless/child`, `GET /cashless/dashboard/claims?child_id=`, `GET /cashless/tasks?child_id=` |
 | Cashless Wizard | Start a cashless workflow for one patient | `GET /cashless/child`, `GET /cashless/payers/search`, `POST /cashless/policies/fetch`, `POST /cashless/prepare` |
-| Preauth | Review generated draft, submit, respond, resubmit, cancel | `GET /cashless/preauth/prepare`, `POST /cashless/preauth/*`, `GET /cashless/preauth/status/{correlation_id}` |
+| Preauth | Review generated draft, submit, respond, resubmit, enhance, cancel | `GET /cashless/preauth/prepare`, `GET /cashless/preauth/enhancement/prepare`, `POST /cashless/preauth/*`, `GET /cashless/preauth/status/{correlation_id}` |
 | Claims | Submit discharge/final claim and manage payer decisions | `GET /cashless/claims/prepare`, `POST /cashless/claims/*`, `GET /cashless/claims/status/{correlation_id}` |
 | Reprocess | Appeal partial approvals or rejections | `POST /cashless/reprocess/submit`, `GET /cashless/reprocess/status/{correlation_id}` |
 | Payment | Reconcile payment notices and retry failed acknowledgement | `GET /cashless/payment/status`, `POST /cashless/payment/acknowledge` |
@@ -57,6 +58,7 @@ Use a left navigation shell with these sections:
 |---|---|
 | Work Queue | Pending tasks grouped by urgency |
 | Cashless Cases | Dashboard claims list with filters |
+| Patients | Patient search → Patient Profile (Child 360) |
 | New Cashless | Patient search and payer/policy wizard |
 | Communications | Payer messages and notices |
 | Payments | Payment reconciliation search |
@@ -137,6 +139,388 @@ Resume behavior must be deterministic:
 | Only `child_id` exists | Patient And Visit |
 
 On route load, read the latest server state before rendering the main content. Show a compact skeleton in the content area while the sticky header uses the best locally cached identifiers.
+
+## How The Frontend Knows What To Do
+
+The frontend never hardcodes "what happens next." NHCX is asynchronous and payer-driven, so the *backend* decides the next action and the frontend only renders and dispatches it. Three server-provided signals drive every routing decision:
+
+### 1. Self-describing tasks (the primary mechanism)
+
+Every task from `GET /cashless/tasks` and `GET /cashless/tasks/{task_id}` carries an `action` object:
+
+```json
+{
+  "task_type": "respond_preauth_query",
+  "title": "Respond to preauthorization query",
+  "action": {
+    "label": "Respond to query",
+    "method": "POST",
+    "endpoint": "/api/v1/insurance/cashless/preauth/query-response",
+    "payload_hint": { "claim_id": 101 }
+  },
+  "required_documents": [ ... ]
+}
+```
+
+The frontend does **not** need to understand preauth/claim/payment semantics to act. It:
+
+1. Renders the primary button from `action.label`.
+2. On click, calls `action.method action.endpoint`.
+3. Seeds the request body from `action.payload_hint`, then merges any user edits (documents, questionnaire answers, corrected line items).
+4. After a 202, `PATCH /cashless/tasks/{task_id}` to mark it completed.
+
+Because the backend generates these tasks from payer callbacks (see `Nhcx::FrontendTaskService`), a new workflow or decision type does not require a frontend change — a new task with a new `action` simply appears in the queue.
+
+### 2. Task type → destination map
+
+`action` tells the frontend *what API* to call. The `task_type` tells it *which screen or drawer* to open so the user gets the right context and form:
+
+| `task_type` | Opens | Form / drawer |
+|---|---|---|
+| `review_insurance_plan_documents` | Eligibility Preparation | Document checklist |
+| `attach_eligibility_documents` | Eligibility Preparation | Document checklist |
+| `fix_eligibility_error` | Eligibility Preparation | Error callout + retry |
+| `submit_preauth` | Preauth Draft | Full draft form |
+| `respond_preauth_query` | Preauth Status | Query response drawer |
+| `resubmit_preauth` | Preauth Status | Resubmit drawer (editable lines) |
+| `submit_discharge_claim` | Claims → Discharge tab | Claim draft |
+| `submit_final_claim` | Claims → Final tab | Claim draft |
+| `respond_claim_query` | Claim Decision | Query response drawer |
+| `resubmit_claim` | Claim Decision | Resubmit drawer |
+| `submit_reprocess` | Reprocess And Appeal | Appeal form |
+| `acknowledge_payment` | Payment Reconciliation | Auto/retry ack |
+| `review_payment_ack_failure` | Payment Reconciliation | Retry ack with error |
+| `review_communication` | Communications detail | Read + acknowledge |
+
+The `workflow` field (`insurance_plan`, `coverage_eligibility`, `preauth`, `claim`, `reprocess`, `payment`, `communication`) is the coarse grouping used for the Work Queue filter and badges.
+
+### 3. Case state → resume destination
+
+When the user opens a case directly (not via a task), the frontend has no `action` to follow. It uses the deterministic **Case Timeline And Resume Rules** table above plus the cashless case's `next_actions[]` (e.g. `["prepare_preauth"]`) to pick the destination. Tasks take precedence: if a pending task exists for the case, route to the Work Queue drawer for that task first.
+
+### When the frontend doesn't have the data to act: prepare/preview endpoints
+
+Some actions need data the frontend cannot know on its own — most notably **preauth enhancement** ("the patient had an extra procedure; what exactly is new?"). For these, the action is a two-step: a `GET` **prepare/preview** call that returns server-computed detail, then a `POST` that submits the user's selection.
+
+| Action | Preview (GET) | Submit (POST) |
+|---|---|---|
+| Preauth submit | `/cashless/preauth/prepare` | `/cashless/preauth/submit` |
+| Preauth enhancement | `/cashless/preauth/enhancement/prepare` | `/cashless/preauth/enhancement` |
+| Discharge / final claim | `/cashless/claims/prepare` | `/cashless/claims/discharge` · `/claims/submit` |
+
+The preview is always read-only and re-derives live hospital data; the frontend shows it, lets the user confirm/trim, and only then POSTs. See **Screen: Preauth Enhancement Review** for the canonical example.
+
+### When required attributes are missing: `missing_fields` and patient context
+
+Both `preauth/prepare` and `claims/prepare` return `missing_fields[]` — the attributes NHCX requires that could not be resolved from the hospital DB. Treat any non-empty list as a hard submit blocker and resolve it before enabling Submit.
+
+| `missing_fields` value | Meaning | How to resolve |
+|---|---|---|
+| `patient.name` / `patient.gender` / `patient.dob` | Patient demographics incomplete | Patient context API |
+| `patient.identifier` | No ABHA number **or** PMJAY member id — NHCX has no beneficiary identifier | Patient context API (supply `abha` or `member_id`) |
+| `admission_date` | Inpatient claim with no admission date | Patient context API or fix admission record |
+| `policy_number` | No policy on the claim | Re-run payer/policy selection |
+| `diagnoses` / `items` | No clinical/billing data | Clinical/billing must be completed in the HIS |
+| `preauth_ref` (claims only) | No approved preauth on the claim | Submit/await preauth first |
+
+`patient.identifier`, `patient.dob`, and the date fields often can't come from the hospital DB (e.g. ABHA not captured, payer-specific member id). Supply them with the patient context API:
+
+```http
+PATCH /api/v1/insurance/cashless/claims/{claim_id}/patient-context
+Content-Type: application/json
+
+{ "patient_context": { "member_id": "PMJAY-MEM-00123", "abha": "91-7112-3456-7890", "dob": "2018-04-12" } }
+```
+
+The values are persisted on the cashless case and merged into **every** later preauth/claim draft and submission — they do not need to be resent on submit. The response echoes the refreshed `missing_fields` so the UI can confirm the blockers are cleared. Render the missing-field rows inline (per the design guidance: never hide blockers) with the relevant input inline on the row.
+
+## End-to-End Workflow Timeline (what to do, and when)
+
+The screens above are reference material. This section is the **playbook**: it sequences the whole journey in time — which call to make at which moment, what is instant versus what you wait for, and what the user does while waiting.
+
+### First principle: synchronous prep vs asynchronous gateway workflows
+
+Every wrapper endpoint is one of three kinds. Knowing which is which is the key to timing the UI correctly.
+
+| Kind | Behaviour | Endpoints | Frontend timing |
+|---|---|---|---|
+| **Synchronous** | Returns the real data in the same response | `child`, `payers/search`, `policies/fetch`, `*/prepare`, `enhancement/prepare`, `dashboard/*`, `tasks`, `communications`, `payment/status` (search), `claims/{id}/patient-context` | Call on demand, render immediately |
+| **Asynchronous (submit → poll)** | Returns `202 {correlation_id, status: "submitted"}`; the real result arrives later via a payer callback | `prepare`, `preauth/submit` (+resubmit/query-response/enhancement/cancel), `claims/discharge`/`submit` (+resubmit/query-response), `reprocess/submit`, `coverage_eligibility/*`, `insurance_plan/request`, `status/request` | Store the `correlation_id`, then **poll the matching status endpoint** until terminal |
+| **Backend-automatic** | No frontend trigger at all — the backend reacts to an inbound payer callback | payment-notice auto-acknowledge, communication auto-acknowledge, task creation | Frontend only *observes* the result via `tasks` / status / `payment/status` |
+
+> The golden rule: a `202` never means "done." It means "accepted by NHCX." The decision comes from the payer later, on their clock. The frontend's job between submit and decision is to poll and to surface the task the backend creates when the callback lands.
+
+### The clinical timeline: real-world moment → action
+
+Map workflow actions to where the patient actually is. This is the most literal answer to "what at what time."
+
+| When (clinically) | Trigger | Do this | API | Wait? |
+|---|---|---|---|---|
+| **Pre-admission / planning** | Patient presents with a planned procedure | Find patient → confirm visit | `GET /cashless/child` | No |
+| Pre-admission | Patient selected | Search payer, fetch policies | `GET /payers/search`, `POST /policies/fetch` | No |
+| Pre-admission | Policy selected | Start cashless prep (fires InsurancePlan + CoverageEligibility) | `POST /cashless/prepare` → poll `GET /cashless/{id}` | **Yes** — until `complete` |
+| Pre-admission | Eligibility `complete`, `auth_required: true` | Build & review preauth draft, resolve `missing_fields` | `GET /preauth/prepare`, `PATCH …/patient-context` | No |
+| **At/just before admission** | Draft clean, docs attached | Submit preauth | `POST /preauth/submit` | **Yes** — poll `GET /preauth/status/{cid}` |
+| At admission | Preauth `APPROVED` | Admit patient on cashless; nothing to send yet | — | — |
+| **During the stay** | Extra procedure / longer stay authorised clinically | Preview delta, submit enhancement | `GET /preauth/enhancement/prepare` → `POST /preauth/enhancement` | **Yes** — poll preauth status |
+| During the stay | Payer raises a query (task appears) | Answer query / attach docs | `POST /preauth/query-response` | **Yes** — poll |
+| **At discharge** | Patient discharged, discharge date set | Submit discharge claim with `preauth_ref` | `GET /claims/prepare` → `POST /claims/discharge` | **Yes** — poll `GET /claims/status/{cid}` |
+| **Post-discharge / final billing** | Final invoice ready | Submit final claim | `POST /claims/submit` | **Yes** — poll claim status |
+| Post-discharge | Claim `PARTIALLY_APPROVED` / `REJECTED` and disputed | Reprocess / appeal | `POST /reprocess/submit` | **Yes** — poll reprocess status |
+| **Settlement** | Payer sends payment notice (backend auto-acks) | Reconcile; retry ack only if failed | `GET /payment/status` (+ `POST /payment/acknowledge` on failure) | No (observe) |
+| **Any time, in parallel** | Payer sends a communication (backend auto-acks) | Review & complete the task | `GET /communications`, `GET /communication/status/{cid}` | No (observe) |
+
+### Master phase sequence
+
+```mermaid
+flowchart LR
+    P0["Discovery<br/>child → payer → policy"] --> P1["Eligibility prep<br/>prepare + poll"]
+    P1 --> P2["Preauth<br/>prepare → submit → poll"]
+    P2 --> P3{Decision}
+    P3 -- approved --> P4["During stay<br/>enhancement optional"]
+    P3 -- queried --> P2
+    P3 -- rejected --> P2
+    P4 --> P5["Discharge claim<br/>submit → poll"]
+    P5 --> P6["Final claim<br/>submit → poll"]
+    P6 --> P7{Claim decision}
+    P7 -- approved/partial --> P8["Payment<br/>observe + reconcile"]
+    P7 -- rejected/partial --> P9["Reprocess<br/>submit → poll"]
+    P9 --> P7
+```
+
+### Preauth lifecycle in detail
+
+Sequence and timing for the single most important workflow:
+
+```mermaid
+sequenceDiagram
+    actor U as Billing user
+    participant FE as Frontend
+    participant WR as Wrapper API
+    participant NHCX as NHCX gateway
+    participant PY as Payer
+    U->>FE: Open case (eligibility complete)
+    FE->>WR: GET /preauth/prepare?claim_id
+    WR-->>FE: draft + missing_fields (sync, ~1s)
+    U->>FE: Review, edit lines, attach docs
+    opt missing_fields not empty
+        FE->>WR: PATCH /claims/{id}/patient-context
+        WR-->>FE: refreshed missing_fields
+    end
+    U->>FE: Submit
+    FE->>WR: POST /preauth/submit
+    WR->>NHCX: encrypted FHIR Claim (wf=12)
+    WR-->>FE: 202 {correlation_id, submitted}
+    Note over FE,PY: Async wait — minutes to 24–48h (payer TAT)
+    PY-->>NHCX: on_submit callback (decision)
+    NHCX-->>WR: encrypted ClaimResponse
+    WR->>WR: persist decision + create frontend task
+    loop poll every 5–10s while screen open
+        FE->>WR: GET /preauth/status/{correlation_id}
+        WR-->>FE: pending … then complete + decision
+    end
+    FE->>U: Decision banner + next actions
+```
+
+Step-by-step with timing and the *exact* moment to advance:
+
+| # | Moment | Action | Endpoint | Advance when |
+|---|---|---|---|---|
+| 1 | Eligibility `complete` & `auth_required` | Build draft | `GET /preauth/prepare` | Response returns (instant) |
+| 2 | Draft shows `missing_fields` | Supply missing attrs | `PATCH /claims/{id}/patient-context` | `missing_fields` empty |
+| 3 | Draft clean, required docs attached | Submit | `POST /preauth/submit` | `202` received → store `preauth_correlation_id` |
+| 4 | Right after submit | Begin polling | `GET /preauth/status/{cid}` | `status` becomes `complete` (or a task appears) |
+| 5 | Decision = `APPROVED` | Stop polling | — | Proceed to admission / claim |
+| 5q | Decision = `QUERIED` | Open the auto-created `respond_preauth_query` task | `POST /preauth/query-response` | Back to step 4 (new correlation) |
+| 5r | Decision = `REJECTED` | Resubmit with corrections, or appeal | `POST /preauth/resubmit` or `/reprocess/submit` | Back to step 4 |
+| 5e | Scope grew after approval | Enhancement | `GET /preauth/enhancement/prepare` → `POST /preauth/enhancement` | Back to step 4 |
+
+### Claim lifecycle in detail
+
+```mermaid
+sequenceDiagram
+    actor U as Billing user
+    participant FE as Frontend
+    participant WR as Wrapper API
+    participant NHCX as NHCX gateway
+    participant PY as Payer
+    Note over U: Patient discharged, preauth APPROVED
+    FE->>WR: GET /claims/prepare?claim_id
+    WR-->>FE: draft + preauth_ref + missing_fields (sync)
+    U->>FE: Confirm discharge date & final bill
+    U->>FE: Submit discharge claim
+    FE->>WR: POST /claims/discharge
+    WR-->>FE: 202 {correlation_id}
+    Note over FE,PY: Async wait for adjudication
+    PY-->>NHCX: on_submit callback (decision)
+    NHCX-->>WR: encrypted ClaimResponse
+    loop poll every 5–10s
+        FE->>WR: GET /claims/status/{correlation_id}
+        WR-->>FE: pending … then complete + decision
+    end
+    FE->>U: Decision → payment or reprocess
+    Note over PY,WR: Later: payer sends payment notice
+    PY-->>NHCX: paymentnotice
+    NHCX-->>WR: encrypted notice → auto-acknowledge
+    FE->>WR: GET /payment/status?claim_id (observe)
+    WR-->>FE: settlement + UTR
+```
+
+Sequencing rules that matter:
+
+- **Discharge claim before final claim.** Send the discharge claim (`wf=14`) once the patient is discharged and `preauth_ref` exists; send the final claim (`wf=15/16`) only after final billing is ready. Do not surface both as equally primary — pick one from case state (see Screen 6).
+- **`preauth_ref` is a hard gate.** `claims/prepare` will list `preauth_ref` in `missing_fields` until an approved preauth exists; keep submit disabled until then.
+- **Payment is observed, not driven.** After an approved claim, the payer initiates the payment notice on their schedule (often hours to days). The backend auto-acknowledges; the frontend only polls `payment/status` and shows a retry **only** when `acknowledgement_status: failed`.
+
+### Work Queue lifecycle (the async inbox)
+
+The Work Queue is not a passive list — it is the mechanism that converts every asynchronous payer callback into a concrete, actionable item. Whenever a callback resolves, the backend (`Nhcx::FrontendTaskService`) creates or updates a `NhcxFrontendTask` with a ready-to-run `action`. The frontend never invents tasks; it renders and works them.
+
+**When tasks are born (callback → task):**
+
+| Callback that resolved | Task(s) created | Priority |
+|---|---|---|
+| Eligibility complete, errors / coverage inactive | `fix_eligibility_error` | high |
+| Eligibility requires documents | `attach_eligibility_documents` | normal |
+| Eligibility `auth_required: true` | `submit_preauth` | normal |
+| InsurancePlan returned document requirements | `review_insurance_plan_documents` | normal |
+| Preauth `APPROVED` | `submit_discharge_claim`, `submit_final_claim` | normal |
+| Preauth `QUERIED` | `respond_preauth_query` | high |
+| Preauth `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_preauth`, `submit_reprocess` | high / normal |
+| Claim `QUERIED` | `respond_claim_query` | high |
+| Claim `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_claim`, `submit_reprocess` | high |
+| Payment notice received | `acknowledge_payment` | normal |
+| Payment ack failed | `review_payment_ack_failure` | high |
+| Communication received | `review_communication` | urgent if payer flagged, else normal |
+
+**The task state machine — and the part teams miss:** a task leaves `pending` in *two* ways.
+
+```mermaid
+flowchart LR
+    C["Payer callback resolves"] --> T["Task: pending"]
+    T -->|"user actions it<br/>PATCH /tasks/{id}"| D["completed (manual)"]
+    T -->|"next decision arrives<br/>backend supersedes"| A["completed (auto)"]
+```
+
+The backend auto-completes superseded tasks: submitting a preauth clears the `submit_preauth` / `attach_eligibility_documents` tasks; a new preauth decision clears the prior `respond_preauth_query` / `resubmit_preauth` tasks; a successful payment ack clears `acknowledge_payment` / `review_payment_ack_failure`. **Implication:** never assume a task you fetched is still pending — re-read before showing the action, and reconcile your local list on every poll. A task that vanished is not an error; it was resolved.
+
+**What to do, and when, on the Work Queue:**
+
+| Moment | Action | Endpoint | Cadence |
+|---|---|---|---|
+| Landing screen after login | Load pending tasks, sorted by priority then age | `GET /cashless/tasks?status=pending` | Once, then poll |
+| Screen stays open | Refresh the queue so callbacks arriving elsewhere appear | `GET /cashless/tasks?status=pending` | Every 30–60s |
+| User opens a task | Load full detail (`action`, `required_documents`, `metadata`) | `GET /cashless/tasks/{task_id}` | On open |
+| User runs the action | Execute `action.method action.endpoint` seeded with `action.payload_hint` | per task | On submit |
+| Action returned `202` | Mark the task done with the new correlation id | `PATCH /cashless/tasks/{task_id}` | Immediately after |
+| Auditing | Show completed tasks read-only | `GET /cashless/tasks?status=completed` | On demand |
+
+> Ordering: pending first, sorted by `priority` (urgent → high → normal → low) then age descending. Apply the age badges from Screen 1 (`Waiting 2h+`, `Overdue`). Completed tasks stay searchable but must not compete visually with pending work.
+
+#### How `/tasks/{task_id}` works
+
+`task_id` is the integer primary key of the task row. The path carries two verbs:
+
+```
+GET   /api/v1/insurance/cashless/tasks/{task_id}            Read one task
+PATCH /api/v1/insurance/cashless/tasks/{task_id}            Mark it completed
+PATCH /api/v1/insurance/cashless/tasks/{task_id}/complete   Alias of the above
+```
+
+The bare `PATCH` and the `/complete` form are aliases — both mark the task completed. Use the bare form.
+
+**GET** returns the task `summary`: `id`, `claim_id`, `cashless_case_id`, `child_id`, `correlation_id`, `workflow`, `task_type`, `status`, `title`, `description`, `priority`, `required_documents[]`, `action` (`{label, method, endpoint, payload_hint}`), `metadata`, `created_at`, `completed_at`. A missing id returns `{"status":"not_found","task_id":…}` with **HTTP 404**.
+
+**PATCH** marks the task completed and returns the updated `summary`. Body is optional:
+
+```json
+{ "note": "Response submitted from frontend",
+  "metadata": { "submitted_correlation_id": "5c2a6db0-..." } }
+```
+
+The `note`/`metadata` are stored under `metadata.completion` for audit — the original callback metadata is never overwritten. Two behaviours to rely on:
+
+- **Idempotent.** Completing an already-completed task is a no-op: it returns the task unchanged (still `200`), not an error. Safe to retry.
+- **404, not an error envelope.** An unknown `task_id` returns the `not_found` body above with HTTP 404 (no `error.code`).
+
+**The key point: `PATCH` is bookkeeping, not the workflow action.** It does *not* call NHCX. Completing a task is always two steps:
+
+1. Run the real work — the task's own `action` (e.g. `POST /preauth/query-response`), which returns `202 {correlation_id}`.
+2. *Then* `PATCH /tasks/{task_id}` to clear it from the queue, passing that `correlation_id` in `metadata`.
+
+And the task can also leave `pending` without you: the backend **auto-completes** superseded tasks when the next decision lands (see the state machine above). So treat a task that has disappeared from the pending list as resolved, not lost — reconcile against the server on every poll rather than trusting local state.
+
+### Communications lifecycle (payer-initiated, inbound)
+
+Communications are the one workflow that is **entirely inbound** — the payer starts it, and the hospital only reads and reviews. There is no "submit" step and nothing to poll for a decision; the timing is driven by the payer, and the frontend observes through the Work Queue.
+
+```mermaid
+sequenceDiagram
+    participant PY as Payer
+    participant NHCX as NHCX gateway
+    participant WR as Wrapper API
+    participant FE as Frontend
+    actor U as Billing user
+    PY->>NHCX: Communication (UC7)
+    NHCX->>WR: /communication/request (encrypted)
+    WR-->>NHCX: 202 immediately
+    WR->>WR: decrypt, persist NhcxCommunication
+    WR->>WR: auto-send acknowledgement to payer
+    WR->>WR: create review_communication task
+    Note over WR,FE: No live push — surfaced via the Work Queue poll
+    loop Work Queue refresh (30–60s)
+        FE->>WR: GET /cashless/tasks?status=pending
+        WR-->>FE: includes review_communication
+    end
+    U->>FE: Open communication
+    FE->>WR: GET /communication/status/{correlation_id}
+    WR-->>FE: reason_code, payload[], acknowledged
+    U->>FE: Read & act per reason_code
+    FE->>WR: PATCH /cashless/tasks/{task_id}
+    WR-->>FE: completed
+```
+
+Step-by-step with timing:
+
+| # | Moment | What happens / do | Endpoint | Notes |
+|---|---|---|---|---|
+| 1 | Payer sends a message | Backend receives, **auto-acknowledges**, creates `review_communication` task | — (automatic) | Frontend does nothing here |
+| 2 | Within one poll cycle | Task appears in Work Queue (and on the patient's Communications list) | `GET /cashless/tasks` / `GET /cashless/communications` | `acknowledged: true` already |
+| 3 | User opens it | Load full detail and render `payload[]` inline | `GET /cashless/communication/status/{correlation_id}` | Free text, attachment URL, or reference |
+| 4 | User reads | Route by `reason_code` (see table below) | — | Deep-link to the affected claim via `claim_reference` |
+| 5 | User has handled it | Mark the task complete | `PATCH /cashless/tasks/{task_id}` | This is what clears it from the queue |
+
+Acting by `reason_code` — *when* each demands attention:
+
+| `reason_code` | Urgency / timing | Do |
+|---|---|---|
+| `tatquery` | Time-sensitive — payer is disputing turnaround | Open the referenced claim, check its current decision, respond fast |
+| `additionalinfo` | Blocks the related claim until answered | Treat like a query: attach the requested docs to that claim's flow |
+| `grievance` | Needs a human owner | Surface prominently; usually resolved outside NHCX, then complete the task |
+| `policychange` | Before the next workflow action on that patient | Re-fetch policies so subsequent submits use current terms |
+| `walletupdate` | Informational | Refresh the case's eligibility/benefit view; low priority |
+
+> Because communications carry no `claim_id`, the `GET /cashless/tasks?child_id=` filter will not return their tasks. Fetch them via `GET /cashless/communications?child_id=` (or the unfiltered Work Queue) and surface their `pending_tasks[]` separately on the Patient Profile.
+
+### How the frontend learns an async result (two channels, use both)
+
+1. **Polling** the status endpoint of the `correlation_id` you submitted — drives the screen the user is currently on. Stop at terminal states (see Polling Rules).
+2. **Tasks** — when a callback lands, the backend creates a `NhcxFrontendTask`. Even if the user navigated away, the result resurfaces in the Work Queue with a ready-to-run `action`. Poll `GET /cashless/tasks?status=pending` on the Work Queue (e.g. every 30–60s) so decisions that arrive while the user is elsewhere are not missed.
+
+If a workflow is stuck `pending` well past the expected TAT, use `POST /cashless/status/request` (UC5 gateway probe) as a recovery action — not as routine polling.
+
+### Timing & SLA cheat sheet
+
+| Step | Kind | Typical time | Frontend behaviour |
+|---|---|---|---|
+| child / payer / policy | sync | < 2s | Render immediately |
+| cashless prepare → eligibility | async | seconds–minutes | Poll `cashless/{id}` 5–10s; show partial as it fills |
+| preauth decision | async | minutes–24/48h (payer TAT) | Poll while open; rely on task if user leaves; soft "you can leave" notice after 2 min |
+| enhancement / query-response / resubmit | async | minutes–hours | Same as preauth |
+| discharge / final claim decision | async | minutes–days | Poll while open; rely on task |
+| reprocess decision | async | hours–days | Poll while open; rely on task |
+| payment notice + settlement | backend-auto | hours–days after claim approval | Observe via `payment/status`; retry ack only on failure |
+| communication | backend-auto | any time | Observe via `communications`; complete `review_communication` task |
 
 ## Screen 1: Work Queue
 
@@ -499,8 +883,8 @@ Decision behavior:
 
 | Decision | Primary UI | Actions |
 |---|---|---|
-| `APPROVED` | Green approval banner with `preauth_ref` | Prepare Claim, Cancel Preauth |
-| `PARTIALLY_APPROVED` | Amber banner and amount comparison | Prepare Claim, Reprocess/Appeal, Cancel Preauth |
+| `APPROVED` | Green approval banner with `preauth_ref` | Prepare Claim, Request Enhancement, Cancel Preauth |
+| `PARTIALLY_APPROVED` | Amber banner and amount comparison | Prepare Claim, Request Enhancement, Reprocess/Appeal, Cancel Preauth |
 | `QUERIED` | Blue query banner with payer notes | Respond to Query, Resubmit Preauth, Cancel Preauth |
 | `REJECTED` | Red rejection banner with reasons | Resubmit Preauth, Reprocess/Appeal |
 | `UNKNOWN` or null | Neutral state | Refresh, Request Gateway Status |
@@ -538,6 +922,80 @@ Cancel request:
   "description": "Patient requested cancellation"
 }
 ```
+
+## Screen 5b: Preauth Enhancement Review
+
+Purpose: when the patient's treatment scope grows *after* the preauth was approved — an extra procedure, an upgraded surgery, a longer stay — the hospital must ask the payer for more authorization. The frontend has no way to know what changed on its own, so it asks the backend first and lets the user confirm before sending.
+
+This screen is **user-initiated**, not payer-triggered: it is reached from the `APPROVED` / `PARTIALLY_APPROVED` Preauth Status screen via a "Request Enhancement" action, not from a Work Queue task.
+
+### Step 1 — Fetch the delta (read-only)
+
+```http
+GET /api/v1/insurance/cashless/preauth/enhancement/prepare?claim_id=101
+```
+
+The backend re-derives the live clinical and billing record from the hospital DB (latest `ipd_clinical_notes`, revised `ipd_invoices`, discharge date) and diffs it against the snapshot of the last submitted/approved preauth. It returns:
+
+| Field | Meaning |
+|---|---|
+| `enhanceable` | `true` only when a prior preauth exists AND new scope was found. Gate the submit button on this. |
+| `reason` | Why enhancement is unavailable (shown when `enhanceable` is false). |
+| `preauth_ref` | The reference being enhanced. |
+| `authorized` | Snapshot of the original preauth — `total_amount`, `approved_amount`, `procedures[]`, `items[]`. |
+| `current` | Live re-derived state — `total_amount`, `procedures[]`, `items[]`. |
+| `new_procedures[]` | Procedures present now but not in the original. Each has `is_new: true`. |
+| `new_items[]` | Invoice line items present now but not in the original. Each has `is_new: true`. |
+| `delta_amount` | `current.total_amount − authorized.total_amount`. |
+| `supporting_documents[]` | Documents to attach (e.g. revised estimate). |
+| `suggested_request` | A ready-to-POST enhancement body seeded with the full current scope. |
+
+### Step 2 — Let the user decide
+
+Render two columns: **Already authorized** (read-only, dimmed) and **New this enhancement** (`new_procedures[]` + `new_items[]`), with the `delta_amount` and revised `current.total_amount` shown prominently.
+
+| Region | Design |
+|---|---|
+| Header strip | `preauth_ref`, authorized total → revised total, `delta_amount` as a badge |
+| New procedures | Checklist of `new_procedures[]`; checked by default, user can uncheck |
+| New line items | Editable table of `new_items[]`; quantity/price editable, row totals recompute client-side |
+| Documents | Document Checklist seeded from `supporting_documents[]`; revised estimate is typically required |
+| Footer | Back, Submit Enhancement (disabled when `enhanceable` is false or required docs missing) |
+
+States:
+
+| State | UI |
+|---|---|
+| `enhanceable: false` | Show `reason` (e.g. "No new procedures or billing found since the approved preauth") and disable submit; offer "Resubmit Preauth" / "Reprocess" instead |
+| New scope found | Pre-check all new lines; show running revised total and `delta_amount` |
+| Missing revised estimate | Block submit and surface the upload row inline |
+| No prior preauth (404) | Route the user to **Preauth Draft** for a first-time submit instead |
+
+### Step 3 — Submit the user's selection
+
+Start from `suggested_request`, drop any `items`/`procedures` the user unchecked, then POST:
+
+```http
+POST /api/v1/insurance/cashless/preauth/enhancement
+Content-Type: application/json
+
+{
+  "request_id": "frontend-uuid",
+  "claim_id": 101,
+  "total_amount": 75000,
+  "items": [
+    { "service_code": "PKG-LAP-CHOLE", "service_name": "Laparoscopic cholecystectomy package", "quantity": 1, "unit_price": 50000, "net_amount": 50000 },
+    { "service_code": "PKG-LAP-APPE", "service_name": "Laparoscopic appendectomy package", "quantity": 1, "unit_price": 25000, "net_amount": 25000 }
+  ],
+  "supporting_documents": [
+    { "category": "revised_estimate", "name": "Revised Estimate", "code": "REVISED_ESTIMATE", "event_date": "2026-05-06", "url": "https://hospital.example/records/101/revised-estimate.pdf" }
+  ]
+}
+```
+
+The response is a standard `202` with a new `correlation_id`. Poll `GET /cashless/preauth/status/{correlation_id}` exactly like the original preauth — the payer adjudicates the enhanced amount and the same Decision Banner / Adjudication table drives next steps.
+
+> The same prepare-then-submit pattern applies anywhere the frontend lacks the data to act: `claims/prepare` before discharge/final claim, and `preauth/prepare` before the first submit. Enhancement is the sharpest case because the *delta*, not just the draft, is what the user reasons about.
 
 ## Screen 6: Claims
 
@@ -737,6 +1195,56 @@ Empty and error states:
 | Payload is free text | Render text in a readable message block |
 | Communication has pending task | Show task link as the primary action |
 
+## Screen 10: Patient Profile (Child 360)
+
+Purpose: a standalone, case-agnostic view of one patient. Step 1 of the wizard selects a child *to start a case*; this screen is the place a user lands when they search for a patient from the global nav and want to see everything about them — every visit, every invoice, and every cashless case — before deciding what to do.
+
+It reuses the same enriched search endpoint; passing `child_id` (or `name`) returns the visit-level detail that the lightweight list call omits.
+
+```http
+GET /api/v1/insurance/cashless/child?child_id=12
+GET /api/v1/insurance/cashless/dashboard/claims?child_id=12
+GET /api/v1/insurance/cashless/tasks?child_id=12&status=pending
+GET /api/v1/insurance/cashless/communications?child_id=12
+```
+
+Layout:
+
+| Region | Source | Notes |
+|---|---|---|
+| Patient header | `name`, `gender`, `dob`, `mobile`, `cashless_cases_count` | Same sticky identity used across the app |
+| Latest claim banner | `latest_claim.*` | One-click resume into the active case (use Resume Rules) |
+| Visits | `visits[]` — `admission_no`, `started_at`, `status`, `diagnosis`, `primary_doctor` | Each visit expands to its invoices |
+| Invoices | `visits[].invoices[]` — `invoice_no`, `amount_billed`, `final_amount`, `billing_status`, `line_items[]` | Source of truth for billing the wizard will draft from |
+| Existing claims | `visits[].claims[]` — `claim_id`, `use_type`, `status`, `payer_name`, `policy_number`, `total_billed` | Open any one in its case context |
+| Tasks for this patient | `GET /cashless/tasks?child_id=` | Pending payer actions tied to a claim |
+| Communications | `GET /cashless/communications?child_id=` | Payer messages referencing this patient |
+
+Primary actions:
+
+| Condition | Action |
+|---|---|
+| Patient has an active visit and no case | Start New Cashless (jump into the wizard at Payer & Policy with `child_id` + `admission_id` preset) |
+| Patient has an in-flight case | Resume Case (apply Resume Rules) |
+| Pending task exists | Open the task in the Work Queue drawer |
+| No active visit | Disable case creation, show "No active admission/visit found" |
+
+> Note on filters: `GET /cashless/tasks?child_id=` only returns tasks linked to a claim. Communication-review tasks have no `claim_id`, so fetch them via `GET /cashless/communications?child_id=` and surface their `pending_tasks[]` separately.
+
+## Communications: payer-initiated routing
+
+Screen 9 lists payer communications; this is how the frontend decides what each one means. Communications arrive asynchronously via the NHCX UC7 callback, the backend auto-acknowledges, and a `review_communication` task is created. Route by `reason_code`:
+
+| `reason_code` | Meaning | Suggested handling |
+|---|---|---|
+| `tatquery` | Turnaround-time dispute | High priority; link to the referenced claim and its current decision |
+| `grievance` | Complaint | Surface payer note prominently; usually needs a human follow-up outside NHCX |
+| `walletupdate` | Wallet/balance change | Informational; refresh the case's eligibility/benefit view |
+| `policychange` | Policy terms changed | Re-fetch policies for the patient before the next workflow action |
+| `additionalinfo` | Payer needs more information | Treat like a query: attach the requested documents to the related claim |
+
+Use `task_inputs` / `claim_reference` on the communication to deep-link to the affected case. The detail view renders `payload[]` inline (free text, attachment URL, or reference); completing the `review_communication` task is what clears it from the Work Queue.
+
 ## Optional Direct Preparation APIs
 
 The normal frontend flow should use `POST /cashless/prepare`, because it triggers InsurancePlan and CoverageEligibility together. Keep the direct endpoints for advanced troubleshooting or future specialized screens:
@@ -859,12 +1367,14 @@ All paths are relative to `/api/v1/insurance`.
 | GET | `/cashless/{cashless_case_id}` | Read aggregated preparation status |
 | GET | `/cashless/preauth/prepare` | Build editable preauth draft |
 | POST | `/cashless/preauth/submit` | Submit preauth |
+| GET | `/cashless/preauth/enhancement/prepare` | Preview what changed since the approved preauth (delta) |
 | POST | `/cashless/preauth/enhancement` | Submit preauth enhancement |
 | POST | `/cashless/preauth/resubmit` | Correct and resubmit preauth |
 | POST | `/cashless/preauth/query-response` | Answer preauth query |
 | POST | `/cashless/preauth/cancel` | Cancel preauth |
 | GET | `/cashless/preauth/status/{correlation_id}` | Read preauth decision |
 | GET | `/cashless/claims/prepare` | Build claim draft |
+| PATCH | `/cashless/claims/{claim_id}/patient-context` | Supply patient/admission attributes missing from the hospital DB |
 | POST | `/cashless/claims/discharge` | Submit discharge claim |
 | POST | `/cashless/claims/submit` | Submit final claim |
 | POST | `/cashless/claims/query-response` | Answer claim query |

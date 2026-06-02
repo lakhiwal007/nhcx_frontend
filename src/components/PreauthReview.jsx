@@ -83,7 +83,7 @@ const PreauthReview = ({
         <div className="review-main">
           <Card title="Clinical Details">
             <div
-              className="flex-between mb-8 pb-4"
+              className="flex-between mb-2 pb-2"
               style={{ borderBottom: "1px solid var(--border-color)" }}
             >
               <div
@@ -122,7 +122,7 @@ const PreauthReview = ({
               {draft.diagnoses.map((diag, i) => (
                 <div
                   key={i}
-                  className="flex-between mb-4 p-4"
+                  className="flex-between mb-2 p-2"
                   style={{
                     background: "var(--bg-main)",
                     borderRadius: "12px",
@@ -165,7 +165,7 @@ const PreauthReview = ({
             </div>
 
             <div
-              className="flex-between mb-8 mt-12 pb-4"
+              className="flex-between mb-2 mt-10 pb-4"
               style={{ borderBottom: "1px solid var(--border-color)" }}
             >
               <div
@@ -197,7 +197,7 @@ const PreauthReview = ({
               {draft.procedures.map((proc, i) => (
                 <div
                   key={i}
-                  className="flex-between mb-4 p-4"
+                  className="flex-between mb-4 p-2"
                   style={{
                     background: "var(--bg-main)",
                     borderRadius: "12px",
@@ -232,7 +232,7 @@ const PreauthReview = ({
             </div>
           </Card>
 
-          <Card title="Bill Item Summary" className="mt-8">
+          <Card title="Bill Item Summary" className="mt-4">
             <div className="table-container-modern">
               <table className="table-modern">
                 <thead>

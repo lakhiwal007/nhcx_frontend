@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Shield, ArrowRight, Filter, CalendarDays, CheckCircle2, Banknote } from 'lucide-react';
+import { Search, Shield, ArrowRight, Filter, CalendarDays, CheckCircle2, Banknote, X } from 'lucide-react';
 import { api } from '../api';
 import { Card, Button, Input, StatusBadge, PageHeader } from './Common';
 
@@ -28,9 +28,11 @@ const PayerPolicySelection = ({ patient, onPolicySelected, onBack }) => {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => searchPayers(), 0);
+    const timer = setTimeout(() => {
+      searchPayers(searchQuery);
+    }, 400);
     return () => clearTimeout(timer);
-  }, [searchPayers]);
+  }, [searchQuery, searchPayers]);
 
   const handlePayerSelect = async (payer) => {
     setSelectedPayer(payer);
@@ -38,6 +40,7 @@ const PayerPolicySelection = ({ patient, onPolicySelected, onBack }) => {
     setPolicies([]);
     setPolicyError(null);
     setValidationResult(null);
+    if (!payer) return;
     setLoadingPolicies(true);
     try {
       const response = await api.fetchPolicies({
@@ -112,7 +115,7 @@ const PayerPolicySelection = ({ patient, onPolicySelected, onBack }) => {
         </div>
       )}
 
-      <div className="selection-grid-modern">
+      <div className={`selection-grid-modern ${selectedPayer ? 'has-selected' : ''}`}>
         {/* Payer Search */}
         <Card title="Insurance Payers" headerAction={<Filter size={18} className="text-muted" />}>
           <div className="mb-6">
@@ -120,10 +123,7 @@ const PayerPolicySelection = ({ patient, onPolicySelected, onBack }) => {
               icon={Search}
               placeholder="Search payers by name or scheme..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                searchPayers(e.target.value);
-              }}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="list-container-modern">
@@ -161,7 +161,14 @@ const PayerPolicySelection = ({ patient, onPolicySelected, onBack }) => {
         </Card>
 
         {/* Policy Cards */}
-        <Card title={selectedPayer ? `Policies — ${selectedPayer.name}` : 'Available Policies'}>
+        <Card 
+          title={selectedPayer ? `Policies — ${selectedPayer.name}` : 'Available Policies'}
+          headerAction={selectedPayer && (
+            <button onClick={() => handlePayerSelect(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }} aria-label="Clear Payer">
+              <X size={18} />
+            </button>
+          )}
+        >
           <div className="list-container-modern">
             {loadingPolicies ? (
               <div className="loading py-12 text-center">

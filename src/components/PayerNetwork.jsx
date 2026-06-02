@@ -22,14 +22,14 @@ const PayerNetwork = () => {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchPayers(), 0);
+    const timer = setTimeout(() => {
+      fetchPayers(searchQuery);
+    }, 400);
     return () => clearTimeout(timer);
-  }, [fetchPayers]);
+  }, [searchQuery, fetchPayers]);
 
   const handleSearch = (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-    fetchPayers(query);
+    setSearchQuery(e.target.value);
   };
 
   const container = {
@@ -86,12 +86,8 @@ const PayerNetwork = () => {
           variants={container}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-8"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
-            gap: "24px",
-          }}
+          className="grid-1-to-2 mt-8"
+          style={{ gap: "24px" }}
         >
           {payers.map((payer) => (
             <motion.div key={payer.participant_code} variants={item}>
@@ -130,11 +126,9 @@ const PayerNetwork = () => {
                 </div>
 
                 <div
-                  className="payer-meta mt-6 pt-6"
+                  className="payer-meta grid-1-to-2 mt-6 pt-6"
                   style={{
                     borderTop: "1px solid var(--border-color)",
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
                     gap: "16px",
                   }}
                 >
