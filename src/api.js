@@ -3,10 +3,10 @@
 //  Set USE_MOCK = true  →  returns dummy data (no server needed)
 //  Set USE_MOCK = false →  makes real fetch calls to BASE_URL
 // ─────────────────────────────────────────────────────────────────────────────
-const USE_MOCK = true;
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // Base URL for real network calls. Change this to match your backend server.
-const BASE_URL = "http://localhost:8000/api/v1/insurance";
+const BASE_URL = import.meta.env.VITE_BASE_URL || "http://localhost:8000/api/v1/insurance";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,32 +24,44 @@ const buildUrl = (path, params = {}) => {
 /** Wrapper around fetch — throws on non-2xx responses. */
 const http = {
   get: async (path, params = {}) => {
-    const res = await fetch(buildUrl(path, params), {
-      headers: { "Content-Type": "application/json" },
-    });
-    if (!res.ok)
-      throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
-    return res.json();
+    try {
+      const res = await fetch(buildUrl(path, params), {
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
+      return await res.json();
+    } catch (err) {
+      window.dispatchEvent(new CustomEvent("api-error", { detail: err.message }));
+      throw err;
+    }
   },
   post: async (path, body = {}) => {
-    const res = await fetch(BASE_URL + path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok)
-      throw new Error(`POST ${path} failed: ${res.status} ${res.statusText}`);
-    return res.json();
+    try {
+      const res = await fetch(BASE_URL + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`POST ${path} failed: ${res.status} ${res.statusText}`);
+      return await res.json();
+    } catch (err) {
+      window.dispatchEvent(new CustomEvent("api-error", { detail: err.message }));
+      throw err;
+    }
   },
   patch: async (path, body = {}) => {
-    const res = await fetch(BASE_URL + path, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok)
-      throw new Error(`PATCH ${path} failed: ${res.status} ${res.statusText}`);
-    return res.json();
+    try {
+      const res = await fetch(BASE_URL + path, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status} ${res.statusText}`);
+      return await res.json();
+    } catch (err) {
+      window.dispatchEvent(new CustomEvent("api-error", { detail: err.message }));
+      throw err;
+    }
   },
 };
 

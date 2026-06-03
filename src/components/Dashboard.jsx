@@ -1,280 +1,224 @@
-import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import {
+  Search,
+  ArrowRight,
+  Activity,
   FileText,
-  CreditCard,
-  Users,
-  PlayCircle,
-  X,
-  User,
-  Phone,
-  Calendar,
-  Stethoscope,
-  Receipt,
-  BadgeIndianRupee,
-  Building2,
-  ChevronDown,
-  ChevronRight,
-  RotateCcw,
-  Clock,
-  AlertTriangle,
   CheckCircle,
-  ShieldAlert,
+  Clock,
+  XCircle,
+  AlertTriangle,
+  Users,
 } from "lucide-react";
 import { api } from "../api";
-import { listActiveWorkflows, routeLabel } from "../workflowStorage";
-import { Card, Button, StatusBadge } from "./Common";
+import { PageHeader, Card, StatusBadge, Button, Input } from "./Common";
+import { useNavigate } from "react-router-dom";
 
-import PatientModal from "./PatientModal";
-
-const Dashboard = ({ onSelectPatient, onResume }) => {
+export default function Dashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [claims, setClaims] = useState([]);
-  const [claimsLoading, setClaimsLoading] = useState(true);
-  const [modalPatient, setModalPatient] = useState(null);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [activeWorkflows] = useState(() => listActiveWorkflows());
-  const [dismissedBanner, setDismissedBanner] = useState(false);
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const data = await api.getDashboardStats();
-      setStats(data);
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
-  }, []);
-
-  const fetchClaims = useCallback(async () => {
-    try {
-      const data = await api.getDashboardClaims({ limit: 20, offset: 0 });
-      setClaims(data.claims || []);
-    } catch (error) {
-      console.error("Error fetching claims:", error);
-    } finally {
-      setClaimsLoading(false);
-    }
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    fetchStats();
-    fetchClaims();
-  }, [fetchStats, fetchClaims]);
-
-  const openPatientModal = async (childId, patientName) => {
-    setModalLoading(true);
-    setModalPatient({ name: patientName, child_id: childId }); // show skeleton immediately
-    try {
-      const res = await api.searchChildren({
-        child_id: childId,
-        name: patientName,
-      });
-      const found = res.children?.find((c) => c.child_id === childId);
-      setModalPatient(found || { name: patientName, child_id: childId });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
-  const getClaimRowAction = (claim) => {
-    if (!claim.status || claim.status === "draft") {
-      const hasInProgress = activeWorkflows.some(wf => wf.patient?.child_id === claim.child_id);
-      if (hasInProgress) {
-        return { label: "Resume Workflow", variant: "secondary", action: "resume" };
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [statsData, claimsData] = await Promise.all([
+          api.getDashboardStats(),
+          api.getDashboardClaims(),
+        ]);
+        setStats(statsData);
+        setClaims(claimsData?.claims || []);
+      } catch (error) {
+        console.error("Dashboard fetch error:", error);
+      } finally {
+        setLoading(false);
       }
-      return { label: "Start Workflow", variant: "primary", route: "payer" };
-    }
-    if (claim.claim_decision === "QUERIED")
-      return { label: "Open Query Task", variant: "outline", route: "reprocess" };
-    if (
-      claim.claim_decision === "APPROVED" ||
-      claim.claim_decision === "PARTIALLY_APPROVED"
-    )
-      return { label: "View Payment", variant: "outline", route: "payment" };
-    if (claim.payment_status === "PAYMENT_SETTLED")
-      return { label: "View UTR", variant: "outline", route: "payment" };
-    if (claim.status === "pending")
-      return { label: "View Status", variant: "outline", route: "status" };
-    return { label: "View", variant: "outline", route: "payer" };
-  };
+    };
+    fetchData();
+  }, []);
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.07 } },
-  };
-  const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
-
-  const statCards = stats
-    ? [
-        {
-          label: "Total Claims",
-          value: stats.claims.total,
-          icon: FileText,
-          colorClass: "stat-icon-primary",
-        },
-        {
-          label: "Pending",
-          value: stats.claims.pending,
-          icon: Clock,
-          colorClass: "stat-icon-warning",
-        },
-        {
-          label: "Partial",
-          value: stats.claims.partial,
-          icon: AlertTriangle,
-          colorClass: "stat-icon-info",
-        },
-        {
-          label: "Complete",
-          value: stats.claims.complete,
-          icon: CheckCircle,
-          colorClass: "stat-icon-success",
-        },
-        {
-          label: "Failed",
-          value: stats.claims.failed,
-          icon: ShieldAlert,
-          colorClass: "stat-icon-error",
-        },
-        {
-          label: "Preauth Pending",
-          value: stats.claims.preauth_pending,
-          icon: CreditCard,
-          colorClass: "stat-icon-warning",
-        },
-        {
-          label: "Children with Claims",
-          value: stats.children.with_claims,
-          icon: Users,
-          colorClass: "stat-icon-info",
-        },
-      ]
-    : [];
+  const filteredClaims = claims.filter(
+    (c) =>
+      c.patient_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.id?.toString().includes(searchQuery),
+  );
 
   return (
-    <div className="dashboard-modern">
-      {/* Title */}
-      <div className="page-header-modern">
-        <h1>Cashless Claims Dashboard</h1>
-        <p>
-          Overview of all cashless cases. Click a patient name to view full
-          details.
-        </p>
+    <div className="dashboard-screen">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "10px",
+        }}
+      >
+        <PageHeader
+          title="Cashless Cases"
+          subtitle="Overview of all active and past claims"
+        />
+        <Button variant="primary" onClick={() => navigate("/registry")}>
+          New Cashless Case
+        </Button>
       </div>
 
-      {/* Stats */}
-      {stats && (
+      {loading ? (
+        <div className="flex-center py-20 flex-col">
+          <div className="spinner mb-4" />
+          <p className="text-muted">Loading dashboard data...</p>
+        </div>
+      ) : (
         <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="stats-grid-modern"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
         >
-          {statCards.map((s) => (
-            <motion.div
-              key={s.label}
-              variants={item}
-              className="stat-card-modern"
+          {/* Metrics */}
+          {stats && (
+            <div
+              className="dashboard-metrics-grid"
+              style={{ marginBottom: "30px" }}
             >
-              <div className="stat-card-num">
-                <div className={`stat-icon-wrapper ${s.colorClass}`}>
-                  <s.icon size={22} />
-                </div>
-                <span className="stat-value-modern">{s.value}</span>
-              </div>
-              <span className="stat-label-modern">{s.label}</span>
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
-
-      {/* Claims table */}
-      <Card title="Cashless Claims">
-        <div className="table-container-modern">
-          <table className="table-modern">
-            <thead>
-              <tr>
-                <th>Patient</th>
-                <th>Claim ID</th>
-                <th>Use Type</th>
-                <th>Status</th>
-                <th>Decision</th>
-                <th>Approved Amt</th>
-                <th>Payment</th>
-                <th>UTR</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {claimsLoading ? (
-                <tr>
-                  <td colSpan={9} className="text-center py-8 text-muted">
-                    Loading claims...
-                  </td>
-                </tr>
-              ) : claims.length === 0 ? (
-                <tr>
-                  <td colSpan={9}>
-                    <div className="text-center py-12">
-                      <FileText
-                        size={40}
-                        className="text-muted mb-4 mx-auto"
-                        style={{ opacity: 0.2 }}
-                      />
-                      <p className="text-muted">No cashless cases yet.</p>
+              {[
+                {
+                  label: "Total Claims",
+                  value: stats.claims?.total,
+                  icon: FileText,
+                  color: "var(--primary)",
+                },
+                {
+                  label: "Preauth Pending",
+                  value: stats.claims?.preauth_pending,
+                  icon: Activity,
+                  color: "var(--info)",
+                },
+                {
+                  label: "Pending Adjudication",
+                  value: stats.claims?.pending,
+                  icon: Clock,
+                  color: "var(--warning)",
+                },
+                {
+                  label: "Partially Approved",
+                  value: stats.claims?.partial,
+                  icon: AlertTriangle,
+                  color: "var(--warning)",
+                },
+                {
+                  label: "Approved / Complete",
+                  value: stats.claims?.complete,
+                  icon: CheckCircle,
+                  color: "var(--success)",
+                },
+                {
+                  label: "Failed / Rejected",
+                  value: stats.claims?.failed,
+                  icon: XCircle,
+                  color: "var(--error)",
+                },
+                {
+                  label: "Children with Claims",
+                  value: stats.children?.with_claims,
+                  icon: Users,
+                  color: "var(--accent)",
+                },
+              ].map((stat, i) => (
+                <Card key={i}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "12px",
+                        background: `${stat.color}15`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: stat.color,
+                      }}
+                    >
+                      <stat.icon size={24} />
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                claims.map((claim) => {
-                  const rowAction = getClaimRowAction(claim);
-                  return (
-                    <motion.tr key={claim.id} layoutId={`claim-${claim.id}`}>
-                      <td>
-                        <button
-                          onClick={() =>
-                            openPatientModal(
-                              claim.child_id,
-                              claim.patient_name || claim.child_name,
-                            )
-                          }
-                          style={{
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: 0,
-                            fontWeight: 700,
-                            color: "var(--primary)",
-                            fontSize: "14px",
-                            textDecoration: "underline",
-                            textDecorationStyle: "dotted",
-                            textUnderlineOffset: "3px",
-                          }}
-                        >
-                          {claim.patient_name || claim.child_name}
-                        </button>
-                      </td>
-                      <td>
-                        <code
-                          style={{
-                            background: "var(--primary-light)",
-                            color: "var(--primary)",
-                            padding: "3px 7px",
-                            borderRadius: "5px",
-                            fontWeight: 700,
-                          }}
-                        >
-                          #{claim.id}
-                        </code>
-                      </td>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--text-muted)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {stat.label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "20px",
+                          fontWeight: 800,
+                          color: "var(--text-main)",
+                        }}
+                      >
+                        {stat.value || 0}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Claims Table */}
+          <Card title="Recent Claims">
+            <div
+              style={{
+                display: "flex",
+                gap: "16px",
+                marginBottom: "20px",
+                maxWidth: "400px",
+              }}
+            >
+              <Input
+                icon={Search}
+                placeholder="Search patient or claim ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="table-responsive-wrapper">
+              <table className="table-modern">
+                <thead>
+                  <tr>
+                    <th>Claim ID</th>
+                    <th>Patient</th>
+                    <th>Use Type</th>
+                    <th>Status</th>
+                    <th>Decision</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredClaims.map((claim) => (
+                    <tr key={claim.id}>
+                      <td style={{ fontWeight: 700 }}>#{claim.id}</td>
+                      <td style={{ fontWeight: 600 }}>{claim.patient_name}</td>
                       <td>
                         <span
                           className="badge-modern badge-info"
-                          style={{ fontSize: "11px" }}
+                          style={{
+                            fontSize: "10px",
+                            textTransform: "capitalize",
+                          }}
                         >
-                          {claim.use_type || "—"}
+                          {claim.use_type}
                         </span>
                       </td>
                       <td>
@@ -287,80 +231,48 @@ const Dashboard = ({ onSelectPatient, onResume }) => {
                           <span className="text-muted">—</span>
                         )}
                       </td>
-                      <td>
-                        {claim.approved_amount ? (
-                          <strong>
-                            ₹{claim.approved_amount.toLocaleString()}
-                          </strong>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </td>
-                      <td>
-                        {claim.payment_status ? (
-                          <StatusBadge status={claim.payment_status} />
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </td>
-                      <td>
-                        {claim.latest_utr ? (
-                          <code
-                            style={{
-                              fontSize: "11px",
-                              color: "var(--success)",
-                            }}
-                          >
-                            {claim.latest_utr}
-                          </code>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
+                      <td
+                        style={{ fontSize: "13px", color: "var(--text-muted)" }}
+                      >
+                        {new Date(claim.created_at).toLocaleDateString()}
                       </td>
                       <td>
                         <Button
-                          variant={rowAction.variant}
-                          icon={rowAction.action === 'resume' ? RotateCcw : undefined}
+                          variant="outline"
+                          size="small"
+                          icon={ArrowRight}
                           onClick={() => {
-                            if (rowAction.action === "resume") {
-                              onResume && onResume(claim.child_id);
-                            } else {
-                              onSelectPatient &&
-                                onSelectPatient(
-                                  {
-                                    child_id: claim.child_id,
-                                    name: claim.patient_name,
-                                  },
-                                  rowAction.route
-                                );
+                            let route = `/case/${claim.child_id}/`;
+                            if (claim.use_type === 'claim' && claim.payment_status === 'PAYMENT_SETTLED') {
+                              route = `/case/${claim.child_id}/payment`;
+                            } else if (claim.use_type === 'claim') {
+                              route = `/case/${claim.child_id}/claim`;
+                            } else if (claim.status === 'draft') {
+                              route = `/case/${claim.child_id}/review`;
+                            } else if (claim.status === 'pending' || claim.status === 'complete') {
+                              route = `/case/${claim.child_id}/status`;
                             }
+                            navigate(route);
                           }}
                         >
-                          {rowAction.label}
+                          View Case
                         </Button>
                       </td>
-                    </motion.tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* Patient detail modal */}
-      <AnimatePresence>
-        {modalPatient && (
-          <PatientModal
-            patient={modalLoading ? modalPatient : modalPatient}
-            loading={modalLoading}
-            onClose={() => setModalPatient(null)}
-            onStartWorkflow={(p, route) => onSelectPatient && onSelectPatient(p, route)}
-          />
-        )}
-      </AnimatePresence>
+                    </tr>
+                  ))}
+                  {filteredClaims.length === 0 && (
+                    <tr>
+                      <td colSpan="7" className="text-center py-8 text-muted">
+                        No claims found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </motion.div>
+      )}
     </div>
   );
-};
-
-export default Dashboard;
+}
