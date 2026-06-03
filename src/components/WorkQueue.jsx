@@ -28,17 +28,64 @@ export default function WorkQueue() {
   }, []);
 
   const handleTaskClick = (task) => {
-    // Route based on task type or action endpoint
-    if (task.action?.endpoint?.includes("preauth/query-response")) {
-      navigate(`/case/${task.child_id}/status`);
-    } else if (task.action?.endpoint?.includes("claims/submit")) {
-      navigate(`/case/${task.child_id}/claim`);
-    } else if (task.action?.endpoint?.includes("payment/acknowledge")) {
-      navigate(`/case/${task.child_id}/payment`);
-    } else if (task.task_type === "review_communication") {
-      navigate(`/communications`);
-    } else {
-      navigate(`/case/${task.child_id}/`);
+    const type = task.task_type;
+    const cid = task.child_id;
+
+    switch (type) {
+      case "review_insurance_plan_documents":
+      case "attach_eligibility_documents":
+      case "fix_eligibility_error":
+        navigate(`/case/${cid}/prep`);
+        break;
+      case "submit_preauth":
+        navigate(`/case/${cid}/review`);
+        break;
+      case "respond_preauth_query":
+      case "resubmit_preauth":
+        navigate(`/case/${cid}/status`);
+        break;
+      case "submit_discharge_claim":
+        navigate(`/case/${cid}/claim`, { 
+          state: { 
+            tab: "discharge",
+            claim_id: task.claim_id || task.action?.payload_hint?.claim_id
+          } 
+        });
+        break;
+      case "submit_final_claim":
+        navigate(`/case/${cid}/claim`, { 
+          state: { 
+            tab: "final",
+            claim_id: task.claim_id || task.action?.payload_hint?.claim_id
+          } 
+        });
+        break;
+      case "respond_claim_query":
+      case "resubmit_claim":
+        navigate(`/case/${cid}/claim`, { state: { tab: "decision" } });
+        break;
+      case "submit_reprocess":
+        navigate(`/case/${cid}/reprocess`);
+        break;
+      case "acknowledge_payment":
+      case "review_payment_ack_failure":
+        navigate(`/case/${cid}/payment`);
+        break;
+      case "review_communication":
+        navigate(`/communications`);
+        break;
+      default:
+        // Fallback to older endpoint-based routing if task_type is missing/unknown
+        if (task.action?.endpoint?.includes("preauth/query-response")) {
+          navigate(`/case/${cid}/status`);
+        } else if (task.action?.endpoint?.includes("claims/submit")) {
+          navigate(`/case/${cid}/claim`);
+        } else if (task.action?.endpoint?.includes("payment/acknowledge")) {
+          navigate(`/case/${cid}/payment`);
+        } else {
+          navigate(`/case/${cid}/`);
+        }
+        break;
     }
   };
 

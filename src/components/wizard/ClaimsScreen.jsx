@@ -1,17 +1,18 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Send, FileText, CheckCircle2, ArrowRight } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid } from "../Common";
 
 export default function ClaimsScreen({ ctx }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { caseState, updateCaseState } = ctx;
   
   const [loading, setLoading] = useState(true);
   const [claimDraft, setClaimDraft] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState("draft"); // 'draft', 'discharge', 'final', 'decision'
+  const [activeTab, setActiveTab] = useState(location.state?.tab || "draft"); // 'draft', 'discharge', 'final', 'decision'
   
   // Status after submission
   const [claimStatus, setClaimStatus] = useState(null);
@@ -28,8 +29,9 @@ export default function ClaimsScreen({ ctx }) {
     const loadDraft = async () => {
       setLoading(true);
       try {
+        const claimId = location.state?.claim_id || caseState.draftData?.claim_id || Date.now();
         const res = await api.prepareClaimDraft({
-          claim_id: caseState.draftData?.claim_id || Date.now()
+          claim_id: claimId
         });
         setClaimDraft(res);
       } catch (err) {
@@ -204,13 +206,49 @@ export default function ClaimsScreen({ ctx }) {
         )}
 
         {activeTab === "final" && (
-          <Card>
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+          <Card title="Final Claim Overview">
+            <div style={{ display: "flex", gap: "24px", marginBottom: "20px" }}>
+              <div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Admission</div>
+                <div style={{ fontWeight: 600 }}>{claimDraft?.admission_date}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Discharge</div>
+                <div style={{ fontWeight: 600 }}>{claimDraft?.discharge_date}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Preauth Ref</div>
+                <div style={{ fontWeight: 600 }}>{claimDraft?.preauth_ref}</div>
+              </div>
+            </div>
+
+            <div className="table-responsive-wrapper" style={{ marginBottom: "24px" }}>
+              <table className="table-modern" style={{ fontSize: "13px" }}>
+                <thead>
+                  <tr>
+                    <th>Final Bill Items</th>
+                    <th>Qty</th>
+                    <th style={{ textAlign: "right" }}>Net Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {claimDraft?.items?.map((item, i) => (
+                    <tr key={i}>
+                      <td>{item.service_name}</td>
+                      <td>{item.quantity}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>₹{item.net_amount?.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ textAlign: "center", marginBottom: "16px", padding: "20px", background: "var(--bg-main)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
               <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "8px" }}>Final Claim Total</div>
               <div style={{ fontSize: "32px", fontWeight: 800, color: "var(--primary)" }}>₹{claimDraft?.total_amount?.toLocaleString()}</div>
             </div>
             
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "center" }}>
               <Button 
                 variant="primary" 
                 size="large"

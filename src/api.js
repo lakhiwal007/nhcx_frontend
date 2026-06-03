@@ -16,6 +16,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Build a full URL with query params from an object (undefined values are skipped). */
 const buildUrl = (path, params = {}) => {
   const url = new URL(BASE_URL + path, window.location.origin);
+  // const url = BASE_URL;
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== "")
       url.searchParams.append(k, v);

@@ -33,13 +33,13 @@ export default function PatientProfile() {
     }
   }, []);
 
+  // Initial fetch on page load
+  useEffect(() => {
+    fetchChildren("");
+  }, [fetchChildren]);
+
   const handleSearchClick = () => {
-    if (!searchQuery.trim()) {
-      setChildren([]);
-      setHasSearched(false);
-      return;
-    }
-    fetchChildren(searchQuery);
+    fetchChildren(searchQuery.trim());
   };
 
   useEffect(() => {

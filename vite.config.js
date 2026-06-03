@@ -15,9 +15,9 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         headers: {
-          "ngrok-skip-browser-warning": "69420" // Bypasses ngrok's HTML warning page
-        }
-      }
-    }
+          "ngrok-skip-browser-warning": "69420", // Bypasses ngrok's HTML warning page
+        },
+      },
+    },
   },
 });
