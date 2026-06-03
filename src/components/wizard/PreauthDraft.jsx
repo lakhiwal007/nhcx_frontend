@@ -43,7 +43,8 @@ export default function PreauthDraft({ ctx }) {
     try {
       const res = await api.submitPreauth({
         claim_id: draft.claim_id,
-        policy_number: draft.policy_number
+        policy_number: draft.policy_number,
+        supporting_documents: draft.supporting_documents
       });
       updateCaseState({ preauthResponse: res });
       navigate("../status");

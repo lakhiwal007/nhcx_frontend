@@ -387,7 +387,7 @@ h3,
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    padding: 24px;
+    padding: 16px;
     transition:
         transform 0.2s,
         box-shadow 0.2s;
@@ -615,7 +615,7 @@ h3,
 
 .dashboard-metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
     gap: 10px;
 }
 
@@ -1134,7 +1134,7 @@ h3,
 .policy-card-modern {
     border: 1.5px solid var(--border-color);
     border-radius: 14px;
-    padding: 20px;
+    padding: 10px;
     cursor: pointer;
     transition: all 0.2s;
     background: var(--bg-card);

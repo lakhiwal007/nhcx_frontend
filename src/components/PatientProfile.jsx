@@ -64,9 +64,9 @@ export default function PatientProfile() {
     return Math.abs(new Date(diff).getUTCFullYear() - 1970);
   };
 
-  const startNewWorkflow = (patient) => {
-    // Navigate to wizard for this patient
-    navigate(`/case/${patient.child_id}/payer`);
+  const startNewWorkflow = (patient, visit) => {
+    // Navigate to wizard for this patient, passing admission_id
+    navigate(`/case/${patient.child_id}/payer`, { state: { admission_id: visit?.admission_no } });
   };
 
   return (
@@ -161,9 +161,6 @@ export default function PatientProfile() {
                 </div>
               </div>
             </div>
-            <Button icon={Plus} onClick={() => startNewWorkflow(selectedPatient)}>
-              Start New Case
-            </Button>
           </div>
 
           <div className="grid-1-to-3" style={{ gap: '24px' }}>
@@ -227,6 +224,13 @@ export default function PatientProfile() {
                                   ))}
                                 </div>
                               )}
+
+                              {/* Start Workflow for this admission */}
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+                                <Button variant="primary" icon={Plus} onClick={() => startNewWorkflow(selectedPatient, visit)}>
+                                  Start Cashless Case
+                                </Button>
+                              </div>
                             </div>
                           </motion.div>
                         )}

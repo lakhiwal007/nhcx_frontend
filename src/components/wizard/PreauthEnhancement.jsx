@@ -16,11 +16,18 @@ export default function PreauthEnhancement({ ctx, onClose }) {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      const baseAmount = caseState.draftData?.total_amount || 0;
       const res = await api.submitPreauthEnhancement({
         claim_id: caseState.draftData?.claim_id || Date.now(),
-        policy_number: caseState.policy?.policy_number,
-        reason: enhancementReason,
-        additional_amount: Number(additionalAmount)
+        total_amount: baseAmount + Number(additionalAmount),
+        supporting_documents: uploaded ? [
+          {
+            category: "clinical_notes",
+            name: "Updated Clinical Notes",
+            code: "UPDATED_CLINICAL_NOTES",
+            url: "https://hospital.example/records/mock-update.pdf"
+          }
+        ] : []
       });
       updateCaseState({ preauthResponse: res });
       if (onClose) onClose();

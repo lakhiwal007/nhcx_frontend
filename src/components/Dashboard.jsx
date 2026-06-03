@@ -130,43 +130,42 @@ export default function Dashboard() {
                   <div
                     style={{
                       display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
+                      flexDirection: "column",
+                      alignItems: "start",
+                      gap: "5px",
                     }}
                   >
                     <div
                       style={{
-                        width: "40px",
-                        height: "40px",
+                        // width: "40px",
+                        // height: "40px",
                         borderRadius: "12px",
                         background: `${stat.color}15`,
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
+                        gap: "30px",
                         color: stat.color,
                       }}
                     >
                       <stat.icon size={24} />
-                    </div>
-                    <div>
                       <div
                         style={{
-                          fontSize: "12px",
-                          color: "var(--text-muted)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {stat.label}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "20px",
+                          fontSize: "26px",
                           fontWeight: 800,
                           color: "var(--text-main)",
                         }}
                       >
                         {stat.value || 0}
                       </div>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--text-muted)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {stat.label}
                     </div>
                   </div>
                 </Card>
@@ -243,13 +242,19 @@ export default function Dashboard() {
                           icon={ArrowRight}
                           onClick={() => {
                             let route = `/case/${claim.child_id}/`;
-                            if (claim.use_type === 'claim' && claim.payment_status === 'PAYMENT_SETTLED') {
+                            if (
+                              claim.use_type === "claim" &&
+                              claim.payment_status === "PAYMENT_SETTLED"
+                            ) {
                               route = `/case/${claim.child_id}/payment`;
-                            } else if (claim.use_type === 'claim') {
+                            } else if (claim.use_type === "claim") {
                               route = `/case/${claim.child_id}/claim`;
-                            } else if (claim.status === 'draft') {
+                            } else if (claim.status === "draft") {
                               route = `/case/${claim.child_id}/review`;
-                            } else if (claim.status === 'pending' || claim.status === 'complete') {
+                            } else if (
+                              claim.status === "pending" ||
+                              claim.status === "complete"
+                            ) {
                               route = `/case/${claim.child_id}/status`;
                             }
                             navigate(route);

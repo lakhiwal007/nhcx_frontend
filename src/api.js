@@ -579,6 +579,15 @@ const mock = {
     };
   },
 
+  preparePreauthEnhancement: async (params = {}) => {
+    await delay(800);
+    return {
+      claim_id: params.claim_id || 101,
+      preauth_ref: "PA-2026-00001",
+      missing_fields: []
+    };
+  },
+
   resubmitPreauth: async (data) => {
     await delay(1000);
     return {
@@ -613,6 +622,22 @@ const mock = {
   },
 
   // ─── Specific Coverage Eligibility APIs ─────────────────────────────────────
+  requestInsurancePlan: async (data) => {
+    await delay(800);
+    return { correlation_id: "mock-ins-plan-123", status: "submitted" };
+  },
+  getInsurancePlanStatus: async (correlation_id) => {
+    await delay(800);
+    return { correlation_id, status: "complete" };
+  },
+  checkCoverage: async (data) => {
+    await delay(800);
+    return { correlation_id: "mock-cov-123", status: "submitted" };
+  },
+  getAuthRequirements: async (data) => {
+    await delay(800);
+    return { correlation_id: "mock-auth-req-123", status: "submitted" };
+  },
   validateCoverage: async (data) => {
     await delay(800);
     return {
@@ -747,6 +772,15 @@ const mock = {
         },
       ],
       missing_fields: [],
+    };
+  },
+
+  patchPatientContext: async (claim_id, data) => {
+    await delay(800);
+    return {
+      status: "success",
+      message: "Patient context updated",
+      missing_fields: []
     };
   },
 
@@ -1116,6 +1150,24 @@ const mock = {
       message: "NHCX gateway status request submitted",
     };
   },
+
+  // ─── Facilities Admin ───────────────────────────────────────────────────────
+  listFacilities: async (params = {}) => {
+    await delay(500);
+    return { facilities: [] };
+  },
+  createFacility: async (data) => {
+    await delay(500);
+    return { status: "success", facility_code: data.facility_code };
+  },
+  getFacility: async (facility_code) => {
+    await delay(500);
+    return { facility_code, name: "Mock Facility" };
+  },
+  uploadFacilityKey: async (facility_code, data) => {
+    await delay(500);
+    return { status: "success" };
+  },
 };
 
 // ─── Real (Network) Implementations ──────────────────────────────────────────
@@ -1129,22 +1181,25 @@ const real = {
 
   searchChildren: (params = {}) => http.get("/cashless/child", params),
 
-  searchPayers: (params = {}) => http.get("/payers/search", params),
+  searchPayers: (params = {}) => http.get("/cashless/payers/search", params),
 
-  fetchPolicies: (data) => http.post("/cashless/fetch-policies", data),
+  fetchPolicies: (data) => http.post("/cashless/policies/fetch", data),
 
   prepareCashless: (data) => http.post("/cashless/prepare", data),
 
   getCashlessStatus: (cashless_case_id) =>
-    http.get(`/cashless/status/${cashless_case_id}`),
+    http.get(`/cashless/${cashless_case_id}`),
 
   preparePreauth: (params = {}) =>
     http.get("/cashless/preauth/prepare", params),
 
   submitPreauth: (data) => http.post("/cashless/preauth/submit", data),
 
+  preparePreauthEnhancement: (params = {}) =>
+    http.get("/cashless/preauth/enhancement/prepare", params),
+
   submitPreauthEnhancement: (data) =>
-    http.post("/cashless/preauth/submit-enhancement", data),
+    http.post("/cashless/preauth/enhancement", data),
 
   resubmitPreauth: (data) => http.post("/cashless/preauth/resubmit", data),
 
@@ -1154,6 +1209,16 @@ const real = {
   cancelPreauth: (data) => http.post("/cashless/preauth/cancel", data),
 
   // ─── Specific Coverage Eligibility APIs ─────────────────────────────────────
+  requestInsurancePlan: (data) =>
+    http.post("/cashless/insurance_plan/request", data),
+  getInsurancePlanStatus: (correlation_id) =>
+    http.get(`/cashless/insurance_plan/status/${correlation_id}`),
+
+  checkCoverage: (data) =>
+    http.post("/cashless/coverage_eligibility/check", data),
+  getAuthRequirements: (data) =>
+    http.post("/cashless/coverage_eligibility/auth-requirements", data),
+
   validateCoverage: (data) =>
     http.post("/cashless/coverage_eligibility/validation", data),
   checkBenefits: (data) =>
@@ -1166,6 +1231,9 @@ const real = {
 
   prepareClaimDraft: (params = {}) =>
     http.get("/cashless/claims/prepare", params),
+
+  patchPatientContext: (claim_id, data) =>
+    http.patch(`/cashless/claims/${claim_id}/patient-context`, data),
 
   submitDischargeClaim: (data) => http.post("/cashless/claims/discharge", data),
 
@@ -1207,6 +1275,13 @@ const real = {
     http.get(`/cashless/communication/status/${correlation_id}`),
 
   requestGatewayStatus: (data) => http.post("/cashless/status/request", data),
+
+  // ─── Facilities Admin ───────────────────────────────────────────────────────
+  listFacilities: (params = {}) => http.get("/facilities", params),
+  createFacility: (data) => http.post("/facilities", data),
+  getFacility: (facility_code) => http.get(`/facilities/${facility_code}`),
+  uploadFacilityKey: (facility_code, data) =>
+    http.post(`/facilities/${facility_code}/private_key`, data),
 };
 
 // ─── Exported API  ────────────────────────────────────────────────────────────

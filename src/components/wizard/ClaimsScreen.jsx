@@ -75,7 +75,8 @@ export default function ClaimsScreen({ ctx }) {
     setSubmitting(true);
     try {
       const res = await api.submitDischargeClaim({
-        claim_id: claimDraft.claim_id
+        claim_id: claimDraft.claim_id,
+        supporting_documents: claimDraft.supporting_documents
       });
       // Just moving to the next tab for UI flow
       setActiveTab("final");
@@ -90,7 +91,8 @@ export default function ClaimsScreen({ ctx }) {
     setSubmitting(true);
     try {
       const res = await api.submitFinalClaim({
-        claim_id: claimDraft.claim_id
+        claim_id: claimDraft.claim_id,
+        supporting_documents: claimDraft.supporting_documents
       });
       updateCaseState({ claimResponse: res });
       setActiveTab("decision");

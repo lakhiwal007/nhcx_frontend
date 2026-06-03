@@ -74,6 +74,7 @@ export default function PreauthStatus({ ctx }) {
   const isComplete = statusData?.status === "complete";
   const isApproved = statusData?.decision === "APPROVED";
   const isQueried = statusData?.decision === "QUERIED";
+  const isRejected = statusData?.decision === "REJECTED" || statusData?.decision === "PARTIALLY_APPROVED";
 
   return (
     <div className="wizard-step">
@@ -152,6 +153,16 @@ export default function PreauthStatus({ ctx }) {
                 <Button variant="outline" icon={PlusCircle} onClick={() => setShowEnhancementModal(true)}>
                   Request Enhancement
                 </Button>
+              )}
+              {isRejected && (
+                <>
+                  <Button variant="outline" onClick={() => navigate("../review")}>
+                    Resubmit Preauth
+                  </Button>
+                  <Button variant="outline" onClick={() => navigate("../reprocess")}>
+                    Appeal / Reprocess
+                  </Button>
+                </>
               )}
               <Button 
                 variant="primary" 

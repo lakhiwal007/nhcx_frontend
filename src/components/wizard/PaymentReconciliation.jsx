@@ -7,7 +7,7 @@ import { Card, Button, StatusBadge } from "../Common";
 export default function PaymentReconciliation({ ctx }) {
   const navigate = useNavigate();
   const { caseState } = ctx;
-  
+
   const [loading, setLoading] = useState(true);
   const [paymentData, setPaymentData] = useState(null);
 
@@ -15,7 +15,9 @@ export default function PaymentReconciliation({ ctx }) {
     const fetchPayment = async () => {
       setLoading(true);
       try {
-        const res = await api.getPaymentStatus(caseState.claimResponse?.correlation_id || "demo-payment-id");
+        const res = await api.getPaymentStatus(
+          caseState.claimResponse?.correlation_id || "demo-payment-id",
+        );
         setPaymentData(res);
       } catch (err) {
         console.error(err);
@@ -37,24 +39,53 @@ export default function PaymentReconciliation({ ctx }) {
   };
 
   if (loading) {
-    return <div className="flex-center py-20 flex-col"><div className="spinner mb-4" /><p className="text-muted">Fetching Payment Status...</p></div>;
+    return (
+      <div className="flex-center py-20 flex-col">
+        <div className="spinner mb-4" />
+        <p className="text-muted">Fetching Payment Status...</p>
+      </div>
+    );
   }
 
   return (
     <div className="wizard-step">
       <Card title="Case Payment Reconciliation">
-        {(!paymentData || paymentData.total_events === 0) ? (
+        {!paymentData || paymentData.total_events === 0 ? (
           <div className="empty-view py-10 text-center">
             <h3>No Payments Yet</h3>
-            <p className="text-muted">No payment events have been received for this claim yet.</p>
+            <p className="text-muted">
+              No payment events have been received for this claim yet.
+            </p>
           </div>
         ) : (
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px", padding: "16px", background: "rgba(16,185,129,0.1)", borderRadius: "12px", border: "1px solid var(--success)" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                marginBottom: "24px",
+                padding: "16px",
+                background: "rgba(16,185,129,0.1)",
+                borderRadius: "12px",
+                border: "1px solid var(--success)",
+              }}
+            >
               <CheckCircle2 color="var(--success)" size={28} />
               <div>
-                <div style={{ fontWeight: 800, fontSize: "16px", color: "var(--success)" }}>Latest Stage: {paymentData.latest_stage?.replace('PAYMENT_', '')}</div>
-                <div style={{ fontSize: "13px" }}>All payment events for this case are shown below.</div>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: "16px",
+                    color: "var(--success)",
+                  }}
+                >
+                  Latest Stage:{" "}
+                  {paymentData.latest_stage?.replace("PAYMENT_", "")}
+                </div>
+                <div style={{ fontSize: "13px" }}>
+                  All payment events for this case are shown below.
+                </div>
               </div>
             </div>
 
@@ -75,21 +106,45 @@ export default function PaymentReconciliation({ ctx }) {
                 <tbody>
                   {paymentData.events?.map((pay, i) => (
                     <tr key={i}>
-                      <td style={{ fontWeight: 700 }}>{pay.payment_reference}</td>
+                      <td style={{ fontWeight: 700 }}>
+                        {pay.payment_reference}
+                      </td>
                       <td>{pay.payment_date}</td>
-                      <td><StatusBadge status={pay.payment_stage?.replace('PAYMENT_', '')} /></td>
-                      <td>₹{pay.gross_amount?.toLocaleString()}</td>
-                      <td style={{ color: "var(--error)" }}>-₹{pay.tds_amount?.toLocaleString()}</td>
-                      <td style={{ fontWeight: 800, color: "var(--success)" }}>₹{pay.net_payment_amount?.toLocaleString()}</td>
-                      <td>{pay.utr ? <code>{pay.utr}</code> : <span className="text-muted">—</span>}</td>
                       <td>
-                        <Button 
-                          size="small" 
-                          variant={pay.acknowledgement_status === 'submitted' ? "text" : "outline"}
-                          disabled={pay.acknowledgement_status === 'submitted'}
-                          onClick={() => handleAcknowledge(pay.payment_reference)}
+                        <StatusBadge
+                          status={pay.payment_stage?.replace("PAYMENT_", "")}
+                        />
+                      </td>
+                      <td>₹{pay.gross_amount?.toLocaleString()}</td>
+                      <td style={{ color: "var(--error)" }}>
+                        -₹{pay.tds_amount?.toLocaleString()}
+                      </td>
+                      <td style={{ fontWeight: 800, color: "var(--success)" }}>
+                        ₹{pay.net_payment_amount?.toLocaleString()}
+                      </td>
+                      <td>
+                        {pay.utr ? (
+                          <code>{pay.utr}</code>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <Button
+                          size="small"
+                          variant={
+                            pay.acknowledgement_status === "submitted"
+                              ? "text"
+                              : "outline"
+                          }
+                          disabled={pay.acknowledgement_status === "submitted"}
+                          onClick={() =>
+                            handleAcknowledge(pay.payment_reference)
+                          }
                         >
-                          {pay.acknowledgement_status === 'submitted' ? "Acknowledged" : "Acknowledge"}
+                          {pay.acknowledgement_status === "submitted"
+                            ? "Acknowledged"
+                            : "Acknowledge"}
                         </Button>
                       </td>
                     </tr>
@@ -101,8 +156,18 @@ export default function PaymentReconciliation({ ctx }) {
         )}
       </Card>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "24px" }}>
-        <Button variant="primary" onClick={() => navigate("/")} icon={Home}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: "24px",
+        }}
+      >
+        <Button
+          variant="primary"
+          onClick={() => navigate("/dashboard")}
+          icon={Home}
+        >
           Done & Return to Dashboard
         </Button>
       </div>

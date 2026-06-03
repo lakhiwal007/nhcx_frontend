@@ -29,6 +29,7 @@ export default function CaseWrapper() {
   const navigate = useNavigate();
   const location = useLocation();
   const currentStepPath = location.pathname.split("/").pop();
+  const initialAdmissionId = location.state?.admission_id || null;
 
   const [patient, setPatient] = useState(null);
   const [cashlessCase, setCashlessCase] = useState(null);
@@ -40,7 +41,8 @@ export default function CaseWrapper() {
     policy: null,
     draftData: null,
     preauthResponse: null,
-    claimResponse: null
+    claimResponse: null,
+    admission_id: initialAdmissionId
   });
 
   const updateCaseState = useCallback((updates) => {
