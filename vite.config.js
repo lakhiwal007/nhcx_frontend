@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: "/nhcx/frontend/",
   plugins: [react()],
   server: {
     allowedHosts: [
@@ -10,12 +11,12 @@ export default defineConfig({
       "disclose-heaving-disloyal.ngrok-free.dev",
     ],
     proxy: {
-      "/nhcx": {
+      "/nhcx/api": {
         target: "https://disclose-heaving-disloyal.ngrok-free.dev",
         changeOrigin: true,
         secure: false,
         headers: {
-          "ngrok-skip-browser-warning": "69420", // Bypasses ngrok's HTML warning page
+          "ngrok-skip-browser-warning": "69420",
         },
       },
     },
