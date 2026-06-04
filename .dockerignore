@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+*.local
+.git
+.env
+*.log
+*.png
+*.txt
+src/components_backup
