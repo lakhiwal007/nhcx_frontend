@@ -59,6 +59,7 @@ export const ENDPOINTS = {
   // Communications
   LIST_COMMUNICATIONS: "/cashless/communications",
   COMMUNICATION_STATUS: (id) => `/cashless/communication/status/${id}`,
+  MARK_COMMUNICATION_READ: (id) => `/cashless/communication/${id}/read`,
   
   // Gateway
   REQUEST_GATEWAY_STATUS: "/cashless/status/request",

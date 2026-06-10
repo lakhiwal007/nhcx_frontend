@@ -104,5 +104,10 @@ export const live = {
   getCommunicationStatus: (correlation_id) =>
     http.get(ENDPOINTS.COMMUNICATION_STATUS(correlation_id)),
 
+  markCommunicationRead: (correlation_id) =>
+    http.patch(ENDPOINTS.MARK_COMMUNICATION_READ(correlation_id), {}),
+
   requestGatewayStatus: (data) => http.post(ENDPOINTS.REQUEST_GATEWAY_STATUS, data),
+
+  rawPost: (fullPath, body = {}) => http.rawPost(fullPath, body),
 };

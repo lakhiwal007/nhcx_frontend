@@ -213,7 +213,7 @@ export default function PreauthStatus({ ctx }) {
     setSubmitting(true);
     try {
       const body = {
-        ...(cashless_case_id ? { cashless_case_id } : { claim_id }),
+        claim_id,
         preauth_ref: statusData?.preauth_ref,
         reason: cancelReason,
         description: cancelDesc,
@@ -522,31 +522,70 @@ export default function PreauthStatus({ ctx }) {
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
           Correct clinical or billing data and resubmit. Only the fields you change here will be sent; everything else is re-derived from the hospital DB.
         </p>
-        {draftData?.items?.length > 0 && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>Line Items (editable)</div>
-            <div className="table-responsive-wrapper">
-              <table className="table-modern" style={{ fontSize: "12px" }}>
-                <thead>
-                  <tr>
-                    <th>Service</th>
-                    <th>Qty</th>
-                    <th style={{ textAlign: "right" }}>Net Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(resubmitItems.length > 0 ? resubmitItems : draftData.items).map((item, i) => (
-                    <tr key={i}>
-                      <td>{item.service_name}</td>
-                      <td>{item.quantity}</td>
-                      <td style={{ textAlign: "right" }}>₹{item.net_amount?.toLocaleString()}</td>
+        {(() => {
+          // Prefer saved draft items, fall back to adjudicated items from status
+          const baseItems = draftData?.editedItems ?? draftData?.items ?? statusData?.claim_items ?? statusData?.items ?? [];
+          const displayItems = resubmitItems.length > 0 ? resubmitItems : baseItems;
+          return baseItems.length > 0 ? (
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>Line Items (editable)</div>
+              <div className="table-responsive-wrapper">
+                <table className="table-modern" style={{ fontSize: "12px" }}>
+                  <thead>
+                    <tr>
+                      <th>Service</th>
+                      <th>Qty</th>
+                      <th>Unit Price</th>
+                      <th style={{ textAlign: "right" }}>Net Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {displayItems.map((item, i) => (
+                      <tr key={i}>
+                        <td>{item.service_name || `Seq #${item.sequence}`}</td>
+                        <td>
+                          <input
+                            className="input-modern"
+                            style={{ width: "60px", fontSize: "11px", padding: "3px 6px" }}
+                            type="number"
+                            min="1"
+                            value={item.quantity ?? ""}
+                            onChange={(e) => {
+                              const updated = (resubmitItems.length > 0 ? resubmitItems : baseItems).map((it, idx) => {
+                                if (idx !== i) return it;
+                                const qty = Number(e.target.value);
+                                return { ...it, quantity: qty, net_amount: qty * (it.unit_price || 0) };
+                              });
+                              setResubmitItems(updated);
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="input-modern"
+                            style={{ width: "90px", fontSize: "11px", padding: "3px 6px" }}
+                            type="number"
+                            min="0"
+                            value={item.unit_price ?? ""}
+                            onChange={(e) => {
+                              const updated = (resubmitItems.length > 0 ? resubmitItems : baseItems).map((it, idx) => {
+                                if (idx !== i) return it;
+                                const price = Number(e.target.value);
+                                return { ...it, unit_price: price, net_amount: (it.quantity || 0) * price };
+                              });
+                              setResubmitItems(updated);
+                            }}
+                          />
+                        </td>
+                        <td style={{ textAlign: "right" }}>₹{Number(item.net_amount)?.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          ) : null;
+        })()}
         <Button
           variant="primary"
           className="w-full"

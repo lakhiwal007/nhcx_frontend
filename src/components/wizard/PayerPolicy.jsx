@@ -53,10 +53,12 @@ export default function PayerPolicy({ ctx }) {
     const fetchPol = async () => {
       setLoadingPolicies(true);
       try {
-        const res = await api.fetchPolicies({
+        const body = {
           child_id: patient.child_id,
           payer_id: selectedPayer.participant_code,
-        });
+        };
+        if (caseState.admission_id) body.admission_id = caseState.admission_id;
+        const res = await api.fetchPolicies(body);
         setPolicies(res?.data?.policies || []);
       } catch (err) {
         console.error(err);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Send, ArrowRight, AlertCircle, X } from "lucide-react";
+import { Send, ArrowRight, AlertCircle, X, Edit2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid, MissingFieldsAlert } from "../Common";
@@ -94,10 +94,14 @@ export default function ClaimsScreen({ ctx }) {
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(location.state?.tab || "draft");
 
+  // Discharge flow
   const [dischargeCorrelationId, setDischargeCorrelationId] = useState(null);
-  const [finalCorrelationId, setFinalCorrelationId] = useState(
-    caseState.claimCorrelationId || null
-  );
+  const [dischargeStatus, setDischargeStatus] = useState(null);
+  const [dischargePolling, setDischargePolling] = useState(false);
+  const dischargePollRef = useRef(null);
+
+  // Final claim flow
+  const [finalCorrelationId, setFinalCorrelationId] = useState(caseState.claimCorrelationId || null);
   const [claimStatus, setClaimStatus] = useState(null);
   const [polling, setPolling] = useState(false);
   const pollRef = useRef(null);
@@ -107,7 +111,9 @@ export default function ClaimsScreen({ ctx }) {
   const [showContextDrawer, setShowContextDrawer] = useState(false);
   const [queryAnswer, setQueryAnswer] = useState("");
 
-  // caseState.claim_id may be null (set from cashless prepare), so always prefer location.state if caseState has null
+  // Editable items in resubmit drawer
+  const [resubmitEditItems, setResubmitEditItems] = useState(null);
+
   const claimId = caseState.claim_id || location.state?.claim_id;
 
   const loadDraft = async (id, params) => {
@@ -117,10 +123,7 @@ export default function ClaimsScreen({ ctx }) {
       const res = await api.prepareClaimDraft(queryParams);
       setClaimDraft(res);
       setMissingFields(res.missing_fields ?? []);
-      // Persist claim_id if backend returns one and we don't already have a valid one
-      if (res.claim_id && !claimId) {
-        updateCaseState({ claim_id: res.claim_id });
-      }
+      if (res.claim_id && !claimId) updateCaseState({ claim_id: res.claim_id });
     } catch (_) {
     } finally {
       setLoading(false);
@@ -136,7 +139,6 @@ export default function ClaimsScreen({ ctx }) {
       const resolvedCashlessCaseId = caseState.cashless_case_id;
 
       if (!resolvedClaimId && !resolvedCashlessCaseId) {
-        // Show a no-claim-id error state rather than making a broken API call
         setLoading(false);
         setClaimDraft({ _error: "No claim ID available. Please complete the preauth step first." });
         return;
@@ -150,6 +152,28 @@ export default function ClaimsScreen({ ctx }) {
     }
   }, []);
 
+  // Discharge claim polling
+  useEffect(() => {
+    if (!dischargePolling || !dischargeCorrelationId) {
+      clearInterval(dischargePollRef.current);
+      return;
+    }
+    const doPoll = async () => {
+      try {
+        const res = await api.getClaimStatus(dischargeCorrelationId);
+        setDischargeStatus(res);
+        if (res.status === "complete" || res.status === "not_found") {
+          setDischargePolling(false);
+          clearInterval(dischargePollRef.current);
+        }
+      } catch (_) {}
+    };
+    doPoll();
+    dischargePollRef.current = setInterval(doPoll, POLL_INTERVAL_MS);
+    return () => clearInterval(dischargePollRef.current);
+  }, [dischargePolling, dischargeCorrelationId]);
+
+  // Final claim polling
   useEffect(() => {
     if (!polling || !finalCorrelationId) {
       clearInterval(pollRef.current);
@@ -170,6 +194,13 @@ export default function ClaimsScreen({ ctx }) {
     return () => clearInterval(pollRef.current);
   }, [polling, finalCorrelationId]);
 
+  // Seed resubmit drawer items when it opens
+  useEffect(() => {
+    if (showResubmitDrawer) {
+      setResubmitEditItems(claimDraft?.items?.map((it) => ({ ...it })) ?? []);
+    }
+  }, [showResubmitDrawer]);
+
   const handleUpload = (doc) => {
     setClaimDraft((prev) => ({
       ...prev,
@@ -179,15 +210,28 @@ export default function ClaimsScreen({ ctx }) {
     }));
   };
 
+  const updateResubmitItem = (idx, field, raw) => {
+    const val = Number(raw);
+    setResubmitEditItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const next = { ...it, [field]: isNaN(val) ? raw : val };
+        if (field === "quantity" || field === "unit_price") {
+          const qty = field === "quantity" ? val : it.quantity;
+          const price = field === "unit_price" ? val : it.unit_price;
+          next.net_amount = qty * price;
+        }
+        return next;
+      })
+    );
+  };
+
   const handleSubmitDischarge = async () => {
     setSubmitting(true);
     try {
-      const res = await api.submitDischargeClaim({
-        claim_id: claimDraft.claim_id,
-        supporting_documents: claimDraft.supporting_documents,
-      });
+      const res = await api.submitDischargeClaim({ claim_id: claimDraft.claim_id });
       setDischargeCorrelationId(res.correlation_id);
-      setActiveTab("final");
+      setDischargePolling(true);
     } catch (_) {
     } finally {
       setSubmitting(false);
@@ -197,10 +241,7 @@ export default function ClaimsScreen({ ctx }) {
   const handleSubmitFinal = async () => {
     setSubmitting(true);
     try {
-      const res = await api.submitFinalClaim({
-        claim_id: claimDraft.claim_id,
-        supporting_documents: claimDraft.supporting_documents,
-      });
+      const res = await api.submitFinalClaim({ claim_id: claimDraft.claim_id });
       setFinalCorrelationId(res.correlation_id);
       updateCaseState({ claimCorrelationId: res.correlation_id });
       setActiveTab("decision");
@@ -237,7 +278,13 @@ export default function ClaimsScreen({ ctx }) {
   const handleResubmitClaim = async () => {
     setSubmitting(true);
     try {
-      const res = await api.resubmitClaim({ claim_id: claimDraft?.claim_id || claimId });
+      const body = { claim_id: claimDraft?.claim_id || claimId };
+      if (resubmitEditItems?.length > 0) {
+        const total = resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0);
+        body.items = resubmitEditItems;
+        body.total_amount = total;
+      }
+      const res = await api.resubmitClaim(body);
       setShowResubmitDrawer(false);
       setFinalCorrelationId(res.correlation_id);
       updateCaseState({ claimCorrelationId: res.correlation_id });
@@ -258,12 +305,15 @@ export default function ClaimsScreen({ ctx }) {
 
   const hasMissingFields = missingFields.length > 0;
   const hasPreauthRef = !!claimDraft?.preauth_ref;
-  const hasMissingDocs = claimDraft?.supporting_documents?.some((d) => !d.optional && !d.url);
+  // Docs block submit when any has no URL (all returned docs are required)
+  const hasMissingDocs = claimDraft?.supporting_documents?.some((d) => !d.url);
   const canSubmit = !hasMissingFields && hasPreauthRef && !hasMissingDocs && !submitting;
 
   const claimDecision = claimStatus?.decision;
+  const isClaimApproved = claimDecision === "APPROVED";
+  const isPartialApproval = claimDecision === "PARTIALLY_APPROVED";
   const isClaimQueried = claimDecision === "QUERIED";
-  const isClaimRejected = claimDecision === "REJECTED" || claimDecision === "PARTIALLY_APPROVED";
+  const isClaimRejected = claimDecision === "REJECTED";
 
   if (loading) {
     return (
@@ -315,6 +365,7 @@ export default function ClaimsScreen({ ctx }) {
         ))}
       </div>
 
+      {/* ── Claim Draft ── */}
       {activeTab === "draft" && (
         <Card title="Claim Draft">
           {hasMissingFields && (
@@ -376,27 +427,48 @@ export default function ClaimsScreen({ ctx }) {
         </Card>
       )}
 
+      {/* ── Discharge Claim ── */}
       {activeTab === "discharge" && (
         <Card title="Discharge Documents">
           <DocumentChecklist documents={claimDraft?.supporting_documents} onUpload={handleUpload} />
-          {dischargeCorrelationId && (
-            <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "8px", fontSize: "12px", marginBottom: "16px" }}>
-              Discharge claim submitted — correlation: <code>{dischargeCorrelationId}</code>
+
+          {/* Discharge polling / status */}
+          {dischargePolling && (
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "16px" }}>
+              <div className="spinner" style={{ width: "20px", height: "20px" }} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: "13px" }}>Discharge claim submitted — awaiting payer decision</div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{dischargeCorrelationId} · polling every {POLL_INTERVAL_MS / 1000}s</div>
+              </div>
             </div>
           )}
+          {dischargeStatus?.status === "complete" && (
+            <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "8px", fontSize: "12px", marginBottom: "16px" }}>
+              Discharge claim adjudicated — decision: <strong>{dischargeStatus.decision || "complete"}</strong>
+            </div>
+          )}
+
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
             <Button variant="text" onClick={() => setActiveTab("draft")}>Back</Button>
-            <Button
-              variant="primary"
-              disabled={!canSubmit || !!dischargeCorrelationId}
-              onClick={handleSubmitDischarge}
-            >
-              {submitting ? "Submitting…" : dischargeCorrelationId ? "Discharge Submitted ✓" : "Submit Discharge Claim"}
-            </Button>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <Button
+                variant="primary"
+                disabled={!canSubmit || !!dischargeCorrelationId}
+                onClick={handleSubmitDischarge}
+              >
+                {submitting ? "Submitting…" : dischargeCorrelationId ? "Discharge Submitted ✓" : "Submit Discharge Claim"}
+              </Button>
+              {(dischargeStatus?.status === "complete" || dischargeCorrelationId) && (
+                <Button variant="primary" onClick={() => setActiveTab("final")}>
+                  Proceed to Final Claim <ArrowRight size={16} style={{ marginLeft: "8px" }} />
+                </Button>
+              )}
+            </div>
           </div>
         </Card>
       )}
 
+      {/* ── Final Claim ── */}
       {activeTab === "final" && (
         <Card title="Final Claim">
           <div style={{ display: "flex", gap: "24px", marginBottom: "20px", fontSize: "13px" }}>
@@ -447,6 +519,7 @@ export default function ClaimsScreen({ ctx }) {
         </Card>
       )}
 
+      {/* ── Claim Decision ── */}
       {activeTab === "decision" && (
         <div>
           {(!claimStatus || polling) ? (
@@ -464,13 +537,44 @@ export default function ClaimsScreen({ ctx }) {
           ) : (
             <>
               <DecisionBanner decision={claimDecision} approvedAmount={claimStatus?.approved_amount} />
+
+              {/* Claim reference + payment status strip */}
+              {(claimStatus?.claim_response_ref || claimStatus?.payment_status) && (
+                <div style={{ display: "flex", gap: "16px", marginBottom: "16px", padding: "10px 16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", fontSize: "13px", flexWrap: "wrap" }}>
+                  {claimStatus.claim_response_ref && (
+                    <div>
+                      <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Payer Ref: </span>
+                      <code style={{ fontSize: "12px" }}>{claimStatus.claim_response_ref}</code>
+                    </div>
+                  )}
+                  {claimStatus.payment_status && (
+                    <div>
+                      <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Payment: </span>
+                      <span className="badge-modern badge-info" style={{ fontSize: "11px" }}>{claimStatus.payment_status}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Card title="Adjudication Summary" className="mb-6">
                 <AmountGrid totals={claimStatus?.totals} />
+
+                {/* Payer notes */}
+                {claimStatus?.process_notes?.length > 0 && (
+                  <div style={{ marginTop: "16px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>Payer Notes</div>
+                    {claimStatus.process_notes.map((note, i) => (
+                      <div key={i} style={{ fontSize: "13px", padding: "8px 12px", background: "rgba(245,158,11,0.06)", borderRadius: "8px", borderLeft: "3px solid var(--warning)", marginBottom: "6px" }}>
+                        {note.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Card>
 
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
-                <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                   {isClaimQueried && (
                     <>
                       <Button variant="outline" onClick={() => setShowQueryDrawer(true)}>Respond to Query</Button>
@@ -483,9 +587,17 @@ export default function ClaimsScreen({ ctx }) {
                       <Button variant="outline" onClick={() => navigate("../reprocess")}>Appeal / Reprocess</Button>
                     </>
                   )}
-                  <Button variant="primary" onClick={() => navigate("../payment")}>
-                    Proceed to Payment <ArrowRight size={18} style={{ marginLeft: "8px" }} />
-                  </Button>
+                  {isPartialApproval && (
+                    <>
+                      <Button variant="outline" onClick={() => setShowResubmitDrawer(true)}>Resubmit Claim</Button>
+                      <Button variant="outline" onClick={() => navigate("../reprocess")}>Appeal / Reprocess</Button>
+                    </>
+                  )}
+                  {(isClaimApproved || isPartialApproval) && (
+                    <Button variant="primary" onClick={() => navigate("../payment")}>
+                      View Payment Status <ArrowRight size={18} style={{ marginLeft: "8px" }} />
+                    </Button>
+                  )}
                 </div>
               </div>
             </>
@@ -493,6 +605,7 @@ export default function ClaimsScreen({ ctx }) {
         </div>
       )}
 
+      {/* ── Query Drawer ── */}
       <Drawer open={showQueryDrawer} onClose={() => setShowQueryDrawer(false)} title="Respond to Claim Query">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
           Provide a clarification and attach any documents the payer requested.
@@ -512,35 +625,73 @@ export default function ClaimsScreen({ ctx }) {
         </Button>
       </Drawer>
 
+      {/* ── Resubmit Drawer (editable items) ── */}
       <Drawer open={showResubmitDrawer} onClose={() => setShowResubmitDrawer(false)} title="Resubmit Claim">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
           Correct clinical or billing data. Only the fields you change are sent; everything else is re-derived from the hospital DB.
         </p>
-        <div className="table-responsive-wrapper" style={{ marginBottom: "20px" }}>
-          <table className="table-modern" style={{ fontSize: "13px" }}>
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Qty</th>
-                <th style={{ textAlign: "right" }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {claimDraft?.items?.map((item, i) => (
-                <tr key={i}>
-                  <td>{item.service_name}</td>
-                  <td>{item.quantity}</td>
-                  <td style={{ textAlign: "right" }}>₹{item.net_amount?.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {resubmitEditItems?.length > 0 && (
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Line Items</div>
+              <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--primary)" }}><Edit2 size={11} /> Editable</span>
+            </div>
+            <div className="table-responsive-wrapper">
+              <table className="table-modern" style={{ fontSize: "13px" }}>
+                <thead>
+                  <tr>
+                    <th>Service</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th style={{ textAlign: "right" }}>Net Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resubmitEditItems.map((item, i) => (
+                    <tr key={i}>
+                      <td>{item.service_name}</td>
+                      <td>
+                        <input
+                          className="input-modern"
+                          style={{ width: "60px", fontSize: "12px", padding: "4px 6px" }}
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateResubmitItem(i, "quantity", e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="input-modern"
+                          style={{ width: "90px", fontSize: "12px", padding: "4px 6px" }}
+                          type="number"
+                          min="0"
+                          value={item.unit_price}
+                          onChange={(e) => updateResubmitItem(i, "unit_price", e.target.value)}
+                        />
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>₹{Number(item.net_amount)?.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
+                    <td style={{ textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>
+                      ₹{resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
         <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitClaim} style={{ justifyContent: "center" }}>
           {submitting ? "Resubmitting…" : "Resubmit Claim"}
         </Button>
       </Drawer>
 
+      {/* ── Patient Context Drawer ── */}
       <Drawer open={showContextDrawer} onClose={() => setShowContextDrawer(false)} title="Supply Missing Patient Attributes">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
           These attributes are required by NHCX but could not be resolved from the hospital DB. They are saved to the cashless case and do not need to be re-sent on submission.

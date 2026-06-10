@@ -529,6 +529,7 @@ export default function EligibilityPrep({ ctx }) {
   const [caseData, setCaseData] = useState(null);
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState(null);
+  const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
   const pollRef = useRef(null);
 
   const hasInitialized = useRef(false);
@@ -565,7 +566,23 @@ export default function EligibilityPrep({ ctx }) {
           setPolling(true);
         }
       } catch (err) {
-        setError(err.message);
+        // Detect sum-insured-exceeded so we can show a targeted recovery UI
+        const msg = err.message || "";
+        const isSumInsured =
+          msg.includes("sum_insured_exceeded") ||
+          msg.toLowerCase().includes("exceeds policy sum insured") ||
+          msg.toLowerCase().includes("sum insured");
+        if (isSumInsured) {
+          // Try to extract amounts from the message (e.g. "₹75000 exceeds policy sum insured ₹50000")
+          const nums = msg.match(/[\d,]+/g)?.map((n) => Number(n.replace(/,/g, "")));
+          setSumInsuredError({
+            estimated: nums?.[0] ?? null,
+            limit: nums?.[1] ?? null,
+            raw: msg,
+          });
+        } else {
+          setError(msg);
+        }
       } finally {
         setLoading(false);
       }
@@ -603,6 +620,44 @@ export default function EligibilityPrep({ ctx }) {
         <div className="spinner mb-4" />
         <p className="text-muted">Initiating eligibility preparation…</p>
       </div>
+    );
+  }
+
+  if (sumInsuredError) {
+    return (
+      <Card>
+        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", marginBottom: "20px" }}>
+          <AlertCircle color="var(--error)" size={24} style={{ flexShrink: 0, marginTop: "2px" }} />
+          <div>
+            <div style={{ fontWeight: 700, color: "var(--error)", fontSize: "16px", marginBottom: "8px" }}>
+              Estimated bill exceeds policy sum insured
+            </div>
+            {sumInsuredError.estimated && sumInsuredError.limit ? (
+              <div style={{ fontSize: "14px", marginBottom: "12px" }}>
+                Estimated bill{" "}
+                <strong style={{ color: "var(--error)" }}>₹{sumInsuredError.estimated.toLocaleString()}</strong>
+                {" "}exceeds this policy's sum insured of{" "}
+                <strong>₹{sumInsuredError.limit.toLocaleString()}</strong>.
+              </div>
+            ) : (
+              <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
+                {sumInsuredError.raw}
+              </div>
+            )}
+            <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+              Select a different policy with a higher sum insured, or proceed with the current one if supplemental coverage applies.
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "12px" }}>
+          <Button variant="primary" onClick={() => navigate("../payer")}>
+            Select Different Policy
+          </Button>
+          <Button variant="outline" onClick={() => { setSumInsuredError(null); setError(null); hasInitialized.current = false; }}>
+            Proceed Anyway
+          </Button>
+        </div>
+      </Card>
     );
   }
 

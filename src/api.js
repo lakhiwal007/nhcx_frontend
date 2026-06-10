@@ -7,7 +7,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // Base URL for real network calls. Change this to match your backend server.
 const BASE_URL =
-  import.meta.env.VITE_BASE_URL || "http://localhost:8082/api/v1/insurance";
+  import.meta.env.VITE_BASE_URL || "http://localhost:8082/nhcx/backend/api/v1/insurance";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -59,7 +59,7 @@ const http = {
     }
   },
   post: async (path, body = {}) => {
-    const merged = injectProvider({ request_id: generateRequestId(), force_refresh: true, ...body });
+    const merged = injectProvider({ request_id: generateRequestId(), ...body });
     try {
       const res = await fetch(BASE_URL + path, {
         method: "POST",
@@ -75,7 +75,7 @@ const http = {
     }
   },
   patch: async (path, body = {}) => {
-    const merged = injectProvider({ request_id: generateRequestId(), force_refresh: true, ...body });
+    const merged = injectProvider({ request_id: generateRequestId(), ...body });
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PATCH",
@@ -93,7 +93,7 @@ const http = {
     }
   },
   put: async (path, body = {}) => {
-    const merged = injectProvider({ request_id: generateRequestId(), force_refresh: true, ...body });
+    const merged = injectProvider({ request_id: generateRequestId(), ...body });
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PUT",
@@ -240,7 +240,7 @@ const mock = {
             claim_id: 101,
             status: "pending",
             current_step: "insurance_and_eligibility",
-            payer_code: "1518@hcx",
+            payer_id: "1518@hcx",
             policy_number: "POL-91711234567890-2026",
             preauth_status: "pending",
             created_at: "2026-05-04T10:35:00+05:30",
@@ -288,7 +288,7 @@ const mock = {
                   cashless_case_id: 4,
                   status: "draft",
                   use_type: "preauthorization",
-                  payer_code: "1518@hcx",
+                  payer_id: "1518@hcx",
                   payer_name: "Sample Payer",
                   policy_number: "POL-91711234567890-2026",
                   total_billed: 15200,
@@ -310,7 +310,7 @@ const mock = {
             claim_id: 102,
             status: "complete",
             current_step: "preauth_ready",
-            payer_code: "2044@hcx",
+            payer_id: "2044@hcx",
             policy_number: "POL-ALT-2026",
             preauth_status: "approved",
             created_at: "2026-05-04T11:05:00+05:30",
@@ -495,7 +495,7 @@ const mock = {
           id: 7,
           request_id: "550e8400-e29b-41d4-a716-446655440000",
           child_id: 12,
-          payer_code: "1518@hcx",
+          payer_id: "1518@hcx",
           updated_at: "2026-05-04T10:41:00+05:30",
         },
       },
@@ -818,7 +818,7 @@ const mock = {
     await delay(800);
     return {
       claim_id: params.claim_id || 101,
-      payer_code: "1518@hcx",
+      payer_id: "1518@hcx",
       policy_number: "POL-91711234567890-2026",
       preauth_ref: "PA-2026-00001",
       preauth_status: "APPROVED",
@@ -1088,8 +1088,9 @@ const mock = {
         ],
         action: {
           label: "Respond to Query",
+          code: "respond_preauth_query",
           method: "POST",
-          endpoint: "/api/v1/insurance/cashless/preauth/query-response",
+          endpoint: "/nhcx/backend/api/v1/insurance/cashless/preauth/query-response",
           payload_hint: { claim_id: 101 },
         },
         metadata: {
@@ -1116,8 +1117,9 @@ const mock = {
         required_documents: [],
         action: {
           label: "Retry Acknowledgement",
+          code: "acknowledge_payment",
           method: "POST",
-          endpoint: "/api/v1/insurance/cashless/payment/acknowledge",
+          endpoint: "/nhcx/backend/api/v1/insurance/cashless/payment/acknowledge",
           payload_hint: { payment_reference: "PAY-2026-00001" },
         },
         metadata: { acknowledgement_error: "Timeout reaching NHCX gateway" },
@@ -1148,8 +1150,9 @@ const mock = {
         ],
         action: {
           label: "Submit Final Claim",
+          code: "submit_final_claim",
           method: "POST",
-          endpoint: "/api/v1/insurance/cashless/claims/submit",
+          endpoint: "/nhcx/backend/api/v1/insurance/cashless/claims/submit",
           payload_hint: { claim_id: 103 },
         },
         metadata: {},
@@ -1201,8 +1204,9 @@ const mock = {
       ],
       action: {
         label: "Respond to Query",
+        code: "respond_preauth_query",
         method: "POST",
-        endpoint: "/api/v1/insurance/cashless/preauth/query-response",
+        endpoint: "/nhcx/backend/api/v1/insurance/cashless/preauth/query-response",
         payload_hint: { claim_id: 101 },
       },
       metadata: {
@@ -1333,8 +1337,9 @@ const mock = {
               ],
               action: {
                 label: "Submit Documents",
+                code: "respond_claim_query",
                 method: "POST",
-                endpoint: "/api/v1/insurance/cashless/claims/query-response",
+                endpoint: "/nhcx/backend/api/v1/insurance/cashless/claims/query-response",
                 payload_hint: { claim_id: 102 },
               },
               metadata: {

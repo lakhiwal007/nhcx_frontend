@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Home, RefreshCw, AlertCircle } from "lucide-react";
+import { CheckCircle2, Home, RefreshCw, AlertCircle, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, StatusBadge } from "../Common";
 
@@ -15,6 +15,9 @@ export default function PaymentReconciliation({ ctx }) {
   const [paymentData, setPaymentData] = useState(null);
   const [acknowledging, setAcknowledging] = useState({});
   const [ackResults, setAckResults] = useState({});
+  // Advanced ack override state keyed by payment_reference
+  const [ackOverrides, setAckOverrides] = useState({});
+  const [showOverrides, setShowOverrides] = useState({});
 
   const fetchPayment = async () => {
     setLoading(true);
@@ -39,7 +42,12 @@ export default function PaymentReconciliation({ ctx }) {
     const ref = event.payment_reference;
     setAcknowledging((prev) => ({ ...prev, [ref]: true }));
     try {
-      const res = await api.acknowledgePayment({ payment_reference: ref });
+      const overrides = ackOverrides[ref] || {};
+      const body = { payment_reference: ref };
+      if (overrides.claim_number) body.claim_number = overrides.claim_number;
+      if (overrides.amount_received) body.amount_received = Number(overrides.amount_received);
+      if (overrides.utr) body.utr = overrides.utr;
+      const res = await api.acknowledgePayment(body);
       setAckResults((prev) => ({ ...prev, [ref]: { success: true, correlation_id: res.correlation_id } }));
       await fetchPayment();
     } catch (err) {
@@ -47,6 +55,10 @@ export default function PaymentReconciliation({ ctx }) {
     } finally {
       setAcknowledging((prev) => ({ ...prev, [ref]: false }));
     }
+  };
+
+  const updateOverride = (ref, field, value) => {
+    setAckOverrides((prev) => ({ ...prev, [ref]: { ...(prev[ref] || {}), [field]: value } }));
   };
 
   if (loading) {
@@ -104,8 +116,10 @@ export default function PaymentReconciliation({ ctx }) {
                 <thead>
                   <tr>
                     <th>Payment Ref</th>
+                    <th>Claim Ref</th>
                     <th>Date</th>
                     <th>Stage</th>
+                    <th style={{ textAlign: "right" }}>Notice</th>
                     <th style={{ textAlign: "right" }}>Gross</th>
                     <th style={{ textAlign: "right" }}>TDS</th>
                     <th style={{ textAlign: "right" }}>Net Paid</th>
@@ -119,46 +133,108 @@ export default function PaymentReconciliation({ ctx }) {
                     const ackResult = ackResults[ref];
                     const isAcknowledging = acknowledging[ref];
                     const needsRetry = pay.acknowledgement_status === "failed" && !ackResult?.success;
+                    const isOpen = showOverrides[ref];
                     return (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 700 }}>{ref}</td>
-                        <td style={{ fontSize: "12px" }}>{pay.payment_date || "—"}</td>
-                        <td>
-                          <StatusBadge status={pay.payment_stage?.replace("PAYMENT_", "").toLowerCase()} />
-                        </td>
-                        <td style={{ textAlign: "right" }}>₹{pay.gross_amount?.toLocaleString()}</td>
-                        <td style={{ textAlign: "right", color: "var(--error)" }}>-₹{pay.tds_amount?.toLocaleString()}</td>
-                        <td style={{ textAlign: "right", fontWeight: 800, color: "var(--success)" }}>
-                          ₹{pay.net_payment_amount?.toLocaleString()}
-                        </td>
-                        <td>{pay.utr ? <code style={{ fontSize: "11px" }}>{pay.utr}</code> : <span className="text-muted">—</span>}</td>
-                        <td>
-                          {pay.acknowledgement_status === "submitted" && !needsRetry ? (
-                            <span className="badge-modern badge-success" style={{ fontSize: "10px" }}>Acked</span>
-                          ) : pay.acknowledgement_status === "pending" ? (
-                            <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>Pending</span>
-                          ) : (
-                            <div>
-                              <Button
-                                size="small"
-                                variant="outline"
-                                disabled={isAcknowledging}
-                                onClick={() => handleAcknowledge(pay)}
-                              >
-                                {isAcknowledging ? "…" : "Retry Ack"}
-                              </Button>
-                              {pay.acknowledgement_error && (
-                                <div style={{ fontSize: "10px", color: "var(--error)", marginTop: "4px" }}>{pay.acknowledgement_error}</div>
-                              )}
-                            </div>
-                          )}
-                          {ackResult && (
-                            <div style={{ fontSize: "10px", color: ackResult.success ? "var(--success)" : "var(--error)", marginTop: "4px" }}>
-                              {ackResult.success ? "Submitted ✓" : ackResult.message}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
+                      <>
+                        <tr key={i}>
+                          <td style={{ fontWeight: 700 }}>{ref}</td>
+                          <td style={{ fontSize: "12px" }}>{pay.claim_reference || <span className="text-muted">—</span>}</td>
+                          <td style={{ fontSize: "12px" }}>{pay.payment_date || "—"}</td>
+                          <td>
+                            <StatusBadge status={pay.payment_stage?.replace("PAYMENT_", "").toLowerCase()} />
+                          </td>
+                          <td style={{ textAlign: "right", color: "var(--text-muted)" }}>
+                            {pay.notice_amount != null ? `₹${pay.notice_amount?.toLocaleString()}` : "—"}
+                          </td>
+                          <td style={{ textAlign: "right" }}>₹{pay.gross_amount?.toLocaleString()}</td>
+                          <td style={{ textAlign: "right", color: "var(--error)" }}>-₹{pay.tds_amount?.toLocaleString()}</td>
+                          <td style={{ textAlign: "right", fontWeight: 800, color: "var(--success)" }}>
+                            ₹{pay.net_payment_amount?.toLocaleString()}
+                          </td>
+                          <td>{pay.utr ? <code style={{ fontSize: "11px" }}>{pay.utr}</code> : <span className="text-muted">—</span>}</td>
+                          <td>
+                            {pay.acknowledgement_status === "submitted" && !needsRetry ? (
+                              <span className="badge-modern badge-success" style={{ fontSize: "10px" }}>Acked</span>
+                            ) : pay.acknowledgement_status === "pending" ? (
+                              <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>Pending</span>
+                            ) : (
+                              <div>
+                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                  <Button
+                                    size="small"
+                                    variant="outline"
+                                    disabled={isAcknowledging}
+                                    onClick={() => handleAcknowledge(pay)}
+                                  >
+                                    {isAcknowledging ? "…" : "Retry Ack"}
+                                  </Button>
+                                  <button
+                                    onClick={() => setShowOverrides((p) => ({ ...p, [ref]: !p[ref] }))}
+                                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", padding: "2px" }}
+                                    title="Edit values"
+                                  >
+                                    <Edit2 size={12} />
+                                  </button>
+                                </div>
+                                {pay.acknowledgement_error && (
+                                  <div style={{ fontSize: "10px", color: "var(--error)", marginTop: "4px" }}>{pay.acknowledgement_error}</div>
+                                )}
+                              </div>
+                            )}
+                            {ackResult && (
+                              <div style={{ fontSize: "10px", color: ackResult.success ? "var(--success)" : "var(--error)", marginTop: "4px" }}>
+                                {ackResult.success ? "Submitted ✓" : ackResult.message}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                        {/* Edit values row */}
+                        {isOpen && (
+                          <tr key={`${i}-overrides`} style={{ background: "var(--bg-main)" }}>
+                            <td colSpan="10" style={{ padding: "12px 16px" }}>
+                              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end" }}>
+                                <div>
+                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "4px" }}>Claim Number</div>
+                                  <input
+                                    className="input-modern"
+                                    style={{ fontSize: "12px", padding: "4px 8px", width: "160px" }}
+                                    placeholder="Override claim number"
+                                    value={ackOverrides[ref]?.claim_number || ""}
+                                    onChange={(e) => updateOverride(ref, "claim_number", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "4px" }}>Amount Received</div>
+                                  <input
+                                    className="input-modern"
+                                    style={{ fontSize: "12px", padding: "4px 8px", width: "130px" }}
+                                    type="number"
+                                    placeholder="Override amount"
+                                    value={ackOverrides[ref]?.amount_received || ""}
+                                    onChange={(e) => updateOverride(ref, "amount_received", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "4px" }}>UTR</div>
+                                  <input
+                                    className="input-modern"
+                                    style={{ fontSize: "12px", padding: "4px 8px", width: "180px" }}
+                                    placeholder="Override UTR"
+                                    value={ackOverrides[ref]?.utr || ""}
+                                    onChange={(e) => updateOverride(ref, "utr", e.target.value)}
+                                  />
+                                </div>
+                                <button
+                                  onClick={() => setShowOverrides((p) => ({ ...p, [ref]: false }))}
+                                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "12px", padding: "4px 8px" }}
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>

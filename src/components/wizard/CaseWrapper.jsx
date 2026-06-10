@@ -10,6 +10,7 @@ import PayerPolicy from "./PayerPolicy";
 import EligibilityPrep from "./EligibilityPrep";
 import PreauthDraft from "./PreauthDraft";
 import PreauthStatus from "./PreauthStatus";
+import PreauthEnhancement from "./PreauthEnhancement";
 import ClaimsScreen from "./ClaimsScreen";
 import ReprocessScreen from "./ReprocessScreen";
 import PaymentReconciliation from "./PaymentReconciliation";
@@ -20,6 +21,7 @@ const WIZARD_STEPS = [
   { id: "review", label: "Preauth Draft", path: "review" },
   { id: "status", label: "Preauth Status", path: "status" },
   { id: "claim", label: "Claim", path: "claim" },
+  { id: "enhancement", label: "Enhancement", path: "enhancement" },
   { id: "reprocess", label: "Reprocess", path: "reprocess" },
   { id: "payment", label: "Payment", path: "payment" },
 ];
@@ -138,8 +140,8 @@ export default function CaseWrapper() {
             <div style={{ display: "flex", gap: "14px", fontSize: "12px", color: "var(--text-muted)", flexWrap: "wrap" }}>
               <span><User size={12} style={{ display: "inline", marginRight: "4px" }} />{patient.gender}</span>
               <span><Calendar size={12} style={{ display: "inline", marginRight: "4px" }} />{patient.dob}</span>
-              {effectiveCase.payer_code && (
-                <span><Building2 size={12} style={{ display: "inline", marginRight: "4px" }} />{effectiveCase.payer_code}</span>
+              {effectiveCase.payer_id && (
+                <span><Building2 size={12} style={{ display: "inline", marginRight: "4px" }} />{effectiveCase.payer_id}</span>
               )}
               {(caseState.policy?.policyNumber || caseState.policy?.policy_number || effectiveCase.policy_number) && (
                 <span><FileText size={12} style={{ display: "inline", marginRight: "4px" }} />{caseState.policy?.policyNumber || caseState.policy?.policy_number || effectiveCase.policy_number}</span>
@@ -203,6 +205,7 @@ export default function CaseWrapper() {
             <Route path="prep" element={<EligibilityPrep ctx={contextValue} />} />
             <Route path="review" element={<PreauthDraft ctx={contextValue} />} />
             <Route path="status" element={<PreauthStatus ctx={contextValue} />} />
+            <Route path="enhancement" element={<PreauthEnhancement ctx={contextValue} />} />
             <Route path="claim" element={<ClaimsScreen ctx={contextValue} />} />
             <Route path="reprocess" element={<ReprocessScreen ctx={contextValue} />} />
             <Route path="payment" element={<PaymentReconciliation ctx={contextValue} />} />
