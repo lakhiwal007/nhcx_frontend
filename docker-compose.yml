@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:80"
     environment:
-      - BACKEND_URL=${BACKEND_URL:-https://disclose-heaving-disloyal.ngrok-free.dev}
+      - BACKEND_URL=${BACKEND_URL:-http://app:8082}
     container_name: nhcx-cli
     networks:
       - nhcx-service_nhcx_network

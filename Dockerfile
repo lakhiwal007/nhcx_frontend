@@ -7,7 +7,7 @@ RUN npm ci
 
 COPY . .
 
-ARG VITE_BASE_URL=nhcx/backend/api/v1/insurance
+ARG VITE_BASE_URL=/nhcx/backend/api/v1/insurance
 ARG VITE_USE_MOCK=false
 ENV VITE_BASE_URL=$VITE_BASE_URL
 ENV VITE_USE_MOCK=$VITE_USE_MOCK
