@@ -9,9 +9,9 @@ services:
       - BACKEND_URL=${BACKEND_URL:-https://disclose-heaving-disloyal.ngrok-free.dev}
     container_name: nhcx-cli
     networks:
-      - service_nhcx_network
+      - nhcx-service_nhcx_network
     restart: unless-stopped
 
 networks:
-  service_nhcx_network:
+  nhcx-service_nhcx_network:
     external: true
