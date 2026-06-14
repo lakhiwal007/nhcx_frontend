@@ -47,7 +47,7 @@ export default function PayerPolicy({ ctx }) {
     setPolicyError(null);
     setPolicies([]);
     try {
-      const body = { child_id: patient.child_id, payer_id: payer.code };
+      const body = { child_id: patient.child_id, payer_id: payer.code, force_refresh: true };
       if (caseState.admission_id) body.admission_id = caseState.admission_id;
       const res = await api.fetchPolicies(body);
       setPolicies(res?.data?.policies || []);
