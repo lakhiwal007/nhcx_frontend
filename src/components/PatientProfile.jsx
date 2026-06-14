@@ -440,6 +440,7 @@ function PatientDetail({ patient, onBack }) {
 export default function PatientProfile() {
   const [children, setChildren] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
 
@@ -452,6 +453,19 @@ export default function PatientProfile() {
     } catch (_) {
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const handleSelectPatient = useCallback(async (child) => {
+    setLoadingDetail(true);
+    try {
+      const res = await api.searchChildren({ child_id: child.child_id });
+      const full = res?.children?.[0] || child;
+      setSelectedPatient(full);
+    } catch (_) {
+      setSelectedPatient(child);
+    } finally {
+      setLoadingDetail(false);
     }
   }, []);
 
@@ -500,10 +514,10 @@ export default function PatientProfile() {
         <PatientDetail patient={selectedPatient} onBack={() => setSelectedPatient(null)} />
       ) : (
         <div>
-          {loading ? (
+          {loading || loadingDetail ? (
             <div className="flex-center py-20 flex-col">
               <div className="spinner mb-4" />
-              <p className="text-muted">Loading patients…</p>
+              <p className="text-muted">{loadingDetail ? "Loading patient details…" : "Loading patients…"}</p>
             </div>
           ) : filteredChildren.length === 0 ? (
             <div className="empty-view" style={{ minHeight: "40vh" }}>
@@ -522,7 +536,7 @@ export default function PatientProfile() {
                     key={child.child_id}
                     child={child}
                     isSelected={selectedPatient?.child_id === child.child_id}
-                    onClick={() => setSelectedPatient(child)}
+                    onClick={() => handleSelectPatient(child)}
                   />
                 ))}
               </div>
