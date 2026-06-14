@@ -8,7 +8,10 @@ export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
   const { patient, caseState, updateCaseState } = ctx;
 
+  const DUMMY_PAYER = { code: "1000003538@hcx", name: "Demo Payer", is_demo: true };
+
   const [payers, setPayers] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [loadingPayers, setLoadingPayers] = useState(false);
   const [payerSearch, setPayerSearch] = useState("");
   const [selectedPayer, setSelectedPayer] = useState(caseState.payer || null);
@@ -21,17 +24,15 @@ export default function PayerPolicy({ ctx }) {
   );
 
   const handlePayerSearchClick = async () => {
-    if (!payerSearch.trim()) {
-      setPayers([]);
-      return;
-    }
+    setHasSearched(true);
     setLoadingPayers(true);
     try {
-      const res = await api.searchPayers({ name: payerSearch });
-      setPayers(res || []);
+      const params = payerSearch.trim() ? { name: payerSearch } : {};
+      const res = await api.searchPayers(params);
+      setPayers([...(res || []), DUMMY_PAYER]);
     } catch (err) {
       console.error(err);
-      setPayers([]);
+      setPayers([DUMMY_PAYER]);
     } finally {
       setLoadingPayers(false);
     }
@@ -112,7 +113,7 @@ export default function PayerPolicy({ ctx }) {
               <div className="spinner" />
             ) : payers.length === 0 ? (
               <div className="text-muted text-center py-4">
-                No payers found.
+                {hasSearched ? "No payers found." : "Search for a payer above."}
               </div>
             ) : (
               payers.map((payer) => (
@@ -142,16 +143,19 @@ export default function PayerPolicy({ ctx }) {
                     }
                   />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: "15px" }}>
+                    <div style={{ fontWeight: 700, fontSize: "15px", display: "flex", alignItems: "center", gap: "8px" }}>
                       {payer.name}
+                      {payer.is_demo && (
+                        <span className="badge-modern badge-warning" style={{ fontSize: "10px" }}>Demo</span>
+                      )}
                     </div>
                     <div
                       style={{ fontSize: "12px", color: "var(--text-muted)" }}
                     >
-                      {payer.code} • {payer.scheme_type}
+                      {payer.code}{payer.scheme_type ? ` • ${payer.scheme_type}` : ""}
                     </div>
                   </div>
-                  <StatusBadge status={payer.status} />
+                  {!payer.is_demo && <StatusBadge status={payer.status} />}
                 </div>
               ))
             )}
