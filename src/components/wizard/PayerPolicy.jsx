@@ -38,10 +38,23 @@ export default function PayerPolicy({ ctx }) {
     }
   };
 
+  const DUMMY_POLICY = {
+    policy_number: "100217",
+    product_name: "Demo Policy",
+    payer_id: DUMMY_PAYER.code,
+    status: "active",
+  };
+
   const handlePayerSelect = async (payer) => {
     setSelectedPayer(payer);
     setSelectedPolicy(null);
     updateCaseState({ payer, policy: null });
+
+    if (payer.is_demo) {
+      setPolicies([DUMMY_POLICY]);
+      setPolicyError(null);
+      return;
+    }
 
     setLoadingPolicies(true);
     setPolicyError(null);
