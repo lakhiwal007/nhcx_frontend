@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, User, Calendar, Phone, ChevronDown, ChevronRight,
+  Search, User, Calendar, Phone, ChevronDown, ChevronRight, ChevronLeft,
   BadgeIndianRupee, Plus, ArrowLeft, Activity,
 } from "lucide-react";
 import { api } from "../api";
@@ -437,19 +437,25 @@ function PatientDetail({ patient, onBack }) {
   );
 }
 
+const PAGE_SIZE = 20;
+
 export default function PatientProfile() {
   const [children, setChildren] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
 
-  const loadChildren = useCallback(async (query = "") => {
+  const loadChildren = useCallback(async (query = "", pageNum = 1) => {
     setLoading(true);
     try {
-      const params = query.trim() ? { name: query.trim() } : {};
+      const params = { limit: PAGE_SIZE, offset: (pageNum - 1) * PAGE_SIZE };
+      if (query.trim()) params.name = query.trim();
       const res = await api.searchChildren(params);
       setChildren(res?.children || []);
+      setTotalCount(res?.total_count || 0);
     } catch (_) {
     } finally {
       setLoading(false);
@@ -470,18 +476,22 @@ export default function PatientProfile() {
   }, []);
 
   useEffect(() => {
-    loadChildren();
+    loadChildren("", 1);
   }, [loadChildren]);
 
-  const handleSearch = () => loadChildren(searchQuery);
+  const handleSearch = () => {
+    setPage(1);
+    loadChildren(searchQuery, 1);
+  };
 
-  const filteredChildren = searchQuery.trim()
-    ? children.filter((c) =>
-        c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        String(c.child_id).includes(searchQuery) ||
-        c.mobile?.includes(searchQuery)
-      )
-    : children;
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+    loadChildren(searchQuery, newPage);
+  };
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const startItem = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const endItem = Math.min(page * PAGE_SIZE, totalCount);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -497,7 +507,10 @@ export default function PatientProfile() {
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              if (!e.target.value.trim()) loadChildren("");
+              if (!e.target.value.trim()) {
+                setPage(1);
+                loadChildren("", 1);
+              }
             }}
             onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
           />
@@ -519,7 +532,7 @@ export default function PatientProfile() {
               <div className="spinner mb-4" />
               <p className="text-muted">{loadingDetail ? "Loading patient details…" : "Loading patients…"}</p>
             </div>
-          ) : filteredChildren.length === 0 ? (
+          ) : children.length === 0 ? (
             <div className="empty-view" style={{ minHeight: "40vh" }}>
               <User size={48} style={{ opacity: 0.3, marginBottom: "16px" }} />
               <h3>No patients found</h3>
@@ -527,11 +540,46 @@ export default function PatientProfile() {
             </div>
           ) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div style={{ marginBottom: "12px", fontSize: "13px", color: "var(--text-muted)", fontWeight: 600 }}>
-                {filteredChildren.length} patient{filteredChildren.length !== 1 ? "s" : ""}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <span style={{ fontSize: "13px", color: "var(--text-muted)", fontWeight: 600 }}>
+                  Showing {startItem}–{endItem} of {totalCount} patient{totalCount !== 1 ? "s" : ""}
+                </span>
+                {totalPages > 1 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <button
+                      onClick={() => handlePageChange(page - 1)}
+                      disabled={page === 1}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "4px",
+                        padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+                        border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
+                        color: page === 1 ? "var(--text-muted)" : "var(--text-main)",
+                        cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.5 : 1,
+                      }}
+                    >
+                      <ChevronLeft size={15} /> Prev
+                    </button>
+                    <span style={{ fontSize: "13px", color: "var(--text-muted)", minWidth: "80px", textAlign: "center" }}>
+                      Page {page} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => handlePageChange(page + 1)}
+                      disabled={page === totalPages}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "4px",
+                        padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+                        border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
+                        color: page === totalPages ? "var(--text-muted)" : "var(--text-main)",
+                        cursor: page === totalPages ? "not-allowed" : "pointer", opacity: page === totalPages ? 0.5 : 1,
+                      }}
+                    >
+                      Next <ChevronRight size={15} />
+                    </button>
+                  </div>
+                )}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: "10px" }}>
-                {filteredChildren.map((child) => (
+                {children.map((child) => (
                   <PatientCard
                     key={child.child_id}
                     child={child}
@@ -540,6 +588,39 @@ export default function PatientProfile() {
                   />
                 ))}
               </div>
+              {totalPages > 1 && (
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", marginTop: "20px" }}>
+                  <button
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={page === 1}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "4px",
+                      padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+                      border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
+                      color: page === 1 ? "var(--text-muted)" : "var(--text-main)",
+                      cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.5 : 1,
+                    }}
+                  >
+                    <ChevronLeft size={15} /> Prev
+                  </button>
+                  <span style={{ fontSize: "13px", color: "var(--text-muted)", minWidth: "80px", textAlign: "center" }}>
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={page === totalPages}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "4px",
+                      padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+                      border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
+                      color: page === totalPages ? "var(--text-muted)" : "var(--text-main)",
+                      cursor: page === totalPages ? "not-allowed" : "pointer", opacity: page === totalPages ? 0.5 : 1,
+                    }}
+                  >
+                    Next <ChevronRight size={15} />
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
         </div>
