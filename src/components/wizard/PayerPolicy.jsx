@@ -8,32 +8,21 @@ export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
   const { patient, caseState, updateCaseState } = ctx;
 
-  const DUMMY_PAYER = {
-    code: "1000003538@hcx",
-    name: "Demo Payer",
-  };
-
-  const [payers, setPayers] = useState([DUMMY_PAYER]);
+  const [payers, setPayers] = useState([]);
   const [loadingPayers, setLoadingPayers] = useState(false);
   const [payerSearch, setPayerSearch] = useState("");
-  const [selectedPayer, setSelectedPayer] = useState(caseState.payer || DUMMY_PAYER);
+  const [selectedPayer, setSelectedPayer] = useState(caseState.payer || null);
 
   const [policies, setPolicies] = useState([]);
   const [loadingPolicies, setLoadingPolicies] = useState(false);
+  const [policyError, setPolicyError] = useState(null);
   const [selectedPolicy, setSelectedPolicy] = useState(
     caseState.policy || null,
   );
 
-  useEffect(() => {
-    // If caseState doesn't have a payer, auto-sync the default selectedPayer
-    if (!caseState.payer && selectedPayer) {
-      updateCaseState({ payer: selectedPayer });
-    }
-  }, []);
-
   const handlePayerSearchClick = async () => {
     if (!payerSearch.trim()) {
-      setPayers([DUMMY_PAYER]);
+      setPayers([]);
       return;
     }
     setLoadingPayers(true);
@@ -52,6 +41,8 @@ export default function PayerPolicy({ ctx }) {
     if (!selectedPayer || !patient) return;
     const fetchPol = async () => {
       setLoadingPolicies(true);
+      setPolicyError(null);
+      setPolicies([]);
       try {
         const body = {
           child_id: patient.child_id,
@@ -61,7 +52,7 @@ export default function PayerPolicy({ ctx }) {
         const res = await api.fetchPolicies(body);
         setPolicies(res?.data?.policies || []);
       } catch (err) {
-        console.error(err);
+        setPolicyError(err.message);
       } finally {
         setLoadingPolicies(false);
       }
@@ -174,6 +165,10 @@ export default function PayerPolicy({ ctx }) {
               <div className="flex-center py-10 flex-col">
                 <div className="spinner mb-4" />
                 <p className="text-muted">Fetching policies...</p>
+              </div>
+            ) : policyError ? (
+              <div className="warning-banner" style={{ background: "rgba(239,68,68,0.08)", borderColor: "var(--error)", color: "var(--error)", fontSize: "13px" }}>
+                {policyError}
               </div>
             ) : policies.length === 0 ? (
               <div className="text-center py-10 text-muted">

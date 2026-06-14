@@ -42,6 +42,27 @@ const buildUrl = (path, params = {}) => {
 const dispatchError = (msg) =>
   window.dispatchEvent(new CustomEvent("api-error", { detail: msg }));
 
+/** Extract the most human-readable message from a backend error response body. */
+const extractErrorMessage = async (res) => {
+  try {
+    const body = await res.json();
+    let msg = body?.error?.message || body?.message || body?.error;
+    if (typeof msg === "string") {
+      // Backend sometimes wraps a nested JSON string — unwrap it
+      const jsonStart = msg.indexOf("{");
+      if (jsonStart !== -1) {
+        try {
+          const inner = JSON.parse(msg.slice(jsonStart));
+          const innerMsg = inner?.error?.message || inner?.message;
+          if (innerMsg) return innerMsg;
+        } catch (_) {}
+      }
+      return msg;
+    }
+  } catch (_) {}
+  return `${res.status} ${res.statusText}`;
+};
+
 /** Wrapper around fetch — auto-injects request_id; throws on non-2xx. */
 const http = {
   get: async (path, params = {}) => {
@@ -50,8 +71,7 @@ const http = {
       const res = await fetch(buildUrl(path, merged), {
         headers: { "Content-Type": "application/json" },
       });
-      if (!res.ok)
-        throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(await extractErrorMessage(res));
       return await res.json();
     } catch (err) {
       dispatchError(err.message);
@@ -66,8 +86,7 @@ const http = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(merged),
       });
-      if (!res.ok)
-        throw new Error(`POST ${path} failed: ${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(await extractErrorMessage(res));
       return await res.json();
     } catch (err) {
       dispatchError(err.message);
@@ -82,10 +101,7 @@ const http = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(merged),
       });
-      if (!res.ok)
-        throw new Error(
-          `PATCH ${path} failed: ${res.status} ${res.statusText}`,
-        );
+      if (!res.ok) throw new Error(await extractErrorMessage(res));
       return await res.json();
     } catch (err) {
       dispatchError(err.message);
@@ -100,8 +116,7 @@ const http = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(merged),
       });
-      if (!res.ok)
-        throw new Error(`PUT ${path} failed: ${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(await extractErrorMessage(res));
       return await res.json();
     } catch (err) {
       dispatchError(err.message);
@@ -120,10 +135,7 @@ const http = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(merged),
       });
-      if (!res.ok)
-        throw new Error(
-          `POST ${fullPath} failed: ${res.status} ${res.statusText}`,
-        );
+      if (!res.ok) throw new Error(await extractErrorMessage(res));
       return await res.json();
     } catch (err) {
       dispatchError(err.message);
