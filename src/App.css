@@ -2062,3 +2062,298 @@ h3,
         grid-column: 1 / -1;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UX POLISH — Animations, Skeletons, Visual Improvements
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Skeleton shimmer ───────────────────────────────────────────────────── */
+@keyframes shimmer {
+    0%   { background-position: -800px 0; }
+    100% { background-position:  800px 0; }
+}
+
+.skeleton-line {
+    display: block;
+    border-radius: 6px;
+    background: linear-gradient(
+        90deg,
+        var(--border-color)  0%,
+        var(--border-hover) 50%,
+        var(--border-color) 100%
+    );
+    background-size: 800px 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+}
+
+[data-theme="dark"] .skeleton-line {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04)  0%,
+        rgba(255, 255, 255, 0.10) 50%,
+        rgba(255, 255, 255, 0.04) 100%
+    );
+    background-size: 800px 100%;
+}
+
+.skeleton-row td {
+    padding: 14px 16px !important;
+}
+
+.skeleton-row:hover td {
+    background: var(--bg-card) !important;
+    cursor: default !important;
+}
+
+/* ─── Table row stagger entrance ─────────────────────────────────────────── */
+@keyframes row-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.table-modern tbody tr {
+    animation: row-fade-in 0.22s ease-out both;
+}
+
+.table-modern tbody tr:nth-child(1)   { animation-delay:   0ms; }
+.table-modern tbody tr:nth-child(2)   { animation-delay:  40ms; }
+.table-modern tbody tr:nth-child(3)   { animation-delay:  80ms; }
+.table-modern tbody tr:nth-child(4)   { animation-delay: 120ms; }
+.table-modern tbody tr:nth-child(5)   { animation-delay: 160ms; }
+.table-modern tbody tr:nth-child(6)   { animation-delay: 200ms; }
+.table-modern tbody tr:nth-child(7)   { animation-delay: 240ms; }
+.table-modern tbody tr:nth-child(8)   { animation-delay: 280ms; }
+.table-modern tbody tr:nth-child(n+9) { animation-delay: 320ms; }
+
+.table-modern tbody tr.skeleton-row {
+    animation: none;
+}
+
+/* ─── Sidebar active nav indicator ──────────────────────────────────────── */
+.sidebar-nav a {
+    position: relative;
+}
+
+.sidebar-nav a.active::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 55%;
+    border-radius: 4px 0 0 4px;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.sidebar.collapsed .sidebar-nav a.active::after {
+    display: none;
+}
+
+/* ─── Code / UTR chip ────────────────────────────────────────────────────── */
+code {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--primary-light);
+    color: var(--primary);
+    border: 1px solid rgba(79, 70, 229, 0.18);
+    border-radius: 6px;
+    padding: 2px 8px;
+    letter-spacing: 0.2px;
+}
+
+[data-theme="dark"] code {
+    background: rgba(79, 70, 229, 0.12);
+    border-color: rgba(129, 140, 248, 0.25);
+    color: var(--accent);
+}
+
+/* ─── Button press feedback ──────────────────────────────────────────────── */
+.btn-modern:active:not(:disabled) {
+    transform: scale(0.97) !important;
+}
+
+/* Small button size (used as className from Common.jsx Button) */
+.py-1.px-3 { padding: 6px 14px !important; }
+.text-xs    { font-size: 12px !important; }
+
+/* ─── Table links ────────────────────────────────────────────────────────── */
+.table-modern a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.table-modern a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* ─── Empty state polish ─────────────────────────────────────────────────── */
+.empty-view {
+    background: var(--bg-card);
+    border: 1.5px dashed var(--border-hover);
+    border-radius: var(--radius);
+}
+
+.empty-view h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 12px;
+    margin-bottom: 6px;
+}
+
+.empty-view p {
+    color: var(--text-muted);
+    font-size: 14px;
+    max-width: 300px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+/* ─── Scrollbars — dark mode ─────────────────────────────────────────────── */
+[data-theme="dark"] .content::-webkit-scrollbar-thumb       { background: #334155; }
+[data-theme="dark"] .content::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* ─── Drawer body scrollbar ──────────────────────────────────────────────── */
+.drawer-body::-webkit-scrollbar              { width: 4px; }
+.drawer-body::-webkit-scrollbar-track        { background: transparent; }
+.drawer-body::-webkit-scrollbar-thumb        { background: #e2e8f0; border-radius: 4px; }
+.drawer-body::-webkit-scrollbar-thumb:hover  { background: #cbd5e1; }
+
+[data-theme="dark"] .drawer-body::-webkit-scrollbar-thumb { background: #334155; }
+
+/* ─── Page entrance animation ────────────────────────────────────────────── */
+@keyframes page-fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.workqueue-screen,
+.dashboard-screen,
+.payments-screen,
+.communications-screen,
+.settings-screen {
+    animation: page-fade-up 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Filter chip hover ──────────────────────────────────────────────────── */
+.filter-chip:hover:not(.active) {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* ─── Stat card hover ────────────────────────────────────────────────────── */
+.stat-card-modern {
+    transition: all 0.25s ease;
+    cursor: default;
+}
+
+.stat-card-modern:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* ─── Metrics responsive grid ────────────────────────────────────────────── */
+.metrics-grid-responsive {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+/* ─── Payment table summary row ──────────────────────────────────────────── */
+.table-modern tfoot tr td {
+    font-weight: 700;
+    background: var(--bg-main);
+    color: var(--text-main);
+}
+
+/* ─── Badge — success tweak ──────────────────────────────────────────────── */
+.badge-success {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #bbf7d0;
+}
+
+[data-theme="dark"] .badge-success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="dark"] .badge-warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+[data-theme="dark"] .badge-error {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+[data-theme="dark"] .badge-info {
+    background: rgba(59, 130, 246, 0.12);
+    color: #60a5fa;
+    border-color: rgba(59, 130, 246, 0.25);
+}
+
+/* ─── Comm card unread dot ───────────────────────────────────────────────── */
+.unread-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--primary);
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+/* ─── Input focus ring improvement ──────────────────────────────────────── */
+.input-modern:focus {
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+/* ─── Card hover on patient/policy cards ────────────────────────────────── */
+.list-item-modern {
+    transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Toast notification ─────────────────────────────────────────────────── */
+.toast-notification {
+    padding: 14px 18px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 380px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.toast-error-bg {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
+}
+
+/* ─── Drawer panel footer ────────────────────────────────────────────────── */
+.drawer-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 12px;
+    background: var(--bg-card);
+    flex-shrink: 0;
+}
+
+/* ─── Mobile (≤768px) additions ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .metrics-grid-responsive {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 1fr));
+        gap: 10px;
+    }
+}

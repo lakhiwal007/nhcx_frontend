@@ -267,23 +267,34 @@ export default function App() {
         </div>
       </main>
 
-      <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 9999, display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 9999, display: "flex", flexDirection: "column", gap: "10px", maxWidth: "380px" }}>
         <AnimatePresence>
           {apiErrors.map((err) => (
             <motion.div
               key={err.id}
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              style={{ background: "var(--error)", color: "white", padding: "12px 16px", borderRadius: "8px", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}
+              initial={{ opacity: 0, x: 60, scale: 0.92 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 60, scale: 0.88 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              style={{
+                background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                color: "white",
+                padding: "14px 18px",
+                borderRadius: "12px",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "12px",
+                boxShadow: "0 8px 24px rgba(239, 68, 68, 0.35), 0 2px 8px rgba(0,0,0,0.1)",
+                border: "1px solid rgba(255,255,255,0.15)",
+              }}
             >
-              <AlertCircle size={20} />
-              <div style={{ fontSize: "14px", fontWeight: 600 }}>{err.message}</div>
+              <AlertCircle size={18} style={{ flexShrink: 0, marginTop: "1px" }} />
+              <div style={{ fontSize: "13px", fontWeight: 600, lineHeight: 1.5, flex: 1 }}>{err.message}</div>
               <button
                 onClick={() => setApiErrors((prev) => prev.filter((e) => e.id !== err.id))}
-                style={{ background: "transparent", border: "none", color: "white", cursor: "pointer", padding: "4px", display: "flex" }}
+                style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "white", cursor: "pointer", padding: "4px 6px", display: "flex", borderRadius: "6px", flexShrink: 0, marginTop: "-2px" }}
               >
-                <X size={16} />
+                <X size={14} />
               </button>
             </motion.div>
           ))}

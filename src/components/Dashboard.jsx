@@ -5,7 +5,7 @@ import {
   Clock, XCircle, AlertTriangle, Users,
 } from "lucide-react";
 import { api } from "../api";
-import { PageHeader, Card, StatusBadge, Button, Input } from "./Common";
+import { PageHeader, Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
 import { useNavigate } from "react-router-dom";
 
 const METRICS = [
@@ -74,14 +74,34 @@ export default function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="flex-center py-20 flex-col">
-          <div className="spinner mb-4" />
-          <p className="text-muted">Loading dashboard data…</p>
-        </div>
+        <>
+          <div className="metrics-grid-responsive">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} style={{ padding: "18px 20px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <span className="skeleton-line" style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0 }} />
+                  <span className="skeleton-line" style={{ width: 44, height: 26 }} />
+                </div>
+                <span className="skeleton-line" style={{ width: "65%", height: 12 }} />
+              </div>
+            ))}
+          </div>
+          <div className="card-modern">
+            <div className="card-header-modern">
+              <span className="skeleton-line" style={{ width: 120, height: 16 }} />
+            </div>
+            <div className="card-body-modern">
+              <div style={{ marginBottom: 20 }}>
+                <span className="skeleton-line" style={{ width: 220, height: 36, borderRadius: 12 }} />
+              </div>
+              <SkeletonTable rows={6} cols={10} />
+            </div>
+          </div>
+        </>
       ) : (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           {stats && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "14px", marginBottom: "24px" }}>
+            <div className="metrics-grid-responsive">
               {METRICS.map((m) => {
                 const isActive = statusFilter === m.filterStatus && m.filterStatus !== null;
                 return (

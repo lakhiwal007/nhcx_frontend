@@ -350,6 +350,30 @@ export const DecisionBanner = ({ decision, approvedAmount, message }) => {
   );
 };
 
+export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
+  <div className="table-responsive-wrapper">
+    <table className="table-modern">
+      <tbody>
+        {Array.from({ length: rows }).map((_, i) => (
+          <tr key={i} className="skeleton-row">
+            {Array.from({ length: cols }).map((_, j) => (
+              <td key={j}>
+                <span
+                  className="skeleton-line"
+                  style={{
+                    height: "13px",
+                    width: j === cols - 1 ? "64px" : j === 0 ? "80px" : `${Math.max(45, 85 - j * 10)}%`,
+                  }}
+                />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
 export const AmountGrid = ({ totals }) => {
   if (!totals) return null;
   return (
