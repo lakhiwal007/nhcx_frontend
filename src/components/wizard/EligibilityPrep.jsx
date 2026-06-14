@@ -528,6 +528,7 @@ export default function EligibilityPrep({ ctx }) {
   const [loading, setLoading] = useState(true);
   const [caseData, setCaseData] = useState(null);
   const [polling, setPolling] = useState(false);
+  const [forceRefreshing, setForceRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
   const pollRef = useRef(null);
@@ -612,6 +613,27 @@ export default function EligibilityPrep({ ctx }) {
 
   const manualRefresh = () => {
     if (!polling && caseData?.cashless_case_id) setPolling(true);
+  };
+
+  const handleForceRefresh = async () => {
+    if (!caseData?.cashless_case_id) return;
+    setForceRefreshing(true);
+    try {
+      const res = await api.getCashlessStatus(caseData.cashless_case_id, { force_refresh: true });
+      setCaseData(res);
+      setCashlessCase(res);
+      updateCaseState({
+        eligibility_correlation_id:
+          res.coverage_eligibility?.validation?.correlation_id ??
+          res.coverage_eligibility?.correlation_id,
+      });
+      if (!TERMINAL_STATUSES.includes(res.status)) {
+        setPolling(true);
+      }
+    } catch (_) {
+    } finally {
+      setForceRefreshing(false);
+    }
   };
 
   if (loading) {
@@ -743,6 +765,17 @@ export default function EligibilityPrep({ ctx }) {
                 onClick={manualRefresh}
               >
                 Refresh
+              </Button>
+            )}
+            {!polling && (isComplete || isFailed) && (
+              <Button
+                variant="outline"
+                size="small"
+                icon={RefreshCw}
+                disabled={forceRefreshing}
+                onClick={handleForceRefresh}
+              >
+                {forceRefreshing ? "Re-running…" : "Re-run Eligibility"}
               </Button>
             )}
           </div>

@@ -1619,8 +1619,8 @@ const real = {
 
   prepareCashless: (data) => http.post("/cashless/prepare", data),
 
-  getCashlessStatus: (cashless_case_id) =>
-    http.get(`/cashless/${cashless_case_id}`),
+  getCashlessStatus: (cashless_case_id, params = {}) =>
+    http.get(`/cashless/${cashless_case_id}`, params),
 
   preparePreauth: (params = {}) =>
     http.get("/cashless/preauth/prepare", params),
