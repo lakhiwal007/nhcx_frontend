@@ -20,13 +20,15 @@ export default function PaymentReconciliation({ ctx }) {
   const [showOverrides, setShowOverrides] = useState({});
 
   const fetchPayment = async () => {
+    if (!claimId && !claimCorrelationId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = claimId
         ? await api.searchPaymentStatus({ claim_id: claimId })
-        : claimCorrelationId
-        ? await api.getPaymentStatus(claimCorrelationId)
-        : await api.searchPaymentStatus({});
+        : await api.getPaymentStatus(claimCorrelationId);
       setPaymentData(res);
     } catch (_) {
     } finally {
