@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Building2, FileText, ArrowRight } from "lucide-react";
 import { api } from "../../api";
@@ -38,33 +38,24 @@ export default function PayerPolicy({ ctx }) {
     }
   };
 
-  useEffect(() => {
-    if (!selectedPayer || !patient) return;
-    const fetchPol = async () => {
-      setLoadingPolicies(true);
-      setPolicyError(null);
-      setPolicies([]);
-      try {
-        const body = {
-          child_id: patient.child_id,
-          payer_id: selectedPayer.code,
-        };
-        if (caseState.admission_id) body.admission_id = caseState.admission_id;
-        const res = await api.fetchPolicies(body);
-        setPolicies(res?.data?.policies || []);
-      } catch (err) {
-        setPolicyError(err.message);
-      } finally {
-        setLoadingPolicies(false);
-      }
-    };
-    fetchPol();
-  }, [selectedPayer, patient]);
-
-  const handlePayerSelect = (payer) => {
+  const handlePayerSelect = async (payer) => {
     setSelectedPayer(payer);
     setSelectedPolicy(null);
     updateCaseState({ payer, policy: null });
+
+    setLoadingPolicies(true);
+    setPolicyError(null);
+    setPolicies([]);
+    try {
+      const body = { child_id: patient.child_id, payer_id: payer.code };
+      if (caseState.admission_id) body.admission_id = caseState.admission_id;
+      const res = await api.fetchPolicies(body);
+      setPolicies(res?.data?.policies || []);
+    } catch (err) {
+      setPolicyError(err.message);
+    } finally {
+      setLoadingPolicies(false);
+    }
   };
 
   const handlePolicySelect = (policy) => {
