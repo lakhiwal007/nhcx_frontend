@@ -417,9 +417,8 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
                   Details
                 </div>
                 <div
+                  className="grid-2-col"
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
                     gap: "6px",
                   }}
                 >

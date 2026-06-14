@@ -177,7 +177,7 @@ export default function PayerPolicy({ ctx }) {
               </div>
             ) : policies.length === 0 ? (
               <div className="text-center py-10 text-muted">
-                No policies found for this patient under {selectedPayer.name}.
+                No policies found for this patient under {selectedPayer.participant_name}.
               </div>
             ) : (
               <div

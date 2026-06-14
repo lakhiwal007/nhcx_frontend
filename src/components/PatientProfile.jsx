@@ -211,7 +211,7 @@ function PatientDetail({ patient, onBack }) {
       transition={{ duration: 0.2 }}
       style={{ display: "flex", flexDirection: "column", gap: "20px" }}
     >
-      <div style={{
+      <div className="patient-detail-header" style={{
         background: "var(--bg-card)", border: "1px solid var(--border-color)",
         borderRadius: "16px", padding: "20px 24px",
         display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px",
@@ -286,7 +286,7 @@ function PatientDetail({ patient, onBack }) {
       )}
 
       <div className="grid-1-to-3" style={{ gap: "20px" }}>
-        <div style={{ gridColumn: "span 2", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div className="col-span-2" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <Card title="Visits & Admissions">
             {!patient.visits?.length ? (
               <div className="text-muted text-sm" style={{ padding: "20px 0", textAlign: "center" }}>No visits on record.</div>
@@ -311,7 +311,7 @@ function PatientDetail({ patient, onBack }) {
                     {expandedVisit === vi && (
                       <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} style={{ overflow: "hidden" }}>
                         <div style={{ padding: "16px", borderTop: "1px solid var(--border-color)" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px", fontSize: "13px" }}>
+                          <div className="grid-2-col" style={{ gap: "16px", marginBottom: "16px", fontSize: "13px" }}>
                             <div>
                               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>Diagnosis</div>
                               <div>{visit.diagnosis || "—"}</div>

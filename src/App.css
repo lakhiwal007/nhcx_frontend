@@ -1940,3 +1940,125 @@ h3,
         padding: 0;
     }
 }
+
+/* ─── Responsive Utilities ───────────────────────────────────────────────── */
+
+/* Grid column span — collapses to full-width on mobile */
+.col-span-2 {
+    grid-column: span 2;
+}
+
+/* Two-column auto-collapsing grid */
+.grid-2-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+/* Patient detail card header row */
+.patient-detail-header {
+    flex-wrap: wrap;
+}
+
+/* Stepper pill bar — scrollable but hide scrollbar */
+.stepper-modern {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.stepper-modern::-webkit-scrollbar {
+    display: none;
+}
+
+/* ─── Mobile (≤768px) ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    /* Col-span always full-width on a single-column grid */
+    .col-span-2 {
+        grid-column: 1 / -1;
+    }
+
+    /* Top bar actions row — tighter spacing */
+    .top-actions {
+        gap: 12px;
+    }
+
+    /* Cards — reclaim horizontal padding */
+    .card-modern {
+        padding: 14px 16px;
+    }
+
+    /* Stat value — slightly smaller */
+    .stat-value-modern {
+        font-size: 22px;
+    }
+
+    /* Sticky case-wrapper header — reduce padding, allow wrap */
+    .sticky-case-header {
+        padding: 10px 16px !important;
+        margin-left: -16px !important;
+        margin-right: -16px !important;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Drawer — full-width bottom-sheet */
+    .drawer-panel {
+        width: 100% !important;
+        top: auto !important;
+        bottom: 0;
+        border-radius: 20px 20px 0 0;
+        max-height: 90vh;
+    }
+
+    /* Queue summary strip wraps on small screens */
+    .queue-summary-strip {
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 12px 16px;
+    }
+    .qs-divider {
+        display: none;
+    }
+
+    /* Task/wizard footer buttons wrap */
+    .task-footer {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Dashboard tab bar wraps */
+    .dashboard-tabs {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    /* Patient detail header: buttons drop below info on very narrow screens */
+    .patient-detail-header > div:last-child {
+        flex-shrink: 1 !important;
+        flex-wrap: wrap;
+    }
+
+    /* Communications layout */
+    .comms-layout {
+        gap: 12px;
+    }
+
+    /* Ensure wizard inline-grid doesn't overflow */
+    .main-view > * {
+        min-width: 0;
+    }
+}
+
+/* ─── Narrow (≤480px) ───────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    /* Two-column grid collapses on very small screens */
+    .grid-2-col {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ─── Tablet (769–1024px) ────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+    /* col-span-2 still occupies full width when auto-fit collapses below 2 cols */
+    .grid-1-to-3 > .col-span-2 {
+        grid-column: 1 / -1;
+    }
+}

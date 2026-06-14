@@ -313,7 +313,7 @@ function FacilityForm({ form, onChange, isEdit }) {
     <>
       <SectionHeader title="Identity" />
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}
+        className="grid-2-col" style={{ gap: "16px" }}
       >
         <FormField
           label="Facility Code"
@@ -355,7 +355,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       </FormField>
 
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}
+        className="grid-2-col" style={{ gap: "16px" }}
       >
         <FormField label="Registry ID" hint="ABDM registryid / Client ID">
           <TextInput
@@ -374,7 +374,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       </div>
 
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}
+        className="grid-2-col" style={{ gap: "16px" }}
       >
         <FormField label="Environment">
           <SelectInput
@@ -431,7 +431,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       </FormField>
 
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}
+        className="grid-2-col" style={{ gap: "16px" }}
       >
         <FormField label="State">
           <TextInput
@@ -464,7 +464,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       </FormField>
 
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}
+        className="grid-2-col" style={{ gap: "16px" }}
       >
         <FormField label="Primary Email">
           <TextInput
@@ -708,9 +708,8 @@ function FacilityCard({
       </div>
 
       <div
+        className="grid-2-col"
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
           gap: "10px",
           marginBottom: "16px",
           fontSize: "12px",

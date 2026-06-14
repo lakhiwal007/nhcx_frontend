@@ -327,25 +327,25 @@ const mock = {
     const allPayers = [
       {
         participant_code: "1518@hcx",
-        name: "Sample Payer",
+        participant_name: "Sample Payer",
         scheme_type: "PMJAY",
         status: "active",
       },
       {
         participant_code: "2044@hcx",
-        name: "Star Health & Allied",
+        participant_name: "Star Health & Allied",
         scheme_type: "Retail",
         status: "active",
       },
       {
         participant_code: "3011@hcx",
-        name: "HDFC ERGO",
+        participant_name: "HDFC ERGO",
         scheme_type: "Corporate",
         status: "active",
       },
       {
         participant_code: "4022@hcx",
-        name: "Universal Life",
+        participant_name: "Universal Life",
         scheme_type: "Public Health",
         status: "active",
       },

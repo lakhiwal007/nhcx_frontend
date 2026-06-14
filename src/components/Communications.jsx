@@ -159,7 +159,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead }) {
                     </div>
                   )}
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", padding: "16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+                  <div className="grid-2-col" style={{ gap: "14px", padding: "16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
                     <DetailField label="Payer" value={detail.payer_code} />
                     <DetailField label="Claim Reference" value={detail.claim_reference} />
                     <DetailField label="Subject" value={detail.subject} />

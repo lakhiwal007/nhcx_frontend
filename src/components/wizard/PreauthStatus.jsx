@@ -388,7 +388,7 @@ export default function PreauthStatus({ ctx }) {
 
           {/* Procedures + Diagnoses side by side */}
           {(statusData?.procedures?.length > 0 || statusData?.diagnoses?.length > 0) && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+            <div className="grid-2-col" style={{ gap: "16px", marginBottom: "16px" }}>
               {statusData?.procedures?.length > 0 && (
                 <Card title="Procedures">
                   {statusData.procedures.map((p, i) => (
