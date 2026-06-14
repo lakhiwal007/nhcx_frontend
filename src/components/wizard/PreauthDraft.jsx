@@ -90,7 +90,7 @@ export default function PreauthDraft({ ctx }) {
       const params = {};
       if (cashless_case_id) params.cashless_case_id = cashless_case_id;
       else if (claim_id) params.claim_id = claim_id;
-      if (payer?.participant_code) params.payer_id = payer.participant_code;
+      if (payer?.code) params.payer_id = payer.code;
       if (policy?.policyNumber || policy?.policy_number)
         params.policy_number = policy.policyNumber || policy.policy_number;
       const res = await api.preparePreauth(params);

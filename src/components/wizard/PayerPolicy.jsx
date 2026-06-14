@@ -9,8 +9,8 @@ export default function PayerPolicy({ ctx }) {
   const { patient, caseState, updateCaseState } = ctx;
 
   const DUMMY_PAYER = {
-    participant_code: "1000003538@hcx",
-    participant_name: "Demo Payer",
+    code: "1000003538@hcx",
+    name: "Demo Payer",
   };
 
   const [payers, setPayers] = useState([DUMMY_PAYER]);
@@ -55,7 +55,7 @@ export default function PayerPolicy({ ctx }) {
       try {
         const body = {
           child_id: patient.child_id,
-          payer_id: selectedPayer.participant_code,
+          payer_id: selectedPayer.code,
         };
         if (caseState.admission_id) body.admission_id = caseState.admission_id;
         const res = await api.fetchPolicies(body);
@@ -126,14 +126,14 @@ export default function PayerPolicy({ ctx }) {
             ) : (
               payers.map((payer) => (
                 <div
-                  key={payer.participant_code}
+                  key={payer.code}
                   onClick={() => handlePayerSelect(payer)}
                   style={{
                     padding: "16px",
-                    border: `1.5px solid ${selectedPayer?.participant_code === payer.participant_code ? "var(--primary)" : "var(--border-color)"}`,
+                    border: `1.5px solid ${selectedPayer?.code === payer.code ? "var(--primary)" : "var(--border-color)"}`,
                     borderRadius: "12px",
                     background:
-                      selectedPayer?.participant_code === payer.participant_code
+                      selectedPayer?.code === payer.code
                         ? "var(--primary-light)"
                         : "var(--bg-main)",
                     cursor: "pointer",
@@ -145,19 +145,19 @@ export default function PayerPolicy({ ctx }) {
                   <Building2
                     size={24}
                     color={
-                      selectedPayer?.participant_code === payer.participant_code
+                      selectedPayer?.code === payer.code
                         ? "var(--primary)"
                         : "var(--text-muted)"
                     }
                   />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: "15px" }}>
-                      {payer.participant_name}
+                      {payer.name}
                     </div>
                     <div
                       style={{ fontSize: "12px", color: "var(--text-muted)" }}
                     >
-                      {payer.participant_code} • {payer.scheme_type}
+                      {payer.code} • {payer.scheme_type}
                     </div>
                   </div>
                   <StatusBadge status={payer.status} />
@@ -177,7 +177,7 @@ export default function PayerPolicy({ ctx }) {
               </div>
             ) : policies.length === 0 ? (
               <div className="text-center py-10 text-muted">
-                No policies found for this patient under {selectedPayer.participant_name}.
+                No policies found for this patient under {selectedPayer.name}.
               </div>
             ) : (
               <div

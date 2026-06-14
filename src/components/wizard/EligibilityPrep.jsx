@@ -549,7 +549,7 @@ export default function EligibilityPrep({ ctx }) {
       try {
         const res = await api.prepareCashless({
           child_id: patient.child_id,
-          payer_id: payer.participant_code,
+          payer_id: payer.code,
           policy_number: policy.policyNumber || policy.policy_number,
           ...(admission_id && { admission_id }),
         });
