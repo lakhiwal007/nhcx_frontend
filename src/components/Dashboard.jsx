@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [navigating, setNavigating] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -53,6 +54,20 @@ export default function Dashboard() {
     };
     fetchData();
   }, []);
+
+  const navigateToClaim = async (claim, route) => {
+    let cid = claim.child_id;
+    if (!cid && claim.id) {
+      setNavigating((p) => ({ ...p, [claim.id]: true }));
+      try {
+        const cs = await api.getCashlessStatus(claim.id);
+        cid = cs.child_id;
+      } catch (_) {}
+      setNavigating((p) => ({ ...p, [claim.id]: false }));
+    }
+    if (!cid) return;
+    navigate(`/case/${cid}/${route}`);
+  };
 
   const filteredClaims = claims.filter((c) => {
     const q = searchQuery.toLowerCase();
@@ -228,9 +243,10 @@ export default function Dashboard() {
                             variant="outline"
                             size="small"
                             icon={ArrowRight}
-                            onClick={() => navigate(`/case/${claim.child_id}/${route}`)}
+                            disabled={!!navigating[claim.id]}
+                            onClick={() => navigateToClaim(claim, route)}
                           >
-                            {label}
+                            {navigating[claim.id] ? "Loading…" : label}
                           </Button>
                         </td>
                       </tr>
