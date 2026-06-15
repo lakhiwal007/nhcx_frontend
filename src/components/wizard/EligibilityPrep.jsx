@@ -616,13 +616,21 @@ export default function EligibilityPrep({ ctx }) {
   };
 
   const handleForceRefresh = async () => {
-    if (!caseData?.cashless_case_id) return;
+    if (!patient || !payer || !policy) return;
     setForceRefreshing(true);
     try {
-      const res = await api.getCashlessStatus(caseData.cashless_case_id, { force_refresh: true });
+      const res = await api.prepareCashless({
+        child_id: patient.child_id,
+        payer_id: payer.code,
+        policy_number: policy.policyNumber || policy.policy_number,
+        ...(admission_id && { admission_id }),
+        force_refresh: true,
+      });
       setCaseData(res);
       setCashlessCase(res);
       updateCaseState({
+        cashless_case_id: res.cashless_case_id,
+        claim_id: res.claim_id,
         eligibility_correlation_id:
           res.coverage_eligibility?.validation?.correlation_id ??
           res.coverage_eligibility?.correlation_id,
