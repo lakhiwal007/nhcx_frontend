@@ -454,7 +454,9 @@ export default function PatientProfile() {
     try {
       const params = { limit: PAGE_SIZE, offset: (pageNum - 1) * PAGE_SIZE };
       if (query.trim()) {
-        if (/^\d+$/.test(query.trim())) {
+        if (/^\d{10}$/.test(query.trim())) {
+          params.mobile = query.trim();
+        } else if (/^\d+$/.test(query.trim())) {
           params.child_id = Number(query.trim());
         } else {
           params.name = query.trim();
