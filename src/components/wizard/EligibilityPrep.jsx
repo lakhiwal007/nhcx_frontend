@@ -523,7 +523,7 @@ function CoverageEligibilityPanel({ ce }) {
 export default function EligibilityPrep({ ctx }) {
   const navigate = useNavigate();
   const { patient, caseState, setCashlessCase, updateCaseState } = ctx;
-  const { payer, policy, admission_id } = caseState;
+  const { payer, policy, admission_id, cashless_case_id: existingCaseId } = caseState;
 
   const [loading, setLoading] = useState(true);
   const [caseData, setCaseData] = useState(null);
@@ -536,7 +536,9 @@ export default function EligibilityPrep({ ctx }) {
   const hasInitialized = useRef(false);
 
   useEffect(() => {
-    if (!patient || !payer || !policy) {
+    // Must have patient. If no existing case, also need payer + policy to prepare one.
+    if (!patient) return;
+    if (!existingCaseId && (!payer || !policy)) {
       navigate("../payer", { replace: true });
       return;
     }
@@ -548,12 +550,18 @@ export default function EligibilityPrep({ ctx }) {
       setLoading(true);
       setError(null);
       try {
-        const res = await api.prepareCashless({
-          child_id: patient.child_id,
-          payer_id: payer.code,
-          policy_number: policy.policyNumber || policy.policy_number,
-          ...(admission_id && { admission_id }),
-        });
+        let res;
+        if (existingCaseId) {
+          // Resume: fetch the existing case status directly (no gateway round-trip)
+          res = await api.getCashlessStatus(existingCaseId);
+        } else {
+          res = await api.prepareCashless({
+            child_id: patient.child_id,
+            payer_id: payer.code,
+            policy_number: policy.policyNumber || policy.policy_number,
+            ...(admission_id && { admission_id }),
+          });
+        }
         setCaseData(res);
         setCashlessCase(res);
         updateCaseState({
@@ -780,7 +788,8 @@ export default function EligibilityPrep({ ctx }) {
                 variant="outline"
                 size="small"
                 icon={RefreshCw}
-                disabled={forceRefreshing}
+                disabled={forceRefreshing || !payer || !policy}
+                title={!payer || !policy ? "Select payer & policy to re-run" : undefined}
                 onClick={handleForceRefresh}
               >
                 {forceRefreshing ? "Re-running…" : "Re-run Eligibility"}
