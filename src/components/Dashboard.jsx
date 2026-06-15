@@ -77,12 +77,12 @@ export default function Dashboard() {
         <>
           <div className="metrics-grid-responsive">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} style={{ padding: "18px 20px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                  <span className="skeleton-line" style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0 }} />
-                  <span className="skeleton-line" style={{ width: 44, height: 26 }} />
+              <div key={i} style={{ padding: "10px 12px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                  <span className="skeleton-line" style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0 }} />
+                  <span className="skeleton-line" style={{ width: 34, height: 20 }} />
                 </div>
-                <span className="skeleton-line" style={{ width: "65%", height: 12 }} />
+                <span className="skeleton-line" style={{ width: "65%", height: 10 }} />
               </div>
             ))}
           </div>
@@ -113,7 +113,7 @@ export default function Dashboard() {
                       setStatusFilter(isActive ? null : m.filterStatus);
                     }}
                     style={{
-                      padding: "18px 20px",
+                      padding: "10px 12px",
                       background: isActive ? `${m.color}10` : "var(--bg-card)",
                       border: `1px solid ${isActive ? m.color : "var(--border-color)"}`,
                       borderRadius: "var(--radius)",
@@ -122,31 +122,31 @@ export default function Dashboard() {
                       boxShadow: isActive ? `0 0 0 2px ${m.color}30` : "var(--shadow)",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-                      <div style={{ padding: "6px", borderRadius: "8px", background: `${m.color}15`, color: m.color, display: "flex" }}>
-                        <m.icon size={18} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                      <div style={{ padding: "4px", borderRadius: "6px", background: `${m.color}15`, color: m.color, display: "flex" }}>
+                        <m.icon size={14} />
                       </div>
-                      <div style={{ fontSize: "28px", fontWeight: 800, color: "var(--text-main)", fontFamily: "Outfit, sans-serif" }}>
+                      <div style={{ fontSize: "20px", fontWeight: 800, color: "var(--text-main)", fontFamily: "Outfit, sans-serif" }}>
                         {stats.claims?.[m.key] ?? 0}
                       </div>
                     </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>{m.label}</div>
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>{m.label}</div>
                   </motion.div>
                 );
               })}
 
               <motion.div
-                style={{ padding: "18px 20px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius)", boxShadow: "var(--shadow)" }}
+                style={{ padding: "10px 12px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius)", boxShadow: "var(--shadow)" }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-                  <div style={{ padding: "6px", borderRadius: "8px", background: "rgba(129,140,248,0.15)", color: "var(--accent)", display: "flex" }}>
-                    <Users size={18} />
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                  <div style={{ padding: "4px", borderRadius: "6px", background: "rgba(129,140,248,0.15)", color: "var(--accent)", display: "flex" }}>
+                    <Users size={14} />
                   </div>
-                  <div style={{ fontSize: "28px", fontWeight: 800, color: "var(--text-main)", fontFamily: "Outfit, sans-serif" }}>
+                  <div style={{ fontSize: "20px", fontWeight: 800, color: "var(--text-main)", fontFamily: "Outfit, sans-serif" }}>
                     {stats.children?.with_claims ?? 0}
                   </div>
                 </div>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>Children with Claims</div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>Children with Claims</div>
               </motion.div>
             </div>
           )}
