@@ -530,6 +530,7 @@ export default function WorkQueue() {
   const [caseIdFilter, setCaseIdFilter] = useState("");
   const [selectedTask, setSelectedTask] = useState(null);
   const [retrying, setRetrying] = useState({});
+  const [navigating, setNavigating] = useState({});
   const pollRef = useRef(null);
 
   const fetchTasks = useCallback(async () => {
@@ -570,10 +571,20 @@ export default function WorkQueue() {
     }
   };
 
-  const navigateToCase = (task) => {
-    const cid = task.child_id;
+  const navigateToCase = async (task) => {
+    const taskId = task.id ?? task.task_id;
+    let cid = task.child_id;
+    if (!cid && task.cashless_case_id) {
+      setNavigating((p) => ({ ...p, [taskId]: true }));
+      try {
+        const cs = await api.getCashlessStatus(task.cashless_case_id);
+        cid = cs.child_id;
+      } catch (_) {}
+      setNavigating((p) => ({ ...p, [taskId]: false }));
+    }
+    if (!cid) return;
     const fn = SCREEN_MAP[task.task_type];
-    const path = fn ? fn(cid) : cid ? `/case/${cid}/` : "/work-queue";
+    const path = fn ? fn(cid) : `/case/${cid}/`;
     navigate(path, {
       state: {
         claim_id: task.claim_id,
@@ -750,12 +761,13 @@ export default function WorkQueue() {
           <Button
             variant="outline"
             size="small"
+            disabled={!!navigating[taskId]}
             onClick={(e) => {
               e.stopPropagation();
               navigateToCase(task);
             }}
           >
-            Open Case
+            {navigating[taskId] ? "Loading…" : "Open Case"}
           </Button>
           <ChevronRight size={20} color="var(--text-muted)" />
         </div>

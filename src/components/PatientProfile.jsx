@@ -446,13 +446,20 @@ export default function PatientProfile() {
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
 
   const loadChildren = useCallback(async (query = "", pageNum = 1) => {
     setLoading(true);
     try {
       const params = { limit: PAGE_SIZE, offset: (pageNum - 1) * PAGE_SIZE };
-      if (query.trim()) params.name = query.trim();
+      if (query.trim()) {
+        if (/^\d+$/.test(query.trim())) {
+          params.child_id = Number(query.trim());
+        } else {
+          params.name = query.trim();
+        }
+      }
       const res = await api.searchChildren(params);
       setChildren(res?.children || []);
       setTotalCount(res?.total_count || 0);
@@ -480,6 +487,7 @@ export default function PatientProfile() {
   }, [loadChildren]);
 
   const handleSearch = () => {
+    setHasSearched(true);
     setPage(1);
     loadChildren(searchQuery, 1);
   };
@@ -508,6 +516,7 @@ export default function PatientProfile() {
             onChange={(e) => {
               setSearchQuery(e.target.value);
               if (!e.target.value.trim()) {
+                setHasSearched(false);
                 setPage(1);
                 loadChildren("", 1);
               }
@@ -535,8 +544,17 @@ export default function PatientProfile() {
           ) : children.length === 0 ? (
             <div className="empty-view" style={{ minHeight: "40vh" }}>
               <User size={48} style={{ opacity: 0.3, marginBottom: "16px" }} />
-              <h3>No patients found</h3>
-              <p className="text-muted mt-2">Try a different name, ID or mobile number.</p>
+              {hasSearched ? (
+                <>
+                  <h3>No patients found</h3>
+                  <p className="text-muted mt-2">Try a different name or ID number.</p>
+                </>
+              ) : (
+                <>
+                  <h3>Search for a patient</h3>
+                  <p className="text-muted mt-2">Enter a patient name or ID number above and click Search.</p>
+                </>
+              )}
             </div>
           ) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
