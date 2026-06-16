@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, Edit2, CheckCircle2, Plus, Trash2, Building2, FileText, ShieldCheck } from "lucide-react";
+import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, Edit2, CheckCircle2, Plus, Trash2, Building2, FileText } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, DocumentChecklist, MissingFieldsAlert } from "../Common";
 
@@ -210,8 +210,7 @@ export default function PreauthDraft({ ctx }) {
   }
 
   const hasMissingFields = missingFields.length > 0;
-  // A doc blocks submit when it has no URL (all returned docs are required)
-  const hasMissingDocs = draft?.supporting_documents?.some((d) => !d.url);
+  const hasMissingDocs = draft?.supporting_documents?.some((d) => !d.optional && !d.url);
   const canSubmit = !hasMissingFields && !hasMissingDocs && !submitting;
 
   return (
@@ -225,6 +224,13 @@ export default function PreauthDraft({ ctx }) {
             if (remaining.length === 0) loadDraft();
           }}
         />
+      )}
+
+      {draft?.eligibility && draft.eligibility.status !== "complete" && (
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+          <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
+          <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete — the preauth draft was built from available eligibility data.</span>
+        </div>
       )}
 
       <div className="grid-1-to-3" style={{ gap: "24px" }}>

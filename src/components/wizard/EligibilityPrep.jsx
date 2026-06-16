@@ -728,9 +728,10 @@ export default function EligibilityPrep({ ctx }) {
   }
 
   const isComplete = caseData?.status === "complete";
+  const isPartial = caseData?.status === "partial";
   const isFailed = caseData?.status === "failed";
-  const canProceed =
-    isComplete && caseData?.next_actions?.includes("prepare_preauth");
+  const benefitsTimedOut = isPartial && caseData?.next_actions?.includes("prepare_preauth");
+  const canProceed = caseData?.next_actions?.includes("prepare_preauth") && (isComplete || isPartial);
 
   return (
     <div className="wizard-step">
@@ -853,6 +854,13 @@ export default function EligibilityPrep({ ctx }) {
           </div>
         )}
       </Card>
+
+      {benefitsTimedOut && (
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+          <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
+          <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete. You can still proceed to preauth — eligibility will remain pending in the background.</span>
+        </div>
+      )}
 
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Button variant="text" onClick={() => navigate("../payer")}>
