@@ -11,15 +11,26 @@ const PATIENT_CONTEXT_FIELDS = [
   { key: "admission_date", label: "Admission Date", placeholder: "YYYY-MM-DD", type: "date" },
 ];
 
+// Maps backend missing_fields values to form field keys
+const MISSING_FIELD_MAP = {
+  "patient.identifier": ["abha", "member_id"],
+  "patient.abha": ["abha"],
+  "patient.member_id": ["member_id"],
+  "patient.dob": ["dob"],
+  "admission_date": ["admission_date"],
+};
+
 function PatientContextForm({ claimId, missingFields, onResolved }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(true);
 
-  const relevantFields = PATIENT_CONTEXT_FIELDS.filter((f) =>
-    missingFields.some((m) => m.toLowerCase().includes(f.key))
+  const relevantKeys = new Set(
+    missingFields.flatMap((m) => MISSING_FIELD_MAP[m.toLowerCase()] ?? [])
   );
-  const allFields = relevantFields.length > 0 ? relevantFields : PATIENT_CONTEXT_FIELDS;
+  const allFields = relevantKeys.size > 0
+    ? PATIENT_CONTEXT_FIELDS.filter((f) => relevantKeys.has(f.key))
+    : PATIENT_CONTEXT_FIELDS;
 
   const handleSave = async () => {
     setSaving(true);
