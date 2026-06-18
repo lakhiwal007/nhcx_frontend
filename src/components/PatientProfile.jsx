@@ -233,7 +233,7 @@ function PatientDetail({ patient, onBack }) {
           </div>
           <div>
             <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "6px" }}>{patient.name}</h2>
-            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", fontSize: "13px", color: "var(--text-muted)" }}>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", fontSize: "13px", color: "var(--text-muted)" }}>
               <span className="badge-modern badge-info">#{patient.child_id}</span>
               <span style={{ textTransform: "capitalize", display: "flex", alignItems: "center", gap: "4px" }}>
                 <User size={13} /> {patient.gender}
@@ -247,6 +247,13 @@ function PatientDetail({ patient, onBack }) {
                 <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <Phone size={13} /> {patient.mobile}
                 </span>
+              )}
+              {patient.abha_number
+                ? <span className="badge-modern badge-success" style={{ fontSize: "11px" }}>{patient.abha_number}</span>
+                : <span className="badge-modern badge-warning" style={{ fontSize: "11px" }}>Not ABHA-linked</span>
+              }
+              {patient.cashless_cases_count > 0 && (
+                <span className="badge-modern badge-info" style={{ fontSize: "11px" }}>{patient.cashless_cases_count} case{patient.cashless_cases_count !== 1 ? "s" : ""}</span>
               )}
             </div>
           </div>
@@ -392,7 +399,7 @@ function PatientDetail({ patient, onBack }) {
                                         <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Billed</div>
                                         <div style={{ fontWeight: 700, color: "var(--primary)" }}>₹{claim.total_billed?.toLocaleString()}</div>
                                       </div>
-                                      <Button variant="outline" size="small" onClick={() => navigate(`/case/${patient.child_id}/`, { state: { cashless_case_id: claim.cashless_case_id } })}>Open</Button>
+                                      <Button variant="outline" size="small" onClick={() => resumeCase(claim.cashless_case_id ? claim : null)}>Open</Button>
                                     </div>
                                   </div>
                                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>

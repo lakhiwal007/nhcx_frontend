@@ -9,6 +9,8 @@ const PATIENT_CONTEXT_FIELDS = [
   { key: "member_id", label: "Member / PMJAY ID", placeholder: "PMJAY-MEM-XXXXX" },
   { key: "dob", label: "Date of Birth", placeholder: "YYYY-MM-DD", type: "date" },
   { key: "admission_date", label: "Admission Date", placeholder: "YYYY-MM-DD", type: "date" },
+  { key: "discharge_date", label: "Discharge Date", placeholder: "YYYY-MM-DD", type: "date" },
+  { key: "policy_number", label: "Policy Number", placeholder: "POL-XXXX" },
 ];
 
 // Maps backend missing_fields values to form field keys
@@ -17,8 +19,15 @@ const MISSING_FIELD_MAP = {
   "patient.abha": ["abha"],
   "patient.member_id": ["member_id"],
   "patient.dob": ["dob"],
+  "patient.name": [],
+  "patient.gender": [],
   "admission_date": ["admission_date"],
+  "discharge_date": ["discharge_date"],
+  "policy_number": ["policy_number"],
 };
+
+// Fields that cannot be resolved from the UI — must be fixed in the HIS
+const HIS_BLOCKERS = new Set(["diagnoses", "items", "preauth_ref"]);
 
 function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved }) {
   const [values, setValues] = useState({});
@@ -225,17 +234,33 @@ export default function PreauthDraft({ ctx }) {
     );
   }
 
+  const patientContextMissing = missingFields.filter((f) => !HIS_BLOCKERS.has(f.toLowerCase()));
+  const hisBlockers = missingFields.filter((f) => HIS_BLOCKERS.has(f.toLowerCase()));
   const hasMissingFields = missingFields.length > 0;
   const hasMissingDocs = draft?.supporting_documents?.some((d) => !d.optional && !d.url);
   const canSubmit = !hasMissingFields && !hasMissingDocs && !submitting;
 
   return (
     <div className="wizard-step">
-      {hasMissingFields && (
+      {hisBlockers.length > 0 && (
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+          <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
+          <div>
+            <strong style={{ color: "var(--error)" }}>Clinical / billing data is incomplete.</strong>
+            {" "}Diagnosis codes and billing items are missing. Please complete clinical and billing records in the HIS before submitting preauth.
+            <div style={{ marginTop: "6px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {hisBlockers.map((f, i) => (
+                <span key={i} className="badge-modern badge-error" style={{ fontSize: "11px" }}>{f}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {patientContextMissing.length > 0 && (
         <PatientContextForm
           claimId={draft?.claim_id || claim_id}
           cashlessCaseId={cashless_case_id}
-          missingFields={missingFields}
+          missingFields={patientContextMissing}
           onResolved={(remaining) => {
             setMissingFields(remaining);
             if (remaining.length === 0) loadDraft();
