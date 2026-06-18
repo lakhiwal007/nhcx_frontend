@@ -20,7 +20,7 @@ const MISSING_FIELD_MAP = {
   "admission_date": ["admission_date"],
 };
 
-function PatientContextForm({ claimId, missingFields, onResolved }) {
+function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(true);
@@ -35,7 +35,12 @@ function PatientContextForm({ claimId, missingFields, onResolved }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await api.patchPatientContext(claimId, { patient_context: values });
+      let res;
+      if (claimId) {
+        res = await api.patchPatientContext(claimId, { patient_context: values });
+      } else {
+        res = await api.patchCashlessPatientContext(cashlessCaseId, { patient_context: values });
+      }
       onResolved(res.missing_fields ?? []);
     } catch (_) {
     } finally {
@@ -229,6 +234,7 @@ export default function PreauthDraft({ ctx }) {
       {hasMissingFields && (
         <PatientContextForm
           claimId={draft?.claim_id || claim_id}
+          cashlessCaseId={cashless_case_id}
           missingFields={missingFields}
           onResolved={(remaining) => {
             setMissingFields(remaining);

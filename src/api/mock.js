@@ -709,6 +709,15 @@ export const mock = {
     };
   },
 
+  patchCashlessPatientContext: async (cashless_case_id, data) => {
+    await delay(800);
+    return {
+      status: "success",
+      message: "Patient context updated",
+      missing_fields: [],
+    };
+  },
+
   patchPatientContext: async (claim_id, data) => {
     await delay(800);
     return {
@@ -1097,6 +1106,10 @@ export const mock = {
   getFacility: async (facility_code) => {
     await delay(500);
     return { facility_code, name: "Mock Facility" };
+  },
+  updateFacility: async (facility_code, data) => {
+    await delay(500);
+    return { status: "success", facility_code };
   },
   uploadFacilityKey: async (facility_code, data) => {
     await delay(500);

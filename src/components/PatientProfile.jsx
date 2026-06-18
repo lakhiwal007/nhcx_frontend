@@ -80,9 +80,12 @@ function PatientCard({ child, onClick, isSelected }) {
         background: isSelected ? "var(--primary)" : "var(--primary-light)",
         color: isSelected ? "white" : "var(--primary)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontWeight: 800, fontSize: "16px",
+        fontWeight: 800, fontSize: "16px", overflow: "hidden",
       }}>
-        {child.name?.[0]?.toUpperCase()}
+        {child.profile_photo
+          ? <img src={child.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : child.name?.[0]?.toUpperCase()
+        }
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "3px", color: "var(--text-main)" }}>
@@ -221,9 +224,12 @@ function PatientDetail({ patient, onBack }) {
             width: "56px", height: "56px", borderRadius: "50%",
             background: "var(--primary)", color: "white",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: 800, fontSize: "24px", flexShrink: 0,
+            fontWeight: 800, fontSize: "24px", flexShrink: 0, overflow: "hidden",
           }}>
-            {patient.name?.[0]?.toUpperCase()}
+            {patient.profile_photo
+              ? <img src={patient.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : patient.name?.[0]?.toUpperCase()
+            }
           </div>
           <div>
             <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "6px" }}>{patient.name}</h2>
@@ -318,9 +324,33 @@ function PatientDetail({ patient, onBack }) {
                             </div>
                             <div>
                               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>Primary Doctor</div>
-                              <div>{visit.primary_doctor?.name || "—"}</div>
+                              <div style={{ fontWeight: 600 }}>{visit.primary_doctor?.name || "—"}</div>
+                              {visit.primary_doctor?.registration_no && (
+                                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Reg: {visit.primary_doctor.registration_no}</div>
+                              )}
                             </div>
+                            {visit.purpose_of_visit && (
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>Purpose of Visit</div>
+                                <div>{visit.purpose_of_visit}</div>
+                              </div>
+                            )}
                           </div>
+
+                          {visit.procedures?.length > 0 && (
+                            <div style={{ marginBottom: "16px" }}>
+                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "8px", color: "var(--text-muted)", textTransform: "uppercase" }}>Procedures</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                {visit.procedures.map((proc, pi) => (
+                                  <span key={pi} className="badge-modern badge-info" style={{ fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                                    <Activity size={10} />
+                                    {proc.code && <code style={{ fontSize: "10px" }}>{proc.code}</code>}
+                                    {proc.name}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {visit.invoices?.length > 0 && (
                             <div style={{ marginBottom: "16px" }}>
@@ -347,20 +377,36 @@ function PatientDetail({ patient, onBack }) {
                                 <BadgeIndianRupee size={13} /> Claims
                               </div>
                               {visit.claims.map((claim, ci) => (
-                                <div key={ci} style={{ background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                                  <div>
-                                    <div style={{ fontWeight: 700, fontSize: "13px" }}>Claim #{claim.claim_id}</div>
-                                    <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
-                                      {claim.payer_name} · {claim.policy_number}
+                                <div key={ci} style={{ background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "10px 12px", marginBottom: "8px" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+                                    <div>
+                                      <div style={{ fontWeight: 700, fontSize: "13px" }}>
+                                        {claim.cashless_case_id ? `Case #${claim.cashless_case_id}` : `Claim #${claim.claim_id}`}
+                                      </div>
+                                      <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
+                                        {claim.payer_name} · {claim.policy_number}
+                                      </div>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                      <div style={{ textAlign: "right" }}>
+                                        <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Billed</div>
+                                        <div style={{ fontWeight: 700, color: "var(--primary)" }}>₹{claim.total_billed?.toLocaleString()}</div>
+                                      </div>
+                                      <Button variant="outline" size="small" onClick={() => navigate(`/case/${patient.child_id}/`, { state: { cashless_case_id: claim.cashless_case_id } })}>Open</Button>
                                     </div>
                                   </div>
-                                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                                    <div style={{ textAlign: "right" }}>
-                                      <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Billed</div>
-                                      <div style={{ fontWeight: 700, color: "var(--primary)" }}>₹{claim.total_billed?.toLocaleString()}</div>
-                                    </div>
-                                    <StatusBadge status={claim.status} />
-                                    <Button variant="outline" size="small" onClick={() => navigate(`/case/${patient.child_id}/`)}>Open</Button>
+                                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                                    <CaseStatusChip claim={claim} />
+                                    {claim.claim_decision && (
+                                      <span className={`badge-modern badge-${claim.claim_decision === "APPROVED" ? "success" : claim.claim_decision === "REJECTED" ? "error" : "warning"}`} style={{ fontSize: "10px" }}>
+                                        Claim: {claim.claim_decision}
+                                      </span>
+                                    )}
+                                    {claim.payment_status && (
+                                      <span className={`badge-modern badge-${claim.payment_status === "paid" ? "success" : claim.payment_status === "failed" ? "error" : "info"}`} style={{ fontSize: "10px" }}>
+                                        Pay: {claim.payment_status}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               ))}

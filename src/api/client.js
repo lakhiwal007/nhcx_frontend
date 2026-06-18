@@ -82,6 +82,24 @@ export const http = {
     }
   },
 
+  put: async (path, body = {}) => {
+    const merged = injectProvider({ request_id: generateRequestId(), ...body });
+    try {
+      const res = await fetch(BASE_URL + path, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(merged),
+      });
+      if (!res.ok) {
+        throw new Error(`PUT ${path} failed: ${res.status} ${res.statusText}`);
+      }
+      return await res.json();
+    } catch (err) {
+      dispatchError(err.message);
+      throw err;
+    }
+  },
+
   rawPost: async (fullPath, body = {}) => {
     const merged = { request_id: generateRequestId(), ...body };
     const url = fullPath.startsWith("http")

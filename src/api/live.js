@@ -62,6 +62,9 @@ export const live = {
   prepareClaimDraft: (params = {}) =>
     http.get(ENDPOINTS.PREPARE_CLAIM_DRAFT, params),
 
+  patchCashlessPatientContext: (cashless_case_id, data) =>
+    http.patch(ENDPOINTS.PATCH_CASHLESS_PATIENT_CONTEXT(cashless_case_id), data),
+
   patchPatientContext: (claim_id, data) =>
     http.patch(ENDPOINTS.PATCH_PATIENT_CONTEXT(claim_id), data),
 
@@ -110,4 +113,15 @@ export const live = {
   requestGatewayStatus: (data) => http.post(ENDPOINTS.REQUEST_GATEWAY_STATUS, data),
 
   rawPost: (fullPath, body = {}) => http.rawPost(fullPath, body),
+
+  listFacilities: (params = {}) => http.get(ENDPOINTS.LIST_FACILITIES, params),
+
+  createFacility: (data) => http.post(ENDPOINTS.CREATE_FACILITY, data),
+
+  getFacility: (code) => http.get(ENDPOINTS.GET_FACILITY(code)),
+
+  updateFacility: (code, data) => http.put(ENDPOINTS.UPDATE_FACILITY(code), data),
+
+  uploadFacilityKey: (code, data) =>
+    http.post(ENDPOINTS.UPLOAD_FACILITY_KEY(code), data),
 };

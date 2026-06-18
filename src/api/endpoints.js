@@ -35,6 +35,7 @@ export const ENDPOINTS = {
   
   // Claims
   PREPARE_CLAIM_DRAFT: "/cashless/claims/prepare",
+  PATCH_CASHLESS_PATIENT_CONTEXT: (cashless_case_id) => `/cashless/${cashless_case_id}/patient-context`,
   PATCH_PATIENT_CONTEXT: (id) => `/cashless/claims/${id}/patient-context`,
   SUBMIT_DISCHARGE_CLAIM: "/cashless/claims/discharge",
   SUBMIT_FINAL_CLAIM: "/cashless/claims/submit",
@@ -63,4 +64,11 @@ export const ENDPOINTS = {
   
   // Gateway
   REQUEST_GATEWAY_STATUS: "/cashless/status/request",
+
+  // Facility Management
+  LIST_FACILITIES: "/facilities",
+  CREATE_FACILITY: "/facilities",
+  GET_FACILITY: (code) => `/facilities/${code}`,
+  UPDATE_FACILITY: (code) => `/facilities/${code}`,
+  UPLOAD_FACILITY_KEY: (code) => `/facilities/${code}/private_key`,
 };
