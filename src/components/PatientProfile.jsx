@@ -59,6 +59,7 @@ function CaseStatusChip({ claim }) {
 function PatientCard({ child, onClick, isSelected }) {
   const age = calculateAge(child.dob);
   const latest = child.latest_claim;
+  const [photoError, setPhotoError] = useState(false);
   return (
     <motion.div
       whileHover={{ x: 2 }}
@@ -82,8 +83,8 @@ function PatientCard({ child, onClick, isSelected }) {
         display: "flex", alignItems: "center", justifyContent: "center",
         fontWeight: 800, fontSize: "16px", overflow: "hidden",
       }}>
-        {child.profile_photo
-          ? <img src={child.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        {child.profile_photo && !photoError
+          ? <img src={child.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setPhotoError(true)} />
           : child.name?.[0]?.toUpperCase()
         }
       </div>
@@ -124,6 +125,7 @@ function PatientDetail({ patient, onBack }) {
   const [communications, setCommunications] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(false);
   const [expandedVisit, setExpandedVisit] = useState(0);
+  const [headerPhotoError, setHeaderPhotoError] = useState(false);
 
   const age = calculateAge(patient.dob);
 
@@ -226,8 +228,8 @@ function PatientDetail({ patient, onBack }) {
             display: "flex", alignItems: "center", justifyContent: "center",
             fontWeight: 800, fontSize: "24px", flexShrink: 0, overflow: "hidden",
           }}>
-            {patient.profile_photo
-              ? <img src={patient.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {patient.profile_photo && !headerPhotoError
+              ? <img src={patient.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setHeaderPhotoError(true)} />
               : patient.name?.[0]?.toUpperCase()
             }
           </div>
