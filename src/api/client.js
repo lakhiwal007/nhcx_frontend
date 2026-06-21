@@ -16,25 +16,22 @@ const buildUrl = (path, params = {}) => {
   return url.toString();
 };
 
-const injectProvider = (data) => {
-  if (typeof data !== "object" || data === null) return data;
-  const defaultProvider = localStorage.getItem("nhcx_default_provider_id");
-  if (defaultProvider && !data.provider_id) {
-    return { ...data, provider_id: defaultProvider };
-  }
-  return data;
+
+const getProviderHeader = () => {
+  const code = localStorage.getItem("nhcx_default_provider_id");
+  return code ? { "X-Provider-Id": code } : {};
 };
 
 const dispatchError = (msg) =>
   window.dispatchEvent(new CustomEvent("api-error", { detail: msg }));
 
-/** Wrapper around fetch — auto-injects request_id; throws on non-2xx. */
+/** Wrapper around fetch — auto-injects request_id and X-Provider-Id; throws on non-2xx. */
 export const http = {
   get: async (path, params = {}) => {
-    const merged = { request_id: generateRequestId(), ...injectProvider(params) };
+    const merged = { request_id: generateRequestId(), ...params };
     try {
       const res = await fetch(buildUrl(path, merged), {
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getProviderHeader() },
       });
       if (!res.ok) {
         throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
@@ -47,11 +44,11 @@ export const http = {
   },
 
   post: async (path, body = {}) => {
-    const merged = injectProvider({ request_id: generateRequestId(), ...body });
+    const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getProviderHeader() },
         body: JSON.stringify(merged),
       });
       if (!res.ok) {
@@ -65,11 +62,11 @@ export const http = {
   },
 
   patch: async (path, body = {}) => {
-    const merged = injectProvider({ request_id: generateRequestId(), ...body });
+    const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getProviderHeader() },
         body: JSON.stringify(merged),
       });
       if (!res.ok) {
@@ -83,11 +80,11 @@ export const http = {
   },
 
   put: async (path, body = {}) => {
-    const merged = injectProvider({ request_id: generateRequestId(), ...body });
+    const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getProviderHeader() },
         body: JSON.stringify(merged),
       });
       if (!res.ok) {
@@ -108,7 +105,7 @@ export const http = {
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getProviderHeader() },
         body: JSON.stringify(merged),
       });
       if (!res.ok) {

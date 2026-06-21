@@ -954,7 +954,6 @@ export default function Settings() {
     setDefaultFacility(code);
     localStorage.setItem(DEFAULT_FACILITY_KEY, code);
 
-    // Also store the participant_code to automatically inject into API requests as provider_id
     const selected = facilities.find((f) => f.facility_code === code);
     if (selected && selected.hcx_participant_code) {
       localStorage.setItem(
@@ -964,6 +963,7 @@ export default function Settings() {
     } else {
       localStorage.removeItem("nhcx_default_provider_id");
     }
+    window.dispatchEvent(new CustomEvent("provider-changed"));
   };
 
   const defaultFacilityData = facilities.find(

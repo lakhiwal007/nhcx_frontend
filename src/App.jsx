@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Routes,
   Route,
+  Outlet,
   NavLink,
   useNavigate,
   useLocation,
@@ -23,6 +24,7 @@ import {
   Bell,
   ChevronRight,
   AlertCircle,
+  Building2,
 } from "lucide-react";
 import "./App.css";
 import { USE_MOCK, api } from "./api";
@@ -37,6 +39,10 @@ import CaseWrapper from "./components/wizard/CaseWrapper";
 
 const TASK_POLL_MS = 60_000;
 
+function RequireProvider({ hasProvider }) {
+  return hasProvider ? <Outlet /> : <Navigate to="/settings" replace />;
+}
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,7 +52,21 @@ export default function App() {
   const [apiErrors, setApiErrors] = useState([]);
   const [pendingTaskCount, setPendingTaskCount] = useState(0);
   const [urgentTaskCount, setUrgentTaskCount] = useState(0);
+  const [hasProvider, setHasProvider] = useState(
+    () => !!localStorage.getItem("nhcx_default_provider_id"),
+  );
   const taskPollRef = useRef(null);
+
+  useEffect(() => {
+    const sync = () =>
+      setHasProvider(!!localStorage.getItem("nhcx_default_provider_id"));
+    window.addEventListener("provider-changed", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("provider-changed", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   const fetchTaskCounts = async () => {
     try {
@@ -58,10 +78,16 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!hasProvider) {
+      clearInterval(taskPollRef.current);
+      setPendingTaskCount(0);
+      setUrgentTaskCount(0);
+      return;
+    }
     fetchTaskCounts();
     taskPollRef.current = setInterval(fetchTaskCounts, TASK_POLL_MS);
     return () => clearInterval(taskPollRef.current);
-  }, []);
+  }, [hasProvider]);
 
   useEffect(() => {
     const handleApiError = (e) => {
@@ -214,6 +240,22 @@ export default function App() {
           </div>
 
           <div className="top-actions">
+            {!hasProvider && (
+              <button
+                onClick={() => navigate("/settings")}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  fontSize: "12px", fontWeight: 600, padding: "5px 12px",
+                  borderRadius: "20px", cursor: "pointer",
+                  background: "rgba(239,68,68,0.12)",
+                  color: "var(--error)",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                }}
+              >
+                <Building2 size={13} />
+                No facility selected
+              </button>
+            )}
             <span
               title={USE_MOCK ? "Using mock data" : "Live API mode"}
               style={{
@@ -255,13 +297,15 @@ export default function App() {
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname.split("/")[1]}>
               <Route path="/" element={<Navigate to="/work-queue" replace />} />
-              <Route path="/work-queue" element={<WorkQueue />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/registry" element={<PatientProfile />} />
-              <Route path="/communications" element={<Communications />} />
-              <Route path="/payments" element={<Payments />} />
               <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/case/:id/*" element={<CaseWrapper />} />
+              <Route element={<RequireProvider hasProvider={hasProvider} />}>
+                <Route path="/work-queue" element={<WorkQueue />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/registry" element={<PatientProfile />} />
+                <Route path="/communications" element={<Communications />} />
+                <Route path="/payments" element={<Payments />} />
+                <Route path="/case/:id/*" element={<CaseWrapper />} />
+              </Route>
             </Routes>
           </AnimatePresence>
         </div>
