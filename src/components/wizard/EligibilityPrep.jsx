@@ -16,6 +16,13 @@ import { Card, Button, StatusBadge } from "../Common";
 const POLL_INTERVAL_MS = 7000;
 const TERMINAL_STATUSES = ["complete", "failed"];
 
+// Stop polling at a terminal status, OR when the case is `partial` and the
+// backend signals `resubmit` — that state won't resolve on its own, so the
+// user must re-run the eligibility check rather than wait.
+const shouldStopPolling = (res) =>
+  TERMINAL_STATUSES.includes(res?.status) ||
+  (res?.status === "partial" && res?.next_actions?.includes("resubmit"));
+
 function InsurancePlanPanel({ plan }) {
   if (!plan) return null;
   const [expanded, setExpanded] = useState(null);
@@ -571,7 +578,7 @@ export default function EligibilityPrep({ ctx }) {
             res.coverage_eligibility?.validation?.correlation_id ??
             res.coverage_eligibility?.correlation_id,
         });
-        if (!TERMINAL_STATUSES.includes(res.status)) {
+        if (!shouldStopPolling(res)) {
           setPolling(true);
         }
       } catch (err) {
@@ -610,7 +617,7 @@ export default function EligibilityPrep({ ctx }) {
             res.coverage_eligibility?.validation?.correlation_id ??
             res.coverage_eligibility?.correlation_id,
         });
-        if (TERMINAL_STATUSES.includes(res.status)) {
+        if (shouldStopPolling(res)) {
           setPolling(false);
         }
       } catch (_) {}
@@ -643,7 +650,7 @@ export default function EligibilityPrep({ ctx }) {
           res.coverage_eligibility?.validation?.correlation_id ??
           res.coverage_eligibility?.correlation_id,
       });
-      if (!TERMINAL_STATUSES.includes(res.status)) {
+      if (!shouldStopPolling(res)) {
         setPolling(true);
       }
     } catch (_) {
@@ -731,6 +738,9 @@ export default function EligibilityPrep({ ctx }) {
   const isPartial = caseData?.status === "partial";
   const isFailed = caseData?.status === "failed";
   const benefitsTimedOut = isPartial && caseData?.next_actions?.includes("prepare_preauth");
+  // Partial + next_actions ["resubmit"] = one or more eligibility sub-checks failed
+  // or stalled and will NOT resolve on their own — the user must re-run the check.
+  const needsResubmit = isPartial && caseData?.next_actions?.includes("resubmit");
   const canProceed = caseData?.next_actions?.includes("prepare_preauth") && (isComplete || isPartial);
 
   return (
@@ -784,7 +794,7 @@ export default function EligibilityPrep({ ctx }) {
                 Refresh
               </Button>
             )}
-            {!polling && (isComplete || isFailed) && (
+            {!polling && (isComplete || isFailed || needsResubmit) && (
               <Button
                 variant="outline"
                 size="small"
@@ -854,6 +864,25 @@ export default function EligibilityPrep({ ctx }) {
           </div>
         )}
       </Card>
+
+      {needsResubmit && (
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+            <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
+            <span><strong>One or more eligibility checks didn't complete.</strong> This won't resolve on its own — re-run the eligibility check to retry.</span>
+          </div>
+          <Button
+            variant="primary"
+            size="small"
+            icon={RefreshCw}
+            disabled={forceRefreshing || !payer || !policy}
+            title={!payer || !policy ? "Select payer & policy to re-run" : undefined}
+            onClick={handleForceRefresh}
+          >
+            {forceRefreshing ? "Re-running…" : "Re-run Eligibility Check"}
+          </Button>
+        </div>
+      )}
 
       {benefitsTimedOut && (
         <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
