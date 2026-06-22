@@ -5,6 +5,7 @@ import {
   Paperclip, FileText, Clock, ExternalLink, Circle,
 } from "lucide-react";
 import { api } from "../api";
+import { resolveActionUrl } from "../api/actionMap";
 import { PageHeader, Card, Button, Input } from "./Common";
 import { useNavigate } from "react-router-dom";
 
@@ -87,7 +88,10 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead }) {
     setExecuting(true);
     setExecuteResult(null);
     try {
-      const res = await api.rawPost(taskAction.endpoint, taskAction.payload_hint ?? {});
+      // Resolve via stable action.code (ACTION_MAP); fall back to the DB-stored
+      // action.endpoint only when the code is unknown to this build.
+      const url = resolveActionUrl(taskAction);
+      const res = await api.rawPost(url, taskAction.payload_hint ?? {});
       setExecuteResult({ success: true, correlation_id: res?.correlation_id, message: res?.message });
     } catch (err) {
       setExecuteResult({ success: false, message: err.message });

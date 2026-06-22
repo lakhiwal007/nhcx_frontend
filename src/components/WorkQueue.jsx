@@ -11,6 +11,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { api } from "../api";
+import { resolveActionUrl } from "../api/actionMap";
 import { PageHeader, Button, Input } from "./Common";
 import { useNavigate } from "react-router-dom";
 
@@ -46,24 +47,6 @@ const TASK_TYPE_OPTIONS = [
   { value: "review_payment_ack_failure", label: "Payment Ack Failure" },
   { value: "review_communication", label: "Review Communication" },
 ];
-
-// Stable code → API path mapping. Never call task.action.endpoint directly —
-// if a backend route is renamed, only this map needs updating, not every task row in the DB.
-const ACTION_MAP = {
-  respond_preauth_query:           "/cashless/preauth/query-response",
-  resubmit_preauth:                "/cashless/preauth/resubmit",
-  submit_preauth:                  "/cashless/preauth/submit",
-  respond_claim_query:             "/cashless/claims/query-response",
-  resubmit_claim:                  "/cashless/claims/resubmit",
-  submit_discharge_claim:          "/cashless/claims/discharge",
-  submit_final_claim:              "/cashless/claims/submit",
-  submit_reprocess:                "/cashless/reprocess/submit",
-  acknowledge_payment:             "/cashless/payment/acknowledge",
-  review_communication:            "/cashless/communication/status",
-  attach_eligibility_documents:    "/cashless/coverage_eligibility/check",
-  fix_eligibility_error:           "/cashless/coverage_eligibility/check",
-  review_insurance_plan_documents: "/cashless/insurance_plan/status",
-};
 
 const SCREEN_MAP = {
   review_insurance_plan_documents: (cid) => `/case/${cid}/prep`,
@@ -178,12 +161,9 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
     setExecuting(true);
     setResult(null);
     try {
-      // Resolve URL via ACTION_MAP using stable action.code; fall back to
+      // Resolve URL via ACTION_MAP using stable action.code; falls back to
       // action.endpoint only when the code is unknown (forwards-compatibility).
-      const resolvedPath = task.action.code
-        ? ACTION_MAP[task.action.code]
-        : undefined;
-      const url = resolvedPath ?? task.action.endpoint;
+      const url = resolveActionUrl(task.action);
       const res = await api.rawPost(url, task.action.payload_hint ?? {});
       setResult({
         success: true,

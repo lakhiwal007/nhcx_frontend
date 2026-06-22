@@ -27,17 +27,21 @@ const dispatchError = (msg) =>
 
 /** Wrapper around fetch — auto-injects request_id and X-Provider-Id; throws on non-2xx. */
 export const http = {
-  get: async (path, params = {}) => {
+  get: async (path, params = {}, signal) => {
     const merged = { request_id: generateRequestId(), ...params };
     try {
       const res = await fetch(buildUrl(path, merged), {
         headers: { "Content-Type": "application/json", ...getProviderHeader() },
+        signal,
       });
       if (!res.ok) {
         throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
       }
       return await res.json();
     } catch (err) {
+      // Aborted polls (tab hidden, navigation, superseded request) are expected —
+      // don't surface them as a global API error. Rethrow so the caller can swallow it.
+      if (err.name === "AbortError") throw err;
       dispatchError(err.message);
       throw err;
     }
