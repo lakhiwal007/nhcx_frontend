@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { usePoll } from "../../hooks/usePoll";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi } from "lucide-react";
@@ -108,32 +109,30 @@ export default function PreauthStatus({ ctx }) {
   const [submitting, setSubmitting] = useState(false);
 
   const correlationId = preauthCorrelationId;
-  const pollRef = useRef(null);
   const startTimeRef = useRef(Date.now());
   const elapsedRef = useRef(null);
 
+  const pollStatus = async (signal) => {
+    try {
+      const res = await api.getPreauthStatus(correlationId, signal);
+      setStatusData(res);
+      if (res.preauth_ref) updateCaseState({ preauthRef: res.preauth_ref, preauthDecision: res.decision });
+      if (res.claim_id && !claim_id) updateCaseState({ claim_id: res.claim_id });
+      if (res.cashless_case_id && !cashless_case_id) updateCaseState({ cashless_case_id: res.cashless_case_id });
+      if (res.status === "complete" || res.status === "not_found") setPolling(false);
+    } catch (_) {}
+  };
+
+  // Restarts automatically when the correlation id changes (e.g. after a query
+  // response or resubmit calls restartPoll), with an immediate fetch.
+  usePoll(pollStatus, {
+    active: polling && correlationId ? correlationId : null,
+    intervalMs: POLL_INTERVAL_MS,
+  });
+
   useEffect(() => {
-    if (!correlationId) {
-      setPolling(false);
-      return;
-    }
-    const doPoll = async () => {
-      try {
-        const res = await api.getPreauthStatus(correlationId);
-        setStatusData(res);
-        if (res.preauth_ref) updateCaseState({ preauthRef: res.preauth_ref, preauthDecision: res.decision });
-        if (res.claim_id && !caseState.claim_id) updateCaseState({ claim_id: res.claim_id });
-        if (res.cashless_case_id && !caseState.cashless_case_id) updateCaseState({ cashless_case_id: res.cashless_case_id });
-        if (res.status === "complete" || res.status === "not_found") {
-          setPolling(false);
-          clearInterval(pollRef.current);
-        }
-      } catch (_) {}
-    };
-    doPoll();
-    pollRef.current = setInterval(doPoll, POLL_INTERVAL_MS);
-    return () => clearInterval(pollRef.current);
-  }, []);
+    if (!correlationId) setPolling(false);
+  }, [correlationId]);
 
   useEffect(() => {
     if (!polling) {
@@ -146,27 +145,14 @@ export default function PreauthStatus({ ctx }) {
     return () => clearInterval(elapsedRef.current);
   }, [polling]);
 
+  // Swap in a new correlation id and restart the elapsed timer; usePoll picks up
+  // the change and immediately polls the new id.
   const restartPoll = (newCorrelationId) => {
-    clearInterval(pollRef.current);
     startTimeRef.current = Date.now();
     setPollElapsed(0);
-    setPolling(true);
     setStatusData(null);
+    setPolling(true);
     updateCaseState({ preauthCorrelationId: newCorrelationId });
-    const doPoll = async () => {
-      try {
-        const res = await api.getPreauthStatus(newCorrelationId);
-        setStatusData(res);
-        if (res.claim_id && !caseState.claim_id) updateCaseState({ claim_id: res.claim_id });
-        if (res.cashless_case_id && !caseState.cashless_case_id) updateCaseState({ cashless_case_id: res.cashless_case_id });
-        if (res.status === "complete" || res.status === "not_found") {
-          setPolling(false);
-          clearInterval(pollRef.current);
-        }
-      } catch (_) {}
-    };
-    doPoll();
-    pollRef.current = setInterval(doPoll, POLL_INTERVAL_MS);
   };
 
   const handleQuerySubmit = async () => {

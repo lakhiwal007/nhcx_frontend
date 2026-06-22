@@ -81,19 +81,16 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     }
   });
 
-  // furthest reached core stage → frontier is clickable, everything beyond is locked
-  let maxDone = -1;
-  CORE.forEach((s, i) => { if (meta[s.id].done) maxDone = i; });
-  const frontier = maxDone + 1;
-
+  // The spine records progress; it doesn't drive the workflow forward. Only
+  // completed stages, the current stage, and branch action nodes are clickable
+  // — the next not-yet-done step stays locked so clicking can't skip ahead.
   return visible.map((s) => {
-    const coreIndex = CORE.findIndex((c) => c.id === s.id);
     const isActive = s.path === currentPath;
-    const reachable = s.branch || coreIndex <= frontier || s.done;
+    const clickable = s.branch || s.done || isActive;
     let state = "upcoming";
     if (isActive) state = "active";
     else if (s.done) state = "done";
-    else if (reachable) state = "available";
-    return { ...s, state, clickable: reachable || isActive };
+    else if (s.branch) state = "available";
+    return { ...s, state, clickable };
   });
 }

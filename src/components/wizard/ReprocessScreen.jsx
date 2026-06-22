@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, ArrowRight } from "lucide-react";
 import { api } from "../../api";
+import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, DecisionBanner, DocumentChecklist } from "../Common";
 
 const POLL_INTERVAL_MS = 7000;
@@ -31,27 +32,18 @@ export default function ReprocessScreen({ ctx }) {
   const [reprocessCorrelationId, setReprocessCorrelationId] = useState(null);
   const [status, setStatus] = useState(null);
   const [polling, setPolling] = useState(false);
-  const pollRef = useRef(null);
 
-  useEffect(() => {
-    if (!polling || !reprocessCorrelationId) {
-      clearInterval(pollRef.current);
-      return;
-    }
-    const doPoll = async () => {
-      try {
-        const res = await api.getReprocessStatus(reprocessCorrelationId);
-        setStatus(res);
-        if (res.status === "complete" || res.status === "not_found") {
-          setPolling(false);
-          clearInterval(pollRef.current);
-        }
-      } catch (_) {}
-    };
-    doPoll();
-    pollRef.current = setInterval(doPoll, POLL_INTERVAL_MS);
-    return () => clearInterval(pollRef.current);
-  }, [polling, reprocessCorrelationId]);
+  const pollStatus = async (signal) => {
+    try {
+      const res = await api.getReprocessStatus(reprocessCorrelationId, signal);
+      setStatus(res);
+      if (res.status === "complete" || res.status === "not_found") setPolling(false);
+    } catch (_) {}
+  };
+  usePoll(pollStatus, {
+    active: polling && reprocessCorrelationId ? reprocessCorrelationId : null,
+    intervalMs: POLL_INTERVAL_MS,
+  });
 
   const handleSubmit = async () => {
     setSubmitting(true);

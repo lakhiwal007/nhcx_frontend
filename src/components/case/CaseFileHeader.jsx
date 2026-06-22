@@ -1,4 +1,4 @@
-import { User, Hash } from "lucide-react";
+import { User, Hash, Building2 } from "lucide-react";
 
 // The "patient chart" header that sits atop the Case Spine.
 export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef }) {
@@ -7,9 +7,21 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
     caseState.policy?.policy_number ||
     effectiveCase.policy_number;
   const payer = caseState.payer?.name || effectiveCase.payer_id;
+  // The facility (X-Provider-Id) every call on this case is scoped to — the
+  // chart's letterhead. Name preferred, participant code as fallback.
+  const facility =
+    localStorage.getItem("nhcx_default_facility_name") ||
+    localStorage.getItem("nhcx_default_provider_id") ||
+    "";
 
   return (
     <div className="cx-file">
+      {facility && (
+        <div className="cx-file-facility">
+          <Building2 size={11} />
+          <span>{facility}</span>
+        </div>
+      )}
       <div className="cx-file-top">
         <div className="cx-avatar">{patient.name?.[0]?.toUpperCase() || "?"}</div>
         <div style={{ minWidth: 0 }}>

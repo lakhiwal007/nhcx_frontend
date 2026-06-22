@@ -11,6 +11,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { api } from "../../api";
+import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, StatusBadge } from "../Common";
 
 const POLL_INTERVAL_MS = 7000;
@@ -24,11 +25,11 @@ const shouldStopPolling = (res) =>
   (res?.status === "partial" && res?.next_actions?.includes("resubmit"));
 
 function InsurancePlanPanel({ plan }) {
-  if (!plan) return null;
   const [expanded, setExpanded] = useState(null);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 5;
 
+  if (!plan) return null;
   const details = plan.plan_details;
   const inclusions = plan.inclusions || [];
   const exclusions = plan.exclusions || [];
@@ -369,90 +370,104 @@ function InsurancePlanPanel({ plan }) {
   );
 }
 
-function CoverageEligibilityPanel({ ce }) {
+// One eligibility sub-check rendered as a vital sign. A live (pending) check
+// shows the ECG trace; a resolved one shows its value with a status tone.
+function CeVital({ label, state, value, tone, note }) {
+  const live = state === "live";
+  return (
+    <div className={`cx-vital is-${state}`}>
+      <span className="cx-vital-dot" aria-hidden="true" />
+      <span className="cx-vital-label">{label}</span>
+      {live ? (
+        <svg
+          className="cx-ecg"
+          viewBox="0 0 120 14"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <polyline points="0,7 22,7 30,7 36,2 42,12 50,7 70,7 78,7 84,3 90,11 96,7 120,7" />
+        </svg>
+      ) : (
+        <span className={`cx-vital-value${tone ? ` tone-${tone}` : ""}`}>{value}</span>
+      )}
+      {note && <span className={`cx-vital-note${tone ? ` tone-${tone}` : ""}`}>{note}</span>}
+    </div>
+  );
+}
+
+function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
   if (!ce) return null;
   // Real backend returns nested validation/benefits/auth_requirements; flat is legacy mock
-  const inforce = ce.validation?.inforce ?? ce.inforce;
-  const auth_required = ce.auth_requirements?.auth_required ?? ce.auth_required;
-  const outcome = ce.validation?.outcome ?? ce.outcome;
-  const disposition = ce.validation?.disposition ?? ce.disposition;
+  const validation = ce.validation || {};
+  const benefits = ce.benefits || {};
+  const authReq = ce.auth_requirements || {};
+  const inforce = validation.inforce ?? ce.inforce;
+  const auth_required = authReq.auth_required ?? ce.auth_required;
+  const disposition = validation.disposition ?? ce.disposition;
   const allErrors = [
-    ...(ce.validation?.errors || ce.errors || []),
-    ...(ce.benefits?.errors || []),
-    ...(ce.auth_requirements?.errors || []),
+    ...(validation.errors || ce.errors || []),
+    ...(benefits.errors || []),
+    ...(authReq.errors || []),
   ];
-  const allItems = (ce.benefits?.insurance_items ?? ce.insurance_items ?? [])
+  const allItems = (benefits.insurance_items ?? ce.insurance_items ?? [])
     .flatMap((ins) => ins.items || []);
+
+  // Resolve each sub-check to a vital state. Falls back to the aggregate
+  // ce.status for the legacy flat shape that has no sub-objects.
+  const stateOf = (sub) => {
+    const s = sub?.status ?? ce.status;
+    if (s === "complete") return sub?.errors?.length ? "error" : "done";
+    if (s === "failed") return "error";
+    return "live";
+  };
+
+  const validationState = stateOf(validation);
+  const authState = stateOf(authReq);
+  // Benefits that timed out won't resolve on their own — mark as `wait`, not live.
+  const benefitsState = benefitsTimedOut ? "wait" : stateOf(benefits);
+
   return (
     <Card title="Coverage Eligibility">
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          marginBottom: "12px",
-          flexWrap: "wrap",
-        }}
-      >
-        <StatusBadge status={ce.status} />
-        {inforce !== null && inforce !== undefined && (
-          <span
-            className={`badge-modern badge-${inforce ? "success" : "error"}`}
-            style={{ fontSize: "10px" }}
-          >
-            {inforce ? "IN-FORCE" : "NOT IN-FORCE"}
-          </span>
-        )}
-        {auth_required !== null && auth_required !== undefined && (
-          <span
-            className={`badge-modern badge-${auth_required ? "warning" : "success"}`}
-            style={{ fontSize: "10px" }}
-          >
-            {auth_required ? "PREAUTH REQUIRED" : "NO PREAUTH NEEDED"}
-          </span>
-        )}
+      <div className="cx-vitals">
+        <CeVital
+          label="Policy in-force"
+          state={validationState}
+          value={inforce == null ? "—" : inforce ? "In-force" : "Not in-force"}
+          tone={inforce == null ? undefined : inforce ? "approve" : "urgent"}
+          note={validationState === "done" && disposition ? disposition : undefined}
+        />
+        <CeVital
+          label="Benefit limits"
+          state={benefitsState}
+          value={
+            benefitsTimedOut
+              ? "Insurer unavailable"
+              : allItems.length > 0
+                ? `${allItems.length} service${allItems.length > 1 ? "s" : ""}`
+                : benefitsState === "done"
+                  ? "No limits returned"
+                  : "—"
+          }
+          tone={benefitsTimedOut ? "wait" : undefined}
+          note={
+            benefitsTimedOut
+              ? "Coverage details may be incomplete — you can still proceed."
+              : undefined
+          }
+        />
+        <CeVital
+          label="Preauth gate"
+          state={authState}
+          value={
+            auth_required == null
+              ? "—"
+              : auth_required
+                ? "Preauth required"
+                : "No preauth needed"
+          }
+          tone={auth_required == null ? undefined : auth_required ? "wait" : "approve"}
+        />
       </div>
-
-      {ce.status === "pending" && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            color: "var(--text-muted)",
-            fontSize: "13px",
-            padding: "8px 0",
-          }}
-        >
-          <Clock size={14} /> Awaiting payer eligibility response…
-        </div>
-      )}
-
-      {outcome && (
-        <div
-          style={{
-            fontSize: "13px",
-            padding: "6px 10px",
-            background: "var(--bg-main)",
-            borderRadius: "6px",
-            marginBottom: "10px",
-          }}
-        >
-          Outcome: <strong>{outcome}</strong>
-        </div>
-      )}
-
-      {disposition && (
-        <div
-          style={{
-            fontSize: "13px",
-            marginBottom: "12px",
-            color: "var(--text-main)",
-          }}
-        >
-          {disposition}
-        </div>
-      )}
 
       {allItems.length > 0 && (
         <div className="table-responsive-wrapper">
@@ -538,7 +553,6 @@ export default function EligibilityPrep({ ctx }) {
   const [forceRefreshing, setForceRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
-  const pollRef = useRef(null);
 
   const hasInitialized = useRef(false);
 
@@ -606,25 +620,24 @@ export default function EligibilityPrep({ ctx }) {
     init();
   }, []);
 
-  useEffect(() => {
-    if (!polling || !caseData?.cashless_case_id) return;
-    const doPoll = async () => {
-      try {
-        const res = await api.getCashlessStatus(caseData.cashless_case_id);
-        setCaseData(res);
-        updateCaseState({
-          eligibility_correlation_id:
-            res.coverage_eligibility?.validation?.correlation_id ??
-            res.coverage_eligibility?.correlation_id,
-        });
-        if (shouldStopPolling(res)) {
-          setPolling(false);
-        }
-      } catch (_) {}
-    };
-    pollRef.current = setInterval(doPoll, POLL_INTERVAL_MS);
-    return () => clearInterval(pollRef.current);
-  }, [polling, caseData?.cashless_case_id]);
+  const pollStatus = async (signal) => {
+    try {
+      const res = await api.getCashlessStatus(caseData.cashless_case_id, signal);
+      setCaseData(res);
+      updateCaseState({
+        eligibility_correlation_id:
+          res.coverage_eligibility?.validation?.correlation_id ??
+          res.coverage_eligibility?.correlation_id,
+      });
+      if (shouldStopPolling(res)) setPolling(false);
+    } catch (_) {}
+  };
+
+  usePoll(pollStatus, {
+    active: polling && caseData?.cashless_case_id ? caseData.cashless_case_id : null,
+    intervalMs: POLL_INTERVAL_MS,
+    immediate: false, // init() already fetched fresh status; wait one interval
+  });
 
   const manualRefresh = () => {
     if (!polling && caseData?.cashless_case_id) setPolling(true);
@@ -815,7 +828,10 @@ export default function EligibilityPrep({ ctx }) {
         style={{ gap: "24px", marginBottom: "24px" }}
       >
         <InsurancePlanPanel plan={caseData?.insurance_plan} />
-        <CoverageEligibilityPanel ce={caseData?.coverage_eligibility} />
+        <CoverageEligibilityPanel
+          ce={caseData?.coverage_eligibility}
+          benefitsTimedOut={benefitsTimedOut}
+        />
       </div>
 
       <Card title="Procedures" className="mb-6">

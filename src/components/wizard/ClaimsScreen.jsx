@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Send, ArrowRight, AlertCircle, X, Edit2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
+import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid, MissingFieldsAlert } from "../Common";
 
 const POLL_INTERVAL_MS = 7000;
@@ -98,13 +99,11 @@ export default function ClaimsScreen({ ctx }) {
   const [dischargeCorrelationId, setDischargeCorrelationId] = useState(null);
   const [dischargeStatus, setDischargeStatus] = useState(null);
   const [dischargePolling, setDischargePolling] = useState(false);
-  const dischargePollRef = useRef(null);
 
   // Final claim flow
   const [finalCorrelationId, setFinalCorrelationId] = useState(caseState.claimCorrelationId || null);
   const [claimStatus, setClaimStatus] = useState(null);
   const [polling, setPolling] = useState(false);
-  const pollRef = useRef(null);
 
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showResubmitDrawer, setShowResubmitDrawer] = useState(false);
@@ -153,46 +152,30 @@ export default function ClaimsScreen({ ctx }) {
   }, []);
 
   // Discharge claim polling
-  useEffect(() => {
-    if (!dischargePolling || !dischargeCorrelationId) {
-      clearInterval(dischargePollRef.current);
-      return;
-    }
-    const doPoll = async () => {
-      try {
-        const res = await api.getClaimStatus(dischargeCorrelationId);
-        setDischargeStatus(res);
-        if (res.status === "complete" || res.status === "not_found") {
-          setDischargePolling(false);
-          clearInterval(dischargePollRef.current);
-        }
-      } catch (_) {}
-    };
-    doPoll();
-    dischargePollRef.current = setInterval(doPoll, POLL_INTERVAL_MS);
-    return () => clearInterval(dischargePollRef.current);
-  }, [dischargePolling, dischargeCorrelationId]);
+  const pollDischarge = async (signal) => {
+    try {
+      const res = await api.getClaimStatus(dischargeCorrelationId, signal);
+      setDischargeStatus(res);
+      if (res.status === "complete" || res.status === "not_found") setDischargePolling(false);
+    } catch (_) {}
+  };
+  usePoll(pollDischarge, {
+    active: dischargePolling && dischargeCorrelationId ? dischargeCorrelationId : null,
+    intervalMs: POLL_INTERVAL_MS,
+  });
 
   // Final claim polling
-  useEffect(() => {
-    if (!polling || !finalCorrelationId) {
-      clearInterval(pollRef.current);
-      return;
-    }
-    const doPoll = async () => {
-      try {
-        const res = await api.getClaimStatus(finalCorrelationId);
-        setClaimStatus(res);
-        if (res.status === "complete" || res.status === "not_found") {
-          setPolling(false);
-          clearInterval(pollRef.current);
-        }
-      } catch (_) {}
-    };
-    doPoll();
-    pollRef.current = setInterval(doPoll, POLL_INTERVAL_MS);
-    return () => clearInterval(pollRef.current);
-  }, [polling, finalCorrelationId]);
+  const pollFinal = async (signal) => {
+    try {
+      const res = await api.getClaimStatus(finalCorrelationId, signal);
+      setClaimStatus(res);
+      if (res.status === "complete" || res.status === "not_found") setPolling(false);
+    } catch (_) {}
+  };
+  usePoll(pollFinal, {
+    active: polling && finalCorrelationId ? finalCorrelationId : null,
+    intervalMs: POLL_INTERVAL_MS,
+  });
 
   // Seed resubmit drawer items when it opens
   useEffect(() => {

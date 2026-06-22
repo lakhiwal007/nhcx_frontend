@@ -60,15 +60,18 @@ const extractErrorMessage = async (res) => {
 
 /** Wrapper around fetch — auto-injects request_id and X-Provider-Id; throws on non-2xx. */
 const http = {
-  get: async (path, params = {}) => {
+  get: async (path, params = {}, opts = {}) => {
     const merged = { request_id: generateRequestId(), ...params };
     try {
       const res = await fetch(buildUrl(path, merged), {
         headers: { "Content-Type": "application/json", ...getProviderHeader() },
+        signal: opts.signal,
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
       return await res.json();
     } catch (err) {
+      // A cancelled poll (tab hidden / navigation) is not a real error.
+      if (err.name === "AbortError") throw err;
       dispatchError(err.message);
       throw err;
     }
@@ -1614,8 +1617,8 @@ const real = {
 
   prepareCashless: (data) => http.post("/cashless/prepare", data),
 
-  getCashlessStatus: (cashless_case_id) =>
-    http.get(`/cashless/${cashless_case_id}`),
+  getCashlessStatus: (cashless_case_id, signal) =>
+    http.get(`/cashless/${cashless_case_id}`, {}, { signal }),
 
   preparePreauth: (params = {}) =>
     http.get("/cashless/preauth/prepare", params),
@@ -1653,8 +1656,8 @@ const real = {
   getCoverageEligibilityStatus: (correlation_id) =>
     http.get(`/cashless/coverage_eligibility/status/${correlation_id}`),
 
-  getPreauthStatus: (correlation_id) =>
-    http.get(`/cashless/preauth/status/${correlation_id}`),
+  getPreauthStatus: (correlation_id, signal) =>
+    http.get(`/cashless/preauth/status/${correlation_id}`, {}, { signal }),
 
   prepareClaimDraft: (params = {}) =>
     http.get("/cashless/claims/prepare", params),
@@ -1671,13 +1674,13 @@ const real = {
 
   resubmitClaim: (data) => http.post("/cashless/claims/resubmit", data),
 
-  getClaimStatus: (correlation_id) =>
-    http.get(`/cashless/claims/status/${correlation_id}`),
+  getClaimStatus: (correlation_id, signal) =>
+    http.get(`/cashless/claims/status/${correlation_id}`, {}, { signal }),
 
   submitReprocess: (data) => http.post("/cashless/reprocess/submit", data),
 
-  getReprocessStatus: (correlation_id) =>
-    http.get(`/cashless/reprocess/status/${correlation_id}`),
+  getReprocessStatus: (correlation_id, signal) =>
+    http.get(`/cashless/reprocess/status/${correlation_id}`, {}, { signal }),
 
   searchPaymentStatus: (params = {}) =>
     http.get("/cashless/payment/status", params),

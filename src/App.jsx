@@ -27,7 +27,7 @@ import {
   Building2,
 } from "lucide-react";
 import "./App.css";
-import { USE_MOCK, api } from "./api";
+import { api } from "./api";
 
 import WorkQueue from "./components/WorkQueue";
 import Dashboard from "./components/Dashboard";
@@ -58,12 +58,16 @@ export default function App() {
   const [facilityName, setFacilityName] = useState(
     () => localStorage.getItem("nhcx_default_facility_name") || "",
   );
+  const [providerId, setProviderId] = useState(
+    () => localStorage.getItem("nhcx_default_provider_id") || "",
+  );
   const taskPollRef = useRef(null);
 
   useEffect(() => {
     const sync = () => {
       setHasProvider(!!localStorage.getItem("nhcx_default_provider_id"));
       setFacilityName(localStorage.getItem("nhcx_default_facility_name") || "");
+      setProviderId(localStorage.getItem("nhcx_default_provider_id") || "");
     };
     window.addEventListener("provider-changed", sync);
     window.addEventListener("storage", sync);
@@ -146,6 +150,10 @@ export default function App() {
     }));
   };
 
+  // The facility whose context (X-Provider-Id) every API call is scoped to.
+  // Prefer the saved name; fall back to the participant code.
+  const facilityLabel = facilityName || providerId;
+
   return (
     <div
       className={`app-container ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isMobileMenuOpen ? "mobile-menu-open" : ""}`}
@@ -182,6 +190,40 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {hasProvider && (
+          <button
+            onClick={() => navigate("/settings")}
+            title={`Active facility: ${facilityLabel} — click to switch`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              width: "100%",
+              textAlign: "left",
+              cursor: "pointer",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "10px",
+              padding: isSidebarCollapsed ? "9px 0" : "9px 11px",
+              justifyContent: isSidebarCollapsed ? "center" : "flex-start",
+              marginBottom: "16px",
+              color: "#fff",
+            }}
+          >
+            <Building2 size={16} style={{ flexShrink: 0, color: "var(--primary)" }} />
+            {!isSidebarCollapsed && (
+              <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <span style={{ fontSize: "9.5px", letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)" }}>
+                  Active facility
+                </span>
+                <span style={{ fontSize: "12.5px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#fff" }}>
+                  {facilityLabel}
+                </span>
+              </span>
+            )}
+          </button>
+        )}
 
         <nav className="sidebar-nav">
           {navItems.map(({ to, icon: Icon, label, badge }) => (
@@ -286,18 +328,26 @@ export default function App() {
                 No facility selected
               </button>
             )}
-            <span
-              title={USE_MOCK ? "Using mock data" : facilityName || "Live API mode"}
-              style={{
-                fontSize: "11px", fontWeight: 700, padding: "4px 10px",
-                borderRadius: "20px", cursor: "default",
-                background: USE_MOCK ? "rgba(245,158,11,0.15)" : "rgba(16,185,129,0.15)",
-                color: USE_MOCK ? "#d97706" : "#059669",
-                border: `1px solid ${USE_MOCK ? "#fde68a" : "#a7f3d0"}`,
-              }}
-            >
-              {USE_MOCK ? "⚡ MOCK" : facilityName || "🟢 LIVE"}
-            </span>
+            {hasProvider && (
+              <button
+                onClick={() => navigate("/settings")}
+                title={`Active facility: ${facilityLabel}${facilityName && providerId ? ` · ${providerId}` : ""} — click to switch`}
+                style={{
+                  display: "flex", alignItems: "center", gap: "7px",
+                  maxWidth: "260px",
+                  fontSize: "12px", fontWeight: 600, padding: "5px 12px",
+                  borderRadius: "20px", cursor: "pointer",
+                  background: "var(--primary-light)",
+                  color: "var(--primary)",
+                  border: "1px solid var(--primary-light)",
+                }}
+              >
+                <Building2 size={13} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {facilityLabel}
+                </span>
+              </button>
+            )}
             <button onClick={toggleTheme} className="theme-toggle">
               {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
             </button>

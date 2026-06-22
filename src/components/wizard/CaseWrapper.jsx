@@ -54,6 +54,15 @@ export default function CaseWrapper() {
     });
   }, [id]);
 
+  // Stages are routed views swapped inside the scrollable .content pane;
+  // React Router keeps the scroll offset across navigations, so a new stage
+  // would otherwise open already scrolled down. Reset to the top on each change.
+  useEffect(() => {
+    const scroller = document.querySelector(".content");
+    if (scroller) scroller.scrollTo({ top: 0 });
+    else window.scrollTo({ top: 0 });
+  }, [currentStepPath]);
+
   useEffect(() => {
     const fetchPatient = async () => {
       setLoading(true);
