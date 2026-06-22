@@ -319,6 +319,11 @@ h3,
     font-weight: 500;
 }
 
+.breadcrumb-link:hover {
+    color: var(--primary) !important;
+    text-decoration: underline;
+}
+
 .top-actions {
     display: flex;
     align-items: center;

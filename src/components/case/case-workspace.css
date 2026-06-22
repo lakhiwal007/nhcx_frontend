@@ -1,0 +1,575 @@
+/* ============================================================================
+   Case Workspace — "Ledger & Vitals"
+   A scoped visual reinvention of the Cashless Case surface. Everything lives
+   under .cx-root so the rest of the app (global App.css tokens) is untouched.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+.cx-root {
+  /* ── Light tokens (scoped) ─────────────────────────────────────────── */
+  --cx-paper: #eef1f4;
+  --cx-surface: #ffffff;
+  --cx-surface-2: #f6f8fa;
+  --cx-ink: #0c1a24;
+  --cx-ink-soft: #51616b;
+  --cx-line: #dce3e8;
+  --cx-line-strong: #c6d0d7;
+  --cx-primary: #0b6e6e;
+  --cx-primary-soft: rgba(11, 110, 110, 0.1);
+  --cx-pulse: #1fb6a6;
+  --cx-approve: #2e9e5b;
+  --cx-wait: #c98a14;
+  --cx-urgent: #d8442f;
+
+  --cx-font-display: "Bricolage Grotesque", "Inter Tight", system-ui, sans-serif;
+  --cx-font-body: "Inter Tight", system-ui, sans-serif;
+  --cx-font-mono: "JetBrains Mono", "SF Mono", "Consolas", monospace;
+
+  --cx-radius: 14px;
+  --cx-radius-sm: 9px;
+  --cx-shadow: 0 1px 2px rgba(12, 26, 36, 0.04), 0 8px 24px -16px rgba(12, 26, 36, 0.25);
+
+  /* ── Re-skin: remap the global app tokens *only* inside the workspace ──
+     CSS custom properties inherit by DOM, so every descendant step — its
+     .card-modern / .btn-modern / .badge / .input / .table classes AND its
+     inline styles that read var(--primary) etc. — adopts these values, with
+     no change to any step component's markup or logic. */
+  --primary: var(--cx-primary);
+  --primary-hover: #095a5a;
+  --primary-light: var(--cx-primary-soft);
+  --accent: var(--cx-pulse);
+  --bg-main: var(--cx-surface-2);
+  --bg-sidebar: #0c1a24;
+  --bg-card: var(--cx-surface);
+  --text-main: var(--cx-ink);
+  --text-muted: var(--cx-ink-soft);
+  --border-color: var(--cx-line);
+  --border-hover: var(--cx-line-strong);
+  --success: var(--cx-approve);
+  --warning: var(--cx-wait);
+  --error: var(--cx-urgent);
+  --info: #2b6f8c;
+  --glass: rgba(255, 255, 255, 0.82);
+  --shadow-sm: 0 1px 2px rgba(12, 26, 36, 0.05);
+  --shadow: var(--cx-shadow);
+  --shadow-lg: 0 1px 2px rgba(12, 26, 36, 0.05), 0 18px 40px -22px rgba(12, 26, 36, 0.4);
+  --radius: var(--cx-radius);
+  --radius-sm: var(--cx-radius-sm);
+
+  /* break out of .main-view padding to claim the full canvas */
+  margin: -32px -40px;
+  min-height: calc(100vh - 64px);
+  padding: 28px 40px 56px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(12, 26, 36, 0.04) 1px, transparent 0) 0 0 / 22px 22px,
+    var(--cx-paper);
+  color: var(--cx-ink);
+  font-family: var(--cx-font-body);
+  font-feature-settings: "ss01", "cv01", "tnum";
+}
+
+[data-theme="dark"] .cx-root {
+  --cx-paper: #0a141b;
+  --cx-surface: #11212b;
+  --cx-surface-2: #0d1a22;
+  --cx-ink: #e8eef0;
+  --cx-ink-soft: #8aa0a9;
+  --cx-line: #1f333d;
+  --cx-line-strong: #2c454f;
+  --cx-primary: #2bb3ad;
+  --cx-primary-soft: rgba(43, 179, 173, 0.14);
+  --cx-pulse: #34d8c5;
+  --cx-approve: #46c47a;
+  --cx-wait: #e0a93a;
+  --cx-urgent: #f06a55;
+  --cx-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px -18px rgba(0, 0, 0, 0.7);
+
+  /* dark re-skin of the global tokens for step content */
+  --primary: var(--cx-primary);
+  --primary-hover: #1f9690;
+  --primary-light: var(--cx-primary-soft);
+  --bg-main: var(--cx-surface-2);
+  --bg-card: var(--cx-surface);
+  --text-main: var(--cx-ink);
+  --text-muted: var(--cx-ink-soft);
+  --border-color: var(--cx-line);
+  --border-hover: var(--cx-line-strong);
+  --success: var(--cx-approve);
+  --warning: var(--cx-wait);
+  --error: var(--cx-urgent);
+  --info: #4f9fb8;
+  --glass: rgba(13, 26, 34, 0.82);
+}
+
+.cx-root *,
+.cx-root *::before,
+.cx-root *::after {
+  box-sizing: border-box;
+}
+
+/* ── Two-pane layout ──────────────────────────────────────────────────── */
+.cx-grid {
+  display: grid;
+  grid-template-columns: 322px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.cx-rail {
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Case-file header (the chart header) ──────────────────────────────── */
+.cx-file {
+  background: var(--cx-surface);
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-radius);
+  box-shadow: var(--cx-shadow);
+  overflow: hidden;
+}
+
+.cx-file-top {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--cx-line);
+}
+
+.cx-file-mono {
+  font-family: var(--cx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--cx-ink-soft);
+  text-transform: uppercase;
+}
+
+.cx-avatar {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--cx-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--cx-font-display);
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.cx-file-name {
+  font-family: var(--cx-font-display);
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.15;
+  margin: 0 0 3px;
+  letter-spacing: -0.01em;
+}
+
+.cx-file-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 11.5px;
+  color: var(--cx-ink-soft);
+}
+
+.cx-file-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.cx-file-cell {
+  padding: 9px 16px;
+  border-top: 1px solid var(--cx-line);
+}
+.cx-file-cell:nth-child(odd) {
+  border-right: 1px solid var(--cx-line);
+}
+.cx-file-cell .cx-file-mono {
+  display: block;
+  margin-bottom: 2px;
+}
+.cx-file-val {
+  font-family: var(--cx-font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--cx-ink);
+  word-break: break-word;
+}
+
+.cx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--cx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--cx-primary-soft);
+  color: var(--cx-primary);
+  letter-spacing: 0.02em;
+}
+
+/* ── The Case Spine ───────────────────────────────────────────────────── */
+.cx-spine {
+  background: var(--cx-surface);
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-radius);
+  box-shadow: var(--cx-shadow);
+  padding: 6px;
+}
+
+.cx-spine-title {
+  font-family: var(--cx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cx-ink-soft);
+  padding: 11px 12px 9px;
+}
+
+.cx-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  font-family: var(--cx-font-body);
+  color: inherit;
+  padding: 8px 10px;
+  border-radius: var(--cx-radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cx-node[disabled] {
+  cursor: default;
+}
+.cx-node:not([disabled]):hover {
+  background: var(--cx-surface-2);
+}
+.cx-node:focus-visible {
+  outline: 2px solid var(--cx-primary);
+  outline-offset: -1px;
+}
+
+/* connector rail between markers */
+.cx-node::before {
+  content: "";
+  position: absolute;
+  left: 24px;
+  top: 32px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--cx-line);
+}
+.cx-node:last-child::before {
+  display: none;
+}
+.cx-node.is-done::before {
+  background: var(--cx-approve);
+}
+
+.cx-marker {
+  position: relative;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--cx-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--cx-surface);
+  border: 2px solid var(--cx-line-strong);
+  color: var(--cx-ink-soft);
+  flex-shrink: 0;
+}
+.cx-node.is-done .cx-marker {
+  background: var(--cx-approve);
+  border-color: var(--cx-approve);
+  color: #fff;
+}
+.cx-node.is-active .cx-marker {
+  border-color: var(--cx-pulse);
+  color: var(--cx-primary);
+}
+.cx-node.is-branch .cx-marker {
+  border-style: dashed;
+}
+
+/* ECG pulse ring on the active node */
+.cx-node.is-active .cx-marker::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid var(--cx-pulse);
+  animation: cx-pulse-ring 1.8s ease-out infinite;
+}
+
+@keyframes cx-pulse-ring {
+  0% { transform: scale(1); opacity: 0.9; }
+  70% { transform: scale(1.65); opacity: 0; }
+  100% { transform: scale(1.65); opacity: 0; }
+}
+
+.cx-node-body {
+  min-width: 0;
+  padding-top: 1px;
+}
+.cx-node-label {
+  font-family: var(--cx-font-display);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.cx-node.is-upcoming .cx-node-label {
+  color: var(--cx-ink-soft);
+}
+.cx-node-note {
+  font-family: var(--cx-font-mono);
+  font-size: 11px;
+  margin-top: 3px;
+  color: var(--cx-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cx-node-note.tone-approve { color: var(--cx-approve); }
+.cx-node-note.tone-wait { color: var(--cx-wait); }
+.cx-node-note.tone-urgent { color: var(--cx-urgent); }
+.cx-node-note.tone-live { color: var(--cx-primary); }
+
+/* tiny ECG trace shown on the active node */
+.cx-ecg {
+  width: 100%;
+  height: 14px;
+  margin-top: 5px;
+  display: block;
+  color: var(--cx-pulse);
+}
+.cx-ecg polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 120;
+  stroke-dashoffset: 120;
+  animation: cx-trace 2.2s linear infinite;
+}
+@keyframes cx-trace {
+  to { stroke-dashoffset: -120; }
+}
+
+/* ── Stage workspace (right pane) ─────────────────────────────────────── */
+.cx-stage {
+  min-width: 0;
+}
+.cx-stage-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.cx-eyebrow {
+  font-family: var(--cx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cx-primary);
+  margin-bottom: 5px;
+}
+.cx-stage-title {
+  font-family: var(--cx-font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0;
+}
+.cx-stage-hint {
+  font-size: 13px;
+  color: var(--cx-ink-soft);
+  margin-top: 6px;
+  max-width: 52ch;
+}
+.cx-stage-flag {
+  font-family: var(--cx-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--cx-line);
+  background: var(--cx-surface);
+  color: var(--cx-ink-soft);
+  white-space: nowrap;
+}
+.cx-stage-flag.tone-approve { color: var(--cx-approve); border-color: var(--cx-approve); }
+.cx-stage-flag.tone-wait { color: var(--cx-wait); border-color: var(--cx-wait); }
+.cx-stage-flag.tone-urgent { color: var(--cx-urgent); border-color: var(--cx-urgent); }
+.cx-stage-flag.tone-live { color: var(--cx-primary); border-color: var(--cx-primary); }
+
+/* ── Responsive: rail collapses to a horizontal status strip ──────────── */
+@media (max-width: 980px) {
+  .cx-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .cx-rail {
+    position: static;
+  }
+  .cx-spine {
+    padding: 4px;
+  }
+  .cx-spine-inner {
+    display: flex;
+    overflow-x: auto;
+    gap: 4px;
+  }
+  .cx-spine-title {
+    display: none;
+  }
+  .cx-node {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    min-width: 150px;
+    gap: 6px;
+  }
+  .cx-node::before {
+    left: 10px;
+    right: -4px;
+    top: 24px;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
+  .cx-node-note {
+    max-width: 150px;
+  }
+  .cx-ecg { display: none; }
+}
+
+@media (max-width: 768px) {
+  .cx-root {
+    margin: -20px -16px;
+    padding: 18px 16px 40px;
+    min-height: calc(100vh - 36px);
+  }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .cx-node.is-active .cx-marker::after { animation: none; opacity: 0; }
+  .cx-ecg polyline { animation: none; stroke-dashoffset: 0; }
+}
+
+/* ============================================================================
+   Phase B — adopt the new typography & shapes for existing step content.
+   Token colors are already remapped above; these rules tune fonts, radii,
+   borders and focus so the reused .card/.btn/.badge/.input/.table classes
+   read as part of the Ledger & Vitals system. Scoped under .cx-root, so the
+   rest of the app is unaffected.
+   ========================================================================== */
+.cx-stage-body {
+  font-family: var(--cx-font-body);
+}
+.cx-stage-body h1,
+.cx-stage-body h2,
+.cx-stage-body h3,
+.cx-stage-body h4 {
+  font-family: var(--cx-font-display);
+  letter-spacing: -0.01em;
+}
+
+/* monospace for domain data: codes, refs, amounts in <code> */
+.cx-root code,
+.cx-root .badge-modern {
+  font-family: var(--cx-font-mono);
+}
+
+/* cards */
+.cx-root .card-modern {
+  border-radius: var(--cx-radius);
+  border: 1px solid var(--cx-line);
+  box-shadow: var(--cx-shadow);
+}
+.cx-root .card-header-modern h3 {
+  font-family: var(--cx-font-display);
+  letter-spacing: -0.01em;
+}
+
+/* badges → compact mono pills */
+.cx-root .badge-modern {
+  border-radius: 7px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* buttons */
+.cx-root .btn-modern {
+  border-radius: var(--cx-radius-sm);
+  font-family: var(--cx-font-body);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* inputs / selects / textareas */
+.cx-root .input-modern {
+  border-radius: var(--cx-radius-sm);
+  border: 1px solid var(--cx-line);
+  font-family: var(--cx-font-body);
+  background: var(--cx-surface);
+  color: var(--cx-ink);
+}
+.cx-root .input-modern:focus {
+  outline: none;
+  border-color: var(--cx-primary);
+  box-shadow: 0 0 0 3px var(--cx-primary-soft);
+}
+
+/* tables → ledger styling with a mono, uppercase header */
+.cx-root .table-responsive-wrapper {
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-radius-sm);
+}
+.cx-root .table-modern th {
+  font-family: var(--cx-font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cx-ink-soft);
+}
+
+/* spinner accent picks up the clinical teal */
+.cx-root .spinner {
+  border-top-color: var(--cx-primary);
+}
+
+/* the steps wrap their content in .wizard-step */
+.cx-root .wizard-step {
+  display: flex;
+  flex-direction: column;
+}

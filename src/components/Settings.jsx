@@ -878,6 +878,7 @@ export default function Settings() {
         const selected = loadedFacilities.find((f) => f.facility_code === currentDefault);
         if (selected && selected.hcx_participant_code) {
           localStorage.setItem("nhcx_default_provider_id", selected.hcx_participant_code);
+          localStorage.setItem("nhcx_default_facility_name", selected.name || "");
         }
       }
     } catch (_) {
@@ -960,8 +961,10 @@ export default function Settings() {
         "nhcx_default_provider_id",
         selected.hcx_participant_code,
       );
+      localStorage.setItem("nhcx_default_facility_name", selected.name || "");
     } else {
       localStorage.removeItem("nhcx_default_provider_id");
+      localStorage.removeItem("nhcx_default_facility_name");
     }
     window.dispatchEvent(new CustomEvent("provider-changed"));
   };

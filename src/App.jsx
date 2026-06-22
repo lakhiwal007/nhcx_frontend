@@ -55,11 +55,16 @@ export default function App() {
   const [hasProvider, setHasProvider] = useState(
     () => !!localStorage.getItem("nhcx_default_provider_id"),
   );
+  const [facilityName, setFacilityName] = useState(
+    () => localStorage.getItem("nhcx_default_facility_name") || "",
+  );
   const taskPollRef = useRef(null);
 
   useEffect(() => {
-    const sync = () =>
+    const sync = () => {
       setHasProvider(!!localStorage.getItem("nhcx_default_provider_id"));
+      setFacilityName(localStorage.getItem("nhcx_default_facility_name") || "");
+    };
     window.addEventListener("provider-changed", sync);
     window.addEventListener("storage", sync);
     return () => {
@@ -125,7 +130,7 @@ export default function App() {
 
   const getBreadcrumb = () => {
     const parts = location.pathname.split("/").filter(Boolean);
-    if (parts.length === 0) return [{ label: "Work Queue" }];
+    if (parts.length === 0) return [{ label: "Work Queue", to: "/work-queue" }];
     const map = {
       "work-queue": "Work Queue",
       dashboard: "Cashless Cases",
@@ -135,8 +140,9 @@ export default function App() {
       settings: "Settings",
       case: "Cashless Case",
     };
-    return parts.map((p) => ({
+    return parts.map((p, i) => ({
       label: isNaN(Number(p)) ? map[p] || p : `#${p}`,
+      to: "/" + parts.slice(0, i + 1).join("/"),
     }));
   };
 
@@ -223,19 +229,43 @@ export default function App() {
               <Menu size={24} />
             </button>
             <div className="breadcrumb-modern">
-              Portal
-              {getBreadcrumb().map((crumb, i) => (
-                <span key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <ChevronRight size={14} />
-                  <span style={{
-                    color: i === getBreadcrumb().length - 1 ? "var(--text-main)" : "var(--text-muted)",
-                    fontWeight: i === getBreadcrumb().length - 1 ? 600 : 400,
-                    textTransform: "capitalize",
-                  }}>
-                    {crumb.label}
+              <span
+                onClick={() => navigate("/work-queue")}
+                style={{ cursor: "pointer" }}
+                className="breadcrumb-link"
+              >
+                Portal
+              </span>
+              {getBreadcrumb().map((crumb, i, arr) => {
+                const isLast = i === arr.length - 1;
+                return (
+                  <span key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <ChevronRight size={14} />
+                    {isLast ? (
+                      <span style={{
+                        color: "var(--text-main)",
+                        fontWeight: 600,
+                        textTransform: "capitalize",
+                      }}>
+                        {crumb.label}
+                      </span>
+                    ) : (
+                      <span
+                        onClick={() => navigate(crumb.to)}
+                        className="breadcrumb-link"
+                        style={{
+                          color: "var(--text-muted)",
+                          fontWeight: 400,
+                          textTransform: "capitalize",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {crumb.label}
+                      </span>
+                    )}
                   </span>
-                </span>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -257,7 +287,7 @@ export default function App() {
               </button>
             )}
             <span
-              title={USE_MOCK ? "Using mock data" : "Live API mode"}
+              title={USE_MOCK ? "Using mock data" : facilityName || "Live API mode"}
               style={{
                 fontSize: "11px", fontWeight: 700, padding: "4px 10px",
                 borderRadius: "20px", cursor: "default",
@@ -266,7 +296,7 @@ export default function App() {
                 border: `1px solid ${USE_MOCK ? "#fde68a" : "#a7f3d0"}`,
               }}
             >
-              {USE_MOCK ? "⚡ MOCK" : "🟢 LIVE"}
+              {USE_MOCK ? "⚡ MOCK" : facilityName || "🟢 LIVE"}
             </span>
             <button onClick={toggleTheme} className="theme-toggle">
               {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
