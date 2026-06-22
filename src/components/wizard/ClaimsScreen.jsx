@@ -15,6 +15,13 @@ const PATIENT_CONTEXT_FIELDS = [
   { key: "discharge_date", label: "Discharge Date", type: "date" },
 ];
 
+// Fields that cannot be resolved from the UI — they must be completed in the
+// HIS. Showing the patient-context form for these is a bug (per the spec):
+// diagnosis codes and billing items come from clinical/billing records, and
+// preauth_ref requires an approved preauth. preauth_ref has its own banner, so
+// the HIS-blocker banner only surfaces diagnoses/items.
+const HIS_BLOCKERS = new Set(["diagnoses", "items", "preauth_ref"]);
+
 function Drawer({ open, onClose, title, children }) {
   return (
     <AnimatePresence>
@@ -287,6 +294,13 @@ export default function ClaimsScreen({ ctx }) {
   ];
 
   const hasMissingFields = missingFields.length > 0;
+  // Split missing_fields: patient-context fields are resolvable inline via the
+  // patient-context PATCH; HIS blockers (diagnoses/items) must be fixed in the
+  // HIS and must NOT route to the patient-context form.
+  const patientContextMissing = missingFields.filter((f) => !HIS_BLOCKERS.has(f.toLowerCase()));
+  const hisBlockers = missingFields.filter(
+    (f) => HIS_BLOCKERS.has(f.toLowerCase()) && f.toLowerCase() !== "preauth_ref",
+  );
   const hasPreauthRef = !!claimDraft?.preauth_ref;
   // Docs block submit when any has no URL (all returned docs are required)
   const hasMissingDocs = claimDraft?.supporting_documents?.some((d) => !d.url);
@@ -351,9 +365,23 @@ export default function ClaimsScreen({ ctx }) {
       {/* ── Claim Draft ── */}
       {activeTab === "draft" && (
         <Card title="Claim Draft">
-          {hasMissingFields && (
+          {hisBlockers.length > 0 && (
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+              <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
+              <div>
+                <strong style={{ color: "var(--error)" }}>Clinical / billing data is incomplete.</strong>
+                {" "}Diagnosis codes and billing items are missing. Please complete clinical and billing records in the HIS before submitting this claim.
+                <div style={{ marginTop: "6px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {hisBlockers.map((f, i) => (
+                    <span key={i} className="badge-modern badge-error" style={{ fontSize: "11px" }}>{f}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {patientContextMissing.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
-              <MissingFieldsAlert fields={missingFields} onResolve={() => setShowContextDrawer(true)} />
+              <MissingFieldsAlert fields={patientContextMissing} onResolve={() => setShowContextDrawer(true)} />
             </div>
           )}
           {!hasPreauthRef && (

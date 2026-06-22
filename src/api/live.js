@@ -17,8 +17,8 @@ export const live = {
 
   prepareCashless: (data) => http.post(ENDPOINTS.PREPARE_CASHLESS, data),
 
-  getCashlessStatus: (cashless_case_id) =>
-    http.get(ENDPOINTS.CASHLESS_STATUS(cashless_case_id)),
+  getCashlessStatus: (cashless_case_id, signal) =>
+    http.get(ENDPOINTS.CASHLESS_STATUS(cashless_case_id), {}, signal),
 
   preparePreauth: (params = {}) =>
     http.get(ENDPOINTS.PREPARE_PREAUTH, params),
@@ -56,8 +56,8 @@ export const live = {
   getCoverageEligibilityStatus: (correlation_id) =>
     http.get(ENDPOINTS.COVERAGE_ELIGIBILITY_STATUS(correlation_id)),
 
-  getPreauthStatus: (correlation_id) =>
-    http.get(ENDPOINTS.PREAUTH_STATUS(correlation_id)),
+  getPreauthStatus: (correlation_id, signal) =>
+    http.get(ENDPOINTS.PREAUTH_STATUS(correlation_id), {}, signal),
 
   prepareClaimDraft: (params = {}) =>
     http.get(ENDPOINTS.PREPARE_CLAIM_DRAFT, params),
@@ -77,13 +77,13 @@ export const live = {
 
   resubmitClaim: (data) => http.post(ENDPOINTS.RESUBMIT_CLAIM, data),
 
-  getClaimStatus: (correlation_id) =>
-    http.get(ENDPOINTS.CLAIM_STATUS(correlation_id)),
+  getClaimStatus: (correlation_id, signal) =>
+    http.get(ENDPOINTS.CLAIM_STATUS(correlation_id), {}, signal),
 
   submitReprocess: (data) => http.post(ENDPOINTS.SUBMIT_REPROCESS, data),
 
-  getReprocessStatus: (correlation_id) =>
-    http.get(ENDPOINTS.REPROCESS_STATUS(correlation_id)),
+  getReprocessStatus: (correlation_id, signal) =>
+    http.get(ENDPOINTS.REPROCESS_STATUS(correlation_id), {}, signal),
 
   searchPaymentStatus: (params = {}) =>
     http.get(ENDPOINTS.SEARCH_PAYMENT_STATUS, params),
