@@ -1562,21 +1562,6 @@ PAYR codes appear in `errors[].code` on gateway callback payloads and in 422 res
 
 When displaying a PAYR code to a non-technical user, show the `message` field (e.g. "Policy not found"), not the raw code. Show the raw code only in an expandable "Details" section for support escalation.
 
-## Facility Setup: clinic_id is required for visits
-
-Visits (IPD admissions, OPD appointments) are scoped to a HIS clinic via `NhcxFacility.clinic_id`. If `clinic_id` is not set on the facility, the visit list returns empty — no fallback, no error, just zero results.
-
-After registering a facility, set `clinic_id` before going live:
-
-```http
-PUT /nhcx/backend/api/v1/insurance/facilities/{facility_code}
-Content-Type: application/json
-
-{ "request_id": "...", "clinic_id": 931 }
-```
-
-The `clinic_id` value is the parent HIS `clinics.id`. If you don't know which clinic to use, run the clinic ranking query against the parent DB — the clinic with the most patients and billing is usually the right one. The value is visible in `GET /facilities/{code}` as `clinic_id`.
-
 ## Endpoint Reference
 
 All paths are relative to `/nhcx/backend/api/v1/insurance`.

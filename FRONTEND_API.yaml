@@ -2706,14 +2706,6 @@ components:
         abdm_registered:
           type: boolean
           description: True when ABDM participant/create or participant/update was last called successfully.
-        clinic_id:
-          type: integer
-          nullable: true
-          description: >
-            Integer FK to the parent HIS clinics.id. Required for visit scoping —
-            when absent, the dashboard returns zero visits for this facility (hard stop,
-            no fallback). Set via PUT /facilities/{code} with { "clinic_id": N }.
-            Use the clinic ranking query to identify the correct clinic before setting this.
         abdm_registration:
           type: object
           nullable: true
@@ -2839,14 +2831,6 @@ components:
           type: boolean
           nullable: true
           description: Defaults to true when omitted.
-        clinic_id:
-          type: integer
-          nullable: true
-          description: >
-            FK to parent HIS clinics.id. Controls which clinic's visits are shown
-            for patients of this facility. Required for the dashboard visit list to
-            return results — omitting it returns zero visits (hard stop). Set this
-            after creating the facility via PUT /facilities/{code}.
 
     FacilityListResponse:
       type: object

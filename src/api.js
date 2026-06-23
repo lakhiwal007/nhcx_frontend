@@ -1536,7 +1536,6 @@ const mock = {
           environment: "production",
           registry_id: "HFR-12345",
           scheme_code: "PMJAY",
-          clinic_id: 931,
           state: "AndhraPradesh",
           district: "Krishna",
           roles: ["10001"],
