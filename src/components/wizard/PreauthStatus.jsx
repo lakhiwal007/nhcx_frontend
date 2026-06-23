@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, DecisionBanner, AmountGrid, StatusBadge, DocumentChecklist } from "../Common";
+import PayrErrorList from "../PayrErrorList";
 import PreauthEnhancement from "./PreauthEnhancement";
 
 const POLL_INTERVAL_MS = 7000;
@@ -409,12 +410,7 @@ export default function PreauthStatus({ ctx }) {
 
           {statusData?.errors?.length > 0 && (
             <Card className="mb-6">
-              {statusData.errors.map((err, i) => (
-                <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "13px", color: "var(--error)", padding: "6px 0" }}>
-                  <AlertCircle size={14} />
-                  {err.detail || err.display || err.code}
-                </div>
-              ))}
+              <PayrErrorList errors={statusData.errors} />
             </Card>
           )}
 

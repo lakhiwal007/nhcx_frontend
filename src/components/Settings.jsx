@@ -56,6 +56,7 @@ const EMPTY_FORM = {
   endpoint_url: "",
   primary_email: "",
   primary_mobile: "",
+  clinic_id: "",
   signing_cert_path: "",
   roles: ["10001"],
   linked_registry_codes: [],
@@ -484,6 +485,18 @@ function FacilityForm({ form, onChange, isEdit }) {
       </div>
 
       <FormField
+        label="HIS Clinic ID"
+        hint="Parent HIS clinics.id — required for visit list. Without this, patient visits will not appear."
+      >
+        <TextInput
+          value={form.clinic_id}
+          onChange={(v) => onChange("clinic_id", v)}
+          placeholder="931"
+          type="number"
+        />
+      </FormField>
+
+      <FormField
         label="Signing Certificate Path (URL)"
         hint="Forwarded to ABDM at registration — not stored locally"
       >
@@ -695,6 +708,14 @@ function FacilityCard({
             >
               {facility.active ? "Active" : "Inactive"}
             </span>
+            {facility.clinic_id == null && (
+              <span
+                className="badge-modern badge-warning"
+                title="HIS Clinic ID not set — visit list will be empty"
+              >
+                No Clinic ID
+              </span>
+            )}
           </div>
           <div
             style={{ fontSize: "16px", fontWeight: 700, marginBottom: "2px" }}
@@ -912,6 +933,7 @@ export default function Settings() {
       endpoint_url: facility.endpoint_url || "",
       primary_email: facility.primary_email || "",
       primary_mobile: facility.primary_mobile || "",
+      clinic_id: facility.clinic_id != null ? String(facility.clinic_id) : "",
       signing_cert_path: facility.signing_cert_path || "",
       roles: facility.roles || ["10001"],
       linked_registry_codes: facility.linked_registry_codes || [],
@@ -937,6 +959,11 @@ export default function Settings() {
     try {
       const payload = { ...form };
       if (!payload.private_key_pem) delete payload.private_key_pem;
+      if (payload.clinic_id === "" || payload.clinic_id == null) {
+        delete payload.clinic_id;
+      } else {
+        payload.clinic_id = parseInt(payload.clinic_id, 10);
+      }
       if (editingFacility) {
         await api.updateFacility(form.facility_code, payload);
       } else {

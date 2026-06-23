@@ -13,6 +13,7 @@ import {
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, StatusBadge } from "../Common";
+import PayrErrorList from "../PayrErrorList";
 
 const POLL_INTERVAL_MS = 7000;
 const TERMINAL_STATUSES = ["complete", "failed"];
@@ -521,21 +522,7 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
 
       {allErrors.length > 0 && (
         <div style={{ marginTop: "10px" }}>
-          {allErrors.map((err, i) => (
-            <div
-              key={i}
-              style={{
-                fontSize: "12px",
-                color: "var(--warning)",
-                background: "rgba(245,158,11,0.08)",
-                borderRadius: "6px",
-                padding: "6px 8px",
-                marginBottom: "4px",
-              }}
-            >
-              {err.detail || err.code?.display || err.message}
-            </div>
-          ))}
+          <PayrErrorList errors={allErrors} />
         </div>
       )}
     </Card>

@@ -3,6 +3,8 @@
 //  Set USE_MOCK = true  →  returns dummy data (no server needed)
 //  Set USE_MOCK = false →  makes real fetch calls to BASE_URL
 // ─────────────────────────────────────────────────────────────────────────────
+import { enrichPayrMessage, describePayrError } from "./api/payrErrors.js";
+
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // Base URL for real network calls. Change this to match your backend server.
@@ -42,6 +44,11 @@ const extractErrorMessage = async (res) => {
   try {
     const body = await res.json();
     let msg = body?.error?.message || body?.message || body?.error;
+    // A 422/gateway error may carry a PAYR code in errors[].code — surface the
+    // friendly label + code so the toast isn't an opaque "422".
+    const payrFromList = (body?.errors || [])
+      .map((e) => describePayrError(e?.code || e?.detail || ""))
+      .find(Boolean);
     if (typeof msg === "string") {
       // Backend sometimes wraps a nested JSON string — unwrap it
       const jsonStart = msg.indexOf("{");
@@ -49,11 +56,12 @@ const extractErrorMessage = async (res) => {
         try {
           const inner = JSON.parse(msg.slice(jsonStart));
           const innerMsg = inner?.error?.message || inner?.message;
-          if (innerMsg) return innerMsg;
+          if (innerMsg) return enrichPayrMessage(innerMsg);
         } catch (_) {}
       }
-      return msg;
+      return enrichPayrMessage(msg);
     }
+    if (payrFromList) return `${payrFromList.label} (${payrFromList.code})`;
   } catch (_) {}
   return `${res.status} ${res.statusText}`;
 };
@@ -1528,6 +1536,7 @@ const mock = {
           environment: "production",
           registry_id: "HFR-12345",
           scheme_code: "PMJAY",
+          clinic_id: 931,
           state: "AndhraPradesh",
           district: "Krishna",
           roles: ["10001"],
