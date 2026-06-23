@@ -82,24 +82,34 @@ Keep this header visible across eligibility, preauth, claims, reprocess, payment
 
 ## Required Request Headers
 
-Send `X-Provider-Id` on **every** API call:
+| Header | Required | Value | Purpose |
+|---|---|---|---|
+| `Authorization` | Yes — on all endpoints except `/facilities/*` | `Bearer <session_token>` | Parent HIS session token. The wrapper decodes it, resolves `clinics_users`, and derives the active `NhcxFacility`. Missing or expired → `401 WRAPPER-ERROR:1012`. Valid user with no matching facility → `403 WRAPPER-ERROR:1013`. |
+| `X-Provider-Id` | Only for multi-clinic users | `hcx_participant_code` of the facility (e.g. `1000099999@hcx`) | Disambiguates which facility to act as when the user's token maps to more than one `NhcxFacility`. Single-clinic users can omit it — the facility is resolved automatically from the token. |
 
-| Header | Value | Purpose |
-|---|---|---|
-| `X-Provider-Id` | HCX participant code of the facility (e.g. `HFR.IN.HAS.00012345`) | Identifies the acting facility. **Required** on reads and submits — omitting it returns `400 WRAPPER-ERROR:1011`. |
+### Session token
 
-The `X-Provider-Id` value is the `hcx_participant_code` of the active `NhcxFacility`. Obtain it once at login / facility selection (`GET /facilities`) and store it in your app-level config so it is attached to every request from app start.
+The `Authorization: Bearer` token is the parent HIS session token issued at login. Send it on every API call. The wrapper:
 
-The header plays two roles depending on the endpoint:
+1. Decodes the JWT payload (no signature verification — trusted internal network).
+2. Checks the `exp` claim for expiry.
+3. Looks up the user in the parent `users` table — must be `is_active` and `is_approved`.
+4. Queries `clinics_users` for the user's active clinic IDs.
+5. Finds the matching `NhcxFacility` via `facility_code` (= HIS clinic ID).
 
-| Endpoint group | Role of `X-Provider-Id` | Enforced |
-|---|---|---|
-| **Reads** — `dashboard/stats`, `dashboard/claims`, `child` | Scopes the response to cases belonging to that provider. | Yes — `400 WRAPPER-ERROR:1011` if absent. |
-| **Outbound submits** — `cashless/prepare`; `preauth/submit·enhancement·resubmit·query-response·cancel`; `claims/discharge·submit·resubmit·query-response`; `coverage_eligibility/check·validation·benefits·auth-requirements`; `insurance_plan/request`; `reprocess/submit`; `payment/acknowledge` | Selects the **sending facility**: the wrapper resolves it to the matching `NhcxFacility` and uses that facility's participant code as the `x-hcx-sender_code` on the encrypted NHCX request. | Yes — `400 WRAPPER-ERROR:1011` if absent. |
-| **By-id reads** — `cashless/{id}`, `*/status/{cid}`, `payment/status`, `tasks`, `tasks/{id}` | Scopes the result to your provider — a record/task belonging to another provider is hidden (returned as not-found / omitted from the list). | Yes — `400 WRAPPER-ERROR:1011` if absent. |
-| **Prep reads** — `*/prepare`, `enhancement/prepare`, `policies/fetch`, `payers/search` | Accepted for tracing; not used for scoping. | No |
+The facility resolved from the token is used as the `x-hcx-sender_code` on all outbound NHCX requests.
 
-> **The `provider_id` body field is superseded.** Earlier examples accepted a `provider_id` in the JSON body of submit/prepare requests. The acting facility is now taken **only** from the `X-Provider-Id` header — a body `provider_id` is ignored. Send the header instead. When the header is present it is authoritative and overrides any provider stored on the claim/case.
+### X-Provider-Id
+
+Required only when the user has access to more than one NHCX facility. Obtain the list of available facilities at startup via `GET /facilities` and show a facility selector if there is more than one. Store the selected `hcx_participant_code` in app state and send it as `X-Provider-Id` on subsequent calls.
+
+| Endpoint group | Role of `X-Provider-Id` |
+|---|---|
+| **All reads** — dashboard, by-id, tasks | Further scopes the response to that facility (cases/tasks from other facilities are hidden). |
+| **Outbound submits** — `preauth/submit`, `claims/*`, `payment/acknowledge`, etc. | Selects the sending facility whose participant code becomes `x-hcx-sender_code`. |
+| **Prep reads** — `*/prepare`, `policies/fetch`, `payers/search` | Accepted for tracing; not required. |
+
+> **The `provider_id` body field is deprecated.** The acting facility is resolved from the `Authorization` token + optional `X-Provider-Id` header. A `provider_id` field in the JSON body is ignored.
 
 ---
 

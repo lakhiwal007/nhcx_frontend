@@ -9,6 +9,14 @@ info:
     workflow APIs directly.
 
 
+    **Authentication — `Authorization: Bearer <token>` is required on all
+    endpoints except `/facilities/*` and `/health`.** The token is the parent HIS
+    session token (`devices.auth_token`). The wrapper decodes it, resolves the
+    user's active clinic via `clinics_users`, and derives the `NhcxFacility` from
+    the clinic ID. A missing or expired token returns `401 WRAPPER-ERROR:1012`.
+    A valid user with no matching NHCX facility returns `403 WRAPPER-ERROR:1013`.
+
+
     **`requestId` is required on POST/PATCH endpoints.** The frontend must send a
     client-generated `requestId` (a UUID is recommended) on each mutating call so
     the request is traceable end-to-end and de-dupable. It may be supplied as the
@@ -18,20 +26,14 @@ info:
     accept `request_id` for tracing but do not enforce it.
 
 
-    **`X-Provider-Id` is required on dashboard reads, by-id reads
-    (`cashless/{id}`, the `*/status/{correlation_id}` endpoints, `payment/status`,
-    and `tasks*`), and all outbound submit endpoints.** It carries the
+    **`X-Provider-Id` is optional for single-clinic users; required when a user
+    has access to more than one NHCX facility.** It carries the
     `hcx_participant_code` of the acting facility (see the shared
-    `ProviderIdHeader`). On reads it scopes the response to that provider — a
-    record or task owned by another provider is returned as not-found / omitted;
-    on submit endpoints it selects the **sending facility** whose participant
-    code becomes the `x-hcx-sender_code` of the encrypted NHCX request. A request
-    to a gated endpoint without it is rejected with `400` and error code
-    `WRAPPER-ERROR:1011`. Prep reads (`*/prepare`, `policies/fetch`,
-    `payers/search`) accept it for tracing but do not require it. The legacy
-    `provider_id` body field on submit/prepare requests is ignored — the facility
-    comes only from this header, and when present it overrides any provider
-    stored on the claim/case.
+    `ProviderIdHeader`). When provided it selects which facility to act as — on
+    reads it scopes the response to that provider; on submit endpoints it becomes
+    the `x-hcx-sender_code` of the NHCX request. When omitted and the user's
+    session maps to exactly one facility, that facility is used automatically.
+    The legacy `provider_id` body field is ignored.
 servers:
   - url: http://localhost:8082/nhcx/backend/api/v1/insurance
     description: Local wrapper API. All paths below are relative to `/nhcx/backend/api/v1/insurance`.
@@ -2293,6 +2295,7 @@ paths:
     get:
       tags: [Facility Management]
       operationId: listFacilities
+      security: []
       summary: List registered HCX facilities
       description: >
         Returns all registered NHCX facility participants. Each record shows
@@ -2322,6 +2325,7 @@ paths:
     post:
       tags: [Facility Management]
       operationId: createFacility
+      security: []
       summary: Register a new HCX facility (proxies to ABDM)
       description: >
         Creates the facility record locally and proxies a participant/create call
@@ -2428,6 +2432,7 @@ paths:
     get:
       tags: [Facility Management]
       operationId: getFacility
+      security: []
       summary: Get a single facility
       parameters:
         - $ref: "#/components/parameters/RequestIdParam"
@@ -2453,6 +2458,7 @@ paths:
     put:
       tags: [Facility Management]
       operationId: updateFacility
+      security: []
       summary: Update facility and sync to ABDM
       description: >
         Updates the local facility record and proxies a participant/update call
@@ -2590,7 +2596,21 @@ paths:
                       code: "WRAPPER-ERROR:4222"
                       message: "Invalid PEM: Neither PUB key nor PRIV key: nested asn1 error"
 
+security:
+  - BearerAuth: []
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Parent HIS session token (`devices.auth_token`). The wrapper decodes the
+        JWT, resolves the user's active clinic via `clinics_users`, and derives the
+        `NhcxFacility` from the clinic ID. Obtain the token from the parent HIS
+        login response and include it on every request as
+        `Authorization: Bearer <token>`.
+
   parameters:
     RequestIdParam:
       name: request_id
@@ -2607,20 +2627,19 @@ components:
     ProviderIdHeader:
       name: X-Provider-Id
       in: header
-      required: true
+      required: false
       description: >
-        HCX participant code of the active facility (e.g. `HFR.IN.HAS.00012345`).
-        Required on dashboard reads and all outbound submit endpoints; omitting it
-        returns `400 WRAPPER-ERROR:1011`. On dashboard reads it scopes stats, the
-        claims list, and patient search to cases belonging to that provider. On
-        submit endpoints it selects the sending facility, whose participant code
-        becomes the `x-hcx-sender_code` of the encrypted NHCX request (and
-        overrides any provider stored on the claim/case). Obtain the value from
-        `hcx_participant_code` on the active `NhcxFacility` (`GET /facilities`) and
-        store it in your app-level config at login/facility-selection time.
+        HCX participant code of the acting facility (e.g. `1000099999@hcx`).
+        **Required only when the authenticated user has access to more than one
+        NHCX facility** — used to disambiguate which facility to act as. When the
+        user's session maps to exactly one facility it is selected automatically
+        and this header can be omitted. On reads it scopes the response to that
+        provider; on submit endpoints it becomes the `x-hcx-sender_code` of the
+        encrypted NHCX request. Obtain the value from `hcx_participant_code` on
+        the desired `NhcxFacility` (`GET /facilities`).
       schema:
         type: string
-        example: "HFR.IN.HAS.00012345"
+        example: "1000099999@hcx"
   responses:
     MissingRequestId:
       description: requestId was not supplied.

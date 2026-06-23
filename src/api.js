@@ -19,6 +19,37 @@ const getProviderHeader = () => {
   return code ? { "X-Provider-Id": code } : {};
 };
 
+// Parent-HIS session token. The wrapper requires `Authorization: Bearer <token>`
+// on every endpoint except /facilities/* and /health (it decodes the token to
+// resolve the acting NhcxFacility).
+//
+// The parent HIS page exposes the token on a JS global — read it from there.
+// `SESSION_TOKEN_GLOBAL` is the property name on `window`; change it here if the
+// parent uses a different one. A localStorage fallback is kept for local dev.
+export const SESSION_TOKEN_GLOBAL = "__NHCX_TOKEN__";
+export const SESSION_TOKEN_KEY = "nhcx_session_token";
+
+const getSessionToken = () =>
+  (typeof window !== "undefined" && window[SESSION_TOKEN_GLOBAL]) ||
+  localStorage.getItem(SESSION_TOKEN_KEY) ||
+  null;
+
+const getAuthHeader = () => {
+  const token = getSessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Endpoints the contract exempts from auth (facility admin + health).
+const isAuthExempt = (path) =>
+  /^\/facilities(\/|$)/.test(path) || path === "/health";
+
+// Compose request headers for a relative wrapper path.
+const buildHeaders = (path) => ({
+  "Content-Type": "application/json",
+  ...getProviderHeader(),
+  ...(isAuthExempt(path) ? {} : getAuthHeader()),
+});
+
 /** RFC-4122 v4 UUID — mandatory request_id for every API call. */
 export const generateRequestId = () =>
   "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -39,11 +70,24 @@ const buildUrl = (path, params = {}) => {
 const dispatchError = (msg) =>
   window.dispatchEvent(new CustomEvent("api-error", { detail: msg }));
 
+// Auth failures from the wrapper's session-token check get a plain-language
+// message — the raw "WRAPPER-ERROR:1012" means nothing to a billing user.
+const authMessage = (status, raw) => {
+  const code = typeof raw === "string" ? raw : "";
+  if (status === 401 || code.includes("WRAPPER-ERROR:1012"))
+    return "Your session has expired. Please sign in again from the hospital system.";
+  if (status === 403 || code.includes("WRAPPER-ERROR:1013"))
+    return "No NHCX facility is linked to your account. Contact your administrator.";
+  return null;
+};
+
 /** Extract the most human-readable message from a backend error response body. */
 const extractErrorMessage = async (res) => {
   try {
     const body = await res.json();
     let msg = body?.error?.message || body?.message || body?.error;
+    const auth = authMessage(res.status, msg);
+    if (auth) return auth;
     // A 422/gateway error may carry a PAYR code in errors[].code — surface the
     // friendly label + code so the toast isn't an opaque "422".
     const payrFromList = (body?.errors || [])
@@ -63,7 +107,7 @@ const extractErrorMessage = async (res) => {
     }
     if (payrFromList) return `${payrFromList.label} (${payrFromList.code})`;
   } catch (_) {}
-  return `${res.status} ${res.statusText}`;
+  return authMessage(res.status) || `${res.status} ${res.statusText}`;
 };
 
 /** Wrapper around fetch — auto-injects request_id and X-Provider-Id; throws on non-2xx. */
@@ -72,7 +116,7 @@ const http = {
     const merged = { request_id: generateRequestId(), ...params };
     try {
       const res = await fetch(buildUrl(path, merged), {
-        headers: { "Content-Type": "application/json", ...getProviderHeader() },
+        headers: buildHeaders(path),
         signal: opts.signal,
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
@@ -89,7 +133,7 @@ const http = {
     try {
       const res = await fetch(BASE_URL + path, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getProviderHeader() },
+        headers: buildHeaders(path),
         body: JSON.stringify(merged),
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
@@ -104,7 +148,7 @@ const http = {
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", ...getProviderHeader() },
+        headers: buildHeaders(path),
         body: JSON.stringify(merged),
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
@@ -119,7 +163,7 @@ const http = {
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", ...getProviderHeader() },
+        headers: buildHeaders(path),
         body: JSON.stringify(merged),
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
@@ -138,7 +182,7 @@ const http = {
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getProviderHeader() },
+        headers: { "Content-Type": "application/json", ...getProviderHeader(), ...getAuthHeader() },
         body: JSON.stringify(merged),
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
