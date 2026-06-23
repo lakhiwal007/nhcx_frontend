@@ -124,6 +124,8 @@ export default function CaseWrapper() {
 
   return (
     <div className="cx-root">
+      <CaseSpine stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
+
       <div className="cx-grid">
         <aside className="cx-rail">
           <CaseFileHeader
@@ -132,7 +134,6 @@ export default function CaseWrapper() {
             effectiveCase={effectiveCase}
             preauthRef={preauthRef}
           />
-          <CaseSpine stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
         </aside>
 
         <section className="cx-stage">

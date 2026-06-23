@@ -245,36 +245,47 @@
   letter-spacing: 0.02em;
 }
 
-/* ── The Case Spine ───────────────────────────────────────────────────── */
+/* ── The Case Spine — a horizontal stage tracker across the top ─────────
+   Rotated from the original vertical rail so the lifecycle reads as one
+   compact band instead of a tall column, freeing the left rail for the
+   patient chart alone. The pulse-ring + EKG signature carry over unchanged. */
 .cx-spine {
+  max-width: 1400px;
+  margin: 0 auto 20px;
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
   box-shadow: var(--cx-shadow);
-  padding: 6px;
+  padding: 4px;
+  overflow: hidden;
 }
 
+/* the "Case lifecycle" caption is redundant with the row itself now */
 .cx-spine-title {
-  font-family: var(--cx-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--cx-ink-soft);
-  padding: 11px 12px 9px;
+  display: none;
+}
+
+.cx-spine-inner {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .cx-node {
   position: relative;
-  display: grid;
-  grid-template-columns: 30px 1fr;
-  gap: 11px;
-  width: 100%;
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1 1 0;
+  min-width: 96px;
+  gap: 7px;
   border: none;
   background: none;
   font-family: var(--cx-font-body);
   color: inherit;
-  padding: 8px 10px;
+  padding: 12px 8px 11px;
   border-radius: var(--cx-radius-sm);
   cursor: pointer;
   transition: background 0.15s ease;
@@ -290,17 +301,17 @@
   outline-offset: -1px;
 }
 
-/* connector rail between markers */
+/* connector rail — horizontal segment linking each marker to the previous */
 .cx-node::before {
   content: "";
   position: absolute;
-  left: 24px;
-  top: 32px;
-  bottom: -8px;
-  width: 2px;
+  top: 26px;
+  left: calc(-50% + 14px);
+  width: calc(100% - 28px);
+  height: 2px;
   background: var(--cx-line);
 }
-.cx-node:last-child::before {
+.cx-node:first-child::before {
   display: none;
 }
 .cx-node.is-done::before {
@@ -310,8 +321,8 @@
 .cx-marker {
   position: relative;
   z-index: 1;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -355,24 +366,29 @@
 
 .cx-node-body {
   min-width: 0;
-  padding-top: 1px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 .cx-node-label {
   font-family: var(--cx-font-display);
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cx-node.is-upcoming .cx-node-label {
   color: var(--cx-ink-soft);
 }
 .cx-node-note {
   font-family: var(--cx-font-mono);
-  font-size: 11px;
-  margin-top: 3px;
+  font-size: 10.5px;
+  max-width: 100%;
   color: var(--cx-ink-soft);
   white-space: nowrap;
   overflow: hidden;
@@ -521,7 +537,8 @@
 .cx-stage-flag.tone-urgent { color: var(--cx-urgent); border-color: var(--cx-urgent); }
 .cx-stage-flag.tone-live { color: var(--cx-primary); border-color: var(--cx-primary); }
 
-/* ── Responsive: rail collapses to a horizontal status strip ──────────── */
+/* ── Responsive: the chart rail stacks above the stage; the lifecycle
+   tracker stays a horizontal band and scrolls sideways if it overflows ── */
 @media (max-width: 980px) {
   .cx-grid {
     grid-template-columns: 1fr;
@@ -530,33 +547,8 @@
   .cx-rail {
     position: static;
   }
-  .cx-spine {
-    padding: 4px;
-  }
-  .cx-spine-inner {
-    display: flex;
-    overflow-x: auto;
-    gap: 4px;
-  }
-  .cx-spine-title {
-    display: none;
-  }
   .cx-node {
-    grid-template-columns: 1fr;
-    justify-items: start;
-    min-width: 150px;
-    gap: 6px;
-  }
-  .cx-node::before {
-    left: 10px;
-    right: -4px;
-    top: 24px;
-    bottom: auto;
-    width: auto;
-    height: 2px;
-  }
-  .cx-node-note {
-    max-width: 150px;
+    min-width: 116px;
   }
   .cx-ecg { display: none; }
 }
