@@ -547,7 +547,7 @@ export default function ClaimsScreen({ ctx }) {
             </Card>
           ) : (
             <>
-              <DecisionBanner decision={claimDecision} approvedAmount={claimStatus?.approved_amount} />
+              <DecisionBanner decision={claimDecision} outcome={claimStatus?.outcome} approvedAmount={claimStatus?.approved_amount} />
 
               {/* Claim reference + payment status strip */}
               {(claimStatus?.claim_response_ref || claimStatus?.payment_status) && (

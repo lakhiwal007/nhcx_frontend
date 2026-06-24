@@ -277,26 +277,35 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
   );
 };
 
-export const DecisionBanner = ({ decision, approvedAmount, message }) => {
+export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) => {
   const isApproved = decision === "APPROVED";
   const isQueried = decision === "QUERIED";
   const isPartial = decision === "PARTIALLY_APPROVED";
+  // Neutral state when the payer decision could not be classified. The raw FHIR
+  // `outcome` is surfaced only here (per the contract) for support triage.
+  const isUnknown = !decision || decision === "UNKNOWN";
 
   const bg = isApproved
     ? "rgba(16,185,129,0.1)"
     : isQueried
       ? "rgba(59,130,246,0.1)"
-      : "rgba(245,158,11,0.1)";
+      : isUnknown
+        ? "rgba(100,116,139,0.08)"
+        : "rgba(245,158,11,0.1)";
   const border = isApproved
     ? "var(--success)"
     : isQueried
       ? "#3b82f6"
-      : "var(--warning)";
+      : isUnknown
+        ? "var(--border-color)"
+        : "var(--warning)";
   const iconColor = isApproved
     ? "var(--success)"
     : isQueried
       ? "#3b82f6"
-      : "var(--warning)";
+      : isUnknown
+        ? "var(--text-muted)"
+        : "var(--warning)";
 
   return (
     <div
@@ -318,8 +327,13 @@ export const DecisionBanner = ({ decision, approvedAmount, message }) => {
       )}
       <div>
         <div style={{ fontSize: "22px", fontWeight: 800 }}>
-          {decision?.replace(/_/g, " ")}
+          {decision?.replace(/_/g, " ") || "Decision unavailable"}
         </div>
+        {isUnknown && outcome && (
+          <div style={{ fontSize: "13px", marginTop: "4px", color: "var(--text-muted)" }}>
+            Payer outcome: <strong>{outcome}</strong>
+          </div>
+        )}
         {approvedAmount != null && (
           <div
             style={{

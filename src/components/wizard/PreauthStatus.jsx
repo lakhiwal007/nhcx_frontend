@@ -200,7 +200,7 @@ export default function PreauthStatus({ ctx }) {
     setSubmitting(true);
     try {
       const body = {
-        claim_id,
+        ...(cashless_case_id ? { cashless_case_id } : { claim_id }),
         preauth_ref: statusData?.preauth_ref,
         reason: cancelReason,
         description: cancelDesc,
@@ -216,7 +216,7 @@ export default function PreauthStatus({ ctx }) {
 
   const handleGatewayStatus = async () => {
     try {
-      await api.requestGatewayStatus({ correlation_id: correlationId, claim_id });
+      await api.requestGatewayStatus({ correlation_id: correlationId, claim_id, use_case: "preauth" });
     } catch (_) {}
   };
 
@@ -248,6 +248,9 @@ export default function PreauthStatus({ ctx }) {
   const isPartial = decision === "PARTIALLY_APPROVED";
   const isQueried = decision === "QUERIED";
   const isRejected = decision === "REJECTED";
+  // Payer returned a decision that could not be classified — neutral state with
+  // recovery actions (Refresh / Request Gateway Status) per the contract.
+  const isUnknown = isComplete && (!decision || decision === "UNKNOWN");
   const pendingTasks = statusData?.pending_tasks ?? [];
   const showSoftWarning = polling && pollElapsed > SOFT_WARNING_MS;
   const showGatewayRecovery = polling && pollElapsed > GATEWAY_RECOVERY_MS;
@@ -299,6 +302,7 @@ export default function PreauthStatus({ ctx }) {
         <>
           <DecisionBanner
             decision={decision}
+            outcome={statusData?.outcome}
             approvedAmount={statusData?.totals?.eligible?.value}
             message={statusData?.process_notes?.[0]?.text}
           />
@@ -445,6 +449,16 @@ export default function PreauthStatus({ ctx }) {
                   </Button>
                   <Button variant="outline" onClick={() => navigate("../reprocess")}>
                     Appeal / Reprocess
+                  </Button>
+                </>
+              )}
+              {isUnknown && (
+                <>
+                  <Button variant="outline" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>
+                    Refresh
+                  </Button>
+                  <Button variant="outline" icon={Wifi} onClick={handleGatewayStatus}>
+                    Request Gateway Status
                   </Button>
                 </>
               )}

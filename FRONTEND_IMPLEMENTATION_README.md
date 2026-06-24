@@ -939,9 +939,13 @@ Layout:
 
 | Region | Design |
 |---|---|
-| Left rail | Patient, admission, payer, policy, eligibility summary |
-| Main form | Diagnoses, bill items, care team, supporting documents |
+| Lifecycle rail | Thin vertical stage rail (dots only); the active stage pulses and stage labels appear on hover/focus, keeping the chrome out of the way |
+| Identity strip | Condensed patient chart across the top — patient, IDs, payer, policy, preauth ref. This is the shared sticky case header; it carries payer/policy so the draft does not repeat them as a separate card |
+| Main column | Patient & admission, eligibility summary, diagnoses, bill items, care team |
+| Side column | Required documents checklist, total request, Submit to Payer |
 | Sticky footer | Back, Save Draft, Submit Preauth |
+
+> The patient/payer/policy data lives in the top identity strip rather than a left rail, so the working content (clinical info, line items, documents) leads at full width.
 
 Draft sections:
 
