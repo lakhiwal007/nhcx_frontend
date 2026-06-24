@@ -146,7 +146,9 @@ export default function App() {
     };
     return parts.map((p, i) => ({
       label: isNaN(Number(p)) ? map[p] || p : `#${p}`,
-      to: "/" + parts.slice(0, i + 1).join("/"),
+      // The "Cashless Case" crumb has no standalone route — send it to the
+      // Cashless Cases list instead of the dead /case path.
+      to: p === "case" ? "/dashboard" : "/" + parts.slice(0, i + 1).join("/"),
     }));
   };
 

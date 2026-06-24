@@ -209,69 +209,89 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
             background: "rgba(239,68,68,0.08)",
           }}
         >
-          <AlertCircle size={16} color="var(--error)" />
+          <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0 }} />
           <span
             style={{ color: "var(--error)", fontWeight: 600, fontSize: "13px" }}
           >
-            {missingRequired.length} required document(s) missing
+            {missingRequired.length} required document{missingRequired.length > 1 ? "s" : ""} still needed
           </span>
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {documents.map((doc, i) => (
-          <div
-            key={i}
-            className="doc-row"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "8px",
-              borderBottom: "1px solid var(--border-color)",
-            }}
-          >
-            <FileText
-              size={16}
-              color={doc.url ? "var(--success)" : "var(--text-muted)"}
-              style={{ marginRight: "12px" }}
-            />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-              <span style={{ fontWeight: 600, fontSize: "14px" }}>
-                {doc.name}
-              </span>
-              <span className="text-muted" style={{ fontSize: "12px" }}>
-                {doc.code}
-              </span>
+        {documents.map((doc, i) => {
+          const attached = !!doc.url;
+          const missing = !doc.optional && !attached;
+          // The left rail colour encodes the row's state so blockers are
+          // scannable: green = attached, red = required & missing, grey = optional.
+          const accent = attached
+            ? "var(--success)"
+            : missing
+              ? "var(--error)"
+              : "var(--border-color)";
+          const StatusIcon = attached ? CheckCircle2 : missing ? AlertCircle : FileText;
+          return (
+            <div
+              key={i}
+              className="doc-row"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "12px",
+                padding: "11px 14px",
+                borderRadius: "10px",
+                border: "1px solid var(--border-color)",
+                borderLeft: `3px solid ${accent}`,
+                background: "var(--bg-card)",
+              }}
+            >
+              <StatusIcon size={17} color={accent} style={{ flexShrink: 0, marginTop: "1px" }} />
+
+              {/* min-width:0 lets long names wrap instead of overflowing the card */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: "13.5px", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                  {doc.name || doc.code || "Document"}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", marginTop: "3px", fontSize: "11.5px", color: "var(--text-muted)" }}>
+                  {doc.code && (
+                    <span style={{ fontFamily: "var(--cx-font-mono, ui-monospace, monospace)", overflowWrap: "anywhere" }}>
+                      {doc.code}
+                    </span>
+                  )}
+                  {doc.event_date && <span>{doc.event_date}</span>}
+                  {doc.category && <span style={{ textTransform: "capitalize" }}>{doc.category}</span>}
+                </div>
+              </div>
+
+              {/* fixed action zone — never shrinks, stays aligned to the first line */}
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "8px", marginTop: "1px" }}>
+                {missing && (
+                  <span style={{ fontSize: "10px", color: "var(--error)", fontWeight: 700, letterSpacing: "0.04em" }}>
+                    REQUIRED
+                  </span>
+                )}
+                {attached ? (
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="badge-modern badge-success"
+                    style={{ fontSize: "10px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}
+                  >
+                    <CheckCircle2 size={11} /> Attached
+                  </a>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="small"
+                    onClick={() => onUpload && onUpload(doc)}
+                  >
+                    {doc.optional ? "Attach" : "Upload"}
+                  </Button>
+                )}
+              </div>
             </div>
-            {!doc.optional && !doc.url && (
-              <span
-                style={{
-                  fontSize: "10px",
-                  color: "var(--error)",
-                  marginRight: "8px",
-                  fontWeight: 600,
-                }}
-              >
-                REQUIRED
-              </span>
-            )}
-            {doc.url ? (
-              <span
-                className="badge-modern badge-success"
-                style={{ fontSize: "10px" }}
-              >
-                Attached
-              </span>
-            ) : (
-              <Button
-                variant="outline"
-                size="small"
-                onClick={() => onUpload && onUpload(doc)}
-              >
-                Upload
-              </Button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
