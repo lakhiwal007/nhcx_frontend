@@ -124,19 +124,17 @@ export default function CaseWrapper() {
 
   return (
     <div className="cx-root">
-      <CaseSpine stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
-
       <div className="cx-grid">
-        <aside className="cx-rail">
+        <CaseSpine stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
+
+        <section className="cx-stage">
           <CaseFileHeader
             patient={patient}
             caseState={caseState}
             effectiveCase={effectiveCase}
             preauthRef={preauthRef}
           />
-        </aside>
 
-        <section className="cx-stage">
           <div className="cx-stage-head">
             <div>
               <div className="cx-eyebrow">

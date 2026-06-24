@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, Edit2, CheckCircle2, Plus, Trash2, Building2, FileText } from "lucide-react";
+import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, DocumentChecklist, MissingFieldsAlert } from "../Common";
 
@@ -311,25 +311,7 @@ export default function PreauthDraft({ ctx }) {
             </div>
           </Card>
 
-          {/* Payer & Policy */}
-          <Card title="Payer & Policy">
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                <Building2 size={14} color="var(--text-muted)" />
-                <div>
-                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Payer</div>
-                  <div style={{ fontWeight: 600 }}>{draft?.payer_id || payer?.name || "—"}</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                <FileText size={14} color="var(--text-muted)" />
-                <div>
-                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Policy</div>
-                  <div style={{ fontWeight: 600 }}>{draft?.policy_number || policy?.policy_number || "—"}</div>
-                </div>
-              </div>
-            </div>
-          </Card>
+          {/* Payer & policy now live in the case identity strip — not repeated here. */}
 
           {/* Eligibility Summary */}
           {draft?.eligibility && (
