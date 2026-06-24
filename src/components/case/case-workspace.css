@@ -108,78 +108,44 @@
   box-sizing: border-box;
 }
 
-/* ── Two-pane layout ──────────────────────────────────────────────────── */
+/* ── Layout: thin lifecycle rail + content canvas ─────────────────────── */
 .cx-grid {
   display: grid;
-  grid-template-columns: 270px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 22px;
   align-items: start;
-  max-width: 1400px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
-.cx-rail {
-  position: sticky;
-  top: 20px;
+/* ── Identity strip — the patient chart condensed to one band ───────────
+   Replaces the old left-rail chart card. Sits above the stage head and
+   carries everything that box held (identity, ids, payer/policy/ref) on a
+   single line that wraps gracefully, so the working content leads. */
+.cx-id {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* ── Case-file header (the chart header) ──────────────────────────────── */
-.cx-file {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  padding: 11px 16px;
+  margin-bottom: 16px;
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
   box-shadow: var(--cx-shadow);
-  overflow: hidden;
 }
 
-/* Facility "letterhead" — the active provider this case is scoped to */
-.cx-file-facility {
+.cx-id-person {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--cx-line);
-  background: var(--cx-surface-2);
-  font-family: var(--cx-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--cx-ink-soft);
-}
-.cx-file-facility svg {
-  flex-shrink: 0;
-  color: var(--cx-primary);
-}
-.cx-file-facility span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cx-file-top {
-  display: flex;
   gap: 11px;
-  align-items: center;
-  padding: 13px 14px 12px;
-  border-bottom: 1px solid var(--cx-line);
+  min-width: 0;
 }
-
-.cx-file-mono {
-  font-family: var(--cx-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--cx-ink-soft);
-  text-transform: uppercase;
-}
-
-.cx-avatar {
-  width: 40px;
-  height: 40px;
+.cx-id-avatar {
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--cx-primary);
   color: #fff;
   display: flex;
@@ -187,41 +153,70 @@
   justify-content: center;
   font-family: var(--cx-font-display);
   font-weight: 700;
-  font-size: 17px;
+  font-size: 15px;
 }
-
-.cx-file-name {
+.cx-id-name {
   font-family: var(--cx-font-display);
   font-weight: 700;
-  font-size: 15.5px;
-  line-height: 1.15;
-  margin: 0 0 3px;
+  font-size: 16px;
+  line-height: 1.1;
   letter-spacing: -0.01em;
+  margin: 0;
 }
-
-.cx-file-sub {
+.cx-id-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 10px;
+  align-items: center;
+  gap: 3px 9px;
+  margin-top: 3px;
   font-size: 11.5px;
   color: var(--cx-ink-soft);
 }
-
-.cx-file-meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.cx-id-meta svg {
+  vertical-align: -1px;
 }
 
-.cx-file-cell {
-  padding: 8px 14px;
-  border-top: 1px solid var(--cx-line);
+.cx-id-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
-.cx-file-cell:nth-child(odd) {
-  border-right: 1px solid var(--cx-line);
+
+/* facility marker — the provider this case is scoped to */
+.cx-id-facility {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--cx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cx-ink-soft);
 }
-.cx-file-cell .cx-file-mono {
-  display: block;
-  margin-bottom: 2px;
+.cx-id-facility svg {
+  flex-shrink: 0;
+  color: var(--cx-primary);
+}
+
+/* key/value facts pushed to the trailing edge of the strip */
+.cx-id-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-left: auto;
+}
+.cx-id-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.cx-file-mono {
+  font-family: var(--cx-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cx-ink-soft);
 }
 .cx-file-val {
   font-family: var(--cx-font-mono);
@@ -245,70 +240,70 @@
   letter-spacing: 0.02em;
 }
 
-/* ── The Case Spine — a horizontal stage tracker across the top ─────────
-   Rotated from the original vertical rail so the lifecycle reads as one
-   compact band instead of a tall column, freeing the left rail for the
-   patient chart alone. The pulse-ring + EKG signature carry over unchanged. */
+/* ── The Case Spine — a thin vertical lifecycle rail ────────────────────
+   Dots only, so the chrome stays narrow and the stage content leads. Each
+   stage's label + note live in a flyout revealed on hover/focus (also the
+   node's accessible name). The pulse-ring signature carries over, and a
+   heartbeat pulse travels up the connector feeding the active node. */
 .cx-spine {
-  max-width: 1400px;
-  margin: 0 auto 16px;
+  position: sticky;
+  top: 20px;
+  align-self: start;
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
   box-shadow: var(--cx-shadow);
-  padding: 2px;
-  overflow: hidden;
+  padding: 10px 0;
 }
 
-/* the "Case lifecycle" caption is redundant with the row itself now */
+/* caption kept for the a11y tree, visually hidden */
 .cx-spine-title {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .cx-spine-inner {
   display: flex;
-  align-items: flex-start;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  flex-direction: column;
+  align-items: center;
 }
 
 .cx-node {
   position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  flex: 1 1 0;
-  min-width: 90px;
-  gap: 5px;
+  justify-content: center;
+  width: 100%;
+  padding: 9px 0;
   border: none;
   background: none;
   font-family: var(--cx-font-body);
   color: inherit;
-  padding: 9px 8px 8px;
-  border-radius: var(--cx-radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease;
 }
 .cx-node[disabled] {
   cursor: default;
 }
-.cx-node:not([disabled]):hover {
-  background: var(--cx-surface-2);
-}
 .cx-node:focus-visible {
-  outline: 2px solid var(--cx-primary);
-  outline-offset: -1px;
+  outline: none;
 }
 
-/* connector rail — horizontal segment linking each marker to the previous */
+/* vertical connector — segment linking each marker to the one above */
 .cx-node::before {
   content: "";
   position: absolute;
-  top: 21px;
-  left: calc(-50% + 13px);
-  width: calc(100% - 26px);
-  height: 2px;
+  left: 50%;
+  top: calc(-50% + 13px);
+  transform: translateX(-50%);
+  width: 2px;
+  height: calc(100% - 26px);
   background: var(--cx-line);
 }
 .cx-node:first-child::before {
@@ -317,12 +312,24 @@
 .cx-node.is-done::before {
   background: var(--cx-approve);
 }
+/* heartbeat pulse travelling up into the active node */
+.cx-node.is-active::before {
+  background-color: var(--cx-line);
+  background-image: linear-gradient(to top, transparent 0%, var(--cx-pulse) 45%, transparent 90%);
+  background-size: 100% 60%;
+  background-repeat: no-repeat;
+  animation: cx-spine-pulse 1.8s linear infinite;
+}
+@keyframes cx-spine-pulse {
+  0% { background-position: 50% 120%; }
+  100% { background-position: 50% -20%; }
+}
 
 .cx-marker {
   position: relative;
   z-index: 1;
-  width: 25px;
-  height: 25px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -334,10 +341,20 @@
   border: 2px solid var(--cx-line-strong);
   color: var(--cx-ink-soft);
   flex-shrink: 0;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.cx-node:not([disabled]):hover .cx-marker,
+.cx-node:focus-visible .cx-marker {
+  border-color: var(--cx-primary);
+  color: var(--cx-primary);
 }
 .cx-node.is-done .cx-marker {
   background: var(--cx-approve);
   border-color: var(--cx-approve);
+  color: #fff;
+}
+.cx-node.is-done:not([disabled]):hover .cx-marker,
+.cx-node.is-done:focus-visible .cx-marker {
   color: #fff;
 }
 .cx-node.is-active .cx-marker {
@@ -348,7 +365,7 @@
   border-style: dashed;
 }
 
-/* ECG pulse ring on the active node */
+/* pulse ring on the active node */
 .cx-node.is-active .cx-marker::after {
   content: "";
   position: absolute;
@@ -364,54 +381,72 @@
   100% { transform: scale(1.65); opacity: 0; }
 }
 
-.cx-node-body {
-  min-width: 0;
-  max-width: 100%;
+/* ── Flyout: the stage label + note, revealed on hover/focus ──────────── */
+.cx-node-flyout {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-5px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  gap: 1px;
+  min-width: max-content;
+  padding: 7px 11px;
+  border-radius: 9px;
+  background: var(--cx-ink);
+  box-shadow: var(--cx-shadow);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 30;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.cx-node-flyout::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translateY(-50%) rotate(45deg);
+  background: var(--cx-ink);
+}
+.cx-node:hover .cx-node-flyout,
+.cx-node:focus-visible .cx-node-flyout {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
 }
 .cx-node-label {
   font-family: var(--cx-font-display);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  max-width: 100%;
+  color: #fff;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.cx-node.is-upcoming .cx-node-label {
-  color: var(--cx-ink-soft);
+.cx-node-num {
+  font-family: var(--cx-font-mono);
+  font-weight: 600;
+  opacity: 0.55;
+  margin-right: 6px;
 }
 .cx-node-note {
   font-family: var(--cx-font-mono);
   font-size: 10.5px;
-  max-width: 100%;
-  color: var(--cx-ink-soft);
+  color: rgba(255, 255, 255, 0.65);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.cx-node-note.tone-approve { color: var(--cx-approve); }
-.cx-node-note.tone-wait { color: var(--cx-wait); }
-.cx-node-note.tone-urgent { color: var(--cx-urgent); }
-.cx-node-note.tone-live { color: var(--cx-primary); }
+.cx-node-note.tone-approve { color: #7bdca0; }
+.cx-node-note.tone-wait { color: #e8c373; }
+.cx-node-note.tone-urgent { color: #f0a294; }
+.cx-node-note.tone-live { color: var(--cx-pulse); }
 
-/* tiny ECG trace shown on the active node */
+/* tiny ECG trace — used by the coverage vitals monitor */
 .cx-ecg {
   width: 100%;
   height: 14px;
   margin-top: 5px;
   display: block;
   color: var(--cx-pulse);
-}
-/* The spine is now a slim strip — keep nodes uniform-height by omitting the
-   active node's ECG line. The pulse-ring on the marker carries the signature;
-   the full ECG trace still lives in the coverage vitals monitor. */
-.cx-node .cx-ecg {
-  display: none;
 }
 .cx-ecg polyline {
   fill: none;
@@ -543,20 +578,57 @@
 .cx-stage-flag.tone-urgent { color: var(--cx-urgent); border-color: var(--cx-urgent); }
 .cx-stage-flag.tone-live { color: var(--cx-primary); border-color: var(--cx-primary); }
 
-/* ── Responsive: the chart rail stacks above the stage; the lifecycle
-   tracker stays a horizontal band and scrolls sideways if it overflows ── */
+/* ── Responsive: the vertical rail flips to a horizontal dot strip on top,
+   the identity strip stacks, and content goes single-column ───────────── */
 @media (max-width: 980px) {
   .cx-grid {
     grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 16px;
   }
-  .cx-rail {
+  .cx-spine {
     position: static;
+    padding: 4px 6px;
+  }
+  .cx-spine-inner {
+    flex-direction: row;
+    justify-content: space-between;
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
   .cx-node {
-    min-width: 116px;
+    flex: 1 1 0;
+    min-width: 56px;
+    width: auto;
+    padding: 8px 0;
   }
-  .cx-ecg { display: none; }
+  /* connector becomes a horizontal segment again */
+  .cx-node::before {
+    top: 50%;
+    left: calc(-50% + 13px);
+    transform: translateY(-50%);
+    width: calc(100% - 26px);
+    height: 2px;
+    background-size: 60% 100%;
+  }
+  @keyframes cx-spine-pulse {
+    0% { background-position: -20% 50%; }
+    100% { background-position: 120% 50%; }
+  }
+  /* flyout drops below the dot instead of beside it */
+  .cx-node-flyout {
+    left: 50%;
+    top: calc(100% + 9px);
+    transform: translateX(-50%) translateY(-5px);
+  }
+  .cx-node-flyout::before {
+    left: 50%;
+    top: -4px;
+    transform: translateX(-50%) rotate(45deg);
+  }
+  .cx-node:hover .cx-node-flyout,
+  .cx-node:focus-visible .cx-node-flyout {
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 @media (max-width: 768px) {
@@ -570,6 +642,7 @@
 /* ── Reduced motion ───────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .cx-node.is-active .cx-marker::after { animation: none; opacity: 0; }
+  .cx-node.is-active::before { animation: none; background-image: none; }
   .cx-vital.is-live .cx-vital-dot::after { animation: none; opacity: 0; }
   .cx-ecg polyline { animation: none; stroke-dashoffset: 0; }
 }
