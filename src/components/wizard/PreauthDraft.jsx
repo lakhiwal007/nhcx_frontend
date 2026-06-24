@@ -195,8 +195,11 @@ export default function PreauthDraft({ ctx }) {
   const handleSubmit = async () => {
     setSaving2(true);
     try {
-      // Always send claim_id; only send overrides for edited fields
-      const body = { claim_id: draft.claim_id || claim_id };
+      const body = {};
+      const resolvedCaseId = cashless_case_id || draft.cashless_case_id;
+      if (resolvedCaseId) body.cashless_case_id = resolvedCaseId;
+      const resolvedClaimId = draft.claim_id || claim_id;
+      if (resolvedClaimId) body.claim_id = resolvedClaimId;
       if (draft.payer_id) body.payer_id = draft.payer_id;
       if (draft.policy_number) body.policy_number = draft.policy_number;
       if (draft.eligibility?.correlation_id)
