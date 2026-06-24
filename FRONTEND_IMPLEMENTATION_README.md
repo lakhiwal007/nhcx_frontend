@@ -125,7 +125,7 @@ Keep these values in route state or a case-scoped store:
 | `claim_id` | Dashboard claim, visit claim, or cashless prepare response | Preauth, claims, reprocess, payment lookup |
 | `payer_id` | Payer `participant_code` | Policy fetch and optional overrides |
 | `policy_number` | Selected policy | Cashless prepare and optional overrides |
-| `cashless_case_id` | Cashless prepare response | Cashless status polling and task filtering |
+| `cashless_case_id` | Cashless prepare response, or `latest_claim.cashless_case_id` from the child payload | Cashless status polling and task filtering. **Never hardcode or carry a stale id** — polling a non-existent id is `404 WRAPPER-ERROR:1003` |
 | `eligibility_correlation_id` | Cashless case `coverage_eligibility.validation.correlation_id` | Optional preauth submit override |
 | `preauth_correlation_id` | Preauth submit/resubmit/query/cancel response | Preauth status polling |
 | `preauth_ref` | Preauth status response or claim draft | Cancel preauth, claim submission |
@@ -256,6 +256,22 @@ The `workflow` field (`insurance_plan`, `coverage_eligibility`, `preauth`, `clai
 ### 3. Case state → resume destination
 
 When the user opens a case directly (not via a task), the frontend has no `action` to follow. It uses the deterministic **Case Timeline And Resume Rules** table above plus the cashless case's `next_actions[]` (e.g. `["prepare_preauth"]`) to pick the destination. Tasks take precedence: if a pending task exists for the case, route to the Work Queue drawer for that task first.
+
+#### `current_step` — the journey position
+
+`current_step` advances monotonically through the whole journey and is **derived from the furthest stage reached**, so a status poll never moves it backwards (earlier builds reset it to `preauth_ready` on every read — that is fixed):
+
+| `current_step` | Meaning | Drive UI to |
+|---|---|---|
+| `insurance_and_eligibility` | Insurance plan / coverage eligibility in progress | Eligibility screen |
+| `preauth_ready` | Eligibility complete; preauth can be prepared/submitted | Preauth screen |
+| `preauth_decided` | Preauth decision received (see `preauth_status`) | Preauth decision / next action |
+| `claim_submitted` | A discharge/final claim has been submitted | Claim Decision tab (poll) |
+| `claim_decided` | Claim decision received (see `claim_decision`) | Claim decision → payment or reprocess |
+| `payment_pending` | Payment notice received, settlement pending | Payment screen (observe) |
+| `settled` | Payment settled | Payment screen (done) |
+
+> The case-level `status` (`pending`/`partial`/`complete`/`failed`) describes only the **pre-auth** roll-up — `status: complete` means pre-auth is done, **not** the whole journey. For the real position use `current_step`, with `claim_decision` and `payment_status` for the claim/payment detail.
 
 ### When the frontend doesn't have the data to act: prepare/preview endpoints
 
@@ -424,8 +440,8 @@ sequenceDiagram
     participant NHCX as NHCX gateway
     participant PY as Payer
     Note over U: Patient discharged, preauth APPROVED
-    FE->>WR: GET /claims/prepare?claim_id
-    WR-->>FE: draft + preauth_ref + missing_fields (sync)
+    FE->>WR: GET /claims/prepare?cashless_case_id
+    WR-->>FE: creates+links claim, returns claim_id + draft + preauth_ref + missing_fields (sync)
     U->>FE: Confirm discharge date & final bill
     U->>FE: Submit discharge claim
     FE->>WR: POST /claims/discharge
@@ -448,6 +464,7 @@ sequenceDiagram
 Sequencing rules that matter:
 
 - **Discharge claim before final claim.** Send the discharge claim (`wf=14`) once the patient is discharged and `preauth_ref` exists; send the final claim (`wf=15/16`) only after final billing is ready. Do not surface both as equally primary — pick one from case state (see Screen 6).
+- **`claims/prepare` creates the claim — call it with `cashless_case_id`.** The UC4 claim row does not exist during the pre-auth journey, so the `submit_discharge_claim` / `submit_final_claim` tasks carry `payload_hint.claim_id: null`. Resolve the claim by calling `GET /claims/prepare?cashless_case_id=<id>` first: it lazily creates+links the claim and returns its `claim_id`, which you then pass to `claims/discharge` / `claims/submit`. Do not block on the task's null `claim_id`.
 - **`preauth_ref` is a hard gate.** `claims/prepare` will list `preauth_ref` in `missing_fields` until an approved preauth exists; keep submit disabled until then.
 - **`cashless_case_id` is present from submission, not just after callback.** `GET /claims/status/{cid}` returns `cashless_case_id` immediately after a 202 — do not wait for the decision to arrive before deep-linking the claim status screen to the case.
 - **Payment is observed, not driven.** After an approved claim, the payer initiates the payment notice on their schedule (often hours to days). The backend auto-acknowledges; the frontend only polls `payment/status` and shows a retry **only** when `acknowledgement_status: failed`.
@@ -482,7 +499,7 @@ flowchart LR
     T -->|"next decision arrives<br/>backend supersedes"| A["completed (auto)"]
 ```
 
-The backend auto-completes superseded tasks: submitting a preauth clears the `submit_preauth` / `attach_eligibility_documents` tasks; a new preauth decision clears the prior `respond_preauth_query` / `resubmit_preauth` tasks; a successful payment ack clears `acknowledge_payment` / `review_payment_ack_failure`. **Implication:** never assume a task you fetched is still pending — re-read before showing the action, and reconcile your local list on every poll. A task that vanished is not an error; it was resolved.
+The backend auto-completes superseded tasks: submitting a preauth clears the `submit_preauth` / `attach_eligibility_documents` tasks; a new preauth decision clears the prior `respond_preauth_query` / `resubmit_preauth` tasks; a claim decision clears the `submit_final_claim` / `submit_discharge_claim` / `respond_claim_query` / `resubmit_claim` tasks (matched by case **or** claim, so the case-anchored claim tasks created at preauth approval close too); a successful payment ack clears `acknowledge_payment` / `review_payment_ack_failure`. **Implication:** never assume a task you fetched is still pending — re-read before showing the action, and reconcile your local list on every poll. A task that vanished is not an error; it was resolved.
 
 **What to do, and when, on the Work Queue:**
 
@@ -848,6 +865,12 @@ POST /nhcx/backend/api/v1/insurance/cashless/prepare
 GET /nhcx/backend/api/v1/insurance/cashless/{cashless_case_id}
 ```
 
+> **`cashless_case_id` has exactly one source: the `cashless/prepare` response.** Do **not** hardcode, guess, or carry a stale id from another session/patient into `GET /cashless/{id}`. A case only exists after a successful `POST /cashless/prepare` — there is no case to poll before that. Polling a non-existent id returns **`404 WRAPPER-ERROR:1003` ("Couldn't find NhcxCashlessCase with 'id'=…")**.
+>
+> **Decide new-vs-resume from the patient payload, not a remembered id.** `GET /cashless/child?child_id=…` returns `cashless_cases_count` and `latest_claim` (which carries `cashless_case_id`). If `cashless_cases_count == 0` / `latest_claim == null`, the patient has **no** case — the prep screen must call `POST /cashless/prepare` to create one (this also fires coverage eligibility), and only then poll `GET /cashless/{returned id}`. If a case exists, resume with `latest_claim.cashless_case_id`. Never deep-link `/case/{child_id}/prep` to a `cashless_case_id` the backend didn't hand you.
+>
+> Coverage eligibility is **not** a standalone screen action here — it is fired by `cashless/prepare` (all three checks at once) and read back via `GET /cashless/{id}`. So a `404` on `GET /cashless/{id}` means "no case was created", not "eligibility failed".
+
 Cashless prepare request:
 
 ```json
@@ -939,13 +962,9 @@ Layout:
 
 | Region | Design |
 |---|---|
-| Lifecycle rail | Thin vertical stage rail (dots only); the active stage pulses and stage labels appear on hover/focus, keeping the chrome out of the way |
-| Identity strip | Condensed patient chart across the top — patient, IDs, payer, policy, preauth ref. This is the shared sticky case header; it carries payer/policy so the draft does not repeat them as a separate card |
-| Main column | Patient & admission, eligibility summary, diagnoses, bill items, care team |
-| Side column | Required documents checklist, total request, Submit to Payer |
+| Left rail | Patient, admission, payer, policy, eligibility summary |
+| Main form | Diagnoses, bill items, care team, supporting documents |
 | Sticky footer | Back, Save Draft, Submit Preauth |
-
-> The patient/payer/policy data lives in the top identity strip rather than a left rail, so the working content (clinical info, line items, documents) leads at full width.
 
 Draft sections:
 
@@ -1153,17 +1172,19 @@ The response is a standard `202` with a new `correlation_id`. Poll `GET /cashles
 API:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/claims/prepare?claim_id=101
+GET /nhcx/backend/api/v1/insurance/cashless/claims/prepare?cashless_case_id=42
 POST /nhcx/backend/api/v1/insurance/cashless/claims/discharge
 POST /nhcx/backend/api/v1/insurance/cashless/claims/submit
 GET /nhcx/backend/api/v1/insurance/cashless/claims/status/{correlation_id}
 ```
 
+> `claims/prepare` takes `cashless_case_id` (preferred) and **creates+links the claim on first call**, returning `claim_id`. Read that `claim_id` from the prepare response and use it for discharge/submit — do not expect it on the task. `claim_id` is still accepted transitionally.
+
 Use tabs:
 
 | Tab | Enabled When | API |
 |---|---|---|
-| Claim Draft | Always when `claim_id` exists | `GET /claims/prepare` |
+| Claim Draft | Always when `cashless_case_id` exists | `GET /claims/prepare?cashless_case_id` |
 | Discharge Claim | Patient discharged and `preauth_ref` available | `POST /claims/discharge` |
 | Final Claim | Final invoice ready and `preauth_ref` available | `POST /claims/submit` |
 | Claim Decision | `claim_correlation_id` exists | `GET /claims/status/{correlation_id}` |
@@ -1553,6 +1574,30 @@ API errors use:
   }
 }
 ```
+
+### WRAPPER-ERROR Codes
+
+`WRAPPER-ERROR:*` codes are raised by **this wrapper** (not the payer/gateway — those are `PAYR-*`/`NHCX-*`). They indicate a problem with the request the frontend made. Key off `error.code`, not the HTTP status alone.
+
+| Code | HTTP | Meaning | Frontend action |
+|---|---|---|---|
+| `WRAPPER-ERROR:1001` | 400 | Bad request (generic) | Show the `message`; it's a malformed call — fix params |
+| `WRAPPER-ERROR:1002` | 422 | Missing required parameter (e.g. `cashless_case_id or claim_id`) | Supply the missing param; don't retry verbatim |
+| `WRAPPER-ERROR:1003` | 400 | Record not found (e.g. `GET /cashless/{id}` for a case that doesn't exist) | **Not a server error.** The id is wrong/stale — see the `cashless_case_id` provenance rule. Route to "Start new case" or re-resolve the id from the child payload |
+| `WRAPPER-ERROR:1004` | 415 | Unsupported Content-Type | Send `Content-Type: application/json` |
+| `WRAPPER-ERROR:1005` | 503 | Database error | Transient/backend — show retry, escalate if persistent |
+| `WRAPPER-ERROR:1006` | 503 | Database unavailable | Transient — back off and retry |
+| `WRAPPER-ERROR:1007` | 500 | Service misconfiguration | Escalate to support; not user-fixable |
+| `WRAPPER-ERROR:1008` | 500 | Internal error | Generic "try again"; escalate if persistent |
+| `WRAPPER-ERROR:1009` | 422 | Validation error (a record failed model validation) | Show `message`; correct the input |
+| `WRAPPER-ERROR:1010` | 400 | `requestId` missing (POST/PATCH only) | Always send a `request_id` param or `X-Request-Id` header on writes |
+| `WRAPPER-ERROR:1011` | 400 | `X-Provider-Id` header missing | Send the active facility's participant code as `X-Provider-Id` |
+| `WRAPPER-ERROR:1012` | 401 | Unauthorized — session token missing/expired/invalid | Re-authenticate; redirect to login |
+| `WRAPPER-ERROR:1013` | 403 | Authenticated, but the user has no matching NHCX facility | Show "No cashless-enabled clinic for this user"; not retryable |
+
+> **Submit endpoints** (`preauth/submit`, `claims/submit`, …) return **422 with `{ "status": "failed", "error": {...} }`** — not a `WRAPPER-ERROR` envelope — when the gateway *synchronously* rejects the request (e.g. an `NHCX-1018` invalid ABHA number). Surface `error.message`; the embedded code is an `NHCX-*`/`PAYR-*` code (see below), not a wrapper code.
+>
+> Facility admin endpoints (`/facilities/*`) use a separate `WRAPPER-ERROR:4xxx` series (`4040` not found, `4220`/`4222` validation) — not relevant to the cashless frontend.
 
 Frontend behavior:
 

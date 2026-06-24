@@ -1489,23 +1489,43 @@ paths:
     get:
       tags: [Claims]
       operationId: prepareClaimDraft
-      summary: Fetch claim draft details
+      summary: Build the claim draft (creates the claim on first call)
       description: >
-        Read-only preview of what will be submitted in the discharge or final
-        claim. Returns the same auto-resolved data as preauth/prepare —
+        Preview of what will be submitted in the discharge or final claim.
+        Returns the same auto-resolved data as preauth/prepare —
         admission/discharge dates, diagnoses, invoice line items, care team,
-        and supporting documents — plus the claim's current `preauth_ref` and
-        `preauth_status`. Use this to let the frontend validate completeness
-        before calling `claims/discharge` or `claims/submit`.
-        `missing_fields` lists any required fields not yet resolvable.
+        and supporting documents — plus the claim's `preauth_ref` and
+        `preauth_status`. Use it to validate completeness before calling
+        `claims/discharge` or `claims/submit`. `missing_fields` lists any
+        required fields not yet resolvable.
+
+
+        Pass `cashless_case_id` (preferred). The UC4 claim row does not exist
+        during the pre-auth journey, so on the first call this **creates and
+        links** the claim from the case — carrying over child, payer, policy and
+        the approved preauth — and returns its new `claim_id`. Subsequent calls
+        reuse the linked claim. `claim_id` is accepted transitionally for callers
+        that already hold one. One of the two is required (else
+        `WRAPPER-ERROR:1002`).
       parameters:
         - $ref: "#/components/parameters/RequestIdParam"
-        - name: claim_id
+        - name: cashless_case_id
           in: query
-          required: true
+          required: false
           schema:
             type: integer
-          description: The UC4 claim id. Required — the claim must exist before preparing its draft.
+          description: >-
+            Cashless journey id (preferred, returned by `cashless/prepare`).
+            Creates+links the UC4 claim on first call and returns its `claim_id`.
+            Required when `claim_id` is absent.
+        - name: claim_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: >-
+            Transitional alias when the claim already exists. Required when
+            `cashless_case_id` is absent.
       responses:
         "200":
           description: Claim draft details
@@ -3023,6 +3043,17 @@ components:
               type: string
             current_step:
               type: string
+              description: >-
+                Journey position. See the shared enum on CashlessCaseStatus —
+                advances through preauth then claim/payment steps.
+              enum:
+                - insurance_and_eligibility
+                - preauth_ready
+                - preauth_decided
+                - claim_submitted
+                - claim_decided
+                - payment_pending
+                - settled
             payer_id:
               type: string
             provider_id:
@@ -3200,16 +3231,13 @@ components:
         payment_mode:
           type: string
           nullable: true
-        online_txn_id:
-          type: string
-          nullable: true
         date:
           type: string
           format: date
         payment_type:
           type: string
           nullable: true
-          description: "Advance" or other HIS-defined payment type.
+          description: '"Advance" or other HIS-defined payment type.'
 
     BillingLineItem:
       type: object
@@ -3269,6 +3297,14 @@ components:
         current_step:
           type: string
           nullable: true
+          enum:
+            - insurance_and_eligibility
+            - preauth_ready
+            - preauth_decided
+            - claim_submitted
+            - claim_decided
+            - payment_pending
+            - settled
         cashless_status:
           type: string
           nullable: true
@@ -3528,6 +3564,18 @@ components:
           enum: [pending, partial, complete, failed]
         current_step:
           type: string
+          description: >-
+            Journey position, derived from the furthest stage reached. Advances
+            through the pre-auth steps and then the claim/payment steps once a
+            claim exists. Monotonic — a status poll never moves it backwards.
+          enum:
+            - insurance_and_eligibility
+            - preauth_ready
+            - preauth_decided
+            - claim_submitted
+            - claim_decided
+            - payment_pending
+            - settled
           example: insurance_and_eligibility
         next_actions:
           type: array
