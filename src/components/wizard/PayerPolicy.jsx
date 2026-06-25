@@ -48,7 +48,16 @@ export default function PayerPolicy({ ctx }) {
   const handlePayerSelect = async (payer) => {
     setSelectedPayer(payer);
     setSelectedPolicy(null);
-    updateCaseState({ payer, policy: null });
+    // Changing the payer invalidates any case prepared for a previous
+    // payer/policy. Clear the case identifiers so `prep` runs a fresh
+    // prepareCashless instead of resuming the stale case via status.
+    updateCaseState({
+      payer,
+      policy: null,
+      cashless_case_id: null,
+      claim_id: null,
+      eligibility_correlation_id: null,
+    });
 
     if (payer.is_demo) {
       setPolicies([DUMMY_POLICY]);
@@ -73,7 +82,13 @@ export default function PayerPolicy({ ctx }) {
 
   const handlePolicySelect = (policy) => {
     setSelectedPolicy(policy);
-    updateCaseState({ policy });
+    // A different policy under the same payer also invalidates a prior case.
+    updateCaseState({
+      policy,
+      cashless_case_id: null,
+      claim_id: null,
+      eligibility_correlation_id: null,
+    });
   };
 
   const handleNext = () => {
