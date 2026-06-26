@@ -338,12 +338,6 @@ function PatientDetail({ patient, onBack }) {
                                 <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Reg: {visit.primary_doctor.registration_no}</div>
                               )}
                             </div>
-                            {visit.purpose_of_visit && (
-                              <div style={{ gridColumn: "1 / -1" }}>
-                                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>Purpose of Visit</div>
-                                <div>{visit.purpose_of_visit}</div>
-                              </div>
-                            )}
                           </div>
 
                           {visit.procedures?.length > 0 && (

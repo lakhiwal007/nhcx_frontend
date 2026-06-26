@@ -613,6 +613,28 @@ The `action.payload_hint` is pre-seeded with `claim_id`. The `required_documents
 
 > Because communications carry no `claim_id`, the `GET /cashless/tasks?child_id=` filter will not return their tasks. Fetch them via `GET /cashless/communications?child_id=` (or the unfiltered Work Queue) and surface their `pending_tasks[]` separately on the Patient Profile.
 
+### Pre-auth queries: two arrival channels, one response
+
+A common point of confusion: a pre-auth query does **not** arrive through a single mechanism. The payer can raise it on either of two inbound channels, and the backend handles them as separate-but-linked paths. The frontend should treat the **task** as the source of truth and not try to predict which channel fired.
+
+| | Channel A — the pre-auth response says "queried" | Channel B — a standalone Communication |
+|---|---|---|
+| FHIR resource | `ClaimResponse` (pre-auth callback) | `Task` + `Communication`, `reason_code: additionalinfo` |
+| NHCX workflow | `24` (preauth queried) / `241` (enhancement queried) | UC7 communication |
+| Where it lands | `preauth/status` → `decision: QUERIED`; sets `claim.preauth_status = QUERIED` | `communications` list / `communication/status` |
+| Auto-acknowledged to payer | No | Yes |
+| Task created | `respond_preauth_query` (high) | `review_communication` → **becomes** `respond_preauth_query` once the claim is `preauth_status: QUERIED` |
+| The actual question text | `process_notes[]` (and questionnaire URL, if any) | `payload[]` + `required_documents[]` (from `task_inputs`) |
+
+How they relate in the normal flow:
+
+- **Channel A is the formal verdict** — "this pre-auth is queried." It flips `preauth_status` to `QUERIED` and is what the Pre-auth Status screen renders.
+- **Channel B is the delivery channel** the payer frequently uses to spell out *what* they need (documents, clarifications). Its task auto-upgrades to the `respond_preauth_query` action precisely because Channel A has already set `preauth_status: QUERIED` (see the `additionalinfo` routing table above).
+
+**Both converge on one endpoint:** `POST /cashless/preauth/query-response` (send `questionnaire_response` + `supporting_documents`), or `POST /cashless/preauth/resubmit` for a plain correction when there is no questionnaire. So the UI never needs branching logic per channel — render the task's `action` (its `code` is `respond_preauth_query` in both cases) and dispatch it.
+
+> **Ordering caveat:** if a Communication (Channel B) lands *before* the `ClaimResponse` QUERIED (Channel A) has set `preauth_status`, its task stays a read-only `review_communication` until the verdict arrives, then the next projection upgrades it. In the standard NHCX flow both callbacks arrive and the linkage resolves; a communication stuck as "review only" on a pre-auth you expected to be queryable is almost always this race. Re-poll the case once the pre-auth decision lands.
+
 ### How the frontend learns an async result (two channels, use both)
 
 1. **Polling** the status endpoint of the `correlation_id` you submitted — drives the screen the user is currently on. Stop at terminal states (see Polling Rules).
@@ -1059,6 +1081,8 @@ Decision behavior:
 | `REJECTED` | Red rejection banner with reasons | Resubmit Preauth, Reprocess/Appeal |
 | `UNKNOWN` or null | Neutral state | Refresh, Request Gateway Status |
 
+> `decision` is classified from the payer's authoritative NHCX workflow id (e.g. preauth rejected/queried), so `QUERIED` and `REJECTED` are reported as such even when the payer's FHIR bundle does not carry the matching outcome/reason codes — they will not collapse into a false `APPROVED`.
+
 Preauth follow-up APIs:
 
 ```http
@@ -1241,6 +1265,10 @@ Claim decision actions:
 | `PARTIALLY_APPROVED` | View Payment Status, Submit Reprocess |
 | `QUERIED` | Respond to Claim Query, Resubmit Claim |
 | `REJECTED` | Resubmit Claim, Submit Reprocess |
+
+> **On `REJECTED` the claim's `status` reverts to `draft`** (while `decision` stays `REJECTED`), so the dashboard shows it as re-editable and the resubmit path is open; `APPROVED`/`PARTIALLY_APPROVED` move it to `submitted`. `QUERIED` leaves `status` unchanged — the claim is still live awaiting your response. Drive the UI off `decision` for the payer verdict and `status` for whether the claim is editable.
+
+> **The payer's verdict is authoritative.** The backend classifies the decision from the inbound NHCX workflow id (e.g. preauth/claim rejected or queried) rather than re-deriving it from the FHIR bundle, so a reject or query is never silently shown as an approval even when the payer's bundle omits the matching outcome/reason codes. This also means a claim rejection delivered on any workflow id is routed and surfaced — it is no longer dropped.
 
 Follow-up APIs:
 
@@ -1435,10 +1463,10 @@ Layout:
 |---|---|---|
 | Patient header | `name`, `gender`, `dob`, `mobile`, `abha_number`, `profile_photo`, `cashless_cases_count` | `abha_number` null → show "Not ABHA-linked" badge; `profile_photo` null → show avatar placeholder |
 | Latest claim banner | `latest_claim.*` | One-click resume into the active case (use Resume Rules) |
-| Visits | `visits[]` — `admission_no`, `started_at`, `status`, `diagnosis`, `primary_doctor` | Each visit expands to its invoices and payments |
-| Invoices | `visits[].invoices[]` — `invoice_no`, `amount_billed`, `final_amount`, `amount_received` (OPD), `billing_status`, `payment_mode`, `sponsor` (IPD insurance tag), `line_items[]` | Source of truth for billing the wizard will draft from |
-| IPD payments | `visits[].payments[]` — `amount`, `payment_mode`, `collected_at` | Actual cash collected per invoice (IPD only); use `amount_received` on the invoice for OPD totals |
-| Advance payments | `visits[].advance_payments[]` — `amount`, `payment_mode`, `date`, `payment_type` | Pre-admission deposits; present on both IPD and OPD visits |
+| Visits | `visits[]` — `admission_no`, `started_at`, `status`, `diagnosis`, `primary_doctor` | IPD admissions only (cashless is strictly inpatient). Each visit expands to its invoices and payments |
+| Invoices | `visits[].invoices[]` — `invoice_no`, `amount_billed`, `final_amount`, `billing_status`, `payment_mode`, `sponsor` (IPD insurance tag), `line_items[]` | Source of truth for billing the wizard will draft from |
+| Payments | `visits[].payments[]` — `amount`, `payment_mode`, `collected_at` | Actual cash collected per invoice (from `ipd_invoice_payments`) |
+| Advance payments | `visits[].advance_payments[]` — `amount`, `payment_mode`, `date`, `payment_type` | Pre-admission deposits |
 | Existing claims | `visits[].claims[]` — `claim_id`, `use_type`, `status`, `payer_name`, `policy_number`, `total_billed` | Open any one in its case context |
 | Tasks for this patient | `GET /cashless/tasks?child_id=` | Pending payer actions tied to a claim |
 | Communications | `GET /cashless/communications?child_id=` | Payer messages referencing this patient |

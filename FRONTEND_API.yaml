@@ -3078,15 +3078,15 @@ components:
       properties:
         visit_type:
           type: string
-          enum: [ipd, opd]
+          enum: [ipd]
+          description: >
+            Always "ipd". Cashless pre-auth is strictly an inpatient journey, so only
+            IPD admissions are surfaced; OPD appointments are not returned.
         admission_id:
           type: integer
           nullable: true
         admission_no:
           type: string
-          nullable: true
-        appointment_id:
-          type: integer
           nullable: true
         started_at:
           type: string
@@ -3103,9 +3103,6 @@ components:
         reason:
           type: string
           nullable: true
-        purpose_of_visit:
-          type: string
-          nullable: true
         primary_doctor:
           $ref: "#/components/schemas/VisitDoctor"
         invoices:
@@ -3115,16 +3112,15 @@ components:
         payments:
           type: array
           description: >
-            IPD only. Actual cash collections from ipd_invoice_payments — one entry per
-            payment event against any invoice in this visit. Empty array on OPD visits
-            (use invoices[].amount_received for OPD collection totals).
+            Actual cash collections from ipd_invoice_payments — one entry per
+            payment event against any invoice in this admission.
           items:
             $ref: "#/components/schemas/VisitPayment"
         advance_payments:
           type: array
           description: >
-            Advance/deposit payments made by the patient for this visit, from the
-            advance_payments table. Present on both IPD and OPD visits.
+            Advance/deposit payments made by the patient for this admission, from the
+            advance_payments table.
           items:
             $ref: "#/components/schemas/VisitAdvancePayment"
         procedures:
@@ -3160,7 +3156,7 @@ components:
           type: integer
         invoice_type:
           type: string
-          enum: [ipd, opd]
+          enum: [ipd]
         invoice_no:
           type: string
         invoice_date:
@@ -3172,13 +3168,6 @@ components:
         final_discount:
           type: number
           nullable: true
-        amount_received:
-          type: number
-          nullable: true
-          description: >
-            OPD only. Sum of all amount_received_for_* columns. Represents cash
-            actually collected against this invoice. Absent when zero or on IPD invoices
-            (use payments[] on the visit for IPD collections).
         payment_mode:
           type: string
           nullable: true
@@ -5127,6 +5116,15 @@ components:
           type: string
           nullable: true
           enum: [APPROVED, PARTIALLY_APPROVED, QUERIED, REJECTED, COMPLETED, PARTIAL, UNKNOWN, null]
+          description: >
+            Classified payer verdict. Derived from the authoritative NHCX callback
+            workflow id (e.g. claim rejected/queried) and not re-inferred from the
+            FHIR bundle, so a reject or query is never reported as `APPROVED` even
+            when the payer's bundle omits the matching outcome/reason codes. A claim
+            rejection delivered on any workflow id is routed and surfaced here. On
+            `REJECTED` the underlying claim record's lifecycle status reverts to
+            `draft` (re-editable); `APPROVED`/`PARTIALLY_APPROVED` move it to
+            `submitted`; `QUERIED` leaves it unchanged.
         outcome:
           type: string
           nullable: true
