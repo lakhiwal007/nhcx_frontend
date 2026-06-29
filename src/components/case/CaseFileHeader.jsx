@@ -2,7 +2,7 @@ import { User, Hash, Building2 } from "lucide-react";
 
 // The identity strip — the patient chart condensed to a single band above the
 // stage. Replaces the old left-rail chart card; carries the same data inline.
-export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef }) {
+export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, approvedAmount }) {
   const policyNumber =
     caseState.policy?.policyNumber ||
     caseState.policy?.policy_number ||
@@ -60,6 +60,14 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
           <span className="cx-file-mono">ABHA</span>
           <span className="cx-file-val">{abha || "—"}</span>
         </div>
+        {approvedAmount != null && (
+          <div className="cx-id-fact">
+            <span className="cx-file-mono">Approved</span>
+            <span className="cx-file-val" style={{ color: "var(--success)", fontWeight: 800 }}>
+              ₹{approvedAmount.toLocaleString()}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

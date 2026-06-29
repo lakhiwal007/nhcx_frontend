@@ -337,7 +337,7 @@ function InsurancePlanPanel({ plan }) {
         </div>
       )}
 
-      {/* {docReqs.length > 0 && (
+      {docReqs.length > 0 && (
         <div>
           <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Required Documents</div>
           {docReqs.map((d, i) => (
@@ -346,7 +346,7 @@ function InsurancePlanPanel({ plan }) {
             </div>
           ))}
         </div>
-      )}*/}
+      )}
 
       {plan.errors?.length > 0 && (
         <div style={{ marginTop: "8px" }}>

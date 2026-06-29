@@ -144,7 +144,9 @@ function PatientDetail({ patient, onBack }) {
   }, [patient.child_id]);
 
   const startWorkflow = (visit) =>
-    navigate(`/case/${patient.child_id}/payer`, { state: { admission_id: visit?.admission_no } });
+    navigate(`/case/${patient.child_id}/payer`, {
+      state: { admission_id: visit?.admission_no, newCase: true },
+    });
 
   const resumeCase = async (claimSummary) => {
     if (!claimSummary) {
@@ -184,8 +186,12 @@ function PatientDetail({ patient, onBack }) {
         dest = "payment";
       } else if (claim_correlation_id && !cDecision) {
         dest = "claim";
-      } else if (pDecision === "APPROVED" || pDecision === "PARTIALLY_APPROVED") {
+      } else if (pDecision === "APPROVED") {
         dest = "claim";
+      } else if (pDecision === "PARTIALLY_APPROVED") {
+        // Land on the decision screen so staff can choose enhancement before
+        // proceeding to claim — partial approval means coverage may still be extended.
+        dest = "status";
       } else if (pDecision === "QUERIED" || pDecision === "REJECTED") {
         dest = "status";
       } else if (preauth_correlation_id && (!pDecision || pDecision === "pending")) {
@@ -200,7 +206,9 @@ function PatientDetail({ patient, onBack }) {
         dest = "payer";
       }
 
-      navigate(`/case/${patient.child_id}/${dest}`);
+      navigate(`/case/${patient.child_id}/${dest}`, {
+        state: { cashless_case_id: fullCase.cashless_case_id },
+      });
     } catch (err) {
       console.error(err);
       navigate(`/case/${patient.child_id}/payer`);

@@ -89,8 +89,9 @@ export default function Payments() {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
-                          navigate(`/case/0/payment`);
+                          navigate(`/dashboard?q=${encodeURIComponent(pay.claim_reference)}`);
                         }}
+                        title="Find this claim in the dashboard"
                       >
                         {pay.claim_reference}
                       </a>

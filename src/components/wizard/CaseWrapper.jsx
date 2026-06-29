@@ -27,7 +27,13 @@ export default function CaseWrapper() {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const saved = loadWorkflow(id);
+  // Resume: load by cashless_case_id passed in nav state; new case: skip stale child_id save
+  const resumeCaseId = location.state?.cashless_case_id;
+  const saved = location.state?.newCase
+    ? null
+    : resumeCaseId
+      ? loadWorkflow(resumeCaseId) || loadWorkflow(id)
+      : loadWorkflow(id);
 
   const [caseState, setCaseState] = useState({
     payer: null,
@@ -39,6 +45,7 @@ export default function CaseWrapper() {
     preauthCorrelationId: null,
     preauthRef: null,
     preauthDecision: null,
+    approvedAmount: null,
     claimCorrelationId: null,
     draftData: null,
     ...saved,
@@ -49,7 +56,10 @@ export default function CaseWrapper() {
   const updateCaseState = useCallback((updates) => {
     setCaseState((prev) => {
       const next = { ...prev, ...updates };
-      saveWorkflow(id, next);
+      // Save under cashless_case_id once known so multiple cases for the same
+      // patient don't clobber each other in localStorage.
+      const storageKey = next.cashless_case_id ?? id;
+      saveWorkflow(storageKey, next);
       return next;
     });
   }, [id]);
@@ -112,6 +122,7 @@ export default function CaseWrapper() {
   const effectiveCase = cashlessCase || {};
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
   const preauthDecision = caseState.preauthDecision || effectiveCase.preauth_status;
+  const approvedAmount = caseState.approvedAmount;
 
   const stages = buildStages({
     caseState,
@@ -133,6 +144,7 @@ export default function CaseWrapper() {
             caseState={caseState}
             effectiveCase={effectiveCase}
             preauthRef={preauthRef}
+            approvedAmount={approvedAmount}
           />
 
           <div className="cx-stage-head">

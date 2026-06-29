@@ -117,9 +117,14 @@ export default function PreauthStatus({ ctx }) {
     try {
       const res = await api.getPreauthStatus(correlationId, signal);
       setStatusData(res);
-      if (res.preauth_ref) updateCaseState({ preauthRef: res.preauth_ref, preauthDecision: res.decision });
-      if (res.claim_id && !claim_id) updateCaseState({ claim_id: res.claim_id });
-      if (res.cashless_case_id && !cashless_case_id) updateCaseState({ cashless_case_id: res.cashless_case_id });
+      const stateUpdates = {};
+      if (res.preauth_ref) { stateUpdates.preauthRef = res.preauth_ref; stateUpdates.preauthDecision = res.decision; }
+      if (res.claim_id && !claim_id) stateUpdates.claim_id = res.claim_id;
+      if (res.cashless_case_id && !cashless_case_id) stateUpdates.cashless_case_id = res.cashless_case_id;
+      if (res.status === "complete" && res.totals?.eligible?.value != null) {
+        stateUpdates.approvedAmount = res.totals.eligible.value;
+      }
+      if (Object.keys(stateUpdates).length) updateCaseState(stateUpdates);
       if (res.status === "complete" || res.status === "not_found") setPolling(false);
     } catch (_) {}
   };
@@ -132,7 +137,23 @@ export default function PreauthStatus({ ctx }) {
   });
 
   useEffect(() => {
-    if (!correlationId) setPolling(false);
+    if (correlationId) return;
+    if (!cashless_case_id && !claim_id) { setPolling(false); return; }
+    // Recover the correlation id from the live case so a page refresh doesn't
+    // leave users stranded on the "no submission found" dead-end screen.
+    const recover = async () => {
+      try {
+        const res = await api.getCashlessStatus(cashless_case_id || claim_id);
+        if (res.preauth_correlation_id) {
+          updateCaseState({ preauthCorrelationId: res.preauth_correlation_id });
+        } else {
+          setPolling(false);
+        }
+      } catch (_) {
+        setPolling(false);
+      }
+    };
+    recover();
   }, [correlationId]);
 
   useEffect(() => {
@@ -595,7 +616,10 @@ export default function PreauthStatus({ ctx }) {
 
       <ConfirmModal open={showCancelModal} onClose={() => setShowCancelModal(false)} title="Cancel Preauthorization">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
-          Cancellation is irreversible. The preauth reference <strong>{statusData?.preauth_ref}</strong> will be voided with the payer.
+          Cancellation is irreversible. The preauth reference <strong>{statusData?.preauth_ref}</strong>
+          {statusData?.totals?.eligible?.value != null && (
+            <> and its approved amount of <strong style={{ color: "var(--error)" }}>₹{statusData.totals.eligible.value.toLocaleString()}</strong></>
+          )} will be permanently voided with the payer.
         </p>
         <div style={{ marginBottom: "14px" }}>
           <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Reason</label>

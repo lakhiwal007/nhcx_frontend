@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { PageHeader, Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const METRICS = [
   { key: "total",           label: "Total Claims",         icon: FileText,      color: "var(--primary)",  filterStatus: null },
@@ -30,11 +30,14 @@ function contextualAction(claim) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [stats, setStats] = useState(null);
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(
+    () => new URLSearchParams(location.search).get("q") || ""
+  );
   const [navigating, setNavigating] = useState({});
 
   useEffect(() => {
