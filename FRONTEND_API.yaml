@@ -301,6 +301,13 @@ paths:
         - name: name
           in: query
           required: false
+          description: >-
+            Substring match against the payer's display name OR its participant
+            code. When the value is shaped exactly like a participant code
+            (e.g. "1518@hcx"), the backend routes it to a direct by-code lookup
+            against the NHCX participant registry instead of the role/date list
+            — this finds payers the list endpoint's server-side filters would
+            otherwise exclude.
           schema:
             type: string
           example: "National"
@@ -643,6 +650,16 @@ paths:
         cashless case per claim, derives payer and procedures from the DB,
         triggers InsurancePlan and CoverageEligibility internally, and returns
         one aggregated case response.
+
+
+        **Always retryable.** If the InsurancePlan/CoverageEligibility submission
+        fails (e.g. the payer certificate can't be fetched or the gateway is
+        down), prepare does NOT return an error — it still returns `202` with a
+        persisted `cashless_case_id`, `status: "failed"`, `next_actions`
+        containing `"retry"`, and a `prepare_error` object describing the cause.
+        To retry, re-POST this endpoint with the same body (the case is reused);
+        add `force_refresh: true` to force a fresh attempt. A successful retry
+        clears `prepare_error` and moves the case back to `pending`.
       requestBody:
         required: true
         content:
@@ -3606,8 +3623,30 @@ components:
           example: insurance_and_eligibility
         next_actions:
           type: array
+          description: >-
+            Suggested UI actions. Includes `"retry"` when `status` is `failed`
+            (re-POST `/cashless/prepare` to retry), `"resubmit"` when `partial`,
+            `"prepare_preauth"` when eligibility is complete/auth-required, and
+            `"refresh"` (re-poll) otherwise.
           items:
             type: string
+            enum: [refresh, retry, resubmit, prepare_preauth]
+        prepare_error:
+          type: object
+          nullable: true
+          description: >-
+            Present only when the last prepare attempt failed. Describes why so
+            the UI can show it next to the retry action; absent on success.
+          properties:
+            code:
+              type: string
+              example: "Nhcx::Errors::CertificateParseError"
+            message:
+              type: string
+              example: "Certificate parse failed: PEM_read_bio_X509: bad end line"
+            at:
+              type: string
+              format: date-time
         pending_tasks:
           type: array
           items:

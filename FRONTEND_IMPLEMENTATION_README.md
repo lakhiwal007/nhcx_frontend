@@ -918,6 +918,8 @@ Cashless prepare request:
 
 Never use `force_refresh: true` on automatic resume — reading cached eligibility state is the correct behavior when re-entering a case that was already prepared.
 
+**Prepare never hard-fails.** Even when the InsurancePlan/CoverageEligibility submission fails (payer certificate unfetchable, gateway down, etc.), `POST /cashless/prepare` still returns `202` with a persisted `cashless_case_id`, `status: "failed"`, `next_actions: ["retry", ...]`, and a `prepare_error` object — not a `4xx`. So the UI always has a case to poll and a retry to offer; treat a failed prepare as a retryable state, not a dead end. A plain re-POST reuses the same case; add `force_refresh: true` only if you want to bypass any short-circuit.
+
 **To force-refresh once a case exists:**
 
 Call `POST /cashless/prepare` with `force_refresh: true`, supplying `child_id`, `payer_id`, and `policy_number`. The backend reads the stored case and re-fires InsurancePlan and all three CoverageEligibility gateway calls. After the `202`, resume normal polling (`GET /cashless/{cashless_case_id}`).
@@ -948,7 +950,7 @@ Polling:
 | `partial` | Show available data, keep polling, highlight missing section. When `next_actions` contains `"resubmit"`, also show a **Re-run Eligibility Check** button that calls `POST /cashless/prepare` with `force_refresh: true`. |
 | `complete` | Stop polling, enable Prepare Preauth when `next_actions` contains `prepare_preauth` |
 | `partial` (benefits timed out) | `next_actions` will contain `prepare_preauth` even though `coverage_eligibility.benefits.status` is still `pending`. Enable Prepare Preauth but show an inline warning: **"Benefits data from insurer is unavailable. Coverage details may be incomplete."** Keep the benefits sub-panel visible showing its pending state. Timeout is configurable server-side (default 5 minutes). |
-| `failed` | Stop polling, show error panel and relevant task/action |
+| `failed` | Stop polling. When `next_actions` contains `"retry"` (submission failed — e.g. payer certificate or gateway error), show a **Retry Preparation** button that re-POSTs `POST /cashless/prepare` with the same `child_id` + `policy_number`. Display `prepare_error.message` in the error panel so staff see the cause. A successful retry clears `prepare_error` and returns the case to `pending`. |
 
 Eligibility table columns (render once per purpose, or merge into a single table keyed by service):
 

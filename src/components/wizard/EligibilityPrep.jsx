@@ -741,6 +741,10 @@ export default function EligibilityPrep({ ctx }) {
   // Partial + next_actions ["resubmit"] = one or more eligibility sub-checks failed
   // or stalled and will NOT resolve on their own — the user must re-run the check.
   const needsResubmit = isPartial && caseData?.next_actions?.includes("resubmit");
+  // Prepare never hard-fails — a `failed` status with "retry" in next_actions
+  // means the InsurancePlan/CE submission itself errored (bad cert, gateway
+  // down, etc.) and the case is waiting for a re-POST, not a dead end.
+  const needsRetry = isFailed && caseData?.next_actions?.includes("retry");
   const canProceed = caseData?.next_actions?.includes("prepare_preauth") && (isComplete || isPartial);
 
   return (
@@ -883,6 +887,29 @@ export default function EligibilityPrep({ ctx }) {
             onClick={handleForceRefresh}
           >
             {forceRefreshing ? "Re-running…" : "Re-run Eligibility Check"}
+          </Button>
+        </div>
+      )}
+
+      {needsRetry && (
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+            <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
+            <span>
+              <strong>Preparation failed.</strong>{" "}
+              {caseData?.prepare_error?.message ||
+                "The eligibility submission couldn't be completed."}
+            </span>
+          </div>
+          <Button
+            variant="primary"
+            size="small"
+            icon={RefreshCw}
+            disabled={forceRefreshing || !payer || !policy}
+            title={!payer || !policy ? "Select payer & policy to retry" : undefined}
+            onClick={handleForceRefresh}
+          >
+            {forceRefreshing ? "Retrying…" : "Retry Preparation"}
           </Button>
         </div>
       )}
