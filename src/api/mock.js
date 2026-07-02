@@ -225,6 +225,19 @@ export const mock = {
     return allPayers;
   },
 
+  getPayerById: async (id) => {
+    await delay(300);
+    const allPayers = [
+      { participant_code: "1518@hcx", name: "Sample Payer", scheme_type: "PMJAY", status: "active" },
+      { participant_code: "2044@hcx", name: "Star Health & Allied", scheme_type: "Retail", status: "active" },
+      { participant_code: "3011@hcx", name: "HDFC ERGO", scheme_type: "Corporate", status: "active" },
+      { participant_code: "4022@hcx", name: "Universal Life", scheme_type: "Public Health", status: "active" },
+    ];
+    const payer = allPayers.find((p) => p.participant_code === id);
+    if (!payer) throw new Error(`No payer found for ${id}`);
+    return payer;
+  },
+
   // ─── Policy Fetch ───────────────────────────────────────────────────────────
   fetchPolicies: async (data) => {
     await delay(1000);

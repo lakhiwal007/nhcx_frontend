@@ -8,6 +8,7 @@ export const ENDPOINTS = {
   // Registry
   CHILD_SEARCH: "/cashless/child",
   PAYER_SEARCH: "/cashless/payers/search",
+  PAYER_BY_ID: (id) => `/cashless/payers/${id}`,
   FETCH_POLICIES: "/cashless/policies/fetch",
   
   // Cashless Setup

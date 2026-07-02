@@ -107,7 +107,7 @@ Required only when the user has access to more than one NHCX facility. Obtain th
 |---|---|
 | **All reads** — dashboard, by-id, tasks | Further scopes the response to that facility (cases/tasks from other facilities are hidden). |
 | **Outbound submits** — `preauth/submit`, `claims/*`, `payment/acknowledge`, etc. | Selects the sending facility whose participant code becomes `x-hcx-sender_code`. |
-| **Prep reads** — `*/prepare`, `policies/fetch`, `payers/search` | Accepted for tracing; not required. |
+| **Prep reads** — `*/prepare`, `policies/fetch`, `payers/search`, `payers/{id}` | Accepted for tracing; not required. |
 
 > **The `provider_id` body field is deprecated.** The acting facility is resolved from the `Authorization` token + optional `X-Provider-Id` header. A `provider_id` field in the JSON body is ignored.
 
@@ -339,7 +339,7 @@ Every wrapper endpoint is one of three kinds. Knowing which is which is the key 
 
 | Kind | Behaviour | Endpoints | Frontend timing |
 |---|---|---|---|
-| **Synchronous** | Returns the real data in the same response | `child`, `payers/search`, `policies/fetch`, `*/prepare`, `enhancement/prepare`, `dashboard/*`, `tasks`, `communications`, `payment/status` (search), `claims/{id}/patient-context` | Call on demand, render immediately |
+| **Synchronous** | Returns the real data in the same response | `child`, `payers/search`, `payers/{id}`, `policies/fetch`, `*/prepare`, `enhancement/prepare`, `dashboard/*`, `tasks`, `communications`, `payment/status` (search), `claims/{id}/patient-context` | Call on demand, render immediately |
 | **Asynchronous (submit → poll)** | Returns `202 {correlation_id, status: "submitted"}`; the real result arrives later via a payer callback | `prepare`, `preauth/submit` (+resubmit/query-response/enhancement/cancel), `claims/discharge`/`submit` (+resubmit/query-response), `reprocess/submit`, `coverage_eligibility/*`, `insurance_plan/request`, `status/request` | Store the `correlation_id`, then **poll the matching status endpoint** until terminal |
 | **Backend-automatic** | No frontend trigger at all — the backend reacts to an inbound payer callback | payment-notice auto-acknowledge, communication auto-acknowledge, task creation | Frontend only *observes* the result via `tasks` / status / `payment/status` |
 
@@ -848,6 +848,8 @@ Policy fetch request:
 ```
 
 Payer search should be a searchable dropdown/list with `name`, `participant_code`, `scheme_type`, and `status`.
+
+To resolve a single payer's details from a known `payer_id` (e.g. re-displaying the payer name/status for a stored `payer_id` without re-running the dropdown search), use `GET /cashless/payers/{id}` instead — it checks the local payer cache first and only calls the NHCX registry on a miss. Pass `force_refresh=true` to bypass the cache. Returns `404` if the participant code doesn't exist. This is a separate endpoint (path param), not a `payers/search?id=` query.
 
 Policy cards should show:
 
@@ -1660,6 +1662,7 @@ All paths are relative to `/nhcx/backend/api/v1/insurance`.
 | GET | `/cashless/dashboard/claims` | Dashboard claim list |
 | GET | `/cashless/child` | Patient search from `child_abha_profiles`; supports `child_id`, `name`, `mobile`, `abha_number`; `abha_number: null` in result means not ABHA-linked |
 | GET | `/cashless/payers/search` | Payer dropdown |
+| GET | `/cashless/payers/{id}` | Look up a single payer by participant code (cache-first, `force_refresh` to bypass) |
 | POST | `/cashless/policies/fetch` | Policy lookup after payer selection |
 | POST | `/cashless/prepare` | Start cashless preparation |
 | GET | `/cashless/{cashless_case_id}` | Read aggregated preparation status |

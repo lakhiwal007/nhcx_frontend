@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NHCX Wrapper Frontend API
-  version: 1.2.0
+  version: 1.3.0
   description: >
     Minimal frontend-facing API contract for payer discovery, policy fetch,
     cashless preparation, and preauthorization. These endpoints are hospital UI
@@ -340,6 +340,44 @@ paths:
                       name: "Sample Payer"
                       scheme_type: "PMJAY"
                       status: "active"
+
+  /cashless/payers/{id}:
+    get:
+      tags: [Cashless Preparation]
+      operationId: getPayerById
+      summary: Look up a single payer by participant code
+      description: >
+        Returns one payer by its NHCX participant code. Checks the local payer
+        cache first (valid for 30 days after the last search/lookup); pass
+        force_refresh=true to bypass the cache and re-query the NHCX registry.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "1518@hcx"
+        - name: force_refresh
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Payer found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payer"
+              example:
+                code: "1518@hcx"
+                name: "Sample Payer"
+                scheme_type: "PMJAY"
+                status: "active"
+        "404":
+          description: No payer found for the given participant code
 
   /cashless/policies/fetch:
     post:

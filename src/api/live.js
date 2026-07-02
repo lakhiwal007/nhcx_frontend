@@ -13,6 +13,8 @@ export const live = {
 
   searchPayers: (params = {}) => http.get(ENDPOINTS.PAYER_SEARCH, params),
 
+  getPayerById: (id, params = {}) => http.get(ENDPOINTS.PAYER_BY_ID(id), params),
+
   fetchPolicies: (data) => http.post(ENDPOINTS.FETCH_POLICIES, data),
 
   prepareCashless: (data) => http.post(ENDPOINTS.PREPARE_CASHLESS, data),

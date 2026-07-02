@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { User, Hash, Building2 } from "lucide-react";
+import { api } from "../../api";
 
 // The identity strip — the patient chart condensed to a single band above the
 // stage. Replaces the old left-rail chart card; carries the same data inline.
@@ -7,7 +9,23 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
     caseState.policy?.policyNumber ||
     caseState.policy?.policy_number ||
     effectiveCase.policy_number;
-  const payer = caseState.payer?.name || effectiveCase.payer_id;
+  const payerName = caseState.payer?.name;
+  const payerId = effectiveCase.payer_id;
+  // Resumed cases only carry payer_id, not the full payer object from the
+  // search dropdown — resolve the friendly name via the cache-first lookup.
+  const [resolvedPayerName, setResolvedPayerName] = useState(null);
+  useEffect(() => {
+    if (payerName || !payerId) return;
+    let cancelled = false;
+    api
+      .getPayerById(payerId)
+      .then((p) => !cancelled && setResolvedPayerName(p?.name || null))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [payerName, payerId]);
+  const payer = payerName || resolvedPayerName || payerId;
   // The facility (X-Provider-Id) every call on this case is scoped to.
   const facility =
     localStorage.getItem("nhcx_default_facility_name") ||

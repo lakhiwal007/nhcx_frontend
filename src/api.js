@@ -420,6 +420,19 @@ const mock = {
     return allPayers;
   },
 
+  getPayerById: async (id) => {
+    await delay(300);
+    const allPayers = [
+      { code: "1518@hcx", name: "Sample Payer", scheme_type: "PMJAY", status: "active" },
+      { code: "2044@hcx", name: "Star Health & Allied", scheme_type: "Retail", status: "active" },
+      { code: "3011@hcx", name: "HDFC ERGO", scheme_type: "Corporate", status: "active" },
+      { code: "4022@hcx", name: "Universal Life", scheme_type: "Public Health", status: "active" },
+    ];
+    const payer = allPayers.find((p) => p.code === id);
+    if (!payer) throw new Error(`No payer found for ${id}`);
+    return payer;
+  },
+
   // ─── Policy Fetch ───────────────────────────────────────────────────────────
   fetchPolicies: async (data) => {
     await delay(1000);
@@ -1664,6 +1677,9 @@ const real = {
   searchChildren: (params = {}) => http.get("/cashless/child", params),
 
   searchPayers: (params = {}) => http.get("/cashless/payers/search", params),
+
+  getPayerById: (id, params = {}) =>
+    http.get(`/cashless/payers/${encodeURIComponent(id)}`, params),
 
   fetchPolicies: (data) => http.post("/cashless/policies/fetch", data),
 
