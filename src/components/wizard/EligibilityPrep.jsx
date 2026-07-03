@@ -18,12 +18,15 @@ import PayrErrorList from "../PayrErrorList";
 const POLL_INTERVAL_MS = 7000;
 const TERMINAL_STATUSES = ["complete", "failed"];
 
-// Stop polling at a terminal status, OR when the case is `partial` and the
-// backend signals `resubmit` — that state won't resolve on its own, so the
-// user must re-run the eligibility check rather than wait.
+// Stop polling at a terminal status, OR when the backend signals `resubmit`
+// - that state won't resolve on its own, so the user must re-run the
+// eligibility check rather than wait. `resubmit` now appears both when
+// `status` is `partial` (a sub-check failed) and when `status` is `pending`
+// past the server timeout with no payer callback ("stale pending" - the
+// request was likely lost).
 const shouldStopPolling = (res) =>
   TERMINAL_STATUSES.includes(res?.status) ||
-  (res?.status === "partial" && res?.next_actions?.includes("resubmit"));
+  (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
 
 function InsurancePlanPanel({ plan }) {
   const [expanded, setExpanded] = useState(null);
@@ -65,7 +68,7 @@ function InsurancePlanPanel({ plan }) {
           style={{
             padding: "10px 12px",
             background: "var(--bg-main)",
-            borderRadius: "8px",
+            borderRadius: "var(--radius-sm)",
             marginBottom: "12px",
           }}
         >
@@ -150,7 +153,7 @@ function InsurancePlanPanel({ plan }) {
                   style={{
                     background: "var(--bg-main)",
                     border: "1px solid var(--border-color)",
-                    borderRadius: "6px",
+                    borderRadius: "var(--radius-xs)",
                     padding: "2px 8px",
                     cursor: page === 0 ? "not-allowed" : "pointer",
                     opacity: page === 0 ? 0.4 : 1,
@@ -171,7 +174,7 @@ function InsurancePlanPanel({ plan }) {
                   style={{
                     background: "var(--bg-main)",
                     border: "1px solid var(--border-color)",
-                    borderRadius: "6px",
+                    borderRadius: "var(--radius-xs)",
                     padding: "2px 8px",
                     cursor: page === totalPages - 1 ? "not-allowed" : "pointer",
                     opacity: page === totalPages - 1 ? 0.4 : 1,
@@ -195,7 +198,7 @@ function InsurancePlanPanel({ plan }) {
                   key={globalIdx}
                   style={{
                     border: "1px solid var(--border-color)",
-                    borderRadius: "8px",
+                    borderRadius: "var(--radius-sm)",
                     overflow: "hidden",
                   }}
                 >
@@ -357,7 +360,7 @@ function InsurancePlanPanel({ plan }) {
                 fontSize: "12px",
                 color: "var(--error)",
                 background: "rgba(239,68,68,0.05)",
-                borderRadius: "6px",
+                borderRadius: "var(--radius-xs)",
                 padding: "6px 8px",
                 marginBottom: "4px",
               }}
@@ -433,7 +436,7 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
         <CeVital
           label="Policy in-force"
           state={validationState}
-          value={inforce == null ? "—" : inforce ? "In-force" : "Not in-force"}
+          value={inforce == null ? "-" : inforce ? "In-force" : "Not in-force"}
           tone={inforce == null ? undefined : inforce ? "approve" : "urgent"}
           note={validationState === "done" && disposition ? disposition : undefined}
         />
@@ -447,12 +450,12 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
                 ? `${allItems.length} service${allItems.length > 1 ? "s" : ""}`
                 : benefitsState === "done"
                   ? "No limits returned"
-                  : "—"
+                  : "-"
           }
           tone={benefitsTimedOut ? "wait" : undefined}
           note={
             benefitsTimedOut
-              ? "Coverage details may be incomplete — you can still proceed."
+              ? "Coverage details may be incomplete - you can still proceed."
               : undefined
           }
         />
@@ -461,7 +464,7 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
           state={authState}
           value={
             auth_required == null
-              ? "—"
+              ? "-"
               : auth_required
                 ? "Preauth required"
                 : "No preauth needed"
@@ -506,12 +509,12 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
                   <td style={{ textAlign: "right" }}>
                     {item.benefit?.[0]?.allowed?.value != null
                       ? `₹${item.benefit[0].allowed.value.toLocaleString()}`
-                      : "—"}
+                      : "-"}
                   </td>
                   <td style={{ textAlign: "right" }}>
                     {item.benefit?.[0]?.used?.value != null
                       ? `₹${item.benefit[0].used.value.toLocaleString()}`
-                      : "—"}
+                      : "-"}
                   </td>
                 </tr>
               ))}
@@ -630,17 +633,25 @@ export default function EligibilityPrep({ ctx }) {
     if (!polling && caseData?.cashless_case_id) setPolling(true);
   };
 
+  // Preferred path: GET /cashless/{id}?force_refresh=true - the backend reads
+  // the stored case (child, payer, policy, procedures) and re-fires all four
+  // gateway calls, so it needs only the cashless_case_id we already have.
+  // Falls back to POST /cashless/prepare with force_refresh only if we
+  // somehow don't have a case id yet (requires payer + policy in that case).
   const handleForceRefresh = async () => {
-    if (!patient || !payer || !policy) return;
+    const caseId = caseData?.cashless_case_id;
+    if (!caseId && (!patient || !payer || !policy)) return;
     setForceRefreshing(true);
     try {
-      const res = await api.prepareCashless({
-        child_id: patient.child_id,
-        payer_id: payer.code,
-        policy_number: policy.policyNumber || policy.policy_number,
-        ...(admission_id && { admission_id }),
-        force_refresh: true,
-      });
+      const res = caseId
+        ? await api.getCashlessStatus(caseId, undefined, true)
+        : await api.prepareCashless({
+            child_id: patient.child_id,
+            payer_id: payer.code,
+            policy_number: policy.policyNumber || policy.policy_number,
+            ...(admission_id && { admission_id }),
+            force_refresh: true,
+          });
       setCaseData(res);
       setCashlessCase(res);
       updateCaseState({
@@ -736,11 +747,15 @@ export default function EligibilityPrep({ ctx }) {
 
   const isComplete = caseData?.status === "complete";
   const isPartial = caseData?.status === "partial";
+  const isPending = caseData?.status === "pending";
   const isFailed = caseData?.status === "failed";
   const benefitsTimedOut = isPartial && caseData?.next_actions?.includes("prepare_preauth");
-  // Partial + next_actions ["resubmit"] = one or more eligibility sub-checks failed
-  // or stalled and will NOT resolve on their own — the user must re-run the check.
-  const needsResubmit = isPartial && caseData?.next_actions?.includes("resubmit");
+  // next_actions "resubmit" = either a partial sub-check failed, or a pending
+  // case went stale past the server timeout with no payer callback (the
+  // request was likely lost). Neither will resolve on its own - the user
+  // must re-run the eligibility check.
+  const needsResubmit = (isPartial || isPending) && caseData?.next_actions?.includes("resubmit");
+  const isStalePending = isPending && needsResubmit;
   // Prepare never hard-fails — a `failed` status with "retry" in next_actions
   // means the InsurancePlan/CE submission itself errored (bad cert, gateway
   // down, etc.) and the case is waiting for a re-POST, not a dead end.
@@ -781,8 +796,10 @@ export default function EligibilityPrep({ ctx }) {
                   : ""}
               </div>
               <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                {caseData?.current_step?.replace(/_/g, " ")}
-                {polling ? " — polling for updates…" : ""}
+                {isStalePending
+                  ? "No response from the payer yet - the request may have been lost"
+                  : caseData?.current_step?.replace(/_/g, " ")}
+                {polling ? " - polling for updates…" : ""}
               </div>
             </div>
           </div>
@@ -803,8 +820,8 @@ export default function EligibilityPrep({ ctx }) {
                 variant="outline"
                 size="small"
                 icon={RefreshCw}
-                disabled={forceRefreshing || !payer || !policy}
-                title={!payer || !policy ? "Select payer & policy to re-run" : undefined}
+                disabled={forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy))}
+                title={!caseData?.cashless_case_id && (!payer || !policy) ? "Select payer & policy to re-run" : undefined}
                 onClick={handleForceRefresh}
               >
                 {forceRefreshing ? "Re-running…" : "Re-run Eligibility"}
@@ -873,17 +890,22 @@ export default function EligibilityPrep({ ctx }) {
       </Card>
 
       {needsResubmit && (
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+        <div className="inline-error-banner" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-            <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
-            <span><strong>One or more eligibility checks didn't complete.</strong> This won't resolve on its own — re-run the eligibility check to retry.</span>
+            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "1px" }} />
+            <span>
+              <strong>{isStalePending ? "No response from the payer yet." : "One or more eligibility checks didn't complete."}</strong>{" "}
+              {isStalePending
+                ? "The request may have been lost - re-run the eligibility check to retry."
+                : "This won't resolve on its own - re-run the eligibility check to retry."}
+            </span>
           </div>
           <Button
             variant="primary"
             size="small"
             icon={RefreshCw}
-            disabled={forceRefreshing || !payer || !policy}
-            title={!payer || !policy ? "Select payer & policy to re-run" : undefined}
+            disabled={forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy))}
+            title={!caseData?.cashless_case_id && (!payer || !policy) ? "Select payer & policy to re-run" : undefined}
             onClick={handleForceRefresh}
           >
             {forceRefreshing ? "Re-running…" : "Re-run Eligibility Check"}
@@ -892,9 +914,9 @@ export default function EligibilityPrep({ ctx }) {
       )}
 
       {needsRetry && (
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+        <div className="inline-error-banner" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-            <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
+            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "1px" }} />
             <span>
               <strong>Preparation failed.</strong>{" "}
               {caseData?.prepare_error?.message ||
@@ -905,8 +927,8 @@ export default function EligibilityPrep({ ctx }) {
             variant="primary"
             size="small"
             icon={RefreshCw}
-            disabled={forceRefreshing || !payer || !policy}
-            title={!payer || !policy ? "Select payer & policy to retry" : undefined}
+            disabled={forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy))}
+            title={!caseData?.cashless_case_id && (!payer || !policy) ? "Select payer & policy to retry" : undefined}
             onClick={handleForceRefresh}
           >
             {forceRefreshing ? "Retrying…" : "Retry Preparation"}
@@ -915,9 +937,9 @@ export default function EligibilityPrep({ ctx }) {
       )}
 
       {benefitsTimedOut && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "color-mix(in srgb, var(--warning) 10%, var(--bg-card))", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
           <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
-          <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete. You can still proceed to preauth — eligibility will remain pending in the background.</span>
+          <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete. You can still proceed to preauth - eligibility will remain pending in the background.</span>
         </div>
       )}
 

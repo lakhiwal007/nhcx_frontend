@@ -1685,8 +1685,12 @@ const real = {
 
   prepareCashless: (data) => http.post("/cashless/prepare", data),
 
-  getCashlessStatus: (cashless_case_id, signal) =>
-    http.get(`/cashless/${cashless_case_id}`, {}, { signal }),
+  getCashlessStatus: (cashless_case_id, signal, forceRefresh = false) =>
+    http.get(
+      `/cashless/${cashless_case_id}`,
+      forceRefresh ? { force_refresh: true } : {},
+      { signal },
+    ),
 
   preparePreauth: (params = {}) =>
     http.get("/cashless/preauth/prepare", params),
