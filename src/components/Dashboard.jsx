@@ -1,12 +1,21 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Search, ArrowRight, Activity, FileText, CheckCircle,
-  Clock, XCircle, AlertTriangle, Users,
+  Clock, XCircle, AlertTriangle, Users, Inbox, AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
 import { PageHeader, Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
 import { useNavigate, useLocation } from "react-router-dom";
+
+const statsContainerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.05 } },
+};
+const statCardVariants = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 26 } },
+};
 
 const METRICS = [
   { key: "total",           label: "Total Claims",         icon: FileText,      color: "var(--primary)",  filterStatus: null },
@@ -31,9 +40,11 @@ function contextualAction(claim) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const prefersReducedMotion = useReducedMotion();
   const [stats, setStats] = useState(null);
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState(null);
   const [searchQuery, setSearchQuery] = useState(
     () => new URLSearchParams(location.search).get("q") || ""
@@ -43,6 +54,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setLoadError(false);
       try {
         const [statsData, claimsData] = await Promise.all([
           api.getDashboardStats(),
@@ -51,6 +63,7 @@ export default function Dashboard() {
         setStats(statsData);
         setClaims(claimsData?.claims || []);
       } catch (_) {
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -95,9 +108,9 @@ export default function Dashboard() {
         <>
           <div className="metrics-grid-responsive">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} style={{ padding: "10px 12px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius)" }}>
+              <div key={i} className="dx-stat-card">
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                  <span className="skeleton-line" style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0 }} />
+                  <span className="skeleton-line" style={{ width: 20, height: 20, borderRadius: "var(--radius-xs)", flexShrink: 0 }} />
                   <span className="skeleton-line" style={{ width: 34, height: 20 }} />
                 </div>
                 <span className="skeleton-line" style={{ width: "65%", height: 10 }} />
@@ -110,7 +123,7 @@ export default function Dashboard() {
             </div>
             <div className="card-body-modern">
               <div style={{ marginBottom: 20 }}>
-                <span className="skeleton-line" style={{ width: 220, height: 36, borderRadius: 12 }} />
+                <span className="skeleton-line" style={{ width: 220, height: 36, borderRadius: "var(--radius-md)" }} />
               </div>
               <SkeletonTable rows={6} cols={10} />
             </div>
@@ -118,55 +131,55 @@ export default function Dashboard() {
         </>
       ) : (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          {loadError && (
+            <div className="dx-error-banner">
+              <AlertCircle size={16} />
+              Could not load the latest dashboard data. Showing the last known results, if any.
+            </div>
+          )}
+
           {stats && (
-            <div className="metrics-grid-responsive">
+            <motion.div
+              className="metrics-grid-responsive"
+              variants={statsContainerVariants}
+              initial={prefersReducedMotion ? false : "hidden"}
+              animate="show"
+            >
               {METRICS.map((m) => {
                 const isActive = statusFilter === m.filterStatus && m.filterStatus !== null;
                 return (
                   <motion.div
                     key={m.key}
-                    whileHover={{ y: -2 }}
+                    variants={statCardVariants}
+                    whileHover={m.filterStatus ? { y: -2 } : undefined}
+                    className={`dx-stat-card${m.filterStatus ? " is-clickable" : ""}${isActive ? " is-active" : ""}`}
+                    style={{ "--stat-color": m.color }}
                     onClick={() => {
                       if (!m.filterStatus) { setStatusFilter(null); return; }
                       setStatusFilter(isActive ? null : m.filterStatus);
                     }}
-                    style={{
-                      padding: "10px 12px",
-                      background: isActive ? `${m.color}10` : "var(--bg-card)",
-                      border: `1px solid ${isActive ? m.color : "var(--border-color)"}`,
-                      borderRadius: "var(--radius)",
-                      cursor: m.filterStatus ? "pointer" : "default",
-                      transition: "all 0.2s",
-                      boxShadow: isActive ? `0 0 0 2px ${m.color}30` : "var(--shadow)",
-                    }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                      <div style={{ padding: "4px", borderRadius: "6px", background: `${m.color}15`, color: m.color, display: "flex" }}>
+                    <div className="dx-stat-top">
+                      <div className="dx-stat-icon" style={{ background: `color-mix(in srgb, ${m.color} 16%, transparent)`, color: m.color }}>
                         <m.icon size={14} />
                       </div>
-                      <div style={{ fontSize: "20px", fontWeight: 800, color: "var(--text-main)", fontFamily: "Outfit, sans-serif" }}>
-                        {stats.claims?.[m.key] ?? 0}
-                      </div>
+                      <div className="dx-stat-value">{stats.claims?.[m.key] ?? 0}</div>
                     </div>
-                    <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>{m.label}</div>
+                    <div className="dx-stat-label">{m.label}</div>
                   </motion.div>
                 );
               })}
 
-              <motion.div
-                style={{ padding: "10px 12px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius)", boxShadow: "var(--shadow)" }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                  <div style={{ padding: "4px", borderRadius: "6px", background: "rgba(129,140,248,0.15)", color: "var(--accent)", display: "flex" }}>
+              <motion.div variants={statCardVariants} className="dx-stat-card">
+                <div className="dx-stat-top">
+                  <div className="dx-stat-icon" style={{ background: "color-mix(in srgb, var(--accent) 16%, transparent)", color: "var(--accent)" }}>
                     <Users size={14} />
                   </div>
-                  <div style={{ fontSize: "20px", fontWeight: 800, color: "var(--text-main)", fontFamily: "Outfit, sans-serif" }}>
-                    {stats.children?.with_claims ?? 0}
-                  </div>
+                  <div className="dx-stat-value">{stats.children?.with_claims ?? 0}</div>
                 </div>
-                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>Children with Claims</div>
+                <div className="dx-stat-label">Children with Claims</div>
               </motion.div>
-            </div>
+            </motion.div>
           )}
 
           <Card title="Recent Claims">
@@ -182,7 +195,7 @@ export default function Dashboard() {
               {statusFilter && (
                 <button
                   onClick={() => setStatusFilter(null)}
-                  style={{ fontSize: "12px", fontWeight: 600, color: "var(--primary)", background: "var(--primary-light)", border: "1px solid var(--primary)", borderRadius: "20px", padding: "6px 14px", cursor: "pointer" }}
+                  style={{ fontSize: "12px", fontWeight: 600, color: "var(--primary)", background: "var(--primary-light)", border: "1px solid var(--primary)", borderRadius: "var(--radius-pill)", padding: "6px 14px", cursor: "pointer" }}
                 >
                   {statusFilter} ×
                 </button>
@@ -210,7 +223,7 @@ export default function Dashboard() {
                     const { label, route } = contextualAction(claim);
                     return (
                       <tr key={claim.id}>
-                        <td style={{ fontWeight: 700 }}>#{claim.id}</td>
+                        <td className="dx-mono-cell" style={{ fontWeight: 700 }}>#{claim.id}</td>
                         <td style={{ fontWeight: 600 }}>{claim.patient_name || claim.child_name}</td>
                         <td>
                           <span className="badge-modern badge-info" style={{ textTransform: "capitalize" }}>
@@ -221,24 +234,24 @@ export default function Dashboard() {
                         <td>
                           {claim.claim_decision
                             ? <StatusBadge status={claim.claim_decision} />
-                            : <span className="text-muted">—</span>}
+                            : <span className="text-muted">-</span>}
                         </td>
-                        <td style={{ textAlign: "right", fontWeight: 700, color: "var(--success)" }}>
+                        <td className="dx-mono-cell" style={{ textAlign: "right", fontWeight: 700, color: "var(--success)" }}>
                           {claim.approved_amount != null
                             ? `₹${claim.approved_amount.toLocaleString()}`
-                            : <span className="text-muted">—</span>}
+                            : <span className="text-muted">-</span>}
                         </td>
                         <td>
                           {claim.payment_status
                             ? <StatusBadge status={claim.payment_status.replace("PAYMENT_", "").toLowerCase()} />
-                            : <span className="text-muted">—</span>}
+                            : <span className="text-muted">-</span>}
                         </td>
                         <td>
                           {claim.latest_utr
                             ? <code style={{ fontSize: "11px" }}>{claim.latest_utr}</code>
-                            : <span className="text-muted">—</span>}
+                            : <span className="text-muted">-</span>}
                         </td>
-                        <td style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                        <td className="dx-mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                           {new Date(claim.created_at).toLocaleDateString()}
                         </td>
                         <td>
@@ -257,8 +270,16 @@ export default function Dashboard() {
                   })}
                   {filteredClaims.length === 0 && (
                     <tr>
-                      <td colSpan="10" style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)" }}>
-                        No claims match your filters.
+                      <td colSpan="10">
+                        <div className="dx-empty-cell">
+                          <Inbox size={28} />
+                          <div className="dx-empty-heading">No claims match your filters</div>
+                          <div className="dx-empty-hint">
+                            {searchQuery || statusFilter
+                              ? "Try a different search term or clear the active status filter."
+                              : "New cashless cases will show up here once created."}
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   )}

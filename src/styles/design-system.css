@@ -1,0 +1,114 @@
+/*
+  Unified design tokens for the NHCX frontend.
+  Same variable names as the legacy App.css tokens so every existing
+  consumer (Common.jsx, App.css utility classes, inline var() usages)
+  picks up new values with zero markup changes.
+
+  Scope of this pass: App Shell + Dashboard get full structural/motion
+  treatment; every other screen inherits this token layer automatically
+  (color/typography/shape only) except the Case surface (`.cx-root`),
+  which redeclares its own `--cx-*` tokens and is fully insulated.
+*/
+
+:root {
+  /* Typography */
+  --font-sans: "Geist Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 20px;
+  --text-3xl: 24px;
+  --text-4xl: 28px;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Spacing (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Shape — one radius scale used everywhere */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --radius: var(--radius-lg);
+
+  /* Z-index scale (values unchanged from prior literals, just named) */
+  --z-topbar: 40;
+  --z-sidebar: 50;
+  --z-mobile-overlay: 999;
+  --z-mobile-sidebar: 1000;
+  --z-toast: 9999;
+
+  /* Color — neutral zinc base, single cobalt accent, distinct semantic hues */
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --primary-light: #eff6ff;
+  --accent: #4f7fe0;
+
+  --bg-main: #f5f6f8;
+  --bg-sidebar: #18181b;
+  --bg-card: #ffffff;
+
+  --text-main: #18181b;
+  --text-muted: #71717a;
+  --text-white: #ffffff;
+
+  --border-color: #e4e4e7;
+  --border-hover: #d4d4d8;
+
+  --success: #059669;
+  --warning: #d97706;
+  --error: #e11d48;
+  --info: #0284c7;
+
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.3);
+  --shadow-xs: 0 1px 2px rgba(24, 24, 27, 0.04);
+  --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.06);
+  --shadow: 0 4px 10px -2px rgba(24, 24, 27, 0.08), 0 2px 4px -2px rgba(24, 24, 27, 0.05);
+  --shadow-lg: 0 12px 24px -8px rgba(24, 24, 27, 0.12), 0 4px 8px -4px rgba(24, 24, 27, 0.06);
+}
+
+[data-theme="dark"] {
+  --bg-main: #0b0b0e;
+  --bg-sidebar: #08080a;
+  --bg-card: #131316;
+
+  --text-main: #fafafa;
+  --text-muted: #a1a1aa;
+
+  --border-color: #27272a;
+  --border-hover: #3f3f46;
+
+  --primary: #5b8def;
+  --primary-hover: #79a3ff;
+  --primary-light: rgba(91, 141, 239, 0.14);
+  --accent: #7da8ff;
+
+  --success: #34d399;
+  --warning: #fbbf24;
+  --error: #fb7185;
+  --info: #38bdf8;
+
+  --glass: rgba(11, 11, 14, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 24px -8px rgba(0, 0, 0, 0.45), 0 4px 8px -4px rgba(0, 0, 0, 0.35);
+}
