@@ -1,8 +1,30 @@
 import { useState, useEffect } from "react";
-import { Search, CreditCard, CheckCircle, AlertCircle } from "lucide-react";
+import { Search, CreditCard, CheckCircle, AlertCircle, Clock, Landmark, Wallet } from "lucide-react";
 import { PageHeader, Card, StatusBadge, Input, SkeletonTable } from "./Common";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
+
+const METRICS = [
+  { key: "settledThisMonth", label: "Settled This Month", icon: CheckCircle, color: "var(--success)", format: "currency" },
+  { key: "pendingAck",       label: "Pending Acknowledgement", icon: Clock,  color: "var(--warning)", format: "count" },
+  { key: "totalTds",         label: "TDS Deducted",       icon: Landmark,   color: "var(--error)",   format: "currency" },
+  { key: "totalNetSettled",  label: "Total Net Settled",  icon: Wallet,     color: "var(--primary)", format: "currency" },
+];
+
+function computePaymentMetrics(payments) {
+  const now = new Date();
+  const isThisMonth = (d) => {
+    const date = d ? new Date(d) : null;
+    return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  };
+  const settled = payments.filter((p) => p.acknowledgement_status === "submitted");
+  return {
+    settledThisMonth: settled.filter((p) => isThisMonth(p.payment_date)).reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
+    pendingAck: payments.filter((p) => p.acknowledgement_status !== "submitted").length,
+    totalTds: payments.reduce((s, p) => s + (p.tds_amount ?? 0), 0),
+    totalNetSettled: settled.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
+  };
+}
 
 export default function Payments() {
   const navigate = useNavigate();
@@ -47,6 +69,27 @@ export default function Payments() {
           Could not load payment events. Showing the last known results, if any.
         </div>
       )}
+
+      {!loading && payments.length > 0 && (() => {
+        const metrics = computePaymentMetrics(payments);
+        return (
+          <div className="metrics-grid-responsive">
+            {METRICS.map((m) => (
+              <div key={m.key} className="dx-stat-card">
+                <div className="dx-stat-top">
+                  <div className="dx-stat-icon" style={{ background: `color-mix(in srgb, ${m.color} 16%, transparent)`, color: m.color }}>
+                    <m.icon size={14} />
+                  </div>
+                  <div className="dx-stat-value">
+                    {m.format === "currency" ? `₹${Math.round(metrics[m.key]).toLocaleString()}` : metrics[m.key]}
+                  </div>
+                </div>
+                <div className="dx-stat-label">{m.label}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <Card className="mb-6">
         <div style={{ maxWidth: "400px" }}>

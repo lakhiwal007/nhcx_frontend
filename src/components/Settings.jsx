@@ -16,6 +16,11 @@ import {
   Lock,
   Unlock,
   AlertCircle,
+  Palette,
+  Sun,
+  Moon,
+  PanelLeft,
+  PanelTop,
 } from "lucide-react";
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
 import { PageHeader, Button } from "./Common";
@@ -851,7 +856,15 @@ function FacilityCard({
   );
 }
 
-export default function Settings({ isAdmin = false, sessionFacilities = null, allFacilitiesMode = false }) {
+export default function Settings({
+  isAdmin = false,
+  sessionFacilities = null,
+  allFacilitiesMode = false,
+  theme = "light",
+  onToggleTheme,
+  layoutDirection = "A",
+  onToggleLayoutDirection,
+}) {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -1076,6 +1089,67 @@ export default function Settings({ isAdmin = false, sessionFacilities = null, al
           )}
         </div>
       )}
+
+      <div
+        style={{
+          marginBottom: "20px",
+          padding: "16px 20px",
+          background: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
+          borderRadius: "var(--radius-lg)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "12px" }}>
+          <Palette size={16} color="var(--primary)" />
+          Appearance
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "28px" }}>
+          <div>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>
+              Theme
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => theme !== "light" && onToggleTheme?.()}
+                className={`badge-modern ${theme === "light" ? "badge-success" : "badge-info"}`}
+                style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <Sun size={13} /> Light
+              </button>
+              <button
+                onClick={() => theme !== "dark" && onToggleTheme?.()}
+                className={`badge-modern ${theme === "dark" ? "badge-success" : "badge-info"}`}
+                style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <Moon size={13} /> Dark
+              </button>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>
+              Navigation Layout
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => layoutDirection !== "A" && onToggleLayoutDirection?.()}
+                title="Dark rail sidebar on the left"
+                className={`badge-modern ${layoutDirection === "A" ? "badge-success" : "badge-info"}`}
+                style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <PanelLeft size={13} /> Rail Sidebar
+              </button>
+              <button
+                onClick={() => layoutDirection !== "B" && onToggleLayoutDirection?.()}
+                title="Dark top command-bar with horizontal nav"
+                className={`badge-modern ${layoutDirection === "B" ? "badge-success" : "badge-info"}`}
+                style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <PanelTop size={13} /> Top Bar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {isAdmin && (
         <div

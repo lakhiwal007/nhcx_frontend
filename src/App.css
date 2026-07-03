@@ -24,8 +24,19 @@ h3,
 /* Layout */
 .app-container {
     display: flex;
+    flex-direction: column;
     height: 100vh;
     width: 100%;
+    overflow: hidden;
+}
+
+/* Row that holds the sidebar + content; a separate layer from
+   .app-container so Direction B's command-bar/breadcrumb-strip can span
+   the full width above it. */
+.app-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -238,6 +249,200 @@ h3,
     overflow: hidden;
     text-overflow: ellipsis;
     color: #fff;
+}
+
+/* ─── Direction B: top command-bar + breadcrumb strip (desktop only) ─────
+   Hidden by default; the media query below reveals them only for
+   .dir-b at desktop widths. Mobile always falls back to the existing
+   .top-bar + sidebar slide-out, regardless of direction. */
+.command-bar,
+.breadcrumb-strip {
+    display: none;
+}
+
+.command-bar {
+    height: 58px;
+    padding: 0 24px;
+    background: var(--bg-sidebar);
+    color: white;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sidebar);
+}
+
+.command-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    min-width: 0;
+}
+
+.command-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.command-brand-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.command-brand-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+}
+
+.command-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.command-nav-pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: var(--radius-pill);
+    color: rgba(255, 255, 255, 0.65);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 13px;
+    white-space: nowrap;
+    transition: color 0.2s;
+}
+
+.command-nav-pill:hover {
+    color: white;
+}
+
+.command-nav-pill.active {
+    color: white;
+}
+
+.command-nav-pill--icon {
+    padding: 8px;
+}
+
+.command-nav-active {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius-pill);
+}
+
+.command-nav-badge {
+    min-width: 17px;
+    height: 17px;
+    border-radius: var(--radius-pill);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+
+.command-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.command-facility-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 220px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.command-facility-btn.is-all {
+    background: color-mix(in srgb, var(--info) 24%, transparent);
+    border-color: color-mix(in srgb, var(--info) 45%, transparent);
+}
+
+.command-facility-btn.is-missing {
+    background: color-mix(in srgb, var(--error) 24%, transparent);
+    border-color: color-mix(in srgb, var(--error) 45%, transparent);
+}
+
+.command-facility-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.command-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.command-bar .notif-badge {
+    border-color: var(--bg-sidebar);
+}
+
+.breadcrumb-strip {
+    height: 40px;
+    padding: 0 24px;
+    background: var(--bg-card);
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+@media (min-width: 769px) {
+    .app-container.dir-b .command-bar,
+    .app-container.dir-b .breadcrumb-strip {
+        display: flex;
+    }
+    .app-container.dir-b .sidebar {
+        display: none;
+    }
+    .app-container.dir-b .top-bar {
+        display: none;
+    }
 }
 
 /* ─── Breadcrumb steps ───────────────────────────────────────────────────── */
@@ -2321,8 +2526,9 @@ code {
     margin-bottom: 20px;
 }
 
-/* ─── Dashboard stat cards (scoped to .dashboard-screen only) ───────────── */
-.dashboard-screen .dx-stat-card {
+/* ─── Stat cards (opt-in per screen: .dashboard-screen, .payments-screen) ── */
+.dashboard-screen .dx-stat-card,
+.payments-screen .dx-stat-card {
     padding: var(--space-3);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -2331,30 +2537,35 @@ code {
     transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
-.dashboard-screen .dx-stat-card.is-clickable {
+.dashboard-screen .dx-stat-card.is-clickable,
+.payments-screen .dx-stat-card.is-clickable {
     cursor: pointer;
 }
 
-.dashboard-screen .dx-stat-card.is-active {
+.dashboard-screen .dx-stat-card.is-active,
+.payments-screen .dx-stat-card.is-active {
     background: color-mix(in srgb, var(--stat-color) 8%, var(--bg-card));
     border-color: var(--stat-color);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--stat-color) 25%, transparent);
 }
 
-.dashboard-screen .dx-stat-top {
+.dashboard-screen .dx-stat-top,
+.payments-screen .dx-stat-top {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     margin-bottom: var(--space-2);
 }
 
-.dashboard-screen .dx-stat-icon {
+.dashboard-screen .dx-stat-icon,
+.payments-screen .dx-stat-icon {
     padding: 4px;
     border-radius: var(--radius-xs);
     display: flex;
 }
 
-.dashboard-screen .dx-stat-value {
+.dashboard-screen .dx-stat-value,
+.payments-screen .dx-stat-value {
     font-size: var(--text-2xl);
     font-weight: var(--fw-bold);
     color: var(--text-main);
@@ -2362,7 +2573,8 @@ code {
     font-variant-numeric: tabular-nums;
 }
 
-.dashboard-screen .dx-stat-label {
+.dashboard-screen .dx-stat-label,
+.payments-screen .dx-stat-label {
     font-size: var(--text-xs);
     color: var(--text-muted);
     font-weight: var(--fw-semibold);

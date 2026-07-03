@@ -28,7 +28,7 @@ import {
   Globe,
 } from "lucide-react";
 import "./App.css";
-import { api, ALL_FACILITIES_MODE_KEY } from "./api";
+import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY } from "./api";
 
 import WorkQueue from "./components/WorkQueue";
 import Dashboard from "./components/Dashboard";
@@ -55,6 +55,12 @@ export default function App() {
   const [urgentTaskCount, setUrgentTaskCount] = useState(0);
   const [allFacilitiesMode, setAllFacilitiesMode] = useState(
     () => localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true",
+  );
+  // Which nav paradigm to render: "A" (dark rail sidebar, default) or "B"
+  // (dark top command-bar + breadcrumb strip). A pure presentation choice,
+  // toggled from Settings > Appearance.
+  const [layoutDirection, setLayoutDirection] = useState(
+    () => localStorage.getItem(LAYOUT_DIRECTION_KEY) || "A",
   );
   const [hasProvider, setHasProvider] = useState(
     () => !!localStorage.getItem("nhcx_default_provider_id") || localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true",
@@ -146,6 +152,12 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", newTheme);
   };
 
+  const toggleLayoutDirection = () => {
+    const next = layoutDirection === "B" ? "A" : "B";
+    localStorage.setItem(LAYOUT_DIRECTION_KEY, next);
+    setLayoutDirection(next);
+  };
+
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
@@ -190,7 +202,7 @@ export default function App() {
 
   return (
     <div
-      className={`app-container ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isMobileMenuOpen ? "mobile-menu-open" : ""}`}
+      className={`app-container ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isMobileMenuOpen ? "mobile-menu-open" : ""} dir-${layoutDirection.toLowerCase()}`}
       data-theme={theme}
     >
       <AnimatePresence>
@@ -205,6 +217,148 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {layoutDirection === "B" && (
+        <>
+          <header className="command-bar">
+            <div className="command-bar-left">
+              <div className="command-brand" onClick={() => navigate("/work-queue")}>
+                <div className="command-brand-logo">
+                  <ShieldCheck color="white" size={16} />
+                </div>
+                <span className="command-brand-name">NHCX Portal</span>
+              </div>
+              <nav className="command-nav">
+                {navItems.map(({ to, icon: Icon, label, badge }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    title={label}
+                    className={({ isActive }) => `command-nav-pill${isActive ? " active" : ""}`}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        {isActive && (
+                          <motion.span
+                            className="command-nav-active"
+                            layoutId={prefersReducedMotion ? undefined : "command-active-pill"}
+                            transition={{ type: "spring", stiffness: 500, damping: 42 }}
+                          />
+                        )}
+                        <Icon size={16} />
+                        <span className="command-nav-label">{label}</span>
+                        {badge > 0 && (
+                          <span
+                            className="command-nav-badge"
+                            style={{ background: urgentTaskCount > 0 ? "var(--error)" : "var(--warning)" }}
+                          >
+                            {badge > 99 ? "99+" : badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+                <NavLink
+                  to="/settings"
+                  title="Settings"
+                  className={({ isActive }) => `command-nav-pill command-nav-pill--icon${isActive ? " active" : ""}`}
+                >
+                  {({ isActive }) => (
+                    <>
+                      {isActive && (
+                        <motion.span
+                          className="command-nav-active"
+                          layoutId={prefersReducedMotion ? undefined : "command-active-pill"}
+                          transition={{ type: "spring", stiffness: 500, damping: 42 }}
+                        />
+                      )}
+                      <Settings size={16} />
+                    </>
+                  )}
+                </NavLink>
+              </nav>
+            </div>
+
+            <div className="command-bar-right">
+              <button
+                onClick={() => navigate("/settings")}
+                className={`command-facility-btn${allFacilitiesMode ? " is-all" : ""}${!hasProvider ? " is-missing" : ""}`}
+                title={
+                  !hasProvider
+                    ? "No facility selected"
+                    : allFacilitiesMode
+                      ? "Viewing all facilities (read-only) - click to select one"
+                      : `Active facility: ${facilityLabel} - click to switch`
+                }
+              >
+                {!hasProvider ? <Building2 size={13} /> : allFacilitiesMode ? <Globe size={13} /> : <Building2 size={13} />}
+                <span className="command-facility-label">{hasProvider ? facilityLabel : "No facility"}</span>
+              </button>
+              <button onClick={toggleTheme} className="command-icon-btn" title="Toggle theme">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={theme}
+                    style={{ display: "flex" }}
+                    initial={prefersReducedMotion ? false : { rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+                  </motion.span>
+                </AnimatePresence>
+              </button>
+              <button
+                className="command-icon-btn"
+                onClick={() => navigate("/work-queue")}
+                title={pendingTaskCount > 0 ? `${pendingTaskCount} pending tasks` : "No pending tasks"}
+              >
+                <Bell size={18} />
+                <AnimatePresence>
+                  {pendingTaskCount > 0 && (
+                    <motion.span
+                      key={pendingTaskCount}
+                      className="notif-badge"
+                      style={{ background: urgentTaskCount > 0 ? "var(--error)" : "var(--warning)" }}
+                      initial={prefersReducedMotion ? false : { scale: 0.4, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.4, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                    >
+                      {pendingTaskCount > 9 ? "9+" : pendingTaskCount}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+            </div>
+          </header>
+
+          <div className="breadcrumb-strip">
+            <div className="breadcrumb-modern">
+              <span onClick={() => navigate("/work-queue")} style={{ cursor: "pointer" }} className="breadcrumb-link">
+                Portal
+              </span>
+              {getBreadcrumb().map((crumb, i, arr) => {
+                const isLast = i === arr.length - 1;
+                return (
+                  <span key={i} className="crumb-step">
+                    <ChevronRight size={14} />
+                    {isLast ? (
+                      <span className="crumb-current">{crumb.label}</span>
+                    ) : (
+                      <span onClick={() => navigate(crumb.to)} className="breadcrumb-link crumb-link">
+                        {crumb.label}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="app-body">
       <aside className={`sidebar ${isSidebarCollapsed ? "collapsed" : ""} ${isMobileMenuOpen ? "mobile-show" : ""}`}>
         <div className="sidebar-header-wrapper">
           <div className="sidebar-brand">
@@ -403,7 +557,17 @@ export default function App() {
               <Route path="/" element={<Navigate to="/work-queue" replace />} />
               <Route
                 path="/settings"
-                element={<SettingsPage isAdmin={isAdmin} sessionFacilities={sessionFacilities} allFacilitiesMode={allFacilitiesMode} />}
+                element={
+                  <SettingsPage
+                    isAdmin={isAdmin}
+                    sessionFacilities={sessionFacilities}
+                    allFacilitiesMode={allFacilitiesMode}
+                    theme={theme}
+                    onToggleTheme={toggleTheme}
+                    layoutDirection={layoutDirection}
+                    onToggleLayoutDirection={toggleLayoutDirection}
+                  />
+                }
               />
               <Route element={<RequireProvider hasProvider={hasProvider} />}>
                 <Route path="/work-queue" element={<WorkQueue allFacilitiesMode={allFacilitiesMode} />} />
@@ -417,6 +581,7 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+      </div>
 
       <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: "var(--z-toast)", display: "flex", flexDirection: "column", gap: "10px", maxWidth: "380px" }}>
         <AnimatePresence>

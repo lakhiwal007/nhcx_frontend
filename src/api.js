@@ -19,6 +19,10 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // in localStorage from a prior session - this flag suppresses it.
 export const ALL_FACILITIES_MODE_KEY = "nhcx_all_facilities_mode";
 
+// Which nav paradigm the shell renders: "A" (dark rail sidebar) or "B" (dark
+// top command-bar + breadcrumb strip). Purely a presentation preference.
+export const LAYOUT_DIRECTION_KEY = "nhcx_layout_direction";
+
 const getProviderHeader = () => {
   if (localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true") return {};
   const code = localStorage.getItem("nhcx_default_provider_id");

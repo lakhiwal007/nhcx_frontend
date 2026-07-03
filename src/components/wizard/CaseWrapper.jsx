@@ -5,7 +5,7 @@ import { api } from "../../api";
 import { Button } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
 import CaseFileHeader from "../case/CaseFileHeader";
-import CaseSpine from "../case/CaseSpine";
+import CaseStepper from "../case/CaseStepper";
 import { buildStages } from "../case/caseStages";
 import "../case/case-workspace.css";
 
@@ -135,8 +135,8 @@ export default function CaseWrapper() {
 
   return (
     <div className="cx-root">
-      <div className="cx-grid">
-        <CaseSpine stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
+      <div className="cx-stack">
+        <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
 
         <section className="cx-stage">
           <CaseFileHeader
