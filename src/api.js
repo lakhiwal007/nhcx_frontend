@@ -14,7 +14,13 @@ const BASE_URL =
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// A polyclinic admin can deliberately enter the read-only cross-facility view
+// by sending no X-Provider-Id at all, even though a facility is still saved
+// in localStorage from a prior session - this flag suppresses it.
+export const ALL_FACILITIES_MODE_KEY = "nhcx_all_facilities_mode";
+
 const getProviderHeader = () => {
+  if (localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true") return {};
   const code = localStorage.getItem("nhcx_default_provider_id");
   return code ? { "X-Provider-Id": code } : {};
 };
@@ -39,15 +45,32 @@ const getAuthHeader = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-// Endpoints the contract exempts from auth (facility admin + health).
-const isAuthExempt = (path) =>
-  /^\/facilities(\/|$)/.test(path) || path === "/health";
+// Deployment admin token, required in addition to the bearer token on the
+// three facility-mutation endpoints (POST /facilities, PUT /facilities/{code},
+// PUT /facilities/{code}/private_key). Admin-only surface — entered once in
+// Settings and kept in localStorage, never the parent-HIS session token.
+export const ADMIN_TOKEN_KEY = "nhcx_admin_token";
+
+const getAdminHeader = () => {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  return token ? { "X-Admin-Token": token } : {};
+};
+
+// Only /health is exempt from auth. /facilities/* used to be exempt too, but
+// v1.4.0 made the bearer token required there as well (facility resolution is
+// just skipped, so first-time onboarding still works without a chosen facility).
+const isAuthExempt = (path) => path === "/health";
+
+// The three facility-mutation endpoints that additionally require X-Admin-Token.
+const isAdminMutation = (path, method) =>
+  /^\/facilities(\/|$)/.test(path) && method !== "GET";
 
 // Compose request headers for a relative wrapper path.
-const buildHeaders = (path) => ({
+const buildHeaders = (path, method = "GET") => ({
   "Content-Type": "application/json",
   ...getProviderHeader(),
   ...(isAuthExempt(path) ? {} : getAuthHeader()),
+  ...(isAdminMutation(path, method) ? getAdminHeader() : {}),
 });
 
 /** RFC-4122 v4 UUID — mandatory request_id for every API call. */
@@ -74,10 +97,16 @@ const dispatchError = (msg) =>
 // message — the raw "WRAPPER-ERROR:1012" means nothing to a billing user.
 const authMessage = (status, raw) => {
   const code = typeof raw === "string" ? raw : "";
-  if (status === 401 || code.includes("WRAPPER-ERROR:1012"))
+  if (code.includes("WRAPPER-ERROR:1012") || status === 401)
     return "Your session has expired. Please sign in again from the hospital system.";
-  if (status === 403 || code.includes("WRAPPER-ERROR:1013"))
+  // Check the specific admin-token code before the generic 403 fallback below,
+  // which would otherwise misreport it as "no facility linked".
+  if (code.includes("WRAPPER-ERROR:1014"))
+    return "Admin token is missing or incorrect. Enter the deployment admin token in Settings to manage facilities.";
+  if (code.includes("WRAPPER-ERROR:1013") || status === 403)
     return "No NHCX facility is linked to your account. Contact your administrator.";
+  if (code.includes("WRAPPER-ERROR:1011"))
+    return "Select a facility to act as before performing this action.";
   return null;
 };
 
@@ -133,7 +162,7 @@ const http = {
     try {
       const res = await fetch(BASE_URL + path, {
         method: "POST",
-        headers: buildHeaders(path),
+        headers: buildHeaders(path, "POST"),
         body: JSON.stringify(merged),
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
@@ -148,7 +177,7 @@ const http = {
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PATCH",
-        headers: buildHeaders(path),
+        headers: buildHeaders(path, "PATCH"),
         body: JSON.stringify(merged),
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
@@ -163,7 +192,7 @@ const http = {
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PUT",
-        headers: buildHeaders(path),
+        headers: buildHeaders(path, "PUT"),
         body: JSON.stringify(merged),
       });
       if (!res.ok) throw new Error(await extractErrorMessage(res));
@@ -1579,6 +1608,19 @@ const mock = {
     };
   },
 
+  // ─── Session ─────────────────────────────────────────────────────────────────
+  getSession: async () => {
+    await delay(300);
+    return {
+      user: { id: 42, name: "Dr Admin", is_admin: true },
+      is_admin: true,
+      facilities: [
+        { facility_code: "HOSP-001", hcx_participant_code: "1000099999@hcx", name: "City General Hospital", environment: "production" },
+        { facility_code: "HOSP-002", hcx_participant_code: "1000088888@hcx", name: "District Paediatric Centre", environment: "sandbox" },
+      ],
+    };
+  },
+
   // ─── Facilities Admin ───────────────────────────────────────────────────────
   listFacilities: async () => {
     await delay(600);
@@ -1780,6 +1822,9 @@ const real = {
     http.patch(`/cashless/communication/${correlation_id}/read`, {}),
 
   requestGatewayStatus: (data) => http.post("/cashless/status/request", data),
+
+  // ─── Session ─────────────────────────────────────────────────────────────────
+  getSession: () => http.get("/session"),
 
   // ─── Facilities Admin ───────────────────────────────────────────────────────
   listFacilities: () => http.get("/facilities"),

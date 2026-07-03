@@ -25,9 +25,10 @@ import {
   ChevronRight,
   AlertCircle,
   Building2,
+  Globe,
 } from "lucide-react";
 import "./App.css";
-import { api } from "./api";
+import { api, ALL_FACILITIES_MODE_KEY } from "./api";
 
 import WorkQueue from "./components/WorkQueue";
 import Dashboard from "./components/Dashboard";
@@ -52,8 +53,11 @@ export default function App() {
   const [apiErrors, setApiErrors] = useState([]);
   const [pendingTaskCount, setPendingTaskCount] = useState(0);
   const [urgentTaskCount, setUrgentTaskCount] = useState(0);
+  const [allFacilitiesMode, setAllFacilitiesMode] = useState(
+    () => localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true",
+  );
   const [hasProvider, setHasProvider] = useState(
-    () => !!localStorage.getItem("nhcx_default_provider_id"),
+    () => !!localStorage.getItem("nhcx_default_provider_id") || localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true",
   );
   const [facilityName, setFacilityName] = useState(
     () => localStorage.getItem("nhcx_default_facility_name") || "",
@@ -61,14 +65,17 @@ export default function App() {
   const [providerId, setProviderId] = useState(
     () => localStorage.getItem("nhcx_default_provider_id") || "",
   );
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [sessionFacilities, setSessionFacilities] = useState(null);
   const taskPollRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     const sync = () => {
-      setHasProvider(!!localStorage.getItem("nhcx_default_provider_id"));
+      setHasProvider(!!localStorage.getItem("nhcx_default_provider_id") || localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true");
       setFacilityName(localStorage.getItem("nhcx_default_facility_name") || "");
       setProviderId(localStorage.getItem("nhcx_default_provider_id") || "");
+      setAllFacilitiesMode(localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true");
     };
     window.addEventListener("provider-changed", sync);
     window.addEventListener("storage", sync);
@@ -76,6 +83,28 @@ export default function App() {
       window.removeEventListener("provider-changed", sync);
       window.removeEventListener("storage", sync);
     };
+  }, []);
+
+  // Session bootstrap: learn the user + which facilities they may act as.
+  // A lone facility auto-selects; a polyclinic admin who hasn't chosen
+  // anything yet is left to pick (or explicitly enter all-facilities view)
+  // in Settings, so nothing here forces a default onto them.
+  useEffect(() => {
+    let cancelled = false;
+    api.getSession().then((res) => {
+      if (cancelled) return;
+      setIsAdmin(!!res?.is_admin);
+      setSessionFacilities(res?.facilities || []);
+      const hasChosen = !!localStorage.getItem("nhcx_default_provider_id");
+      const inAllMode = localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true";
+      if (!hasChosen && !inAllMode && res?.facilities?.length === 1) {
+        const f = res.facilities[0];
+        localStorage.setItem("nhcx_default_provider_id", f.hcx_participant_code);
+        localStorage.setItem("nhcx_default_facility_name", f.name || "");
+        window.dispatchEvent(new Event("provider-changed"));
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   const fetchTaskCounts = async () => {
@@ -154,8 +183,10 @@ export default function App() {
   };
 
   // The facility whose context (X-Provider-Id) every API call is scoped to.
-  // Prefer the saved name; fall back to the participant code.
-  const facilityLabel = facilityName || providerId;
+  // Prefer the saved name; fall back to the participant code. In
+  // all-facilities mode there is no single facility - every read spans all
+  // of them, and no X-Provider-Id is sent at all.
+  const facilityLabel = allFacilitiesMode ? "All Facilities" : facilityName || providerId;
 
   return (
     <div
@@ -197,17 +228,19 @@ export default function App() {
         {hasProvider && (
           <button
             onClick={() => navigate("/settings")}
-            title={`Active facility: ${facilityLabel} - click to switch`}
+            title={allFacilitiesMode ? "Viewing all facilities (read-only) - click to select one" : `Active facility: ${facilityLabel} - click to switch`}
             className="sidebar-facility"
             style={{
               padding: isSidebarCollapsed ? "9px 0" : "9px 11px",
               justifyContent: isSidebarCollapsed ? "center" : "flex-start",
             }}
           >
-            <Building2 size={16} style={{ flexShrink: 0, color: "var(--primary)" }} />
+            {allFacilitiesMode
+              ? <Globe size={16} style={{ flexShrink: 0, color: "var(--info)" }} />
+              : <Building2 size={16} style={{ flexShrink: 0, color: "var(--primary)" }} />}
             {!isSidebarCollapsed && (
               <span className="sidebar-facility-text">
-                <span className="sidebar-facility-label">Active facility</span>
+                <span className="sidebar-facility-label">{allFacilitiesMode ? "Viewing" : "Active facility"}</span>
                 <span className="sidebar-facility-name">{facilityLabel}</span>
               </span>
             )}
@@ -306,18 +339,20 @@ export default function App() {
             {hasProvider && (
               <button
                 onClick={() => navigate("/settings")}
-                title={`Active facility: ${facilityLabel}${facilityName && providerId ? ` · ${providerId}` : ""} - click to switch`}
+                title={allFacilitiesMode ? "Viewing all facilities (read-only) - click to select one" : `Active facility: ${facilityLabel}${facilityName && providerId ? ` · ${providerId}` : ""} - click to switch`}
                 style={{
                   display: "flex", alignItems: "center", gap: "7px",
                   maxWidth: "260px",
                   fontSize: "12px", fontWeight: 600, padding: "5px 12px",
                   borderRadius: "var(--radius-pill)", cursor: "pointer",
-                  background: "var(--primary-light)",
-                  color: "var(--primary)",
-                  border: "1px solid var(--primary-light)",
+                  background: allFacilitiesMode ? "color-mix(in srgb, var(--info) 12%, transparent)" : "var(--primary-light)",
+                  color: allFacilitiesMode ? "var(--info)" : "var(--primary)",
+                  border: allFacilitiesMode ? "1px solid color-mix(in srgb, var(--info) 30%, transparent)" : "1px solid var(--primary-light)",
                 }}
               >
-                <Building2 size={13} style={{ flexShrink: 0 }} />
+                {allFacilitiesMode
+                  ? <Globe size={13} style={{ flexShrink: 0 }} />
+                  : <Building2 size={13} style={{ flexShrink: 0 }} />}
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {facilityLabel}
                 </span>
@@ -366,12 +401,15 @@ export default function App() {
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname.split("/")[1]}>
               <Route path="/" element={<Navigate to="/work-queue" replace />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route
+                path="/settings"
+                element={<SettingsPage isAdmin={isAdmin} sessionFacilities={sessionFacilities} allFacilitiesMode={allFacilitiesMode} />}
+              />
               <Route element={<RequireProvider hasProvider={hasProvider} />}>
-                <Route path="/work-queue" element={<WorkQueue />} />
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/work-queue" element={<WorkQueue allFacilitiesMode={allFacilitiesMode} />} />
+                <Route path="/dashboard" element={<Dashboard allFacilitiesMode={allFacilitiesMode} />} />
                 <Route path="/registry" element={<PatientProfile />} />
-                <Route path="/communications" element={<Communications />} />
+                <Route path="/communications" element={<Communications allFacilitiesMode={allFacilitiesMode} />} />
                 <Route path="/payments" element={<Payments />} />
                 <Route path="/case/:id/*" element={<CaseWrapper />} />
               </Route>

@@ -17,7 +17,7 @@ import {
   Unlock,
   AlertCircle,
 } from "lucide-react";
-import { api } from "../api";
+import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
 import { PageHeader, Button } from "./Common";
 
 const DEFAULT_FACILITY_KEY = "nhcx_default_facility";
@@ -851,12 +851,15 @@ function FacilityCard({
   );
 }
 
-export default function Settings() {
+export default function Settings({ isAdmin = false, sessionFacilities = null, allFacilitiesMode = false }) {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [defaultFacility, setDefaultFacility] = useState(
     () => localStorage.getItem(DEFAULT_FACILITY_KEY) || "",
+  );
+  const [adminToken, setAdminToken] = useState(
+    () => localStorage.getItem(ADMIN_TOKEN_KEY) || "",
   );
 
   const [showFacilityDrawer, setShowFacilityDrawer] = useState(false);
@@ -973,6 +976,32 @@ export default function Settings() {
     window.dispatchEvent(new CustomEvent("provider-changed"));
   };
 
+  // Act as a specific facility from the session's own facility list (the set
+  // this user may actually select, per GET /session - distinct from the
+  // admin-gated GET /facilities management list below).
+  const handleSelectSessionFacility = (facility) => {
+    localStorage.setItem("nhcx_default_provider_id", facility.hcx_participant_code);
+    localStorage.setItem("nhcx_default_facility_name", facility.name || "");
+    localStorage.removeItem(ALL_FACILITIES_MODE_KEY);
+    window.dispatchEvent(new CustomEvent("provider-changed"));
+  };
+
+  // Admin-only: enter the read-only cross-facility view - no X-Provider-Id is
+  // sent, so every read spans all facilities; writes remain blocked until a
+  // single facility is selected again.
+  const handleEnableAllFacilities = () => {
+    localStorage.setItem(ALL_FACILITIES_MODE_KEY, "true");
+    localStorage.removeItem("nhcx_default_provider_id");
+    localStorage.removeItem("nhcx_default_facility_name");
+    window.dispatchEvent(new CustomEvent("provider-changed"));
+  };
+
+  const handleAdminTokenChange = (value) => {
+    setAdminToken(value);
+    if (value) localStorage.setItem(ADMIN_TOKEN_KEY, value);
+    else localStorage.removeItem(ADMIN_TOKEN_KEY);
+  };
+
   const defaultFacilityData = facilities.find(
     (f) => f.facility_code === defaultFacility,
   );
@@ -995,6 +1024,89 @@ export default function Settings() {
           Register Facility
         </Button>
       </div>
+
+      {sessionFacilities && (
+        <div
+          style={{
+            marginBottom: "20px",
+            padding: "16px 20px",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "var(--radius-lg)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "12px" }}>
+            <Building2 size={16} color="var(--primary)" />
+            Active Facility
+          </div>
+
+          {sessionFacilities.length === 0 ? (
+            <div className="inline-error-banner" style={{ margin: 0 }}>
+              <AlertCircle size={16} />
+              No cashless-enabled facility is linked to your account. Contact your administrator.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {sessionFacilities.map((f) => {
+                const isActive = !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
+                return (
+                  <button
+                    key={f.facility_code}
+                    onClick={() => handleSelectSessionFacility(f)}
+                    className={`badge-modern ${isActive ? "badge-success" : "badge-info"}`}
+                    style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px" }}
+                  >
+                    {isActive && <CheckCircle2 size={13} />}
+                    {f.name || f.facility_code}
+                  </button>
+                );
+              })}
+              {isAdmin && (
+                <button
+                  onClick={handleEnableAllFacilities}
+                  className={`badge-modern ${allFacilitiesMode ? "badge-success" : "badge-info"}`}
+                  style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px" }}
+                  title="Read-only view spanning every facility - no single facility is acted as"
+                >
+                  {allFacilitiesMode ? <CheckCircle2 size={13} /> : <Globe size={13} />}
+                  View All Facilities (read-only)
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div
+          style={{
+            marginBottom: "20px",
+            padding: "16px 20px",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "var(--radius-lg)",
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+            <Lock size={16} color="var(--primary)" />
+            Admin Token
+          </div>
+          <input
+            type="password"
+            className="input-modern"
+            style={{ maxWidth: "320px" }}
+            placeholder="Deployment admin token (for facility mutations)"
+            value={adminToken}
+            onChange={(e) => handleAdminTokenChange(e.target.value)}
+          />
+          <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
+            Required to register or edit facilities and upload RSA keys.
+          </span>
+        </div>
+      )}
 
       {loadError && (
         <div className="inline-error-banner">

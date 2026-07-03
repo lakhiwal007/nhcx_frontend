@@ -150,7 +150,7 @@ function SummaryStrip({ tasks }) {
   );
 }
 
-function TaskDrawer({ task, open, onClose, onActionComplete }) {
+function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode }) {
   const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState(null);
   const [completing, setCompleting] = useState(false);
@@ -269,6 +269,14 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
                   >
                     {task.task_type?.replace(/_/g, " ")}
                   </span>
+                  {task.facility_name && (
+                    <span
+                      className="badge-modern"
+                      style={{ fontSize: "10px", background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}
+                    >
+                      {task.facility_name}
+                    </span>
+                  )}
                 </div>
                 <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800 }}>
                   {task.title}
@@ -472,7 +480,8 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
               {!result && task.action && (
                 <Button
                   variant="primary"
-                  disabled={executing}
+                  disabled={executing || allFacilitiesMode}
+                  title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
                   onClick={handleExecute}
                   style={{ flex: 1, justifyContent: "center" }}
                 >
@@ -482,7 +491,8 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
               {result?.success && (
                 <Button
                   variant="primary"
-                  disabled={completing}
+                  disabled={completing || allFacilitiesMode}
+                  title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
                   onClick={handleComplete}
                   style={{ flex: 1, justifyContent: "center" }}
                 >
@@ -500,7 +510,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
   );
 }
 
-export default function WorkQueue() {
+export default function WorkQueue({ allFacilitiesMode = false }) {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -651,6 +661,14 @@ export default function WorkQueue() {
             >
               {task.workflow}
             </span>
+            {task.facility_name && (
+              <span
+                className="badge-modern"
+                style={{ fontSize: "10px", background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}
+              >
+                {task.facility_name}
+              </span>
+            )}
             {age && (
               <span
                 style={{ fontSize: "10px", fontWeight: 700, color: age.color }}
@@ -719,7 +737,8 @@ export default function WorkQueue() {
                   e.stopPropagation();
                   handleRetryAck(task);
                 }}
-                disabled={!!retrying[taskId]}
+                disabled={!!retrying[taskId] || allFacilitiesMode}
+                title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -732,7 +751,7 @@ export default function WorkQueue() {
                   fontSize: "11px",
                   fontWeight: 700,
                   cursor: "pointer",
-                  opacity: retrying[taskId] ? 0.6 : 1,
+                  opacity: (retrying[taskId] || allFacilitiesMode) ? 0.6 : 1,
                 }}
               >
                 <RotateCcw size={11} />
@@ -948,6 +967,7 @@ export default function WorkQueue() {
           fetchTasks();
           setSelectedTask(null);
         }}
+        allFacilitiesMode={allFacilitiesMode}
       />
     </div>
   );

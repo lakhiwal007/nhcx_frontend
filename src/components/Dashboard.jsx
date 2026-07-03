@@ -37,7 +37,7 @@ function contextualAction(claim) {
   return { label: "Open Case", route: "" };
 }
 
-export default function Dashboard() {
+export default function Dashboard({ allFacilitiesMode = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
@@ -99,10 +99,22 @@ export default function Dashboard() {
     <div className="dashboard-screen">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
         <PageHeader title="Cashless Cases" subtitle="Overview of all active and past claims" />
-        <Button variant="primary" onClick={() => navigate("/registry")}>
+        <Button
+          variant="primary"
+          disabled={allFacilitiesMode}
+          title={allFacilitiesMode ? "Select a facility in Settings to start a new case" : undefined}
+          onClick={() => navigate("/registry")}
+        >
           New Cashless Case
         </Button>
       </div>
+
+      {allFacilitiesMode && (
+        <div className="inline-error-banner" style={{ background: "color-mix(in srgb, var(--info) 10%, var(--bg-card))", borderColor: "color-mix(in srgb, var(--info) 30%, transparent)", color: "var(--info)" }}>
+          <AlertCircle size={16} />
+          Viewing all facilities (read-only). Select a facility in Settings to start or act on a case.
+        </div>
+      )}
 
       {loading ? (
         <>
@@ -125,7 +137,7 @@ export default function Dashboard() {
               <div style={{ marginBottom: 20 }}>
                 <span className="skeleton-line" style={{ width: 220, height: 36, borderRadius: "var(--radius-md)" }} />
               </div>
-              <SkeletonTable rows={6} cols={10} />
+              <SkeletonTable rows={6} cols={allFacilitiesMode ? 11 : 10} />
             </div>
           </div>
         </>
@@ -182,6 +194,37 @@ export default function Dashboard() {
             </motion.div>
           )}
 
+          {allFacilitiesMode && stats?.by_facility?.length > 0 && (
+            <Card title="By Facility" className="mb-6">
+              <div className="table-responsive-wrapper">
+                <table className="table-modern">
+                  <thead>
+                    <tr>
+                      <th>Facility</th>
+                      <th style={{ textAlign: "right" }}>Total</th>
+                      <th style={{ textAlign: "right" }}>Pending</th>
+                      <th style={{ textAlign: "right" }}>Partial</th>
+                      <th style={{ textAlign: "right" }}>Complete</th>
+                      <th style={{ textAlign: "right" }}>Failed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.by_facility.map((row) => (
+                      <tr key={row.facility_name || row.facility_code}>
+                        <td style={{ fontWeight: 600 }}>{row.facility_name || row.facility_code}</td>
+                        <td className="mono-cell" style={{ textAlign: "right" }}>{row.total ?? 0}</td>
+                        <td className="mono-cell" style={{ textAlign: "right" }}>{row.pending ?? 0}</td>
+                        <td className="mono-cell" style={{ textAlign: "right" }}>{row.partial ?? 0}</td>
+                        <td className="mono-cell" style={{ textAlign: "right", color: "var(--success)" }}>{row.complete ?? 0}</td>
+                        <td className="mono-cell" style={{ textAlign: "right", color: "var(--error)" }}>{row.failed ?? 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
           <Card title="Recent Claims">
             <div style={{ display: "flex", gap: "12px", marginBottom: "20px", alignItems: "center" }}>
               <div style={{ flex: 1, maxWidth: "360px" }}>
@@ -208,6 +251,7 @@ export default function Dashboard() {
                   <tr>
                     <th>Claim ID</th>
                     <th>Patient</th>
+                    {allFacilitiesMode && <th>Facility</th>}
                     <th>Use Type</th>
                     <th>Status</th>
                     <th>Decision</th>
@@ -225,6 +269,9 @@ export default function Dashboard() {
                       <tr key={claim.id}>
                         <td className="mono-cell" style={{ fontWeight: 700 }}>#{claim.id}</td>
                         <td style={{ fontWeight: 600 }}>{claim.patient_name || claim.child_name}</td>
+                        {allFacilitiesMode && (
+                          <td style={{ fontSize: "12px", color: "var(--text-muted)" }}>{claim.facility_name || "-"}</td>
+                        )}
                         <td>
                           <span className="badge-modern badge-info" style={{ textTransform: "capitalize" }}>
                             {claim.use_type}
@@ -270,7 +317,7 @@ export default function Dashboard() {
                   })}
                   {filteredClaims.length === 0 && (
                     <tr>
-                      <td colSpan="10">
+                      <td colSpan={allFacilitiesMode ? 11 : 10}>
                         <div className="dx-empty-cell">
                           <Inbox size={28} />
                           <div className="dx-empty-heading">No claims match your filters</div>

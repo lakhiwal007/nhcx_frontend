@@ -48,7 +48,7 @@ function DetailField({ label, value }) {
   );
 }
 
-function CommunicationDetailDrawer({ correlationId, open, onClose, onRead }) {
+function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFacilitiesMode }) {
   const navigate = useNavigate();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -220,7 +220,13 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead }) {
                         Submit the documents listed above to the payer to unblock this claim. Once submitted, mark this communication as reviewed to close it from your queue.
                       </div>
                       {!executeResult ? (
-                        <Button variant="primary" disabled={executing} onClick={handleExecuteAction} style={{ justifyContent: "center" }}>
+                        <Button
+                          variant="primary"
+                          disabled={executing || allFacilitiesMode}
+                          title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
+                          onClick={handleExecuteAction}
+                          style={{ justifyContent: "center" }}
+                        >
                           {executing ? "Submitting…" : taskAction.label}
                         </Button>
                       ) : (
@@ -251,10 +257,16 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead }) {
               {taskId && (
                 <Button
                   variant="primary"
-                  disabled={completing || (isAdditionalInfo && !executeResult?.success)}
+                  disabled={completing || allFacilitiesMode || (isAdditionalInfo && !executeResult?.success)}
                   onClick={handleMarkReviewed}
                   style={{ flex: 1, justifyContent: "center" }}
-                  title={isAdditionalInfo && !executeResult?.success ? "Submit the required documents first" : undefined}
+                  title={
+                    allFacilitiesMode
+                      ? "Select a facility in Settings to act on this task"
+                      : isAdditionalInfo && !executeResult?.success
+                        ? "Submit the required documents first"
+                        : undefined
+                  }
                 >
                   {completing ? "Completing…" : "Mark as Reviewed ✓"}
                 </Button>
@@ -271,7 +283,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead }) {
   );
 }
 
-export default function Communications() {
+export default function Communications({ allFacilitiesMode = false }) {
   const [communications, setCommunications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -391,6 +403,7 @@ export default function Communications() {
                     </div>
 
                     <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "12px", color: "var(--text-muted)" }}>
+                      {comm.facility_name && <span><strong style={{ color: "var(--text-main)" }}>Facility:</strong> {comm.facility_name}</span>}
                       <span><strong style={{ color: "var(--text-main)" }}>Payer:</strong> {comm.payer_code}</span>
                       {comm.claim_reference && <span><strong style={{ color: "var(--text-main)" }}>Claim:</strong> {comm.claim_reference}</span>}
                       {comm.subject && <span>{comm.subject}</span>}
@@ -424,6 +437,7 @@ export default function Communications() {
         open={!!selectedCorrelationId}
         onClose={() => setSelectedCorrelationId(null)}
         onRead={handleRead}
+        allFacilitiesMode={allFacilitiesMode}
       />
     </div>
   );
