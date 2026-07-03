@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, MessageSquare, AlertTriangle, X, CheckCircle2,
-  Paperclip, FileText, Clock, ExternalLink, Circle,
+  Paperclip, FileText, Clock, ExternalLink, Circle, AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
 import { resolveActionUrl } from "../api/actionMap";
@@ -17,11 +17,11 @@ const PRIORITY_CONFIG = {
 };
 
 const REASON_CONFIG = {
-  tatquery:      { badge: "badge-warning", label: "TAT Dispute",      hint: "Time-sensitive — payer is disputing turnaround. Open the referenced claim and respond fast.", borderColor: "var(--warning)" },
+  tatquery:      { badge: "badge-warning", label: "TAT Dispute",      hint: "Time-sensitive - payer is disputing turnaround. Open the referenced claim and respond fast.", borderColor: "var(--warning)" },
   additionalinfo:{ badge: "badge-error",   label: "Additional Info",  hint: "The payer needs more documents before they can proceed with this claim. Submit the requested documents below to unblock it.", borderColor: "var(--error)" },
   grievance:     { badge: "badge-error",   label: "Grievance",        hint: "Needs a human owner. Resolve outside NHCX, then mark this task complete.", borderColor: "var(--error)" },
   policychange:  { badge: "badge-warning", label: "Policy Change",    hint: "Re-fetch policies for this patient before the next workflow action.", borderColor: "var(--warning)" },
-  walletupdate:  { badge: "badge-info",    label: "Wallet Update",    hint: "Informational — refresh the case eligibility / benefit view.", borderColor: "var(--info)" },
+  walletupdate:  { badge: "badge-info",    label: "Wallet Update",    hint: "Informational - refresh the case eligibility / benefit view.", borderColor: "var(--info)" },
 };
 
 const REFERENCE_KEYS = new Set(["claimNumber", "claimId", "claimnumber", "claimid"]);
@@ -34,7 +34,7 @@ function parseDocumentsFromTaskInputs(taskInputs) {
 }
 
 function priorityBadge(priority) {
-  const cfg = PRIORITY_CONFIG[priority?.toLowerCase()] ?? { badge: "badge-info", label: priority?.toUpperCase() ?? "—" };
+  const cfg = PRIORITY_CONFIG[priority?.toLowerCase()] ?? { badge: "badge-info", label: priority?.toUpperCase() ?? "-" };
   return <span className={`badge-modern ${cfg.badge}`}>{cfg.label}</span>;
 }
 
@@ -274,16 +274,19 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead }) {
 export default function Communications() {
   const [communications, setCommunications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [payerFilter, setPayerFilter] = useState("");
   const [selectedCorrelationId, setSelectedCorrelationId] = useState(null);
 
   const fetchComms = async (params = {}) => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await api.listCommunications(params);
       setCommunications(res?.communications || []);
     } catch (_) {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -319,17 +322,24 @@ export default function Communications() {
         <PageHeader title="Payer Communications" subtitle="Review payer-initiated messages, queries, and notices." />
         <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
           {unreadCount > 0 && (
-            <span style={{ padding: "6px 14px", background: "rgba(59,130,246,0.1)", color: "var(--info)", border: "1px solid var(--info)", borderRadius: "20px", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}>
+            <span style={{ padding: "6px 14px", background: "color-mix(in srgb, var(--info) 12%, transparent)", color: "var(--info)", border: "1px solid var(--info)", borderRadius: "var(--radius-pill)", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}>
               {unreadCount} unread
             </span>
           )}
           {actionNeededCount > 0 && (
-            <span style={{ padding: "6px 14px", background: "rgba(239,68,68,0.1)", color: "var(--error)", border: "1px solid var(--error)", borderRadius: "20px", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}>
+            <span style={{ padding: "6px 14px", background: "color-mix(in srgb, var(--error) 12%, transparent)", color: "var(--error)", border: "1px solid var(--error)", borderRadius: "var(--radius-pill)", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}>
               {actionNeededCount} need action
             </span>
           )}
         </div>
       </div>
+
+      {loadError && (
+        <div className="inline-error-banner">
+          <AlertCircle size={16} />
+          Could not load communications. Showing the last known results, if any.
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 280px" }}>
@@ -364,7 +374,7 @@ export default function Communications() {
               <Card key={comm.correlation_id}>
                 <div style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
                   <div style={{ position: "relative", flexShrink: 0 }}>
-                    <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: hasAction ? "rgba(239,68,68,0.1)" : isUnread ? "rgba(59,130,246,0.1)" : "var(--primary-light)", color: hasAction ? "var(--error)" : isUnread ? "var(--info)" : "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ width: "42px", height: "42px", borderRadius: "var(--radius-md)", background: hasAction ? "color-mix(in srgb, var(--error) 12%, transparent)" : isUnread ? "color-mix(in srgb, var(--info) 12%, transparent)" : "var(--primary-light)", color: hasAction ? "var(--error)" : isUnread ? "var(--info)" : "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <MessageSquare size={20} />
                     </div>
                     {isUnread && (

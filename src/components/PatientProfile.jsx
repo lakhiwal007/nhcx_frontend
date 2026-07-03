@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, User, Calendar, Phone, ChevronDown, ChevronRight, ChevronLeft,
-  BadgeIndianRupee, Plus, ArrowLeft, Activity,
+  BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
 import { PageHeader, Card, StatusBadge, Button, Input } from "./Common";
@@ -67,7 +67,7 @@ function PatientCard({ child, onClick, isSelected }) {
       style={{
         padding: "14px 16px",
         border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border-color)"}`,
-        borderRadius: "12px",
+        borderRadius: "var(--radius-md)",
         background: isSelected ? "var(--primary-light)" : "var(--bg-card)",
         cursor: "pointer",
         transition: "all 0.15s",
@@ -110,7 +110,7 @@ function PatientCard({ child, onClick, isSelected }) {
       {child.cashless_cases_count > 0 && (
         <div style={{
           background: "var(--primary-light)", color: "var(--primary)",
-          borderRadius: "20px", padding: "2px 8px", fontSize: "11px", fontWeight: 700, flexShrink: 0,
+          borderRadius: "var(--radius-pill)", padding: "2px 8px", fontSize: "11px", fontWeight: 700, flexShrink: 0,
         }}>
           {child.cashless_cases_count} case{child.cashless_cases_count !== 1 ? "s" : ""}
         </div>
@@ -226,7 +226,7 @@ function PatientDetail({ patient, onBack }) {
     >
       <div className="patient-detail-header" style={{
         background: "var(--bg-card)", border: "1px solid var(--border-color)",
-        borderRadius: "16px", padding: "20px 24px",
+        borderRadius: "var(--radius-lg)", padding: "20px 24px",
         display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -282,7 +282,7 @@ function PatientDetail({ patient, onBack }) {
 
       {patient.latest_claim && (
         <div style={{
-          padding: "12px 16px", borderRadius: "10px",
+          padding: "12px 16px", borderRadius: "var(--radius-md)",
           background: "rgba(79,70,229,0.05)", border: "1px solid var(--primary-light)",
           display: "flex", gap: "20px", flexWrap: "wrap", fontSize: "13px",
         }}>
@@ -315,7 +315,7 @@ function PatientDetail({ patient, onBack }) {
               <div className="text-muted text-sm" style={{ padding: "20px 0", textAlign: "center" }}>No visits on record.</div>
             ) : (
               patient.visits.map((visit, vi) => (
-                <div key={vi} style={{ marginBottom: "12px", border: "1px solid var(--border-color)", borderRadius: "12px", overflow: "hidden" }}>
+                <div key={vi} style={{ marginBottom: "12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
                   <div
                     onClick={() => setExpandedVisit(expandedVisit === vi ? null : vi)}
                     style={{ padding: "14px 16px", background: "var(--bg-main)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
@@ -337,11 +337,11 @@ function PatientDetail({ patient, onBack }) {
                           <div className="grid-2-col" style={{ gap: "16px", marginBottom: "16px", fontSize: "13px" }}>
                             <div>
                               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>Diagnosis</div>
-                              <div>{visit.diagnosis || "—"}</div>
+                              <div>{visit.diagnosis || "-"}</div>
                             </div>
                             <div>
                               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>Primary Doctor</div>
-                              <div style={{ fontWeight: 600 }}>{visit.primary_doctor?.name || "—"}</div>
+                              <div style={{ fontWeight: 600 }}>{visit.primary_doctor?.name || "-"}</div>
                               {visit.primary_doctor?.registration_no && (
                                 <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Reg: {visit.primary_doctor.registration_no}</div>
                               )}
@@ -367,7 +367,7 @@ function PatientDetail({ patient, onBack }) {
                             <div style={{ marginBottom: "16px" }}>
                               <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "8px", color: "var(--text-muted)", textTransform: "uppercase" }}>Invoices</div>
                               {visit.invoices.map((inv, ii) => (
-                                <div key={ii} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "8px", border: "1px solid var(--border-color)", marginBottom: "8px", fontSize: "13px" }}>
+                                <div key={ii} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", marginBottom: "8px", fontSize: "13px" }}>
                                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                                     <strong>{inv.invoice_no}</strong>
                                     <StatusBadge status={inv.billing_status} />
@@ -388,7 +388,7 @@ function PatientDetail({ patient, onBack }) {
                                 <BadgeIndianRupee size={13} /> Claims
                               </div>
                               {visit.claims.map((claim, ci) => (
-                                <div key={ci} style={{ background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "10px 12px", marginBottom: "8px" }}>
+                                <div key={ci} style={{ background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", padding: "10px 12px", marginBottom: "8px" }}>
                                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
                                     <div>
                                       <div style={{ fontWeight: 700, fontSize: "13px" }}>
@@ -452,7 +452,7 @@ function PatientDetail({ patient, onBack }) {
                     key={task.id ?? task.task_id}
                     style={{
                       borderLeft: `3px solid ${task.priority === "urgent" ? "var(--error)" : task.priority === "high" ? "var(--warning)" : "var(--primary)"}`,
-                      padding: "10px 12px", background: "var(--bg-main)", borderRadius: "8px",
+                      padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)",
                       border: "1px solid var(--border-color)", borderLeftWidth: "3px",
                     }}
                   >
@@ -477,7 +477,7 @@ function PatientDetail({ patient, onBack }) {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {communications.map((comm) => (
-                  <div key={comm.correlation_id} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "8px", border: "1px solid var(--border-color)", fontSize: "13px" }}>
+                  <div key={comm.correlation_id} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", fontSize: "13px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                       <span style={{ fontWeight: 600 }}>{comm.topic_display}</span>
                       <span className={`badge-modern badge-${comm.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>{comm.priority}</span>
@@ -502,12 +502,14 @@ export default function PatientProfile() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
 
   const loadChildren = useCallback(async (query = "", pageNum = 1) => {
     setLoading(true);
+    setLoadError(false);
     try {
       const params = { limit: PAGE_SIZE, offset: (pageNum - 1) * PAGE_SIZE };
       if (query.trim()) {
@@ -523,6 +525,7 @@ export default function PatientProfile() {
       setChildren(res?.children || []);
       setTotalCount(res?.total_count || 0);
     } catch (_) {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -565,6 +568,13 @@ export default function PatientProfile() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <PageHeader title="Child Registry" subtitle="Search or browse patients to view their profile or start a cashless case." />
       </div>
+
+      {loadError && (
+        <div className="inline-error-banner">
+          <AlertCircle size={16} />
+          Could not load patients. Showing the last known results, if any.
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: "12px", maxWidth: "560px" }}>
         <div style={{ flex: 1 }}>
@@ -628,7 +638,7 @@ export default function PatientProfile() {
                       disabled={page === 1}
                       style={{
                         display: "flex", alignItems: "center", gap: "4px",
-                        padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+                        padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
                         border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
                         color: page === 1 ? "var(--text-muted)" : "var(--text-main)",
                         cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.5 : 1,
@@ -644,7 +654,7 @@ export default function PatientProfile() {
                       disabled={page === totalPages}
                       style={{
                         display: "flex", alignItems: "center", gap: "4px",
-                        padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+                        padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
                         border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
                         color: page === totalPages ? "var(--text-muted)" : "var(--text-main)",
                         cursor: page === totalPages ? "not-allowed" : "pointer", opacity: page === totalPages ? 0.5 : 1,
@@ -672,7 +682,7 @@ export default function PatientProfile() {
                     disabled={page === 1}
                     style={{
                       display: "flex", alignItems: "center", gap: "4px",
-                      padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+                      padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
                       border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
                       color: page === 1 ? "var(--text-muted)" : "var(--text-main)",
                       cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.5 : 1,
@@ -688,7 +698,7 @@ export default function PatientProfile() {
                     disabled={page === totalPages}
                     style={{
                       display: "flex", alignItems: "center", gap: "4px",
-                      padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+                      padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
                       border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
                       color: page === totalPages ? "var(--text-muted)" : "var(--text-main)",
                       cursor: page === totalPages ? "not-allowed" : "pointer", opacity: page === totalPages ? 0.5 : 1,

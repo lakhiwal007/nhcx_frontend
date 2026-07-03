@@ -2368,7 +2368,7 @@ code {
     font-weight: var(--fw-semibold);
 }
 
-.dashboard-screen .dx-mono-cell {
+.mono-cell {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
 }
@@ -2400,7 +2400,9 @@ code {
     text-align: center;
 }
 
-.dashboard-screen .dx-error-banner {
+/* Shared inline error banner — used on any screen whose data fetch fails
+   (Dashboard, Payments, Communications, Registry, Work Queue). */
+.inline-error-banner {
     display: flex;
     align-items: center;
     gap: var(--space-2);

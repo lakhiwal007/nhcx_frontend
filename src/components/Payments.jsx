@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, CreditCard, CheckCircle } from "lucide-react";
+import { Search, CreditCard, CheckCircle, AlertCircle } from "lucide-react";
 import { PageHeader, Card, StatusBadge, Input, SkeletonTable } from "./Common";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
@@ -8,16 +8,19 @@ export default function Payments() {
   const navigate = useNavigate();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const fetchPayments = async () => {
       setLoading(true);
+      setLoadError(false);
       try {
         const response = await api.searchPaymentStatus();
         setPayments(response?.events || []);
       } catch (err) {
         console.error(err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -37,6 +40,13 @@ export default function Payments() {
         title="Payment Reconciliation"
         subtitle="Track payment settlements, UTRs, and TDS deductions from payers."
       />
+
+      {loadError && (
+        <div className="inline-error-banner">
+          <AlertCircle size={16} />
+          Could not load payment events. Showing the last known results, if any.
+        </div>
+      )}
 
       <Card className="mb-6">
         <div style={{ maxWidth: "400px" }}>
@@ -83,7 +93,7 @@ export default function Payments() {
               <tbody>
                 {filtered.map((pay, i) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 700 }}>{pay.payment_reference}</td>
+                    <td className="mono-cell" style={{ fontWeight: 700 }}>{pay.payment_reference}</td>
                     <td>
                       <a
                         href="#"
@@ -96,24 +106,24 @@ export default function Payments() {
                         {pay.claim_reference}
                       </a>
                     </td>
-                    <td>{pay.payment_date}</td>
+                    <td className="mono-cell">{pay.payment_date}</td>
                     <td>
                       <StatusBadge
                         status={pay.payment_stage?.replace("PAYMENT_", "")}
                       />
                     </td>
-                    <td>₹{pay.gross_amount?.toLocaleString()}</td>
-                    <td style={{ color: "var(--error)" }}>
+                    <td className="mono-cell">₹{pay.gross_amount?.toLocaleString()}</td>
+                    <td className="mono-cell" style={{ color: "var(--error)" }}>
                       -₹{pay.tds_amount?.toLocaleString()}
                     </td>
-                    <td style={{ fontWeight: 800, color: "var(--success)" }}>
+                    <td className="mono-cell" style={{ fontWeight: 800, color: "var(--success)" }}>
                       ₹{pay.net_payment_amount?.toLocaleString()}
                     </td>
                     <td>
                       {pay.utr ? (
                         <code>{pay.utr}</code>
                       ) : (
-                        <span className="text-muted">—</span>
+                        <span className="text-muted">-</span>
                       )}
                     </td>
                     <td>
@@ -148,13 +158,13 @@ export default function Payments() {
                     <td colSpan={4} style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
                       {filtered.length} payments
                     </td>
-                    <td style={{ fontWeight: 700 }}>
+                    <td className="mono-cell" style={{ fontWeight: 700 }}>
                       ₹{filtered.reduce((s, p) => s + (p.gross_amount ?? 0), 0).toLocaleString()}
                     </td>
-                    <td style={{ color: "var(--error)", fontWeight: 700 }}>
+                    <td className="mono-cell" style={{ color: "var(--error)", fontWeight: 700 }}>
                       -₹{filtered.reduce((s, p) => s + (p.tds_amount ?? 0), 0).toLocaleString()}
                     </td>
-                    <td style={{ color: "var(--success)", fontWeight: 800 }}>
+                    <td className="mono-cell" style={{ color: "var(--success)", fontWeight: 800 }}>
                       ₹{filtered.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0).toLocaleString()}
                     </td>
                     <td colSpan={2} />

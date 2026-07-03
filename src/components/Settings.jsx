@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Lock,
   Unlock,
+  AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
 import { PageHeader, Button } from "./Common";
@@ -149,7 +150,7 @@ function MultiCheckbox({ options, value = [], onChange }) {
             gap: "6px",
             padding: "5px 10px",
             border: `1px solid ${value.includes(o.value) ? "var(--primary)" : "var(--border-color)"}`,
-            borderRadius: "8px",
+            borderRadius: "var(--radius-sm)",
             cursor: "pointer",
             fontSize: "12px",
             fontWeight: 600,
@@ -485,7 +486,7 @@ function FacilityForm({ form, onChange, isEdit }) {
 
       <FormField
         label="Signing Certificate Path (URL)"
-        hint="Forwarded to ABDM at registration — not stored locally"
+        hint="Forwarded to ABDM at registration - not stored locally"
       >
         <TextInput
           value={form.signing_cert_path}
@@ -556,7 +557,7 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
     <Drawer
       open={open}
       onClose={onClose}
-      title={`Upload RSA Key — ${facility?.facility_code}`}
+      title={`Upload RSA Key - ${facility?.facility_code}`}
       subtitle="The key is used to decrypt inbound NHCX callbacks. It is stored securely and never returned by the API."
       footer={
         <>
@@ -603,7 +604,7 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
             padding: "10px 14px",
             background: "rgba(239,68,68,0.06)",
             border: "1px solid var(--error)",
-            borderRadius: "8px",
+            borderRadius: "var(--radius-sm)",
             fontSize: "13px",
             color: "var(--error)",
           }}
@@ -633,7 +634,7 @@ function FacilityCard({
       style={{
         background: "var(--bg-card)",
         border: `1.5px solid ${isDefault ? "var(--primary)" : "var(--border-color)"}`,
-        borderRadius: "16px",
+        borderRadius: "var(--radius-lg)",
         padding: "20px 24px",
         boxShadow: isDefault
           ? "0 0 0 3px rgba(79,70,229,0.1)"
@@ -666,7 +667,7 @@ function FacilityCard({
                 color: "var(--primary)",
                 background: "var(--primary-light)",
                 padding: "2px 8px",
-                borderRadius: "6px",
+                borderRadius: "var(--radius-xs)",
               }}
             >
               {facility.facility_code}
@@ -853,6 +854,7 @@ function FacilityCard({
 export default function Settings() {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [defaultFacility, setDefaultFacility] = useState(
     () => localStorage.getItem(DEFAULT_FACILITY_KEY) || "",
   );
@@ -867,11 +869,12 @@ export default function Settings() {
 
   const loadFacilities = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await api.listFacilities();
       const loadedFacilities = res?.facilities || [];
       setFacilities(loadedFacilities);
-      
+
       // Auto-sync the provider_id for the current default facility
       const currentDefault = localStorage.getItem(DEFAULT_FACILITY_KEY);
       if (currentDefault) {
@@ -882,6 +885,7 @@ export default function Settings() {
         }
       }
     } catch (_) {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -992,6 +996,13 @@ export default function Settings() {
         </Button>
       </div>
 
+      {loadError && (
+        <div className="inline-error-banner">
+          <AlertCircle size={16} />
+          Could not load facilities. Showing the last known results, if any.
+        </div>
+      )}
+
       {facilities.length > 0 && (
         <div
           style={{
@@ -999,7 +1010,7 @@ export default function Settings() {
             padding: "16px 20px",
             background: "var(--bg-card)",
             border: "1px solid var(--border-color)",
-            borderRadius: "14px",
+            borderRadius: "var(--radius-lg)",
             display: "flex",
             alignItems: "center",
             gap: "16px",
@@ -1025,10 +1036,10 @@ export default function Settings() {
             value={defaultFacility}
             onChange={(e) => handleSetDefault(e.target.value)}
           >
-            <option value="">— Select default facility —</option>
+            <option value="">- Select default facility -</option>
             {facilities.map((f) => (
               <option key={f.facility_code} value={f.facility_code}>
-                {f.facility_code} — {f.name} ({f.environment})
+                {f.facility_code} - {f.name} ({f.environment})
               </option>
             ))}
           </select>
@@ -1119,7 +1130,7 @@ export default function Settings() {
         onClose={() => setShowFacilityDrawer(false)}
         title={
           editingFacility
-            ? `Edit — ${editingFacility.facility_code}`
+            ? `Edit - ${editingFacility.facility_code}`
             : "Register New Facility"
         }
         subtitle={

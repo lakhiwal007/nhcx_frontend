@@ -9,6 +9,7 @@ import {
   ChevronRight,
   RefreshCw,
   RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
 import { resolveActionUrl } from "../api/actionMap";
@@ -97,7 +98,7 @@ function SummaryStrip({ tasks }) {
         padding: "12px 16px",
         background: "var(--bg-card)",
         border: "1px solid var(--border-color)",
-        borderRadius: "10px",
+        borderRadius: "var(--radius-md)",
         marginBottom: "20px",
         flexWrap: "wrap",
         fontSize: "13px",
@@ -315,7 +316,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
                     padding: "12px 16px",
                     background: "rgba(59,130,246,0.06)",
                     border: "1px solid var(--info)",
-                    borderRadius: "10px",
+                    borderRadius: "var(--radius-md)",
                     fontSize: "13px",
                   }}
                 >
@@ -380,7 +381,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
                 style={{
                   padding: "12px 16px",
                   background: "var(--bg-main)",
-                  borderRadius: "10px",
+                  borderRadius: "var(--radius-md)",
                   border: "1px solid var(--border-color)",
                   fontSize: "12px",
                 }}
@@ -406,11 +407,11 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
                     <span style={{ color: "var(--text-muted)" }}>
                       Claim ID:
                     </span>{" "}
-                    {task.claim_id || "—"}
+                    {task.claim_id || "-"}
                   </div>
                   <div>
                     <span style={{ color: "var(--text-muted)" }}>Case ID:</span>{" "}
-                    {task.cashless_case_id || "—"}
+                    {task.cashless_case_id || "-"}
                   </div>
                   <div>
                     <span style={{ color: "var(--text-muted)" }}>Task ID:</span>{" "}
@@ -420,7 +421,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
                     <span style={{ color: "var(--text-muted)" }}>Created:</span>{" "}
                     {task.created_at
                       ? new Date(task.created_at).toLocaleString()
-                      : "—"}
+                      : "-"}
                   </div>
                 </div>
               </div>
@@ -433,7 +434,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete }) {
                       ? "rgba(16,185,129,0.08)"
                       : "rgba(239,68,68,0.08)",
                     border: `1px solid ${result.success ? "var(--success)" : "var(--error)"}`,
-                    borderRadius: "10px",
+                    borderRadius: "var(--radius-md)",
                     fontSize: "13px",
                   }}
                 >
@@ -503,6 +504,7 @@ export default function WorkQueue() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("pending");
   const [workflowFilter, setWorkflowFilter] = useState("");
@@ -521,8 +523,10 @@ export default function WorkQueue() {
       if (caseIdFilter) params.cashless_case_id = caseIdFilter;
       const response = await api.listTasks(params);
       setTasks(response?.tasks || []);
+      setLoadError(false);
     } catch (e) {
       console.log("error", e);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -708,7 +712,7 @@ export default function WorkQueue() {
                   color: "var(--error)",
                 }}
               >
-                Payment acknowledgement failed — retry required
+                Payment acknowledgement failed - retry required
               </span>
               <button
                 onClick={(e) => {
@@ -724,7 +728,7 @@ export default function WorkQueue() {
                   background: "var(--error)",
                   color: "white",
                   border: "none",
-                  borderRadius: "6px",
+                  borderRadius: "var(--radius-xs)",
                   fontSize: "11px",
                   fontWeight: 700,
                   cursor: "pointer",
@@ -808,6 +812,13 @@ export default function WorkQueue() {
         </Button>
       </div>
 
+      {loadError && (
+        <div className="inline-error-banner">
+          <AlertCircle size={16} />
+          Could not refresh the task list. Showing the last known results, if any.
+        </div>
+      )}
+
       {statusFilter === "pending" && <SummaryStrip tasks={filteredTasks} />}
 
       <div
@@ -833,7 +844,7 @@ export default function WorkQueue() {
               onClick={() => setStatusFilter(s)}
               style={{
                 padding: "8px 16px",
-                borderRadius: "20px",
+                borderRadius: "var(--radius-pill)",
                 border: `1px solid ${statusFilter === s ? "var(--primary)" : "var(--border-color)"}`,
                 background:
                   statusFilter === s ? "var(--primary)" : "transparent",

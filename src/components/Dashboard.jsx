@@ -132,7 +132,7 @@ export default function Dashboard() {
       ) : (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           {loadError && (
-            <div className="dx-error-banner">
+            <div className="inline-error-banner">
               <AlertCircle size={16} />
               Could not load the latest dashboard data. Showing the last known results, if any.
             </div>
@@ -223,7 +223,7 @@ export default function Dashboard() {
                     const { label, route } = contextualAction(claim);
                     return (
                       <tr key={claim.id}>
-                        <td className="dx-mono-cell" style={{ fontWeight: 700 }}>#{claim.id}</td>
+                        <td className="mono-cell" style={{ fontWeight: 700 }}>#{claim.id}</td>
                         <td style={{ fontWeight: 600 }}>{claim.patient_name || claim.child_name}</td>
                         <td>
                           <span className="badge-modern badge-info" style={{ textTransform: "capitalize" }}>
@@ -236,7 +236,7 @@ export default function Dashboard() {
                             ? <StatusBadge status={claim.claim_decision} />
                             : <span className="text-muted">-</span>}
                         </td>
-                        <td className="dx-mono-cell" style={{ textAlign: "right", fontWeight: 700, color: "var(--success)" }}>
+                        <td className="mono-cell" style={{ textAlign: "right", fontWeight: 700, color: "var(--success)" }}>
                           {claim.approved_amount != null
                             ? `₹${claim.approved_amount.toLocaleString()}`
                             : <span className="text-muted">-</span>}
@@ -251,7 +251,7 @@ export default function Dashboard() {
                             ? <code style={{ fontSize: "11px" }}>{claim.latest_utr}</code>
                             : <span className="text-muted">-</span>}
                         </td>
-                        <td className="dx-mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                        <td className="mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                           {new Date(claim.created_at).toLocaleDateString()}
                         </td>
                         <td>
