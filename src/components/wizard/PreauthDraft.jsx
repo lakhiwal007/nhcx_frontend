@@ -58,7 +58,7 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
   };
 
   return (
-    <div style={{ border: "1px solid var(--error)", borderRadius: "12px", overflow: "hidden", marginBottom: "16px" }}>
+    <div style={{ border: "1px solid var(--error)", borderRadius: "var(--radius-md)", overflow: "hidden", marginBottom: "16px" }}>
       <div
         onClick={() => setOpen((p) => !p)}
         style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(239,68,68,0.06)", cursor: "pointer" }}
@@ -246,7 +246,7 @@ export default function PreauthDraft({ ctx }) {
   return (
     <div className="wizard-step">
       {hisBlockers.length > 0 && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
           <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
           <div>
             <strong style={{ color: "var(--error)" }}>Clinical / billing data is incomplete.</strong>
@@ -272,9 +272,9 @@ export default function PreauthDraft({ ctx }) {
       )}
 
       {draft?.eligibility && draft.eligibility.status !== "complete" && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
           <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
-          <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete — the preauth draft was built from available eligibility data.</span>
+          <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete - the preauth draft was built from available eligibility data.</span>
         </div>
       )}
 
@@ -298,15 +298,15 @@ export default function PreauthDraft({ ctx }) {
             <div style={{ display: "flex", gap: "24px", fontSize: "13px" }}>
               <div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Admission</div>
-                <div style={{ fontWeight: 600 }}>{draft?.admission_date || "—"}</div>
+                <div style={{ fontWeight: 600 }}>{draft?.admission_date || "-"}</div>
               </div>
               <div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>ABHA</div>
-                <div style={{ fontWeight: 600 }}>{draft?.patient?.abha || "—"}</div>
+                <div style={{ fontWeight: 600 }}>{draft?.patient?.abha || "-"}</div>
               </div>
               <div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Member ID</div>
-                <div style={{ fontWeight: 600 }}>{draft?.patient?.member_id || "—"}</div>
+                <div style={{ fontWeight: 600 }}>{draft?.patient?.member_id || "-"}</div>
               </div>
             </div>
           </Card>
@@ -326,13 +326,13 @@ export default function PreauthDraft({ ctx }) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ color: "var(--text-muted)" }}>Policy in-force</span>
                   <span style={{ fontWeight: 700, color: draft.eligibility.inforce ? "var(--success)" : "var(--error)" }}>
-                    {draft.eligibility.inforce === true ? "Yes" : draft.eligibility.inforce === false ? "No" : "—"}
+                    {draft.eligibility.inforce === true ? "Yes" : draft.eligibility.inforce === false ? "No" : "-"}
                   </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ color: "var(--text-muted)" }}>Auth required</span>
                   <span style={{ fontWeight: 700, color: draft.eligibility.auth_required ? "var(--warning)" : "var(--success)" }}>
-                    {draft.eligibility.auth_required === true ? "Yes" : draft.eligibility.auth_required === false ? "No" : "—"}
+                    {draft.eligibility.auth_required === true ? "Yes" : draft.eligibility.auth_required === false ? "No" : "-"}
                   </span>
                 </div>
                 {draft.eligibility.correlation_id && (
@@ -351,7 +351,7 @@ export default function PreauthDraft({ ctx }) {
               <div style={{ marginBottom: "16px" }}>
                 <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>Procedures</div>
                 {draft.procedures.map((proc, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", border: "1px solid var(--border-color)", borderRadius: "8px", marginBottom: "6px" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px" }}>
                     <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{proc.code}</span>
                     <span style={{ fontSize: "13px", fontWeight: 600 }}>{proc.name}</span>
                     {proc.date && (
@@ -374,7 +374,7 @@ export default function PreauthDraft({ ctx }) {
                 </button>
               </div>
               {displayDiagnoses.map((diag, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", border: "1px solid var(--border-color)", borderRadius: "8px", marginBottom: "6px" }}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px" }}>
                   <input
                     className="input-modern"
                     style={{ width: "90px", fontSize: "12px", padding: "4px 8px" }}
@@ -534,14 +534,14 @@ export default function PreauthDraft({ ctx }) {
             </div>
 
             {hasMissingFields && (
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "8px", marginBottom: "12px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "12px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
                 <AlertCircle size={14} />
                 Resolve missing patient attributes above before submitting.
               </div>
             )}
 
             {hasMissingDocs && !hasMissingFields && (
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "8px", marginBottom: "12px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "12px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
                 <AlertCircle size={14} />
                 Upload all required documents before submitting.
               </div>

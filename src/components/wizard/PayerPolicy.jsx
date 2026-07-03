@@ -142,7 +142,7 @@ export default function PayerPolicy({ ctx }) {
                   style={{
                     padding: "16px",
                     border: `1.5px solid ${selectedPayer?.code === payer.code ? "var(--primary)" : "var(--border-color)"}`,
-                    borderRadius: "12px",
+                    borderRadius: "var(--radius-md)",
                     background:
                       selectedPayer?.code === payer.code
                         ? "var(--primary-light)"
@@ -212,7 +212,7 @@ export default function PayerPolicy({ ctx }) {
                     style={{
                       padding: "16px",
                       border: `1.5px solid ${selectedPolicy?.policyNumber === (policy.policyNumber || policy.policy_number) || selectedPolicy?.policy_number === (policy.policyNumber || policy.policy_number) ? "var(--primary)" : "var(--border-color)"}`,
-                      borderRadius: "12px",
+                      borderRadius: "var(--radius-md)",
                       background:
                         selectedPolicy?.policyNumber === (policy.policyNumber || policy.policy_number) || selectedPolicy?.policy_number === (policy.policyNumber || policy.policy_number)
                           ? "var(--primary-light)"

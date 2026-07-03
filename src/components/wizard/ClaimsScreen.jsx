@@ -350,7 +350,7 @@ export default function ClaimsScreen({ ctx }) {
               background: activeTab === tab.id ? "var(--primary)" : "transparent",
               color: activeTab === tab.id ? "white" : "var(--text-muted)",
               border: `1px solid ${activeTab === tab.id ? "var(--primary)" : "var(--border-color)"}`,
-              borderRadius: "20px",
+              borderRadius: "var(--radius-pill)",
               cursor: "pointer",
               fontWeight: activeTab === tab.id ? 600 : 400,
               whiteSpace: "nowrap",
@@ -366,7 +366,7 @@ export default function ClaimsScreen({ ctx }) {
       {activeTab === "draft" && (
         <Card title="Claim Draft">
           {hisBlockers.length > 0 && (
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
               <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
               <div>
                 <strong style={{ color: "var(--error)" }}>Clinical / billing data is incomplete.</strong>
@@ -385,7 +385,7 @@ export default function ClaimsScreen({ ctx }) {
             </div>
           )}
           {!hasPreauthRef && (
-            <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", color: "var(--error)", fontWeight: 600 }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--error)", fontWeight: 600 }}>
               <AlertCircle size={14} />
               No approved preauth reference on this claim. Submit and await preauth before proceeding.
             </div>
@@ -393,11 +393,11 @@ export default function ClaimsScreen({ ctx }) {
           <div style={{ display: "flex", gap: "24px", marginBottom: "20px", fontSize: "13px" }}>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Admission</div>
-              <div style={{ fontWeight: 600 }}>{claimDraft?.admission_date || "—"}</div>
+              <div style={{ fontWeight: 600 }}>{claimDraft?.admission_date || "-"}</div>
             </div>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Discharge</div>
-              <div style={{ fontWeight: 600 }}>{claimDraft?.discharge_date || "—"}</div>
+              <div style={{ fontWeight: 600 }}>{claimDraft?.discharge_date || "-"}</div>
             </div>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Preauth Ref</div>
@@ -445,17 +445,17 @@ export default function ClaimsScreen({ ctx }) {
 
           {/* Discharge polling / status */}
           {dischargePolling && (
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", marginBottom: "16px" }}>
               <div className="spinner" style={{ width: "20px", height: "20px" }} />
               <div>
-                <div style={{ fontWeight: 700, fontSize: "13px" }}>Discharge claim submitted — awaiting payer decision</div>
+                <div style={{ fontWeight: 700, fontSize: "13px" }}>Discharge claim submitted - awaiting payer decision</div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{dischargeCorrelationId} · polling every {POLL_INTERVAL_MS / 1000}s</div>
               </div>
             </div>
           )}
           {dischargeStatus?.status === "complete" && (
-            <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "8px", fontSize: "12px", marginBottom: "16px" }}>
-              Discharge claim adjudicated — decision: <strong>{dischargeStatus.decision || "complete"}</strong>
+            <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "var(--radius-sm)", fontSize: "12px", marginBottom: "16px" }}>
+              Discharge claim adjudicated - decision: <strong>{dischargeStatus.decision || "complete"}</strong>
             </div>
           )}
 
@@ -485,11 +485,11 @@ export default function ClaimsScreen({ ctx }) {
           <div style={{ display: "flex", gap: "24px", marginBottom: "20px", fontSize: "13px" }}>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Discharge</div>
-              <div style={{ fontWeight: 600 }}>{claimDraft?.discharge_date || "—"}</div>
+              <div style={{ fontWeight: 600 }}>{claimDraft?.discharge_date || "-"}</div>
             </div>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Preauth Ref</div>
-              <div style={{ fontWeight: 600 }}>{claimDraft?.preauth_ref || "—"}</div>
+              <div style={{ fontWeight: 600 }}>{claimDraft?.preauth_ref || "-"}</div>
             </div>
           </div>
           <div className="table-responsive-wrapper" style={{ marginBottom: "24px" }}>
@@ -512,7 +512,7 @@ export default function ClaimsScreen({ ctx }) {
               </tbody>
             </table>
           </div>
-          <div style={{ textAlign: "center", marginBottom: "16px", padding: "20px", background: "var(--bg-main)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+          <div style={{ textAlign: "center", marginBottom: "16px", padding: "20px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
             <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "8px" }}>Final Claim Total</div>
             <div style={{ fontSize: "32px", fontWeight: 800, color: "var(--primary)" }}>₹{claimDraft?.total_amount?.toLocaleString()}</div>
           </div>
@@ -551,7 +551,7 @@ export default function ClaimsScreen({ ctx }) {
 
               {/* Claim reference + payment status strip */}
               {(claimStatus?.claim_response_ref || claimStatus?.payment_status) && (
-                <div style={{ display: "flex", gap: "16px", marginBottom: "16px", padding: "10px 16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", fontSize: "13px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "16px", marginBottom: "16px", padding: "10px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", fontSize: "13px", flexWrap: "wrap" }}>
                   {claimStatus.claim_response_ref && (
                     <div>
                       <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Payer Ref: </span>
@@ -575,7 +575,7 @@ export default function ClaimsScreen({ ctx }) {
                   <div style={{ marginTop: "16px" }}>
                     <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>Payer Notes</div>
                     {claimStatus.process_notes.map((note, i) => (
-                      <div key={i} style={{ fontSize: "13px", padding: "8px 12px", background: "rgba(245,158,11,0.06)", borderRadius: "8px", borderLeft: "3px solid var(--warning)", marginBottom: "6px" }}>
+                      <div key={i} style={{ fontSize: "13px", padding: "8px 12px", background: "rgba(245,158,11,0.06)", borderRadius: "var(--radius-sm)", borderLeft: "3px solid var(--warning)", marginBottom: "6px" }}>
                         {note.text}
                       </div>
                     ))}

@@ -42,7 +42,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
           <div className="cx-id-meta">
             <span>
               <User size={11} style={{ marginRight: 4 }} />
-              {patient.gender || "—"}
+              {patient.gender || "-"}
             </span>
             {patient.dob && <span>DOB {patient.dob}</span>}
             {facility && (
@@ -64,19 +64,19 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
       <div className="cx-id-facts">
         <div className="cx-id-fact">
           <span className="cx-file-mono">Payer</span>
-          <span className="cx-file-val">{payer || "—"}</span>
+          <span className="cx-file-val">{payer || "-"}</span>
         </div>
         <div className="cx-id-fact">
           <span className="cx-file-mono">Policy</span>
-          <span className="cx-file-val">{policyNumber || "—"}</span>
+          <span className="cx-file-val">{policyNumber || "-"}</span>
         </div>
         <div className="cx-id-fact">
           <span className="cx-file-mono">Preauth Ref</span>
-          <span className="cx-file-val">{preauthRef || "—"}</span>
+          <span className="cx-file-val">{preauthRef || "-"}</span>
         </div>
         <div className="cx-id-fact">
           <span className="cx-file-mono">ABHA</span>
-          <span className="cx-file-val">{abha || "—"}</span>
+          <span className="cx-file-val">{abha || "-"}</span>
         </div>
         {approvedAmount != null && (
           <div className="cx-id-fact">

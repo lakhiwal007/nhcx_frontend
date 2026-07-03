@@ -99,12 +99,12 @@ export default function PaymentReconciliation({ ctx }) {
         {isNotFound ? (
           <div className="empty-view py-10 text-center">
             <h3>No Payment Events Yet</h3>
-            <p className="text-muted">The payer initiates payment notices on their schedule — typically hours to days after claim approval. The backend will auto-acknowledge when it arrives.</p>
+            <p className="text-muted">The payer initiates payment notices on their schedule - typically hours to days after claim approval. The backend will auto-acknowledge when it arrives.</p>
           </div>
         ) : (
           <div>
             {paymentData?.settled && (
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px", padding: "14px 16px", background: "rgba(16,185,129,0.1)", borderRadius: "12px", border: "1px solid var(--success)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px", padding: "14px 16px", background: "rgba(16,185,129,0.1)", borderRadius: "var(--radius-md)", border: "1px solid var(--success)" }}>
                 <CheckCircle2 color="var(--success)" size={26} />
                 <div>
                   <div style={{ fontWeight: 800, fontSize: "15px", color: "var(--success)" }}>Payment Settled</div>
@@ -140,20 +140,20 @@ export default function PaymentReconciliation({ ctx }) {
                       <>
                         <tr key={i}>
                           <td style={{ fontWeight: 700 }}>{ref}</td>
-                          <td style={{ fontSize: "12px" }}>{pay.claim_reference || <span className="text-muted">—</span>}</td>
-                          <td style={{ fontSize: "12px" }}>{pay.payment_date || "—"}</td>
+                          <td style={{ fontSize: "12px" }}>{pay.claim_reference || <span className="text-muted">-</span>}</td>
+                          <td style={{ fontSize: "12px" }}>{pay.payment_date || "-"}</td>
                           <td>
                             <StatusBadge status={pay.payment_stage?.replace("PAYMENT_", "").toLowerCase()} />
                           </td>
                           <td style={{ textAlign: "right", color: "var(--text-muted)" }}>
-                            {pay.notice_amount != null ? `₹${pay.notice_amount?.toLocaleString()}` : "—"}
+                            {pay.notice_amount != null ? `₹${pay.notice_amount?.toLocaleString()}` : "-"}
                           </td>
                           <td style={{ textAlign: "right" }}>₹{pay.gross_amount?.toLocaleString()}</td>
                           <td style={{ textAlign: "right", color: "var(--error)" }}>-₹{pay.tds_amount?.toLocaleString()}</td>
                           <td style={{ textAlign: "right", fontWeight: 800, color: "var(--success)" }}>
                             ₹{pay.net_payment_amount?.toLocaleString()}
                           </td>
-                          <td>{pay.utr ? <code style={{ fontSize: "11px" }}>{pay.utr}</code> : <span className="text-muted">—</span>}</td>
+                          <td>{pay.utr ? <code style={{ fontSize: "11px" }}>{pay.utr}</code> : <span className="text-muted">-</span>}</td>
                           <td>
                             {pay.acknowledgement_status === "submitted" && !needsRetry ? (
                               <span className="badge-modern badge-success" style={{ fontSize: "10px" }}>Acked</span>

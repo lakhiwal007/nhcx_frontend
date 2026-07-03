@@ -42,7 +42,7 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       note: preauthStarted ? "Preauth submitted" : "",
     },
     status: (() => {
-      if (decision === "QUERIED") return { done: false, note: "Query — action needed", tone: "urgent" };
+      if (decision === "QUERIED") return { done: false, note: "Query - action needed", tone: "urgent" };
       if (decision === "APPROVED") return { done: true, note: approvedAmount ? `Approved ${approvedAmount}` : "Approved", tone: "approve" };
       if (decision === "PARTIALLY_APPROVED") return { done: true, note: approvedAmount ? `Partial ${approvedAmount}` : "Partially approved", tone: "approve" };
       if (decision === "REJECTED") return { done: true, note: "Rejected", tone: "urgent" };

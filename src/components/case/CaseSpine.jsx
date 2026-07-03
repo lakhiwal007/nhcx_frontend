@@ -10,8 +10,8 @@ export default function CaseSpine({ stages, onNavigate }) {
       <div className="cx-spine-inner">
         {stages.map((s) => {
           const ariaLabel = s.branch
-            ? `${s.label}${s.note ? ` — ${s.note}` : ""}`
-            : `Stage ${s.num}: ${s.label}${s.note ? ` — ${s.note}` : ""}`;
+            ? `${s.label}${s.note ? ` - ${s.note}` : ""}`
+            : `Stage ${s.num}: ${s.label}${s.note ? ` - ${s.note}` : ""}`;
           return (
             <button
               key={s.id}

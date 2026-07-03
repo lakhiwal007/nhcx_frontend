@@ -73,7 +73,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
   if (!preview.enhanceable) {
     return (
       <div>
-        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "10px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "20px" }}>
           <AlertCircle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: "2px" }} />
           <div>
             <div style={{ fontWeight: 700, color: "var(--warning)", marginBottom: "4px" }}>Enhancement Unavailable</div>
@@ -87,10 +87,10 @@ export default function PreauthEnhancement({ ctx, onClose }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div style={{ display: "flex", gap: "16px", alignItems: "center", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", fontSize: "13px" }}>
+      <div style={{ display: "flex", gap: "16px", alignItems: "center", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", fontSize: "13px" }}>
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Preauth Ref</div>
-          <div style={{ fontWeight: 700 }}>{preview.preauth_ref || "—"}</div>
+          <div style={{ fontWeight: 700 }}>{preview.preauth_ref || "-"}</div>
         </div>
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Authorized Total</div>
@@ -112,7 +112,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
         <div>
           <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "10px" }}>New Procedures</div>
           {preview.new_procedures.map((proc, i) => (
-            <label key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", border: "1px solid var(--border-color)", borderRadius: "8px", marginBottom: "8px", cursor: "pointer" }}>
+            <label key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "8px", cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={!!checkedProcedures[i]}

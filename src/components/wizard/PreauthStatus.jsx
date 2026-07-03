@@ -72,7 +72,7 @@ function ConfirmModal({ open, onClose, title, children }) {
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "500px", padding: "28px", borderRadius: "16px", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px" }}
+            style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "500px", padding: "28px", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h3>
@@ -302,15 +302,15 @@ export default function PreauthStatus({ ctx }) {
             </div>
           </div>
           {showSoftWarning && (
-            <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(245,158,11,0.08)", borderRadius: "8px", border: "1px solid var(--warning)", fontSize: "13px", color: "var(--text-main)" }}>
-              Payer decisions can take minutes to hours. You can safely leave this page — the result will appear in your Work Queue when it arrives.
+            <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(245,158,11,0.08)", borderRadius: "var(--radius-sm)", border: "1px solid var(--warning)", fontSize: "13px", color: "var(--text-main)" }}>
+              Payer decisions can take minutes to hours. You can safely leave this page - the result will appear in your Work Queue when it arrives.
             </div>
           )}
         </Card>
       )}
 
       {pendingTasks.length > 0 && (
-        <div style={{ marginBottom: "16px", padding: "12px 16px", background: "rgba(245,158,11,0.06)", border: "1px solid var(--warning)", borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ marginBottom: "16px", padding: "12px 16px", background: "rgba(245,158,11,0.06)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: "13px", fontWeight: 600 }}>
             {pendingTasks.length} pending task{pendingTasks.length > 1 ? "s" : ""} in your Work Queue
           </div>
@@ -336,7 +336,7 @@ export default function PreauthStatus({ ctx }) {
                 { label: "Copay", value: statusData?.totals?.copay?.value, currency: statusData?.totals?.copay?.currency, color: "var(--error)" },
                 { label: "Submitted", value: statusData?.totals?.submitted?.value, currency: statusData?.totals?.submitted?.currency, color: "var(--text-main)" },
               ].filter(t => t.value != null).map((t, i) => (
-                <div key={i} style={{ flex: "1 1 120px", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "10px", textAlign: "center" }}>
+                <div key={i} style={{ flex: "1 1 120px", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", textAlign: "center" }}>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>{t.label}</div>
                   <div style={{ fontSize: "20px", fontWeight: 800, color: t.color }}>
                     {t.currency === "INR" ? "₹" : (t.currency || "")}{t.value?.toLocaleString()}
@@ -377,17 +377,17 @@ export default function PreauthStatus({ ctx }) {
                             <div style={{ fontWeight: 600 }}>{claimItem?.service_name || `Seq #${item.sequence}`}</div>
                             {claimItem?.service_code && <code style={{ fontSize: "11px", color: "var(--text-muted)" }}>{claimItem.service_code}</code>}
                           </td>
-                          <td>{claimItem?.category ? <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{claimItem.category}</span> : "—"}</td>
-                          <td style={{ textAlign: "right" }}>{claimItem?.quantity ?? "—"}</td>
-                          <td style={{ textAlign: "right" }}>{claimItem?.unit_price != null ? `₹${claimItem.unit_price.toLocaleString()}` : "—"}</td>
-                          <td style={{ textAlign: "right", fontWeight: 600 }}>{claimItem?.net_amount != null ? `₹${claimItem.net_amount.toLocaleString()}` : "—"}</td>
+                          <td>{claimItem?.category ? <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{claimItem.category}</span> : "-"}</td>
+                          <td style={{ textAlign: "right" }}>{claimItem?.quantity ?? "-"}</td>
+                          <td style={{ textAlign: "right" }}>{claimItem?.unit_price != null ? `₹${claimItem.unit_price.toLocaleString()}` : "-"}</td>
+                          <td style={{ textAlign: "right", fontWeight: 600 }}>{claimItem?.net_amount != null ? `₹${claimItem.net_amount.toLocaleString()}` : "-"}</td>
                           <td style={{ textAlign: "right", color: "var(--success)", fontWeight: 700 }}>
-                            {adj?.eligible?.value != null ? `₹${adj.eligible.value.toLocaleString()}` : "—"}
+                            {adj?.eligible?.value != null ? `₹${adj.eligible.value.toLocaleString()}` : "-"}
                           </td>
                           <td>
                             {adj?.eligible?.reason ? (
                               <span className="badge-modern badge-success" style={{ fontSize: "10px" }}>{adj.eligible.reason}</span>
-                            ) : "—"}
+                            ) : "-"}
                           </td>
                         </tr>
                       );
@@ -666,7 +666,7 @@ export default function PreauthStatus({ ctx }) {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "640px", padding: "28px", borderRadius: "16px", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
+              style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "640px", padding: "28px", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
             >
               <h3 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "20px" }}>Request Preauth Enhancement</h3>
               <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} />

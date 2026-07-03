@@ -90,7 +90,7 @@ export default function ReprocessScreen({ ctx }) {
           <>
             <DecisionBanner decision={status?.decision} message={status?.claim_response?.errors?.[0]?.detail || status?.process_notes?.[0]?.text} />
             {status?.decision === "REJECTED" ? (
-              <div style={{ padding: "16px 20px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "12px", marginTop: "16px", marginBottom: "16px" }}>
+              <div style={{ padding: "16px 20px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginTop: "16px", marginBottom: "16px" }}>
                 <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "6px" }}>Appeal rejected</div>
                 <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                   The payer has rejected the appeal. This case remains in your history. Contact the payer directly if you wish to escalate further.
