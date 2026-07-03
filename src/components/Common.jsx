@@ -10,6 +10,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+/**
+ * Generic content container with an optional header and header action.
+ * The base surface for every panel in the app (dashboards, forms, detail views).
+ * @category Layout
+ */
 export const Card = ({ title, children, className = "", headerAction }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
@@ -26,6 +31,12 @@ export const Card = ({ title, children, className = "", headerAction }) => (
   </motion.div>
 );
 
+/**
+ * Primary interactive control with tactile hover/press motion. Variants:
+ * "primary" (filled, high emphasis), "outline" (bordered, medium emphasis),
+ * "text" (no border, low emphasis). Optional leading icon and small/medium/large sizing.
+ * @category Forms
+ */
 export const Button = ({
   children,
   onClick,
@@ -55,6 +66,12 @@ export const Button = ({
   );
 };
 
+/**
+ * Pill badge that maps a workflow status string (e.g. "complete", "pending",
+ * "failed", "partial") to a semantic tone (success/warning/error/info) with a
+ * matching icon. Unrecognized statuses fall back to the neutral info tone.
+ * @category Feedback
+ */
 export const StatusBadge = ({ status }) => {
   const getStatusConfig = (s) => {
     switch (s != null ? String(s).toLowerCase() : "") {
@@ -89,6 +106,12 @@ export const StatusBadge = ({ status }) => {
   );
 };
 
+/**
+ * Labeled text input with an optional leading icon. Renders a `<label>`
+ * above the field when `label` is given; the icon (a lucide-react component)
+ * sits inset on the left when provided.
+ * @category Forms
+ */
 export const Input = ({
   label,
   value,
@@ -128,6 +151,11 @@ export const Input = ({
   </div>
 );
 
+/**
+ * Page-level title block with an optional subtitle and an optional
+ * "Back" button rendered above the title when `backAction` is given.
+ * @category Layout
+ */
 export const PageHeader = ({ title, subtitle, backAction }) => (
   <div className="page-header-modern">
     {backAction && (
@@ -142,6 +170,11 @@ export const PageHeader = ({ title, subtitle, backAction }) => (
 
 // ─── Reusable Flow Components (as per README) ─────────────────────────────
 
+/**
+ * Warning banner listing missing required patient-context fields as badges,
+ * with an optional "Resolve Now" action. Renders nothing when `fields` is empty.
+ * @category Feedback
+ */
 export const MissingFieldsAlert = ({ fields, onResolve }) => {
   if (!fields?.length) return null;
   return (
@@ -194,6 +227,12 @@ export const MissingFieldsAlert = ({ fields, onResolve }) => {
   );
 };
 
+/**
+ * Checklist of insurance-claim documents, each row colour-coded by state
+ * (attached / required & missing / optional) with an upload action per row
+ * and a summary banner when required documents are still missing.
+ * @category Domain
+ */
 export const DocumentChecklist = ({ documents, onUpload }) => {
   if (!documents?.length) return null;
   const missingRequired = documents.filter((d) => !d.optional && !d.url);
@@ -297,6 +336,13 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
   );
 };
 
+/**
+ * Large banner announcing a payer's decision (APPROVED / QUERIED /
+ * PARTIALLY_APPROVED / REJECTED), tinted to match, with the approved amount
+ * and an optional message. Falls back to a neutral tone plus the raw FHIR
+ * `outcome` when the decision itself couldn't be classified.
+ * @category Feedback
+ */
 export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) => {
   const isApproved = decision === "APPROVED";
   const isQueried = decision === "QUERIED";
@@ -384,6 +430,11 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
   );
 };
 
+/**
+ * Loading placeholder shaped like a data table, with staggered shimmer rows.
+ * Use while a table's real rows are still being fetched.
+ * @category Feedback
+ */
 export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
   <div className="table-responsive-wrapper">
     <table className="table-modern">
@@ -408,6 +459,12 @@ export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
   </div>
 );
 
+/**
+ * Grid of labeled currency totals (e.g. billed / approved / eligible amounts
+ * from a claim adjudication). Each entry's key becomes the label; approved
+ * and eligible amounts are tinted green.
+ * @category Domain
+ */
 export const AmountGrid = ({ totals }) => {
   if (!totals) return null;
   return (
@@ -453,6 +510,11 @@ export const AmountGrid = ({ totals }) => {
   );
 };
 
+/**
+ * Clickable Work Queue task summary: priority-colored left border, priority
+ * badge, timestamp, task type, and description.
+ * @category Domain
+ */
 export const TaskCard = ({ task, onClick }) => (
   <motion.div
     whileHover={{ y: -2 }}

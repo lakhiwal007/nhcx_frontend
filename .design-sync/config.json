@@ -1,0 +1,31 @@
+{
+  "projectId": "d9c3bc7b-7064-446d-bab7-2cb61532278c",
+  "shape": "package",
+  "pkg": "nhcx_cli",
+  "globalName": "NHCX",
+  "entry": ".design-sync/entry.mjs",
+  "componentSrcMap": {
+    "Card": "src/components/Common.jsx",
+    "Button": "src/components/Common.jsx",
+    "StatusBadge": "src/components/Common.jsx",
+    "Input": "src/components/Common.jsx",
+    "PageHeader": "src/components/Common.jsx",
+    "MissingFieldsAlert": "src/components/Common.jsx",
+    "DocumentChecklist": "src/components/Common.jsx",
+    "DecisionBanner": "src/components/Common.jsx",
+    "SkeletonTable": "src/components/Common.jsx",
+    "AmountGrid": "src/components/Common.jsx",
+    "TaskCard": "src/components/Common.jsx"
+  },
+  "cssEntry": ".design-sync/entry.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "extraFonts": [
+    "node_modules/@fontsource/geist-sans/latin-400.css",
+    "node_modules/@fontsource/geist-sans/latin-500.css",
+    "node_modules/@fontsource/geist-sans/latin-600.css",
+    "node_modules/@fontsource/geist-sans/latin-700.css",
+    "node_modules/@fontsource/geist-mono/latin-400.css",
+    "node_modules/@fontsource/geist-mono/latin-500.css",
+    "node_modules/@fontsource/geist-mono/latin-600.css"
+  ]
+}
