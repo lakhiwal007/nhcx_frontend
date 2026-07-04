@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: "/nhcx/frontend/",
+  base: "/nhcx/service/",
   plugins: [react()],
   server: {
     allowedHosts: [
@@ -11,7 +11,7 @@ export default defineConfig({
       "disclose-heaving-disloyal.ngrok-free.dev",
     ],
     proxy: {
-      "/nhcx/backend/api": {
+      "/nhcx/api": {
         target: "https://disclose-heaving-disloyal.ngrok-free.dev",
         changeOrigin: true,
         secure: false,

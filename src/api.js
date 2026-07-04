@@ -9,7 +9,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // Base URL for real network calls. Change this to match your backend server.
 const BASE_URL =
-  import.meta.env.VITE_BASE_URL || "http://localhost:8082/nhcx/backend/api/v1/insurance";
+  import.meta.env.VITE_BASE_URL || "http://localhost:8082/nhcx/api/v1/insurance";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -1198,7 +1198,7 @@ const mock = {
           label: "Respond to Query",
           code: "respond_preauth_query",
           method: "POST",
-          endpoint: "/nhcx/backend/api/v1/insurance/cashless/preauth/query-response",
+          endpoint: "/nhcx/api/v1/insurance/cashless/preauth/query-response",
           payload_hint: { claim_id: 101 },
         },
         metadata: {
@@ -1227,7 +1227,7 @@ const mock = {
           label: "Retry Acknowledgement",
           code: "acknowledge_payment",
           method: "POST",
-          endpoint: "/nhcx/backend/api/v1/insurance/cashless/payment/acknowledge",
+          endpoint: "/nhcx/api/v1/insurance/cashless/payment/acknowledge",
           payload_hint: { payment_reference: "PAY-2026-00001" },
         },
         metadata: { acknowledgement_error: "Timeout reaching NHCX gateway" },
@@ -1260,7 +1260,7 @@ const mock = {
           label: "Submit Final Claim",
           code: "submit_final_claim",
           method: "POST",
-          endpoint: "/nhcx/backend/api/v1/insurance/cashless/claims/submit",
+          endpoint: "/nhcx/api/v1/insurance/cashless/claims/submit",
           payload_hint: { claim_id: 103 },
         },
         metadata: {},
@@ -1314,7 +1314,7 @@ const mock = {
         label: "Respond to Query",
         code: "respond_preauth_query",
         method: "POST",
-        endpoint: "/nhcx/backend/api/v1/insurance/cashless/preauth/query-response",
+        endpoint: "/nhcx/api/v1/insurance/cashless/preauth/query-response",
         payload_hint: { claim_id: 101 },
       },
       metadata: {
@@ -1447,7 +1447,7 @@ const mock = {
                 label: "Submit Documents",
                 code: "respond_claim_query",
                 method: "POST",
-                endpoint: "/nhcx/backend/api/v1/insurance/cashless/claims/query-response",
+                endpoint: "/nhcx/api/v1/insurance/cashless/claims/query-response",
                 payload_hint: { claim_id: 102 },
               },
               metadata: {
