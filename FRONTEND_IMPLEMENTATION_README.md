@@ -1,6 +1,6 @@
 # NHCX Frontend Implementation Guide
 
-This guide translates [FRONTEND_API.yaml](FRONTEND_API.yaml) into a hospital-facing frontend experience. The UI calls only the wrapper API under `/nhcx/backend/api/v1/insurance`; it never calls NHCX directly.
+This guide translates [FRONTEND_API.yaml](FRONTEND_API.yaml) into a hospital-facing frontend experience. The UI calls only the wrapper API under `/api/v1/insurance`; it never calls NHCX directly.
 
 The product goal is to help billing and insurance desk users move a patient from cashless discovery to preauth, claim submission, reprocess, payment reconciliation, and payer communication handling with the fewest context switches.
 
@@ -20,7 +20,7 @@ Primary areas:
 | Reprocess | Appeal partial approvals or rejections | `POST /cashless/reprocess/submit`, `GET /cashless/reprocess/status/{correlation_id}` |
 | Payment | Reconcile payment notices and retry failed acknowledgement | `GET /cashless/payment/status`, `POST /cashless/payment/acknowledge` |
 | Tasks | Work payer-generated human tasks | `GET /cashless/tasks`, `GET /cashless/tasks/{task_id}`, `PATCH /cashless/tasks/{task_id}` |
-| Communications | Review payer messages | `GET /cashless/communications`, `GET /cashless/communication/status/{correlation_id}` |
+| Communications | Review payer messages and raise your own | `GET /cashless/communications`, `POST /cashless/communications`, `GET /cashless/communication/status/{correlation_id}` |
 
 ## Core Journey
 
@@ -84,8 +84,9 @@ Keep this header visible across eligibility, preauth, claims, reprocess, payment
 
 | Header | Required | Value | Purpose |
 |---|---|---|---|
-| `Authorization` | Yes — on all endpoints except `/facilities/*` | `Bearer <session_token>` | Parent HIS session token. The wrapper decodes it, resolves `clinics_users`, and derives the active `NhcxFacility`. Missing or expired → `401 WRAPPER-ERROR:1012`. Valid user with no matching facility → `403 WRAPPER-ERROR:1013`. |
-| `X-Provider-Id` | Only for multi-clinic users | `hcx_participant_code` of the facility (e.g. `1000099999@hcx`) | Disambiguates which facility to act as when the user's token maps to more than one `NhcxFacility`. Single-clinic users can omit it — the facility is resolved automatically from the token. |
+| `Authorization` | Yes — on all endpoints | `Bearer <session_token>` | Parent HIS session token. The wrapper decodes it, resolves `clinics_users`, and derives the active `NhcxFacility`. Missing or expired → `401 WRAPPER-ERROR:1012`. Valid user with no matching facility → `403 WRAPPER-ERROR:1013`. **Breaking (v1.4.0): `/facilities/*` now requires this token too** (facility resolution is skipped there, so first-time onboarding still works). |
+| `X-Admin-Token` | Only on facility mutations | Deployment admin token (`NHCX_ADMIN_TOKEN`) | Required in addition to the bearer token on `POST /facilities`, `PUT /facilities/{code}`, and `PUT /facilities/{code}/private_key`. Missing or wrong → `403 WRAPPER-ERROR:1014`. |
+| `X-Provider-Id` | Required for multi-clinic users (a polyclinic admin may omit it for the read-only all-facilities view) | `hcx_participant_code` of the facility (e.g. `1000099999@hcx`) | Disambiguates which facility to act as when the user's token maps to more than one `NhcxFacility`. Single-clinic users can omit it — the facility is resolved automatically from the token. **Multi-facility non-admin users omitting it get `400 WRAPPER-ERROR:1011`.** An admin omitting it enters the cross-facility read view (see "Cross-facility admin view"); an admin may act as any facility by naming it. |
 
 ### Session token
 
@@ -99,9 +100,43 @@ The `Authorization: Bearer` token is the parent HIS session token issued at logi
 
 The facility resolved from the token is used as the `x-hcx-sender_code` on all outbound NHCX requests.
 
+### Login flow (`GET /session`)
+
+The frontend does **not** log in against nhcx directly — it obtains the parent-HIS session token from the parent's own login, then bootstraps the nhcx session:
+
+```http
+GET /api/v1/insurance/session   (Authorization: Bearer <parent token>)
+```
+
+```json
+{ "user": { "id": 42, "name": "Dr Admin", "is_admin": true },
+  "is_admin": true,
+  "facilities": [ { "facility_code": "931", "hcx_participant_code": "1000004185@hcx",
+                    "name": "City Hospital", "environment": "sandbox" } ] }
+```
+
+`/session` needs only the bearer token (no facility yet), so call it first. Then branch on the response:
+
+| Response | Frontend behavior |
+|---|---|
+| `is_admin: true` | Offer a **"View all facilities"** (read-only) mode *and* a facility selector. In all-facilities mode, send **no** `X-Provider-Id`. |
+| `facilities.length > 1` (non-admin) | Show a facility selector; store the chosen `hcx_participant_code` and send it as `X-Provider-Id`. |
+| `facilities.length == 1` | Auto-select it; send its `hcx_participant_code` as `X-Provider-Id`. |
+| `facilities: []` | User has no cashless-enabled facility — block the workspace with a clear message. |
+
+Prefer `/session` over `GET /facilities` for the selector — `/facilities` is an admin-token-gated management endpoint, whereas `/session` returns exactly the facilities *this user* may act as.
+
+### Cross-facility admin view (read-only)
+
+A polyclinic admin (`is_admin: true`) who sends **no** `X-Provider-Id` sees **all facilities at once**, read-only:
+
+- `dashboard/stats` (adds a `by_facility` breakdown), `dashboard/claims`, `communications`, `tasks`, and every `*/status` read span all facilities.
+- Every row carries a `facility_name` so the admin can tell facilities apart — surface it as a column/badge.
+- The admin **cannot** submit/acknowledge in all-facilities mode: write endpoints still require a single facility, so an admin who tries to act without selecting one gets `400 WRAPPER-ERROR:1011`. To act, the admin selects a facility (sends its `X-Provider-Id`) and then behaves like a normal single-facility user — and an admin may act as **any** facility, not only their own clinics.
+
 ### X-Provider-Id
 
-Required only when the user has access to more than one NHCX facility. Obtain the list of available facilities at startup via `GET /facilities` and show a facility selector if there is more than one. Store the selected `hcx_participant_code` in app state and send it as `X-Provider-Id` on subsequent calls.
+Required only when the user has access to more than one NHCX facility (an admin may omit it to get the read-only all-facilities view). Obtain the facility list from `GET /session`; show a selector if there is more than one. Store the selected `hcx_participant_code` in app state and send it as `X-Provider-Id` on subsequent calls.
 
 | Endpoint group | Role of `X-Provider-Id` |
 |---|---|
@@ -190,7 +225,7 @@ Every task from `GET /cashless/tasks` and `GET /cashless/tasks/{task_id}` carrie
     "label": "Respond to query",
     "code": "respond_preauth_query",
     "method": "POST",
-    "endpoint": "/nhcx/backend/api/v1/insurance/cashless/preauth/query-response",
+    "endpoint": "/api/v1/insurance/cashless/preauth/query-response",
     "payload_hint": { "claim_id": 101 }
   },
   "required_documents": [ ... ]
@@ -312,14 +347,14 @@ Showing the patient context form for `diagnoses` or `items` is a frontend bug �
 Use the cashless-case-scoped endpoint at the preauth stage (when no `claim_id` exists yet), and the claim-scoped endpoint at the claim stage:
 
 ```http
-PATCH /nhcx/backend/api/v1/insurance/cashless/{cashless_case_id}/patient-context
+PATCH /api/v1/insurance/cashless/{cashless_case_id}/patient-context
 Content-Type: application/json
 
 { "patient_context": { "member_id": "PMJAY-MEM-00123", "abha": "91-7112-3456-7890", "dob": "2018-04-12" } }
 ```
 
 ```http
-PATCH /nhcx/backend/api/v1/insurance/cashless/claims/{claim_id}/patient-context
+PATCH /api/v1/insurance/cashless/claims/{claim_id}/patient-context
 Content-Type: application/json
 
 { "patient_context": { "member_id": "PMJAY-MEM-00123", "abha": "91-7112-3456-7890", "dob": "2018-04-12" } }
@@ -521,9 +556,9 @@ The backend auto-completes superseded tasks: submitting a preauth clears the `su
 `task_id` is the integer primary key of the task row. The path carries two verbs:
 
 ```
-GET   /nhcx/backend/api/v1/insurance/cashless/tasks/{task_id}            Read one task
-PATCH /nhcx/backend/api/v1/insurance/cashless/tasks/{task_id}            Mark it completed
-PATCH /nhcx/backend/api/v1/insurance/cashless/tasks/{task_id}/complete   Alias of the above
+GET   /api/v1/insurance/cashless/tasks/{task_id}            Read one task
+PATCH /api/v1/insurance/cashless/tasks/{task_id}            Mark it completed
+PATCH /api/v1/insurance/cashless/tasks/{task_id}/complete   Alias of the above
 ```
 
 The bare `PATCH` and the `/complete` form are aliases — both mark the task completed. Use the bare form.
@@ -549,9 +584,11 @@ The `note`/`metadata` are stored under `metadata.completion` for audit — the o
 
 And the task can also leave `pending` without you: the backend **auto-completes** superseded tasks when the next decision lands (see the state machine above). So treat a task that has disappeared from the pending list as resolved, not lost — reconcile against the server on every poll rather than trusting local state.
 
-### Communications lifecycle (payer-initiated, inbound)
+### Communications lifecycle (mostly inbound, plus provider-initiated outbound)
 
-Communications are the one workflow that is **entirely inbound** — the payer starts it, and the hospital only reads and reviews. There is no "submit" step and nothing to poll for a decision; the timing is driven by the payer, and the frontend observes through the Work Queue.
+Communications are **mostly inbound** — the payer starts a thread, and the hospital reads, reviews, and (for `additionalinfo`) responds via the routed task. There is no decision to poll for; the timing is driven by the payer, and the frontend observes through the Work Queue.
+
+The hospital can also **raise its own communication to a payer** (a grievance, a turnaround-time query, or a proactive additional-info submission) via `POST /cashless/communications` — see "Raising an outbound communication" below. The payer's reply arrives back through the normal inbound path.
 
 ```mermaid
 sequenceDiagram
@@ -613,6 +650,44 @@ The `action.payload_hint` is pre-seeded with `claim_id`. The `required_documents
 
 > Because communications carry no `claim_id`, the `GET /cashless/tasks?child_id=` filter will not return their tasks. Fetch them via `GET /cashless/communications?child_id=` (or the unfiltered Work Queue) and surface their `pending_tasks[]` separately on the Patient Profile.
 
+#### Raising an outbound communication (provider → payer)
+
+Use when the desk needs to proactively contact the payer about an existing claim/preauth — file a grievance, chase a slow decision, or push additional documents without waiting for a payer query. This is a **submit**, not a callback: it returns `202` with a `correlation_id`, and the payer's response comes back later as a normal inbound communication.
+
+```http
+POST /api/v1/insurance/cashless/communications
+```
+
+```json
+{
+  "request_id": "frontend-uuid",
+  "payer_id": "1518@hcx",
+  "claim_reference": "PA-2026-00001",
+  "reason_code": "grievance",
+  "message": "Requesting reconsideration of the rejected room-rent line item.",
+  "priority": "routine",
+  "attachments": [
+    { "url": "https://hospital.example/records/101/appeal-letter.pdf", "title": "Appeal letter" }
+  ],
+  "claim_id": 101,
+  "cashless_case_id": 4
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `payer_id` | Yes | Payer participant code the message goes to |
+| `claim_reference` | Yes | The payer claim/preauth reference this is about (e.g. `preauth_ref` / `claim_response_ref`) |
+| `reason_code` | Yes | One of `tatquery`, `grievance`, `walletupdate`, `policychange`, `additionalinfo` |
+| `message` | No | Free-text body |
+| `attachments[]` | No | `{ url, title, content_type? }` document references |
+| `priority` | No | `routine` (default), `urgent`, `asap`, `stat` |
+| `claim_id` / `cashless_case_id` | No | Link the outbound thread to a case for the Communications list and Patient Profile |
+
+Where to surface it: a **"Message payer"** action on the Communications screen, the case header overflow menu, and next to a rejected/queried decision on the Preauth/Claims status screens (pre-fill `payer_id` + `claim_reference` from the case). After a `202`, show the new outbound entry optimistically in the case's Communications list (it is persisted with `direction: outbound`); the reply will appear inbound.
+
+> **Gateway caveat:** the outbound-communication endpoint is functionally complete but its NHCX gateway route is deployment-configured and pending confirmation with the ABDM gateway team. Treat it as **beta** — gate it behind a feature flag until the backend team confirms sandbox acceptance.
+
 ### Pre-auth queries: two arrival channels, one response
 
 A common point of confusion: a pre-auth query does **not** arrive through a single mechanism. The payer can raise it on either of two inbound channels, and the backend handles them as separate-but-linked paths. The frontend should treat the **task** as the source of truth and not try to predict which channel fired.
@@ -662,7 +737,7 @@ Purpose: give billing staff one place to act on payer callbacks without searchin
 API:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/tasks?status=pending&workflow=&task_type=&cashless_case_id=&limit=20&offset=0
+GET /api/v1/insurance/cashless/tasks?status=pending&workflow=&task_type=&cashless_case_id=&limit=20&offset=0
 ```
 
 All filter params are optional and combinable:
@@ -713,7 +788,7 @@ The queue should default to pending tasks sorted by priority first, then age des
 When the user completes the action, resolve the URL from `task.action.code` via the ACTION_MAP, call it, then mark the task completed:
 
 ```http
-PATCH /nhcx/backend/api/v1/insurance/cashless/tasks/{task_id}
+PATCH /api/v1/insurance/cashless/tasks/{task_id}
 Content-Type: application/json
 
 {
@@ -731,8 +806,8 @@ Purpose: let users scan all cashless cases, filter by status, and resume the rig
 APIs:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/dashboard/stats
-GET /nhcx/backend/api/v1/insurance/cashless/dashboard/claims?status=&child_id=&limit=20&offset=0
+GET /api/v1/insurance/cashless/dashboard/stats
+GET /api/v1/insurance/cashless/dashboard/claims?status=&child_id=&limit=20&offset=0
 ```
 
 Top metric cards:
@@ -799,7 +874,7 @@ Each step should preserve state so users can leave and resume from a dashboard r
 API:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/child?child_id=&name=&mobile=&abha_number=&limit=20&offset=0
+GET /api/v1/insurance/cashless/child?child_id=&name=&mobile=&abha_number=&limit=20&offset=0
 ```
 
 Search sources: results come from `child_abha_profiles`. Name, mobile, and ABHA number searches return only ABHA-linked patients. A `child_id` lookup also returns unlinked patients (those without an ABHA profile) — their `abha_number` field will be `null`.
@@ -832,8 +907,8 @@ Empty and error states:
 APIs:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/payers/search?name=&scheme=&from_date=&to_date=
-POST /nhcx/backend/api/v1/insurance/cashless/policies/fetch
+GET /api/v1/insurance/cashless/payers/search?name=&scheme=&from_date=&to_date=
+POST /api/v1/insurance/cashless/policies/fetch
 ```
 
 Policy fetch request:
@@ -869,6 +944,14 @@ Disable "Start Cashless Preparation" until `child_id`, `payer_id`, and `policy_n
 
 Send `force_refresh: true` on the policy fetch only when the user explicitly requests a refresh (e.g. a "Re-fetch Policies" button). Always default to `false` — the backend caches InsurancePlan responses because they involve a gateway round-trip.
 
+**De-linking a wrongly-linked policy.** When a policy was linked to the wrong patient, or the patient's coverage ends, offer a "Remove policy" action on the stored policy row:
+
+```http
+DELETE /api/v1/insurance/cashless/policies/{id}/link
+```
+
+Where `{id}` is the stored `children_insurance_plans.id`. This is a **soft** de-link — the record is retained for audit (never destroyed) and simply hidden from active-policy lists; the response is `{ status: "unlinked", plan_id, unlinked_at, unlinked_by }`. It is provider-scoped, so it returns `404` for a plan that doesn't belong to the acting facility. Confirm the action with the user (it affects which policy the case uses) and refresh the policy list after a `200`.
+
 Empty and error states:
 
 | State | UI |
@@ -885,8 +968,8 @@ Empty and error states:
 APIs:
 
 ```http
-POST /nhcx/backend/api/v1/insurance/cashless/prepare
-GET /nhcx/backend/api/v1/insurance/cashless/{cashless_case_id}
+POST /api/v1/insurance/cashless/prepare
+GET /api/v1/insurance/cashless/{cashless_case_id}
 ```
 
 > **`cashless_case_id` has exactly one source: the `cashless/prepare` response.** Do **not** hardcode, guess, or carry a stale id from another session/patient into `GET /cashless/{id}`. A case only exists after a successful `POST /cashless/prepare` — there is no case to poll before that. Polling a non-existent id returns **`404 WRAPPER-ERROR:1003` ("Couldn't find NhcxCashlessCase with 'id'=…")**.
@@ -913,16 +996,21 @@ Cashless prepare request:
 
 - The user explicitly clicks "Re-run Eligibility Check" on an already-complete case
 - The previous prepare returned `failed` and the user wants a clean retry
-- The cashless case `status` is `partial` and `next_actions` contains `"resubmit"` — one or more eligibility sub-checks failed or are stuck and will not resolve on their own
+- `next_actions` contains `"resubmit"` — this now appears both when `status` is `partial` (a sub-check failed) **and** when `status` is `pending` past the server timeout with no payer callback (*stale pending*, request likely lost)
 - You resumed to this screen after the user selected a different policy but the policy number happens to be the same as a prior case
+
+For the `cashless_case_id`-in-hand cases, prefer `GET /cashless/{id}?force_refresh=true` over re-POSTing prepare (see "To force-refresh once a case exists" below).
 
 Never use `force_refresh: true` on automatic resume — reading cached eligibility state is the correct behavior when re-entering a case that was already prepared.
 
 **Prepare never hard-fails.** Even when the InsurancePlan/CoverageEligibility submission fails (payer certificate unfetchable, gateway down, etc.), `POST /cashless/prepare` still returns `202` with a persisted `cashless_case_id`, `status: "failed"`, `next_actions: ["retry", ...]`, and a `prepare_error` object — not a `4xx`. So the UI always has a case to poll and a retry to offer; treat a failed prepare as a retryable state, not a dead end. A plain re-POST reuses the same case; add `force_refresh: true` only if you want to bypass any short-circuit.
 
-**To force-refresh once a case exists:**
+**To force-refresh once a case exists** (re-fire InsurancePlan + all three CoverageEligibility gateway calls):
 
-Call `POST /cashless/prepare` with `force_refresh: true`, supplying `child_id`, `payer_id`, and `policy_number`. The backend reads the stored case and re-fires InsurancePlan and all three CoverageEligibility gateway calls. After the `202`, resume normal polling (`GET /cashless/{cashless_case_id}`).
+- **Preferred:** `GET /cashless/{cashless_case_id}?force_refresh=true`. The backend reads the stored case (child, payer, policy, procedures) and re-fires all four gateway calls, then returns the refreshed aggregated state in the same response shape as a normal poll — no need to re-supply `child_id`/`payer_id`/`policy_number`. Resume normal polling afterwards.
+- **Equivalent:** `POST /cashless/prepare` with `force_refresh: true`, supplying `child_id`, `payer_id`, and `policy_number`. Use this when you don't have the `cashless_case_id` handy.
+
+Both reuse the same case row (no duplicate is created). Only trigger a force-refresh on explicit user action — never on routine polling.
 
 The status screen should have:
 
@@ -946,8 +1034,8 @@ Polling:
 
 | Status | UI Behavior |
 |---|---|
-| `pending` | Poll every 5-10 seconds, show spinner and manual Refresh |
-| `partial` | Show available data, keep polling, highlight missing section. When `next_actions` contains `"resubmit"`, also show a **Re-run Eligibility Check** button that calls `POST /cashless/prepare` with `force_refresh: true`. |
+| `pending` | Poll every 5-10 seconds, show spinner and manual Refresh. **If `next_actions` contains `"resubmit"`** the case is *stale pending* — it was submitted but no payer callback arrived within the server timeout (the request may have been lost). Stop the auto-spinner and show a **Re-run Eligibility Check** button that calls `GET /cashless/{id}?force_refresh=true`. (Plain Refresh only re-reads the DB; it does not re-send to the payer.) |
+| `partial` | Show available data, keep polling, highlight missing section. When `next_actions` contains `"resubmit"`, also show a **Re-run Eligibility Check** button — `GET /cashless/{id}?force_refresh=true` (or `POST /cashless/prepare` with `force_refresh: true`). |
 | `complete` | Stop polling, enable Prepare Preauth when `next_actions` contains `prepare_preauth` |
 | `partial` (benefits timed out) | `next_actions` will contain `prepare_preauth` even though `coverage_eligibility.benefits.status` is still `pending`. Enable Prepare Preauth but show an inline warning: **"Benefits data from insurer is unavailable. Coverage details may be incomplete."** Keep the benefits sub-panel visible showing its pending state. Timeout is configurable server-side (default 5 minutes). |
 | `failed` | Stop polling. When `next_actions` contains `"retry"` (submission failed — e.g. payer certificate or gateway error), show a **Retry Preparation** button that re-POSTs `POST /cashless/prepare` with the same `child_id` + `policy_number`. Display `prepare_error.message` in the error panel so staff see the cause. A successful retry clears `prepare_error` and returns the case to `pending`. |
@@ -979,7 +1067,7 @@ Prepare error states:
 API:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/preauth/prepare?claim_id=101&admission_id=&child_id=&payer_id=&policy_number=
+GET /api/v1/insurance/cashless/preauth/prepare?claim_id=101&admission_id=&child_id=&payer_id=&policy_number=
 ```
 
 Purpose: review and correct the draft built from hospital records before submitting preauth.
@@ -988,8 +1076,8 @@ Layout:
 
 | Region | Design |
 |---|---|
-| Left rail | Patient, admission, payer, policy, eligibility summary |
-| Main form | Diagnoses, bill items, care team, supporting documents |
+| Left rail | Patient, admission, payer, policy, accommodation, eligibility summary |
+| Main form | Diagnoses, bill items, care team, clinical justification, supporting documents |
 | Sticky footer | Back, Save Draft, Submit Preauth |
 
 Draft sections:
@@ -998,12 +1086,20 @@ Draft sections:
 |---|---|
 | Patient | Read-only from `patient` |
 | Admission | Read-only unless backend returns missing/incorrect dates |
+| Accommodation | Read-only from `accommodation` (`ward`, `specialty`, `room`, `bed_code`); hide when null. Useful context for room-rent adjudication. |
 | Diagnoses | Editable list from `diagnoses[]` |
 | Procedures | Read-only list from `procedures[]`; these come from clinical records |
+| Chief Complaints | Read-only chips from `chief_complaints[]` (`{code, name}`); hide when empty |
+| Clinical Findings | Read-only chips from `clinical_findings[]`; hide when empty |
+| Medications | Read-only list from `medications[]`; hide when empty |
+| Investigations | Read-only list from `investigations[]`; hide when empty |
 | Bill Items | Editable table from `items[]`; recompute row and total amounts client-side |
 | Care Team | Read-only by default; allow edit mode for corrections |
+| Discharge Summary | Read-only from `discharge_summary` (`condition`, `advice`, `followup_on`, `summary_html`); hide when null. Present only after discharge — mostly relevant on the claim draft. |
 | Documents | Checklist from `supporting_documents[]` plus required docs from eligibility |
 | Missing Fields | Blocking alert from `missing_fields[]` |
+
+> **Clinical justification is auto-attached.** `medications`, `investigations`, `chief_complaints`, and `clinical_findings` are resolved from the hospital EHR (`ipd_clinical_notes`) and sent to the payer as coded `Claim.supportingInfo` — the frontend does not need to build or submit them. Display them read-only so the desk user can confirm what the payer will see; empty arrays mean the EHR had no coded clinical data for the encounter.
 
 Document readiness should be visible before the submit button:
 
@@ -1019,7 +1115,7 @@ The document checklist should show document name, category/code, event date, sou
 Submit preauth:
 
 ```http
-POST /nhcx/backend/api/v1/insurance/cashless/preauth/submit
+POST /api/v1/insurance/cashless/preauth/submit
 ```
 
 Minimal request:
@@ -1059,7 +1155,7 @@ Send optional overrides only for user-edited fields:
 API:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/preauth/status/{correlation_id}
+GET /api/v1/insurance/cashless/preauth/status/{correlation_id}
 ```
 
 Status response drives the whole page:
@@ -1090,10 +1186,10 @@ Decision behavior:
 Preauth follow-up APIs:
 
 ```http
-POST /nhcx/backend/api/v1/insurance/cashless/preauth/query-response
-POST /nhcx/backend/api/v1/insurance/cashless/preauth/resubmit
-POST /nhcx/backend/api/v1/insurance/cashless/preauth/enhancement
-POST /nhcx/backend/api/v1/insurance/cashless/preauth/cancel
+POST /api/v1/insurance/cashless/preauth/query-response
+POST /api/v1/insurance/cashless/preauth/resubmit
+POST /api/v1/insurance/cashless/preauth/enhancement
+POST /api/v1/insurance/cashless/preauth/cancel
 ```
 
 Use drawers for query response, resubmit, and enhancement. Use a confirmation modal for cancel because it is destructive to the workflow.
@@ -1130,7 +1226,7 @@ This screen is **user-initiated**, not payer-triggered: it is reached from the `
 ### Step 1 — Fetch the delta (read-only)
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/preauth/enhancement/prepare?claim_id=101
+GET /api/v1/insurance/cashless/preauth/enhancement/prepare?claim_id=101
 ```
 
 The backend re-derives the live clinical and billing record from the hospital DB (latest `ipd_clinical_notes`, revised `ipd_invoices`, discharge date) and diffs it against the snapshot of the last submitted/approved preauth. It returns:
@@ -1174,7 +1270,7 @@ States:
 Start from `suggested_request`, drop any `items`/`procedures` the user unchecked, then POST:
 
 ```http
-POST /nhcx/backend/api/v1/insurance/cashless/preauth/enhancement
+POST /api/v1/insurance/cashless/preauth/enhancement
 Content-Type: application/json
 
 {
@@ -1200,10 +1296,10 @@ The response is a standard `202` with a new `correlation_id`. Poll `GET /cashles
 API:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/claims/prepare?cashless_case_id=42
-POST /nhcx/backend/api/v1/insurance/cashless/claims/discharge
-POST /nhcx/backend/api/v1/insurance/cashless/claims/submit
-GET /nhcx/backend/api/v1/insurance/cashless/claims/status/{correlation_id}
+GET /api/v1/insurance/cashless/claims/prepare?cashless_case_id=42
+POST /api/v1/insurance/cashless/claims/discharge
+POST /api/v1/insurance/cashless/claims/submit
+GET /api/v1/insurance/cashless/claims/status/{correlation_id}
 ```
 
 > `claims/prepare` takes `cashless_case_id` (preferred) and **creates+links the claim on first call**, returning `claim_id`. Read that `claim_id` from the prepare response and use it for discharge/submit — do not expect it on the task. `claim_id` is still accepted transitionally.
@@ -1218,6 +1314,8 @@ Use tabs:
 | Claim Decision | `claim_correlation_id` exists | `GET /claims/status/{correlation_id}` |
 
 The claim draft is a validation screen. Show `missing_fields[]` as blockers before enabling discharge or final claim submission.
+
+The claim draft carries the same auto-resolved clinical justification as the preauth draft — `medications[]`, `investigations[]`, `chief_complaints[]`, and `clinical_findings[]` (each `{code, name}` from the hospital EHR). Render them read-only in a "Clinical justification" panel so the desk can confirm what the payer receives; the backend attaches them as coded `Claim.supportingInfo` automatically. Empty arrays = no coded clinical data for the encounter.
 
 Discharge and final claim rules:
 
@@ -1277,8 +1375,8 @@ Claim decision actions:
 Follow-up APIs:
 
 ```http
-POST /nhcx/backend/api/v1/insurance/cashless/claims/query-response
-POST /nhcx/backend/api/v1/insurance/cashless/claims/resubmit
+POST /api/v1/insurance/cashless/claims/query-response
+POST /api/v1/insurance/cashless/claims/resubmit
 ```
 
 Empty and error states:
@@ -1295,8 +1393,8 @@ Empty and error states:
 APIs:
 
 ```http
-POST /nhcx/backend/api/v1/insurance/cashless/reprocess/submit
-GET /nhcx/backend/api/v1/insurance/cashless/reprocess/status/{correlation_id}
+POST /api/v1/insurance/cashless/reprocess/submit
+GET /api/v1/insurance/cashless/reprocess/status/{correlation_id}
 ```
 
 Use reprocess for partial approvals, rejections, or disputed query outcomes.
@@ -1328,9 +1426,9 @@ When status returns `APPROVED`, route the user back to claim/payment next steps.
 APIs:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/payment/status?claim_id=101
-GET /nhcx/backend/api/v1/insurance/cashless/payment/status/{correlation_id}
-POST /nhcx/backend/api/v1/insurance/cashless/payment/acknowledge
+GET /api/v1/insurance/cashless/payment/status?claim_id=101
+GET /api/v1/insurance/cashless/payment/status/{correlation_id}
+POST /api/v1/insurance/cashless/payment/acknowledge
 ```
 
 Payment summary:
@@ -1386,12 +1484,15 @@ Empty and error states:
 APIs:
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/communications?payer_id=&child_id=&cashless_case_id=&limit=20&offset=0
-GET /nhcx/backend/api/v1/insurance/cashless/communication/status/{correlation_id}
-PATCH /nhcx/backend/api/v1/insurance/cashless/communication/{correlation_id}/read
+GET   /api/v1/insurance/cashless/communications?payer_id=&child_id=&cashless_case_id=&limit=20&offset=0
+POST  /api/v1/insurance/cashless/communications           # provider-initiated (beta)
+GET   /api/v1/insurance/cashless/communication/status/{correlation_id}
+PATCH /api/v1/insurance/cashless/communication/{correlation_id}/read
 ```
 
-Purpose: review payer-initiated communications such as TAT queries, grievances, wallet updates, policy changes, and additional information requests.
+Purpose: review payer-initiated communications such as TAT queries, grievances, wallet updates, policy changes, and additional information requests — and, via the `POST`, raise the hospital's own message to a payer.
+
+Show a **"Message payer"** button in the screen header that opens a compose drawer (`payer_id`, `claim_reference`, `reason_code`, `message`, attachments) and calls `POST /cashless/communications` — see "Raising an outbound communication" in the Communications lifecycle section. Distinguish outbound entries in the list by their `direction: outbound`.
 
 ### Filters
 
@@ -1407,7 +1508,8 @@ Use `cashless_case_id` when rendering the Communications tab inside a case detai
 
 | UI Element | Source | Notes |
 |---|---|---|
-| Unread indicator | `provider_read: false` | Show a dot/badge; remove once marked read |
+| Direction | `direction` | `inbound` (from payer) vs `outbound` (raised by this hospital). Show a sent/received icon. |
+| Unread indicator | `provider_read: false` | Show a dot/badge; remove once marked read. Inbound only. |
 | Payer | `payer_id` | |
 | Reason | `reason_display` or `reason_code` | |
 | Priority | `priority` | Show `urgent` / `stat` in red |
@@ -1424,7 +1526,7 @@ Render `payload[]` inline. If the communication has a pending `review_communicat
 Call mark-as-read when the detail view first mounts:
 
 ```http
-PATCH /nhcx/backend/api/v1/insurance/cashless/communication/{correlation_id}/read?request_id={uuid}
+PATCH /api/v1/insurance/cashless/communication/{correlation_id}/read?request_id={uuid}
 ```
 
 This is idempotent — safe to call on every open. The response is the updated communication with `provider_read: true` and `provider_read_at` set.
@@ -1455,10 +1557,10 @@ Purpose: a standalone, case-agnostic view of one patient. Step 1 of the wizard s
 It reuses the same enriched search endpoint; passing `child_id` (or `name`) returns the visit-level detail that the lightweight list call omits.
 
 ```http
-GET /nhcx/backend/api/v1/insurance/cashless/child?child_id=12
-GET /nhcx/backend/api/v1/insurance/cashless/dashboard/claims?child_id=12
-GET /nhcx/backend/api/v1/insurance/cashless/tasks?child_id=12&status=pending
-GET /nhcx/backend/api/v1/insurance/cashless/communications?child_id=12
+GET /api/v1/insurance/cashless/child?child_id=12
+GET /api/v1/insurance/cashless/dashboard/claims?child_id=12
+GET /api/v1/insurance/cashless/tasks?child_id=12&status=pending
+GET /api/v1/insurance/cashless/communications?child_id=12
 ```
 
 Layout:
@@ -1515,23 +1617,24 @@ Both FKs are populated when `claim_reference` resolves to a known hospital Claim
 The normal frontend flow should use `POST /cashless/prepare`, because it triggers InsurancePlan and CoverageEligibility together. Keep the direct endpoints for advanced troubleshooting or future specialized screens:
 
 ```http
-POST /nhcx/backend/api/v1/insurance/cashless/insurance_plan/request
-GET /nhcx/backend/api/v1/insurance/cashless/insurance_plan/status/{correlation_id}
-POST /nhcx/backend/api/v1/insurance/cashless/coverage_eligibility/check
-POST /nhcx/backend/api/v1/insurance/cashless/coverage_eligibility/validation
-POST /nhcx/backend/api/v1/insurance/cashless/coverage_eligibility/benefits
-POST /nhcx/backend/api/v1/insurance/cashless/coverage_eligibility/auth-requirements
-GET /nhcx/backend/api/v1/insurance/cashless/coverage_eligibility/status/{correlation_id}
+POST /api/v1/insurance/cashless/insurance_plan/request
+GET /api/v1/insurance/cashless/insurance_plan/status/{correlation_id}
+POST /api/v1/insurance/cashless/coverage_eligibility/check
+GET /api/v1/insurance/cashless/coverage_eligibility/status/{correlation_id}
 ```
 
-Use these only when the UI explicitly needs separate validation, benefits, or authorization requirement checks.
+Use `/coverage_eligibility/check` with a `purpose` of `validation`, `benefits`, or `auth-requirements` when the UI explicitly needs one CE check on its own.
+
+> **Deprecated:** the dedicated `coverage_eligibility/validation`, `/benefits`, and `/auth-requirements` endpoints are deprecated — they are thin wrappers for `check?purpose=…`. Use `check` with the `purpose` field for any new work; the aliases remain for backward compatibility only.
+
+> **Deprecated route tree:** the frontend must call the documented `/api/v1/insurance/*` paths. A parallel `/api/v1/nhcx/*` mirror tree exists but is **deprecated** (the backend logs `[DEPRECATED-ROUTE]` on every hit) and will be removed — do not target it.
 
 ## Gateway Status Recovery
 
 If a workflow remains pending longer than expected, expose a "Request Gateway Status" action for support users.
 
 ```http
-POST /nhcx/backend/api/v1/insurance/cashless/status/request
+POST /api/v1/insurance/cashless/status/request
 ```
 
 Request:
@@ -1552,13 +1655,22 @@ Use this as a recovery action, not routine polling.
 
 | Workflow | Poll Endpoint | Stop When |
 |---|---|---|
-| Cashless preparation | `GET /cashless/{cashless_case_id}` | `status` is `complete` or `failed`. When `status` is `partial` and `next_actions` contains `"resubmit"`, call `POST /cashless/prepare` with `force_refresh: true` to re-fire all eligibility checks, then resume polling. |
-| InsurancePlan direct | `GET /cashless/insurance_plan/status/{correlation_id}` | `status` is `complete` or `not_found` |
-| CoverageEligibility direct | `GET /cashless/coverage_eligibility/status/{correlation_id}` | `status` is `complete` or `not_found` |
-| Preauth | `GET /cashless/preauth/status/{correlation_id}` | `status` is `complete` or `not_found` |
-| Claim | `GET /cashless/claims/status/{correlation_id}` | `status` is `complete` or `not_found` |
-| Reprocess | `GET /cashless/reprocess/status/{correlation_id}` | `status` is `complete` or `not_found` |
+| Cashless preparation | `GET /cashless/{cashless_case_id}` | `status` is `complete` or `failed`. When `next_actions` contains `"resubmit"` (a `partial` sub-check failed, or a `pending` case went stale past the timeout with no callback), re-fire with `GET /cashless/{id}?force_refresh=true` (or `POST /cashless/prepare` with `force_refresh: true`), then resume polling. Plain polling never re-sends — only `force_refresh` does. |
+| InsurancePlan direct | `GET /cashless/insurance_plan/status/{correlation_id}` | `status` is `complete`, `failed`, or `not_found` |
+| CoverageEligibility direct | `GET /cashless/coverage_eligibility/status/{correlation_id}` | `status` is `complete`, `failed`, or `not_found` |
+| Preauth | `GET /cashless/preauth/status/{correlation_id}` | `status` is `complete`, `failed`, or `not_found` |
+| Claim | `GET /cashless/claims/status/{correlation_id}` | `status` is `complete`, `failed`, or `not_found` |
+| Reprocess | `GET /cashless/reprocess/status/{correlation_id}` | `status` is `complete`, `failed`, or `not_found` |
 | Payment ack | `GET /cashless/payment/status/{correlation_id}` | ack status is visible or response is `not_found` |
+
+> **`failed` is a protocol-level rejection, not a slow response.** The gateway or
+> payer rejected the request outright (e.g. payer system unreachable) — this
+> arrives as its own callback, often within seconds, and will never resolve to
+> `complete` no matter how long you poll. Stop polling and show the error
+> immediately. The message shown to staff should come from `error_message`
+> (InsurancePlan/Claim) or `errors[].message` (CoverageEligibility/Preauth/
+> Reprocess) — it's the verbatim gateway/payer text, not a generic wrapper
+> message, so it's safe to display as-is.
 
 UX rules:
 
@@ -1623,13 +1735,14 @@ API errors use:
 | `WRAPPER-ERROR:1008` | 500 | Internal error | Generic "try again"; escalate if persistent |
 | `WRAPPER-ERROR:1009` | 422 | Validation error (a record failed model validation) | Show `message`; correct the input |
 | `WRAPPER-ERROR:1010` | 400 | `requestId` missing (POST/PATCH only) | Always send a `request_id` param or `X-Request-Id` header on writes |
-| `WRAPPER-ERROR:1011` | 400 | `X-Provider-Id` header missing | Send the active facility's participant code as `X-Provider-Id` |
+| `WRAPPER-ERROR:1011` | 400 | `X-Provider-Id` header missing (or a multi-facility user omitted it) | Send the active facility's participant code as `X-Provider-Id` |
 | `WRAPPER-ERROR:1012` | 401 | Unauthorized — session token missing/expired/invalid | Re-authenticate; redirect to login |
 | `WRAPPER-ERROR:1013` | 403 | Authenticated, but the user has no matching NHCX facility | Show "No cashless-enabled clinic for this user"; not retryable |
+| `WRAPPER-ERROR:1014` | 403 | Facility mutation without a valid `X-Admin-Token` | Admin-only surface; supply the deployment admin token. Not seen on the cashless desk flow. |
 
 > **Submit endpoints** (`preauth/submit`, `claims/submit`, …) return **422 with `{ "status": "failed", "error": {...} }`** — not a `WRAPPER-ERROR` envelope — when the gateway *synchronously* rejects the request (e.g. an `NHCX-1018` invalid ABHA number). Surface `error.message`; the embedded code is an `NHCX-*`/`PAYR-*` code (see below), not a wrapper code.
 >
-> Facility admin endpoints (`/facilities/*`) use a separate `WRAPPER-ERROR:4xxx` series (`4040` not found, `4220`/`4222` validation) — not relevant to the cashless frontend.
+> Facility admin endpoints (`/facilities/*`) use a separate `WRAPPER-ERROR:4xxx` series (`4040` not found, `4220`/`4222` validation) — not relevant to the cashless frontend. Facility mutations additionally return `403 WRAPPER-ERROR:1014` when the `X-Admin-Token` header is missing or wrong.
 
 Frontend behavior:
 
@@ -1655,19 +1768,21 @@ When displaying a PAYR code to a non-technical user, show the `message` field (e
 
 ## Endpoint Reference
 
-All paths are relative to `/nhcx/backend/api/v1/insurance`.
+All paths are relative to `/api/v1/insurance`.
 
 | Method | Path | Use |
 |---|---|---|
 | GET | `/health` | API health |
-| GET | `/cashless/dashboard/stats` | Dashboard counts |
+| GET | `/session` | Login bootstrap — user + `is_admin` + selectable facilities |
+| GET | `/cashless/dashboard/stats` | Dashboard counts (admin/all-facilities adds a `by_facility` breakdown) |
 | GET | `/cashless/dashboard/claims` | Dashboard claim list |
 | GET | `/cashless/child` | Patient search from `child_abha_profiles`; supports `child_id`, `name`, `mobile`, `abha_number`; `abha_number: null` in result means not ABHA-linked |
 | GET | `/cashless/payers/search` | Payer dropdown |
 | GET | `/cashless/payers/{id}` | Look up a single payer by participant code (cache-first, `force_refresh` to bypass) |
 | POST | `/cashless/policies/fetch` | Policy lookup after payer selection |
+| DELETE | `/cashless/policies/{id}/link` | Soft de-link a child↔policy association (retained for audit; provider-scoped) |
 | POST | `/cashless/prepare` | Start cashless preparation |
-| GET | `/cashless/{cashless_case_id}` | Read aggregated preparation status |
+| GET | `/cashless/{cashless_case_id}` | Read aggregated preparation status; `?force_refresh=true` re-fires InsurancePlan + all 3 CE gateway calls and returns the refreshed state |
 | PATCH | `/cashless/{cashless_case_id}/patient-context` | Supply patient/admission attributes at preauth stage (use when `claim_id` is null) |
 | GET | `/cashless/preauth/prepare` | Build editable preauth draft |
 | POST | `/cashless/preauth/submit` | Submit preauth |
@@ -1692,7 +1807,17 @@ All paths are relative to `/nhcx/backend/api/v1/insurance`.
 | GET | `/cashless/tasks` | List human tasks (filters: `status`, `workflow`, `task_type`, `cashless_case_id`, `claim_id`, `child_id`) |
 | GET | `/cashless/tasks/{task_id}` | Read task detail |
 | PATCH | `/cashless/tasks/{task_id}` | Mark task completed |
-| GET | `/cashless/communications` | List payer communications (filters: `payer_id`, `child_id`, `cashless_case_id`) |
+| GET | `/cashless/communications` | List payer communications (filters: `payer_id`, `child_id`, `cashless_case_id`); includes `direction` |
+| POST | `/cashless/communications` | Raise a provider-initiated communication to a payer (beta — gateway route pending confirmation) |
 | GET | `/cashless/communication/status/{correlation_id}` | Read communication detail |
 | PATCH | `/cashless/communication/{correlation_id}/read` | Mark communication as read by provider staff |
 | POST | `/cashless/status/request` | Request NHCX gateway status |
+
+Facility administration (not part of the cashless desk flow — an admin-only surface):
+
+| Method | Path | Use |
+|---|---|---|
+| GET | `/facilities` / `/facilities/{code}` | List/read facilities (session token required) |
+| POST | `/facilities` | Register a facility + ABDM onboarding (session token **and** `X-Admin-Token`) |
+| PUT | `/facilities/{code}` | Update facility + ABDM sync (session token **and** `X-Admin-Token`) |
+| PUT | `/facilities/{code}/private_key` | Upload/replace the RSA decryption key (session token **and** `X-Admin-Token`) |

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NHCX Wrapper Frontend API
-  version: 1.3.0
+  version: 1.4.0
   description: >
     Minimal frontend-facing API contract for payer discovery, policy fetch,
     cashless preparation, and preauthorization. These endpoints are hospital UI
@@ -10,11 +10,23 @@ info:
 
 
     **Authentication — `Authorization: Bearer <token>` is required on all
-    endpoints except `/facilities/*` and `/health`.** The token is the parent HIS
-    session token (`devices.auth_token`). The wrapper decodes it, resolves the
-    user's active clinic via `clinics_users`, and derives the `NhcxFacility` from
-    the clinic ID. A missing or expired token returns `401 WRAPPER-ERROR:1012`.
-    A valid user with no matching NHCX facility returns `403 WRAPPER-ERROR:1013`.
+    endpoints except `/health`.** The token is the parent HIS session token
+    (`devices.auth_token`). The wrapper decodes it, resolves the user's active
+    clinic via `clinics_users`, and derives the `NhcxFacility` from the clinic
+    ID. A missing or expired token returns `401 WRAPPER-ERROR:1012`. A valid
+    user with no matching NHCX facility returns `403 WRAPPER-ERROR:1013`.
+    When the user's session maps to more than one NHCX facility and no
+    `X-Provider-Id` header is sent, the request is rejected with
+    `400 WRAPPER-ERROR:1011` instead of silently picking a facility.
+
+
+    **BREAKING (v1.4.0): `/facilities/*` endpoints are now authenticated.**
+    Reads require the session bearer token (a facility does not need to exist
+    yet, so first-time onboarding still works). Mutating calls
+    (`POST /facilities`, `PUT /facilities/{code}`,
+    `PUT /facilities/{code}/private_key`) additionally require the
+    `X-Admin-Token` header matching the deployment's `NHCX_ADMIN_TOKEN`;
+    a missing or wrong token returns `403 WRAPPER-ERROR:1014`.
 
 
     **`requestId` is required on POST/PATCH endpoints.** The frontend must send a
@@ -34,9 +46,20 @@ info:
     the `x-hcx-sender_code` of the NHCX request. When omitted and the user's
     session maps to exactly one facility, that facility is used automatically.
     The legacy `provider_id` body field is ignored.
+
+
+    **Login flow.** After obtaining the parent-HIS session token, call
+    `GET /session` to learn the user + the facilities they may act as, then pick
+    one (its `hcx_participant_code` becomes `X-Provider-Id`). A **polyclinic
+    admin** (`is_admin: true` in the `/session` response) who sends **no**
+    `X-Provider-Id` enters a **read-only cross-facility view**: dashboard, claims,
+    communications, tasks and `*/status` reads span *all* facilities (each row
+    carries `facility_name`). An admin who *does* send `X-Provider-Id` acts as
+    that single facility like any other user. Write endpoints always require a
+    single facility, so an admin must select one to submit/acknowledge.
 servers:
-  - url: http://localhost:8082/nhcx/backend/api/v1/insurance
-    description: Local wrapper API. All paths below are relative to `/nhcx/backend/api/v1/insurance`.
+  - url: http://localhost:8082/api/v1/insurance
+    description: Local wrapper API. All paths below are relative to `/api/v1/insurance`.
 
 tags:
   - name: Dashboard
@@ -55,14 +78,68 @@ tags:
     description: Payer communication review APIs exposed to the hospital UI.
   - name: Facility Management
     description: Admin APIs for onboarding and managing HCX facility participants and their RSA decryption keys.
+  - name: Session
+    description: Login bootstrap — who am I and which facilities can I act as.
 
 paths:
+  /session:
+    get:
+      tags: [Session]
+      operationId: getSession
+      summary: Bootstrap the session — user + selectable facilities
+      description: >
+        Call this right after login (with the parent-HIS bearer token) to learn
+        the logged-in user and the facilities they may act as. The frontend then:
+        if `is_admin` is true, offers a "View all facilities" (read-only) option;
+        else if `facilities` has more than one entry, shows a selector; else
+        auto-selects the single facility. The chosen facility's
+        `hcx_participant_code` becomes the `X-Provider-Id` header on later calls.
+        Requires the bearer token but NOT a resolved facility, so it works before
+        any facility is chosen. An admin sees every active facility; a non-admin
+        sees only the facilities linked to their clinics.
+      responses:
+        "200":
+          description: Session context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+              examples:
+                admin:
+                  value:
+                    user: { id: 42, name: "Dr Admin", is_admin: true }
+                    is_admin: true
+                    facilities:
+                      - facility_code: "931"
+                        hcx_participant_code: "1000004185@hcx"
+                        name: "City Hospital"
+                        environment: "sandbox"
+                      - facility_code: "932"
+                        hcx_participant_code: "1000004566@hcx"
+                        name: "Rural Clinic"
+                        environment: "sandbox"
+                single_facility:
+                  value:
+                    user: { id: 7, name: "Billing Desk", is_admin: false }
+                    is_admin: false
+                    facilities:
+                      - facility_code: "931"
+                        hcx_participant_code: "1000004185@hcx"
+                        name: "City Hospital"
+                        environment: "sandbox"
+        "401":
+          description: Missing/expired/invalid session token (WRAPPER-ERROR:1012)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /health:
     get:
       tags: [Dashboard]
       operationId: insuranceHealth
       summary: Insurance API health check
-      description: Full local URL is `/nhcx/backend/api/v1/insurance/health`.
+      description: Full local URL is `/api/v1/insurance/health`.
       responses:
         "200":
           description: Insurance API is reachable
@@ -386,6 +463,42 @@ paths:
         "404":
           description: No payer found for the given participant code
 
+  /cashless/policies/{id}/link:
+    delete:
+      tags: [Cashless Preparation]
+      operationId: unlinkChildInsurancePlan
+      summary: Soft de-link a child↔policy association
+      description: >
+        De-links a previously-linked insurance policy from a child
+        (Policy Linking/De-Linking flow). This is a SOFT delete — the
+        `children_insurance_plans` row is retained for audit and marked with
+        `unlinked_at`/`unlinked_by`; active-policy reads exclude it. Scoped to
+        the acting provider.
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Policy de-linked (row retained)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: unlinked }
+                  plan_id: { type: integer }
+                  unlinked_at: { type: string, format: date-time }
+                  unlinked_by: { type: string }
+        "404":
+          description: Plan not found or not visible to this provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /cashless/policies/fetch:
     post:
       tags: [Cashless Preparation]
@@ -545,13 +658,15 @@ paths:
     post:
       tags: [Cashless Preparation]
       operationId: checkCoverageValidation
-      summary: Check wallet and coverage validation
+      deprecated: true
+      summary: Check wallet and coverage validation (deprecated — use /check?purpose=validation)
       parameters:
         - $ref: "#/components/parameters/ProviderIdHeader"
       description: >
-        Convenience wrapper — forces `purpose: validation`. Use to verify the
-        policy is active and in-force before the patient is admitted. Same as
-        `/check` with `purpose: validation` hardcoded.
+        DEPRECATED: prefer `POST /cashless/coverage_eligibility/check` with
+        `purpose: validation`. Convenience wrapper — forces `purpose: validation`.
+        Use to verify the policy is active and in-force before the patient is
+        admitted. Same as `/check` with `purpose: validation` hardcoded.
       requestBody:
         required: true
         content:
@@ -570,13 +685,15 @@ paths:
     post:
       tags: [Cashless Preparation]
       operationId: checkCoverageBenefits
-      summary: Check covered benefits
+      deprecated: true
+      summary: Check covered benefits (deprecated — use /check?purpose=benefits)
       parameters:
         - $ref: "#/components/parameters/ProviderIdHeader"
       description: >
-        Convenience wrapper — forces `purpose: benefits`. Use after procedures
-        are known to fetch benefit limits, covered amounts, and room-rent caps.
-        Pass `procedures[]` for item-level benefit breakdown.
+        DEPRECATED: prefer `POST /cashless/coverage_eligibility/check` with
+        `purpose: benefits`. Convenience wrapper — forces `purpose: benefits`. Use
+        after procedures are known to fetch benefit limits, covered amounts, and
+        room-rent caps. Pass `procedures[]` for item-level benefit breakdown.
       requestBody:
         required: true
         content:
@@ -595,14 +712,17 @@ paths:
     post:
       tags: [Cashless Preparation]
       operationId: checkCoverageAuthRequirements
-      summary: Check preauth document and authorization requirements
+      deprecated: true
+      summary: Check preauth document and authorization requirements (deprecated — use /check?purpose=auth-requirements)
       parameters:
         - $ref: "#/components/parameters/ProviderIdHeader"
       description: >
-        Convenience wrapper — forces `purpose: auth-requirements`. Use to find
-        out which procedures require preauthorization (`auth_required: true`) and
-        which documents the payer needs (`authorization_supporting[]` per item).
-        Pass `procedures[]` to get item-level auth requirements.
+        DEPRECATED: prefer `POST /cashless/coverage_eligibility/check` with
+        `purpose: auth-requirements`. Convenience wrapper — forces
+        `purpose: auth-requirements`. Use to find out which procedures require
+        preauthorization (`auth_required: true`) and which documents the payer
+        needs (`authorization_supporting[]` per item). Pass `procedures[]` to get
+        item-level auth requirements.
       requestBody:
         required: true
         content:
@@ -2279,6 +2399,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CommunicationListResponse"
+    post:
+      tags: [Communications]
+      operationId: sendCashlessCommunication
+      summary: Raise a provider-initiated communication to a payer
+      description: >
+        Provider-initiated (outbound) UC7 communication — e.g. a grievance,
+        TAT query, or proactive additional-info submission — anchored on an
+        existing claim/preauth reference. Persisted as an outbound
+        NhcxCommunication; the payer's reply arrives via the normal inbound
+        communication callback and appears in the list above.
+        NOTE: the outbound gateway endpoint is configurable
+        (`NHCX_COMM_REQUEST_PATH`) and should be confirmed with the NHCX gateway
+        team before production use.
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, payer_id, claim_reference, reason_code]
+              properties:
+                request_id: { type: string }
+                payer_id: { type: string, example: "1000003538@hcx" }
+                claim_reference: { type: string, description: "Payer claim/preauth reference this communication is about." }
+                reason_code: { type: string, enum: [tatquery, grievance, walletupdate, policychange, additionalinfo] }
+                reason_display: { type: string }
+                message: { type: string }
+                priority: { type: string, enum: [routine, urgent, asap, stat], default: routine }
+                attachments:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      url: { type: string }
+                      title: { type: string }
+                      content_type: { type: string, default: application/pdf }
+                claim_id: { type: integer }
+                cashless_case_id: { type: integer }
+      responses:
+        "202":
+          description: Communication submitted to the payer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlation_id: { type: string }
+                  status: { type: string, example: submitted }
+                  message: { type: string }
 
   /cashless/communication/status/{correlation_id}:
     get:
@@ -2370,7 +2541,6 @@ paths:
     get:
       tags: [Facility Management]
       operationId: listFacilities
-      security: []
       summary: List registered HCX facilities
       description: >
         Returns all registered NHCX facility participants. Each record shows
@@ -2400,7 +2570,9 @@ paths:
     post:
       tags: [Facility Management]
       operationId: createFacility
-      security: []
+      security:
+        - BearerAuth: []
+          AdminTokenAuth: []
       summary: Register a new HCX facility (proxies to ABDM)
       description: >
         Creates the facility record locally and proxies a participant/create call
@@ -2507,7 +2679,6 @@ paths:
     get:
       tags: [Facility Management]
       operationId: getFacility
-      security: []
       summary: Get a single facility
       parameters:
         - $ref: "#/components/parameters/RequestIdParam"
@@ -2533,7 +2704,9 @@ paths:
     put:
       tags: [Facility Management]
       operationId: updateFacility
-      security: []
+      security:
+        - BearerAuth: []
+          AdminTokenAuth: []
       summary: Update facility and sync to ABDM
       description: >
         Updates the local facility record and proxies a participant/update call
@@ -2603,6 +2776,9 @@ paths:
     put:
       tags: [Facility Management]
       operationId: uploadFacilityPrivateKey
+      security:
+        - BearerAuth: []
+          AdminTokenAuth: []
       summary: Upload or replace the RSA private key for a facility
       description: >
         Stores the facility's RSA private key PEM in `nhcx_facilities.private_key_pem`.
@@ -2685,6 +2861,16 @@ components:
         `NhcxFacility` from the clinic ID. Obtain the token from the parent HIS
         login response and include it on every request as
         `Authorization: Bearer <token>`.
+    AdminTokenAuth:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+      description: >
+        Deployment admin token (`NHCX_ADMIN_TOKEN` env on the wrapper). Required
+        in addition to the bearer token on facility mutating endpoints
+        (`POST /facilities`, `PUT /facilities/{code}`,
+        `PUT /facilities/{code}/private_key`). A missing or mismatched value
+        returns `403 WRAPPER-ERROR:1014`.
 
   parameters:
     RequestIdParam:
@@ -2727,6 +2913,30 @@ components:
               code: "WRAPPER-ERROR:1010"
               message: requestId is required
   schemas:
+    SessionResponse:
+      type: object
+      description: Login bootstrap — the user and the facilities they may act as.
+      properties:
+        user:
+          type: object
+          properties:
+            id: { type: integer, nullable: true }
+            name: { type: string, nullable: true }
+            is_admin: { type: boolean }
+        is_admin:
+          type: boolean
+          description: True for a polyclinic admin — enables the read-only cross-facility view.
+        facilities:
+          type: array
+          description: Facilities the user may select (an admin sees all active facilities).
+          items:
+            type: object
+            properties:
+              facility_code: { type: string }
+              hcx_participant_code: { type: string, description: Send as X-Provider-Id on subsequent calls. }
+              name: { type: string }
+              environment: { type: string, enum: [sandbox, production], nullable: true }
+
     Facility:
       type: object
       properties:
@@ -3497,7 +3707,23 @@ components:
       properties:
         status:
           type: string
-          enum: [pending, complete, not_found]
+          enum: [pending, complete, failed, not_found]
+          description: >
+            `failed` means the gateway or payer rejected the request at the
+            protocol level (e.g. payer unreachable) — a terminal state, not a
+            transient one. `error_code`/`error_message` are populated when
+            `failed`.
+        error_code:
+          type: string
+          nullable: true
+          description: Gateway/payer error code (e.g. NHCX-1001). Present only when `status` is `failed`.
+        error_message:
+          type: string
+          nullable: true
+          description: >
+            Verbatim message from the gateway/payer (e.g. "Receiver system is
+            not reachable."), not paraphrased — safe to show directly to
+            staff. Present only when `status` is `failed`.
         correlation_id:
           type: string
         request:
@@ -4263,6 +4489,47 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PreauthSupportingDocument"
+        medications:
+          type: array
+          description: >
+            Coded medications resolved from `ipd_clinical_notes.drug_ids` (against
+            the parent `drugs` master). Emitted in the outbound bundle as coded
+            `Claim.supportingInfo`. Empty when no clinical note / drug ids exist.
+          items:
+            $ref: "#/components/schemas/ClinicalCode"
+        investigations:
+          type: array
+          description: Coded investigations resolved from `ipd_clinical_notes.test_ids` (parent `tests` master).
+          items:
+            $ref: "#/components/schemas/ClinicalCode"
+        chief_complaints:
+          type: array
+          description: Coded chief complaints resolved from `ipd_clinical_notes.complaint_ids` (parent `complaints` master).
+          items:
+            $ref: "#/components/schemas/ClinicalCode"
+        clinical_findings:
+          type: array
+          description: Coded findings resolved from `ipd_clinical_notes.finding_ids` (parent `findings` master).
+          items:
+            $ref: "#/components/schemas/ClinicalCode"
+        accommodation:
+          type: object
+          nullable: true
+          description: Ward/room/bed resolved from the admission's `ipd_ward_id`/`ipd_bed_id` (parent `ipd_wards`/`ipd_rooms`/`ipd_beds`). Null when unavailable.
+          properties:
+            ward: { type: string, nullable: true }
+            specialty: { type: string, nullable: true }
+            room: { type: string, nullable: true }
+            bed_code: { type: string, nullable: true }
+        discharge_summary:
+          type: object
+          nullable: true
+          description: Discharge summary resolved from `ipd_discharges` (condition/advice/followup_on/summary_html). Null when not yet discharged.
+          properties:
+            condition: { type: string, nullable: true }
+            advice: { type: string, nullable: true }
+            followup_on: { type: string, format: date, nullable: true }
+            summary_html: { type: string, nullable: true }
         total_amount:
           type: number
         eligibility:
@@ -4272,6 +4539,18 @@ components:
           type: array
           items:
             type: string
+
+    ClinicalCode:
+      type: object
+      description: A coded clinical concept (medication, investigation, complaint, or finding) resolved from the hospital EHR.
+      properties:
+        code:
+          type: string
+          nullable: true
+          description: SNOMED/concept code from the parent master's `concept_id` (falls back to the row id).
+        name:
+          type: string
+          description: Human-readable name (parent master's `concept_name`, falls back to `name`).
 
     PreauthEnhancementPreview:
       type: object
@@ -4872,7 +5151,13 @@ components:
           nullable: true
         status:
           type: string
-          enum: [pending, complete, not_found]
+          enum: [pending, complete, failed, not_found]
+          description: >
+            `failed` means the gateway or payer rejected the request at the
+            protocol level (e.g. payer unreachable) — a terminal state, not a
+            transient one. `errors[].message` is the verbatim message from the
+            gateway/payer (e.g. "Receiver system is not reachable."), not
+            paraphrased — safe to show directly to staff.
         decision:
           type: string
           nullable: true
@@ -5058,6 +5343,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PreauthSupportingDocument"
+        medications:
+          type: array
+          description: Coded medications from `ipd_clinical_notes.drug_ids` — emitted as coded `Claim.supportingInfo`.
+          items:
+            $ref: "#/components/schemas/ClinicalCode"
+        investigations:
+          type: array
+          description: Coded investigations from `ipd_clinical_notes.test_ids`.
+          items:
+            $ref: "#/components/schemas/ClinicalCode"
+        chief_complaints:
+          type: array
+          description: Coded chief complaints from `ipd_clinical_notes.complaint_ids`.
+          items:
+            $ref: "#/components/schemas/ClinicalCode"
+        clinical_findings:
+          type: array
+          description: Coded findings from `ipd_clinical_notes.finding_ids`.
+          items:
+            $ref: "#/components/schemas/ClinicalCode"
         missing_fields:
           type: array
           description: >
@@ -5188,7 +5493,22 @@ components:
           nullable: true
         status:
           type: string
-          enum: [pending, complete, not_found]
+          enum: [pending, complete, failed, not_found]
+          description: >
+            `failed` means the gateway rejected the request at the protocol
+            level (e.g. payer unreachable) before any claim decision was
+            recorded — a terminal state, not a transient one.
+            `error_code`/`error_message` are populated when `failed`.
+        error_code:
+          type: string
+          nullable: true
+          description: Gateway/payer error code (e.g. NHCX-1001). Present only when `status` is `failed`.
+        error_message:
+          type: string
+          nullable: true
+          description: >
+            Verbatim message from the gateway/payer, not paraphrased — safe
+            to show directly to staff. Present only when `status` is `failed`.
         decision:
           type: string
           nullable: true
@@ -5336,7 +5656,12 @@ components:
           nullable: true
         status:
           type: string
-          enum: [pending, complete, not_found]
+          enum: [pending, complete, failed, not_found]
+          description: >
+            `failed` means the gateway or payer rejected the request at the
+            protocol level (e.g. payer unreachable) — a terminal state, not a
+            transient one. `errors[].message` is the verbatim message from the
+            gateway/payer, not paraphrased — safe to show directly to staff.
         decision:
           type: string
           nullable: true
