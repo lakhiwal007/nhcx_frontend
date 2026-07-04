@@ -225,7 +225,7 @@ export default function App() {
                 <div className="command-brand-logo">
                   <ShieldCheck color="white" size={16} />
                 </div>
-                <span className="command-brand-name">NHCX Portal</span>
+                <span className="command-brand-name">NHCX Service</span>
               </div>
               <nav className="command-nav">
                 {navItems.map(({ to, icon: Icon, label, badge }) => (
@@ -336,7 +336,7 @@ export default function App() {
           <div className="breadcrumb-strip">
             <div className="breadcrumb-modern">
               <span onClick={() => navigate("/work-queue")} style={{ cursor: "pointer" }} className="breadcrumb-link">
-                Portal
+                Home
               </span>
               {getBreadcrumb().map((crumb, i, arr) => {
                 const isLast = i === arr.length - 1;
