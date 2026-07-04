@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   CheckCircle,
@@ -167,6 +168,71 @@ export const PageHeader = ({ title, subtitle, backAction }) => (
     {subtitle && <p>{subtitle}</p>}
   </div>
 );
+
+/**
+ * Compact, selectable patient summary row for search/list results: avatar
+ * (photo or initial fallback), name, ID/gender/age/mobile meta line, an
+ * optional status area (`statusSlot`, e.g. a case status chip + payer), and
+ * a cashless-case-count pill when the patient has prior cases.
+ * @category Domain
+ */
+export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) => {
+  const [photoError, setPhotoError] = useState(false);
+  return (
+    <motion.div
+      whileHover={{ x: 2 }}
+      onClick={onClick}
+      style={{
+        padding: "14px 16px",
+        border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border-color)"}`,
+        borderRadius: "var(--radius-md)",
+        background: isSelected ? "var(--primary-light)" : "var(--bg-card)",
+        cursor: "pointer",
+        transition: "all 0.15s",
+        display: "flex",
+        alignItems: "center",
+        gap: "14px",
+      }}
+    >
+      <div style={{
+        width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0,
+        background: isSelected ? "var(--primary)" : "var(--primary-light)",
+        color: isSelected ? "white" : "var(--primary)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontWeight: 800, fontSize: "16px", overflow: "hidden",
+      }}>
+        {patient.profile_photo && !photoError
+          ? <img src={patient.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setPhotoError(true)} />
+          : patient.name?.[0]?.toUpperCase()
+        }
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "3px", color: "var(--text-main)" }}>
+          {patient.name}
+        </div>
+        <div style={{ display: "flex", gap: "10px", fontSize: "12px", color: "var(--text-muted)", flexWrap: "wrap" }}>
+          <span>#{patient.child_id}</span>
+          <span style={{ textTransform: "capitalize" }}>{patient.gender}</span>
+          {age != null && <span>{age} yrs</span>}
+          {patient.mobile && <span>{patient.mobile}</span>}
+        </div>
+        {statusSlot && (
+          <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            {statusSlot}
+          </div>
+        )}
+      </div>
+      {patient.cashless_cases_count > 0 && (
+        <div style={{
+          background: "var(--primary-light)", color: "var(--primary)",
+          borderRadius: "var(--radius-pill)", padding: "2px 8px", fontSize: "11px", fontWeight: 700, flexShrink: 0,
+        }}>
+          {patient.cashless_cases_count} case{patient.cashless_cases_count !== 1 ? "s" : ""}
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
 // ─── Reusable Flow Components (as per README) ─────────────────────────────
 

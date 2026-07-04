@@ -15,7 +15,8 @@
     "DecisionBanner": "src/components/Common.jsx",
     "SkeletonTable": "src/components/Common.jsx",
     "AmountGrid": "src/components/Common.jsx",
-    "TaskCard": "src/components/Common.jsx"
+    "TaskCard": "src/components/Common.jsx",
+    "PatientCard": "src/components/Common.jsx"
   },
   "cssEntry": ".design-sync/entry.css",
   "readmeHeader": ".design-sync/conventions.md",

@@ -15,4 +15,5 @@ export {
   SkeletonTable,
   AmountGrid,
   TaskCard,
+  PatientCard,
 } from "../src/components/Common.jsx";

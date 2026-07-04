@@ -372,7 +372,7 @@ export default function App() {
             <div className="brand-logo">
               <ShieldCheck color="white" size={22} />
             </div>
-            {!isSidebarCollapsed && <h2 className="brand-name">NHCX Portal</h2>}
+            {!isSidebarCollapsed && <h2 className="brand-name">NHCX Service</h2>}
             <button className="mobile-close-btn" onClick={() => setIsMobileMenuOpen(false)}>
               <X size={24} />
             </button>
@@ -453,7 +453,7 @@ export default function App() {
                 style={{ cursor: "pointer" }}
                 className="breadcrumb-link"
               >
-                Portal
+                Home
               </span>
               {getBreadcrumb().map((crumb, i, arr) => {
                 const isLast = i === arr.length - 1;

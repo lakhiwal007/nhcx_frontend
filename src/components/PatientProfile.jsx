@@ -5,7 +5,7 @@ import {
   BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
-import { PageHeader, Card, StatusBadge, Button, Input } from "./Common";
+import { PageHeader, Card, StatusBadge, Button, Input, PatientCard } from "./Common";
 import { useNavigate } from "react-router-dom";
 
 function calculateAge(dob) {
@@ -54,69 +54,6 @@ function CaseStatusChip({ claim }) {
   }
   const cfg = STATUS_CONFIG[claim.status] ?? STATUS_CONFIG.pending;
   return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
-}
-
-function PatientCard({ child, onClick, isSelected }) {
-  const age = calculateAge(child.dob);
-  const latest = child.latest_claim;
-  const [photoError, setPhotoError] = useState(false);
-  return (
-    <motion.div
-      whileHover={{ x: 2 }}
-      onClick={onClick}
-      style={{
-        padding: "14px 16px",
-        border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border-color)"}`,
-        borderRadius: "var(--radius-md)",
-        background: isSelected ? "var(--primary-light)" : "var(--bg-card)",
-        cursor: "pointer",
-        transition: "all 0.15s",
-        display: "flex",
-        alignItems: "center",
-        gap: "14px",
-      }}
-    >
-      <div style={{
-        width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0,
-        background: isSelected ? "var(--primary)" : "var(--primary-light)",
-        color: isSelected ? "white" : "var(--primary)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontWeight: 800, fontSize: "16px", overflow: "hidden",
-      }}>
-        {child.profile_photo && !photoError
-          ? <img src={child.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setPhotoError(true)} />
-          : child.name?.[0]?.toUpperCase()
-        }
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "3px", color: "var(--text-main)" }}>
-          {child.name}
-        </div>
-        <div style={{ display: "flex", gap: "10px", fontSize: "12px", color: "var(--text-muted)", flexWrap: "wrap" }}>
-          <span>#{child.child_id}</span>
-          <span style={{ textTransform: "capitalize" }}>{child.gender}</span>
-          {age !== null && <span>{age} yrs</span>}
-          {child.mobile && <span>{child.mobile}</span>}
-        </div>
-        {latest && (
-          <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <CaseStatusChip claim={latest} />
-            {latest.payer_code && (
-              <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{latest.payer_code}</span>
-            )}
-          </div>
-        )}
-      </div>
-      {child.cashless_cases_count > 0 && (
-        <div style={{
-          background: "var(--primary-light)", color: "var(--primary)",
-          borderRadius: "var(--radius-pill)", padding: "2px 8px", fontSize: "11px", fontWeight: 700, flexShrink: 0,
-        }}>
-          {child.cashless_cases_count} case{child.cashless_cases_count !== 1 ? "s" : ""}
-        </div>
-      )}
-    </motion.div>
-  );
 }
 
 function PatientDetail({ patient, onBack }) {
@@ -669,9 +606,18 @@ export default function PatientProfile() {
                 {children.map((child) => (
                   <PatientCard
                     key={child.child_id}
-                    child={child}
+                    patient={child}
+                    age={calculateAge(child.dob)}
                     isSelected={selectedPatient?.child_id === child.child_id}
                     onClick={() => handleSelectPatient(child)}
+                    statusSlot={child.latest_claim && (
+                      <>
+                        <CaseStatusChip claim={child.latest_claim} />
+                        {child.latest_claim.payer_code && (
+                          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_code}</span>
+                        )}
+                      </>
+                    )}
                   />
                 ))}
               </div>
