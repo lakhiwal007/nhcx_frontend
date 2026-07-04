@@ -1592,6 +1592,15 @@ const mock = {
     return all[correlation_id] ?? all["comm-abc-001"];
   },
 
+  sendCommunication: async (data) => {
+    await delay(700);
+    return {
+      correlation_id: `comm-out-${generateRequestId().slice(0, 8)}`,
+      status: "submitted",
+      message: `${(data.reason_code || "message").replace(/_/g, " ")} sent to ${data.payer_id}.`,
+    };
+  },
+
   // ─── Escape hatch for Work Queue task actions ────────────────────────────────
   rawPost: async (fullPath, body = {}) => {
     await delay(800);
@@ -1824,6 +1833,8 @@ const real = {
 
   markCommunicationRead: (correlation_id) =>
     http.patch(`/cashless/communication/${correlation_id}/read`, {}),
+
+  sendCommunication: (data) => http.post("/cashless/communications", data),
 
   requestGatewayStatus: (data) => http.post("/cashless/status/request", data),
 

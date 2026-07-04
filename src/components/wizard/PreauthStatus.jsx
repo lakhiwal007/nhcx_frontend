@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { usePoll } from "../../hooks/usePoll";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi } from "lucide-react";
+import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, DecisionBanner, AmountGrid, StatusBadge, DocumentChecklist } from "../Common";
 import PayrErrorList from "../PayrErrorList";
 import PreauthEnhancement from "./PreauthEnhancement";
+import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
 const POLL_INTERVAL_MS = 7000;
 const SOFT_WARNING_MS = 120_000;
@@ -90,8 +91,9 @@ function ConfirmModal({ open, onClose, title, children }) {
 
 export default function PreauthStatus({ ctx }) {
   const navigate = useNavigate();
-  const { caseState, updateCaseState } = ctx;
+  const { caseState, updateCaseState, cashlessCase } = ctx;
   const { preauthCorrelationId, claim_id, cashless_case_id, draftData } = caseState;
+  const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
 
   const [statusData, setStatusData] = useState(null);
   const [polling, setPolling] = useState(true);
@@ -100,6 +102,7 @@ export default function PreauthStatus({ ctx }) {
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showResubmitDrawer, setShowResubmitDrawer] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
 
   const [queryAnswer, setQueryAnswer] = useState("");
   const [queryDocs, setQueryDocs] = useState([]);
@@ -473,6 +476,11 @@ export default function PreauthStatus({ ctx }) {
                   </Button>
                 </>
               )}
+              {(isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED && (
+                <Button variant="outline" icon={Send} onClick={() => setShowSendModal(true)}>
+                  Message Payer
+                </Button>
+              )}
               {isUnknown && (
                 <>
                   <Button variant="outline" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>
@@ -651,6 +659,15 @@ export default function PreauthStatus({ ctx }) {
           </Button>
         </div>
       </ConfirmModal>
+
+      <SendCommunicationModal
+        open={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        defaultPayerId={payerId}
+        defaultClaimReference={statusData?.preauth_ref || ""}
+        claimId={claim_id}
+        cashlessCaseId={cashless_case_id}
+      />
 
       <AnimatePresence>
         {showEnhancement && (

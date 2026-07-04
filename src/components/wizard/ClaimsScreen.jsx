@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid, MissingFieldsAlert } from "../Common";
+import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
 const POLL_INTERVAL_MS = 7000;
 const PATIENT_CONTEXT_FIELDS = [
@@ -94,7 +95,8 @@ function PatientContextForm({ claimId, onResolved }) {
 export default function ClaimsScreen({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { caseState, updateCaseState } = ctx;
+  const { caseState, updateCaseState, cashlessCase } = ctx;
+  const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
 
   const [loading, setLoading] = useState(true);
   const [claimDraft, setClaimDraft] = useState(null);
@@ -115,6 +117,7 @@ export default function ClaimsScreen({ ctx }) {
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showResubmitDrawer, setShowResubmitDrawer] = useState(false);
   const [showContextDrawer, setShowContextDrawer] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
   const [queryAnswer, setQueryAnswer] = useState("");
 
   // Editable items in resubmit drawer
@@ -609,6 +612,11 @@ export default function ClaimsScreen({ ctx }) {
                       View Payment Status <ArrowRight size={18} style={{ marginLeft: "8px" }} />
                     </Button>
                   )}
+                  {(isClaimQueried || isClaimRejected || isPartialApproval) && OUTBOUND_COMMUNICATIONS_ENABLED && (
+                    <Button variant="outline" icon={Send} onClick={() => setShowSendModal(true)}>
+                      Message Payer
+                    </Button>
+                  )}
                 </div>
               </div>
             </>
@@ -718,6 +726,15 @@ export default function ClaimsScreen({ ctx }) {
           }}
         />
       </Drawer>
+
+      <SendCommunicationModal
+        open={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        defaultPayerId={payerId}
+        defaultClaimReference={claimStatus?.claim_response_ref || ""}
+        claimId={claimId}
+        cashlessCaseId={caseState.cashless_case_id}
+      />
     </div>
   );
 }

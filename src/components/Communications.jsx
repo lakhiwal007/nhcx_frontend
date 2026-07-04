@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, MessageSquare, AlertTriangle, X, CheckCircle2,
-  Paperclip, FileText, Clock, ExternalLink, Circle, AlertCircle,
+  Paperclip, FileText, Clock, ExternalLink, Circle, AlertCircle, Send,
 } from "lucide-react";
 import { api } from "../api";
 import { resolveActionUrl } from "../api/actionMap";
 import { PageHeader, Card, Button, Input } from "./Common";
+import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import { useNavigate } from "react-router-dom";
 
 const PRIORITY_CONFIG = {
@@ -290,6 +291,7 @@ export default function Communications({ allFacilitiesMode = false }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [payerFilter, setPayerFilter] = useState("");
   const [selectedCorrelationId, setSelectedCorrelationId] = useState(null);
+  const [showSendModal, setShowSendModal] = useState(false);
 
   const fetchComms = async (params = {}) => {
     setLoading(true);
@@ -332,7 +334,12 @@ export default function Communications({ allFacilitiesMode = false }) {
     <div className="communications-screen">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
         <PageHeader title="Payer Communications" subtitle="Review payer-initiated messages, queries, and notices." />
-        <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
+        <div style={{ display: "flex", gap: "10px", marginTop: "4px", alignItems: "center" }}>
+          {OUTBOUND_COMMUNICATIONS_ENABLED && (
+            <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)}>
+              Message Payer
+            </Button>
+          )}
           {unreadCount > 0 && (
             <span style={{ padding: "6px 14px", background: "color-mix(in srgb, var(--info) 12%, transparent)", color: "var(--info)", border: "1px solid var(--info)", borderRadius: "var(--radius-pill)", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}>
               {unreadCount} unread
@@ -439,6 +446,8 @@ export default function Communications({ allFacilitiesMode = false }) {
         onRead={handleRead}
         allFacilitiesMode={allFacilitiesMode}
       />
+
+      <SendCommunicationModal open={showSendModal} onClose={() => setShowSendModal(false)} />
     </div>
   );
 }
