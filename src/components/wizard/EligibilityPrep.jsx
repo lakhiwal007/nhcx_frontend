@@ -28,6 +28,23 @@ const shouldStopPolling = (res) =>
   TERMINAL_STATUSES.includes(res?.status) ||
   (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
 
+// Doc requirements arrive either as a flat {name}/{type:{display}} shape, or as
+// a raw FHIR extension: {url, values: [{url: "category", display}, {url: "code", display}]}.
+function describeDocRequirement(d) {
+  if (d.name) return { label: d.name };
+  if (d.type?.display) return { label: d.type.display, code: d.type.code };
+  const values = d.values || [];
+  const category = values.find((v) => v.url === "category");
+  const code = values.find((v) => v.url === "code");
+  if (category || code) {
+    return {
+      label: [category?.display, code?.display].filter(Boolean).join(" — "),
+      code: category?.code,
+    };
+  }
+  return { label: "Document requirement" };
+}
+
 function InsurancePlanPanel({ plan }) {
   const [expanded, setExpanded] = useState(null);
   const [page, setPage] = useState(0);
@@ -343,11 +360,18 @@ function InsurancePlanPanel({ plan }) {
       {docReqs.length > 0 && (
         <div>
           <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Required Documents</div>
-          {docReqs.map((d, i) => (
-            <div key={i} style={{ fontSize: "12px", display: "flex", gap: "6px", alignItems: "center", padding: "3px 0" }}>
-              <FileText size={12} color="var(--text-muted)" /> {d.name || d.type?.display || JSON.stringify(d)}
-            </div>
-          ))}
+          {docReqs.map((d, i) => {
+            const { label, code } = describeDocRequirement(d);
+            return (
+              <div key={i} style={{ fontSize: "12px", display: "flex", gap: "6px", alignItems: "center", padding: "3px 0" }}>
+                <FileText size={12} color="var(--text-muted)" />
+                {code && (
+                  <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{code}</span>
+                )}
+                {label}
+              </div>
+            );
+          })}
         </div>
       )}
 

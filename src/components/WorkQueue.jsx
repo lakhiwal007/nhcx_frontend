@@ -66,6 +66,23 @@ const SCREEN_MAP = {
   review_communication: () => `/communications`,
 };
 
+// Doc requirements arrive either as a flat {name}/{display} shape, or as a raw
+// FHIR extension: {url, values: [{url: "category", display}, {url: "code", display}]}.
+function describeDocRequirement(d) {
+  if (d.name) return { label: d.name, code: d.code };
+  if (d.display) return { label: d.display, code: d.code };
+  const values = d.values || [];
+  const category = values.find((v) => v.url === "category");
+  const code = values.find((v) => v.url === "code");
+  if (category || code) {
+    return {
+      label: [category?.display, code?.display].filter(Boolean).join(" — "),
+      code: category?.code,
+    };
+  }
+  return { label: "Document requirement" };
+}
+
 function ageLabel(createdAt) {
   if (!createdAt) return null;
   const hours = (Date.now() - Date.parse(createdAt)) / 3_600_000;
@@ -355,33 +372,36 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode }
                   >
                     Required Documents ({task.required_documents.length})
                   </div>
-                  {task.required_documents.map((doc, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "8px 0",
-                        borderBottom: "1px solid var(--border-color)",
-                        fontSize: "13px",
-                      }}
-                    >
-                      <FileText size={14} color="var(--text-muted)" />
-                      <span style={{ fontWeight: 600 }}>
-                        {doc.name || doc.display}
-                      </span>
-                      <code
+                  {task.required_documents.map((doc, i) => {
+                    const { label, code } = describeDocRequirement(doc);
+                    return (
+                      <div
+                        key={i}
                         style={{
-                          fontSize: "11px",
-                          color: "var(--text-muted)",
-                          marginLeft: "auto",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          padding: "8px 0",
+                          borderBottom: "1px solid var(--border-color)",
+                          fontSize: "13px",
                         }}
                       >
-                        {doc.code}
-                      </code>
-                    </div>
-                  ))}
+                        <FileText size={14} color="var(--text-muted)" />
+                        <span style={{ fontWeight: 600 }}>{label}</span>
+                        {code && (
+                          <code
+                            style={{
+                              fontSize: "11px",
+                              color: "var(--text-muted)",
+                              marginLeft: "auto",
+                            }}
+                          >
+                            {code}
+                          </code>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
