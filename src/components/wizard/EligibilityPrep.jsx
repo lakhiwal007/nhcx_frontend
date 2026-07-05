@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, StatusBadge } from "../Common";
@@ -244,27 +245,42 @@ function InsurancePlanPanel({ plan }) {
                       background: isOpen
                         ? "var(--primary-light)"
                         : "transparent",
+                      transition: "background 0.2s ease"
                     }}
+                    onMouseEnter={(e) => { if (!isOpen) e.currentTarget.style.background = "var(--bg-main)"; }}
+                    onMouseLeave={(e) => { if (!isOpen) e.currentTarget.style.background = "transparent"; }}
                   >
                     <span
                       className="badge-modern badge-success"
                       style={{ fontSize: "10px", flexShrink: 0 }}
                     >
-                      {code}
+                      {code || "INC"}
                     </span>
                     <span
-                      style={{ fontSize: "12px", flex: 1, fontWeight: 500 }}
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: isOpen ? 700 : 600,
+                        flex: 1,
+                        color: isOpen ? "var(--primary)" : "var(--text-main)",
+                        transition: "color 0.2s ease"
+                      }}
                     >
-                      {name}
+                      {name || "Unnamed Inclusion"}
                     </span>
-                    {limits.length > 0 &&
-                      (isOpen ? (
+                    {limits.length > 0 && (
+                      <motion.div animate={{ rotate: isOpen ? 180 : 0 }}>
                         <ChevronDown size={13} color="var(--text-muted)" />
-                      ) : (
-                        <ChevronRight size={13} color="var(--text-muted)" />
-                      ))}
+                      </motion.div>
+                    )}
                   </div>
-                  {isOpen && limits.length > 0 && (
+                  <AnimatePresence>
+                    {isOpen && limits.length > 0 && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: "hidden" }}
+                      >
                     <div
                       style={{
                         padding: "6px 10px 8px",
@@ -295,7 +311,9 @@ function InsurancePlanPanel({ plan }) {
                         </div>
                       ))}
                     </div>
-                  )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               );
             })}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Send, ArrowRight, AlertCircle, X, Edit2 } from "lucide-react";
+import { Send, ArrowRight, AlertCircle, X, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
@@ -61,6 +61,8 @@ function Drawer({ open, onClose, title, children }) {
 function PatientContextForm({ claimId, onResolved }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(true);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -71,23 +73,50 @@ function PatientContextForm({ claimId, onResolved }) {
       setSaving(false);
     }
   };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      {PATIENT_CONTEXT_FIELDS.map((f) => (
-        <div key={f.key}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>{f.label}</label>
-          <input
-            className="input-modern"
-            type={f.type || "text"}
-            placeholder={f.placeholder}
-            value={values[f.key] || ""}
-            onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
-          />
+    <div style={{ border: "1px solid var(--error)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+      <div
+        onClick={() => setOpen((p) => !p)}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(239,68,68,0.06)", cursor: "pointer", transition: "background 0.2s ease" }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.1)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.06)"}
+      >
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", fontWeight: 700, color: "var(--error)", fontSize: "14px" }}>
+          <AlertCircle size={16} /> Supply Missing Patient Attributes
         </div>
-      ))}
-      <Button variant="primary" size="small" disabled={saving} onClick={handleSave}>
-        {saving ? "Saving…" : "Save & Refresh"}
-      </Button>
+        <motion.div animate={{ rotate: open ? 180 : 0 }} style={{ color: "var(--error)" }}>
+          <ChevronDown size={16} />
+        </motion.div>
+      </div>
+      <AnimatePresence>
+        {open && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }} 
+            animate={{ height: "auto", opacity: 1 }} 
+            exit={{ height: 0, opacity: 0 }}
+            style={{ overflow: "hidden" }}
+          >
+            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
+              {PATIENT_CONTEXT_FIELDS.map((f) => (
+                <div key={f.key}>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>{f.label}</label>
+                  <input
+                    className="input-modern"
+                    type={f.type || "text"}
+                    placeholder={f.placeholder}
+                    value={values[f.key] || ""}
+                    onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "8px" }}>
+                {saving ? "Saving…" : "Save & Refresh"}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { motion } from "framer-motion";
 
 // The Case Stepper — a horizontal numbered lifecycle track. Each stage is a
 // circle (number or checkmark) with its label + note beneath. Branch nodes
@@ -21,21 +22,29 @@ export default function CaseStepper({ stages, onNavigate }) {
                   aria-hidden="true"
                 />
               )}
-              <button
+              <motion.button
                 className="cx-step-btn"
                 disabled={!s.clickable}
                 onClick={() => s.clickable && onNavigate(s.path)}
                 aria-current={s.state === "active" ? "step" : undefined}
                 aria-label={ariaLabel}
+                whileHover={s.clickable ? { scale: 1.05, y: -2 } : {}}
+                whileTap={s.clickable ? { scale: 0.95 } : {}}
               >
-                <span className="cx-step-circle" aria-hidden="true">
+                <motion.span 
+                  className="cx-step-circle" 
+                  aria-hidden="true"
+                  animate={{ 
+                    boxShadow: s.state === "active" ? "0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent)" : "none" 
+                  }}
+                >
                   {s.state === "done" ? <Check size={14} strokeWidth={3} /> : s.branch ? "+" : s.num}
-                </span>
+                </motion.span>
                 <span className="cx-step-label">{s.label}</span>
                 {s.note && (
                   <span className={`cx-step-note${s.tone ? ` tone-${s.tone}` : ""}`}>{s.note}</span>
                 )}
-              </button>
+              </motion.button>
             </div>
           );
         })}

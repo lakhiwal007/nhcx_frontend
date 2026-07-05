@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { Card, Button, DocumentChecklist, MissingFieldsAlert } from "../Common";
 
@@ -61,34 +62,47 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
     <div style={{ border: "1px solid var(--error)", borderRadius: "var(--radius-md)", overflow: "hidden", marginBottom: "16px" }}>
       <div
         onClick={() => setOpen((p) => !p)}
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(239,68,68,0.06)", cursor: "pointer" }}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(239,68,68,0.06)", cursor: "pointer", transition: "background 0.2s ease" }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.1)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.06)"}
       >
         <div style={{ display: "flex", gap: "8px", alignItems: "center", fontWeight: 700, color: "var(--error)", fontSize: "14px" }}>
           <AlertCircle size={16} /> Supply Missing Patient Attributes
         </div>
-        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        <motion.div animate={{ rotate: open ? 180 : 0 }} style={{ color: "var(--error)" }}>
+          <ChevronDown size={16} />
+        </motion.div>
       </div>
-      {open && (
-        <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-          {allFields.map((f) => (
-            <div key={f.key}>
-              <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
-                {f.label}
-              </label>
-              <input
-                className="input-modern"
-                type={f.type || "text"}
-                placeholder={f.placeholder}
-                value={values[f.key] || ""}
-                onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
-              />
+      <AnimatePresence>
+        {open && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }} 
+            animate={{ height: "auto", opacity: 1 }} 
+            exit={{ height: 0, opacity: 0 }}
+            style={{ overflow: "hidden" }}
+          >
+            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
+              {allFields.map((f) => (
+                <div key={f.key}>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
+                    {f.label}
+                  </label>
+                  <input
+                    className="input-modern"
+                    type={f.type || "text"}
+                    placeholder={f.placeholder}
+                    value={values[f.key] || ""}
+                    onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "8px" }}>
+                {saving ? "Saving…" : "Save & Refresh"}
+              </Button>
             </div>
-          ))}
-          <Button variant="primary" size="small" disabled={saving} onClick={handleSave}>
-            {saving ? "Saving…" : "Save & Refresh"}
-          </Button>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -408,33 +422,45 @@ export default function PreauthDraft({ ctx }) {
                   <Plus size={13} /> Add
                 </button>
               </div>
-              {displayDiagnoses.map((diag, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px" }}>
-                  <input
-                    className="input-modern"
-                    style={{ width: "90px", fontSize: "12px", padding: "4px 8px" }}
-                    placeholder="ICD code"
-                    value={diag.code}
-                    onChange={(e) => updateDiagnosis(i, "code", e.target.value)}
-                  />
-                  <input
-                    className="input-modern"
-                    style={{ flex: 1, fontSize: "12px", padding: "4px 8px" }}
-                    placeholder="Diagnosis name"
-                    value={diag.name}
-                    onChange={(e) => updateDiagnosis(i, "name", e.target.value)}
-                  />
-                  {diag.primary && (
-                    <span className="badge-modern badge-success" style={{ fontSize: "10px", whiteSpace: "nowrap" }}>PRIMARY</span>
-                  )}
-                  <button
-                    onClick={() => removeDiagnosis(i)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", padding: "2px", display: "flex", flexShrink: 0 }}
+              <AnimatePresence>
+                {displayDiagnoses.map((diag, i) => (
+                  <motion.div 
+                    key={i} 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    style={{ overflow: "hidden" }}
                   >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px", background: "var(--bg-card)" }}>
+                      <input
+                        className="input-modern"
+                        style={{ width: "90px", fontSize: "12px", padding: "4px 8px" }}
+                        placeholder="ICD code"
+                        value={diag.code}
+                        onChange={(e) => updateDiagnosis(i, "code", e.target.value)}
+                      />
+                      <input
+                        className="input-modern"
+                        style={{ flex: 1, fontSize: "12px", padding: "4px 8px" }}
+                        placeholder="Diagnosis name"
+                        value={diag.name}
+                        onChange={(e) => updateDiagnosis(i, "name", e.target.value)}
+                      />
+                      {diag.primary && (
+                        <span className="badge-modern badge-success" style={{ fontSize: "10px", whiteSpace: "nowrap" }}>PRIMARY</span>
+                      )}
+                      <button
+                        onClick={() => removeDiagnosis(i)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", padding: "2px", display: "flex", flexShrink: 0, transition: "transform 0.15s ease" }}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
 
             {/* Line Items (editable) */}
