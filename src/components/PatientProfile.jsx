@@ -126,12 +126,8 @@ function PatientDetail({ patient, onBack }) {
         dest = "payment";
       } else if (claim?.correlation_id && !cDecision) {
         dest = "claim";
-      } else if (pDecision === "APPROVED") {
+      } else if (pDecision === "APPROVED" || pDecision === "PARTIALLY_APPROVED") {
         dest = "claim";
-      } else if (pDecision === "PARTIALLY_APPROVED") {
-        // Land on the decision screen so staff can choose enhancement before
-        // proceeding to claim — partial approval means coverage may still be extended.
-        dest = "status";
       } else if (pDecision === "QUERIED" || pDecision === "REJECTED") {
         dest = "status";
       } else if (preauth?.correlation_id && (!pDecision || pDecision === "pending")) {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  Search, ArrowRight, Activity, FileText, CheckCircle,
+  Search, Activity, FileText, CheckCircle,
   Clock, XCircle, AlertTriangle, Users, Inbox, AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
@@ -26,15 +26,33 @@ const METRICS = [
   { key: "failed",          label: "Failed / Rejected",     icon: XCircle,       color: "var(--error)",    filterStatus: "failed" },
 ];
 
-function contextualAction(claim) {
-  if (claim.payment_status === "PAYMENT_SETTLED") return { label: "View Payment", route: "payment" };
-  if (claim.claim_decision === "APPROVED" || claim.claim_decision === "PARTIALLY_APPROVED") return { label: "View Payment", route: "payment" };
-  if (claim.claim_decision === "QUERIED") return { label: "Respond to Query", route: "claim" };
-  if (claim.claim_decision === "REJECTED") return { label: "Appeal / Reprocess", route: "reprocess" };
-  if (claim.use_type === "claim") return { label: "View Claim", route: "claim" };
-  if (claim.status === "draft") return { label: "Submit Preauth", route: "review" };
-  if (claim.status === "pending" || claim.status === "complete") return { label: "View Preauth", route: "status" };
-  return { label: "Open Case", route: "" };
+function getActionOptions(claim) {
+  const options = [];
+  if (claim.pending_tasks?.some((t) => t.task_type === "review_payment_ack_failure")) {
+    options.push({ label: "Retry Acknowledgement", route: "payment" });
+  }
+  if (claim.payment_status === "PAYMENT_SETTLED" || claim.claim_decision === "APPROVED" || claim.claim_decision === "PARTIALLY_APPROVED") {
+    options.push({ label: "View Payment", route: "payment" });
+  }
+  if (claim.claim_decision === "QUERIED") {
+    options.push({ label: "Respond to Query", route: "claim" });
+  }
+  if (claim.claim_decision === "REJECTED") {
+    options.push({ label: "Appeal / Reprocess", route: "reprocess" });
+  }
+  if (claim.use_type === "claim") {
+    options.push({ label: "View Claim", route: "claim" });
+  }
+  if (claim.status === "draft") {
+    options.push({ label: "Submit Preauth", route: "review" });
+  }
+  if (claim.status === "pending" || claim.status === "complete") {
+    options.push({ label: "View Preauth", route: "status" });
+  }
+  if (options.length === 0) {
+    options.push({ label: "Open Case", route: "" });
+  }
+  return options;
 }
 
 export default function Dashboard({ allFacilitiesMode = false }) {
@@ -90,7 +108,9 @@ export default function Dashboard({ allFacilitiesMode = false }) {
     const matchSearch =
       c.patient_name?.toLowerCase().includes(q) ||
       c.child_name?.toLowerCase().includes(q) ||
-      c.id?.toString().includes(q);
+      c.id?.toString().includes(q) ||
+      c.payer_name?.toLowerCase().includes(q) ||
+      c.payer_id?.toString().toLowerCase().includes(q);
     const matchStatus = !statusFilter || c.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -252,7 +272,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                     <th>Claim ID</th>
                     <th>Patient</th>
                     {allFacilitiesMode && <th>Facility</th>}
-                    <th>Use Type</th>
+                    <th>Payer</th>
                     <th>Workflow Status</th>
                     <th>Decision</th>
                     <th style={{ textAlign: "right" }}>Approved</th>
@@ -264,7 +284,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                 </thead>
                 <tbody>
                   {filteredClaims.map((claim) => {
-                    const { label, route } = contextualAction(claim);
+                    const actionOptions = getActionOptions(claim);
                     return (
                       <tr key={claim.id}>
                         <td className="mono-cell" style={{ fontWeight: 700 }}>#{claim.id}</td>
@@ -273,9 +293,12 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                           <td style={{ fontSize: "12px", color: "var(--text-muted)" }}>{claim.facility_name || "-"}</td>
                         )}
                         <td>
-                          <span className="badge-modern badge-info" style={{ textTransform: "capitalize" }}>
-                            {claim.use_type}
-                          </span>
+                          <div style={{ fontWeight: 600 }}>{claim.payer_name || claim.payer_id || "-"}</div>
+                          {(claim.payer_name && claim.payer_id) || claim.payer_id ? (
+                            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+                              {claim.payer_id || claim.payer_name}
+                            </div>
+                          ) : null}
                         </td>
                         <td><StatusBadge status={claim.current_step || claim.status} /></td>
                         <td>
@@ -302,15 +325,26 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                           {new Date(claim.created_at).toLocaleDateString()}
                         </td>
                         <td>
-                          <Button
-                            variant="outline"
-                            size="small"
-                            icon={ArrowRight}
+                          <select
+                            className="input-modern"
+                            defaultValue=""
                             disabled={!!navigating[claim.id]}
-                            onClick={() => navigateToClaim(claim, route)}
+                            style={{ minWidth: "150px", fontSize: "12px", padding: "6px 10px" }}
+                            onChange={(e) => {
+                              const route = e.target.value;
+                              if (route) {
+                                navigateToClaim(claim, route);
+                              }
+                              e.target.value = "";
+                            }}
                           >
-                            {navigating[claim.id] ? "Loading…" : label}
-                          </Button>
+                            <option value="">Choose action</option>
+                            {actionOptions.map((option) => (
+                              <option key={`${claim.id}-${option.route}-${option.label}`} value={option.route}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                       </tr>
                     );

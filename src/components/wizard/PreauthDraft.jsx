@@ -313,6 +313,24 @@ export default function PreauthDraft({ ctx }) {
 
           {/* Payer & policy now live in the case identity strip — not repeated here. */}
 
+          {/* Accommodation */}
+          {draft?.accommodation && (
+            <Card title="Accommodation">
+              <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", fontSize: "13px" }}>
+                {["ward", "specialty", "room", "bed_code"].map((key) => (
+                  draft.accommodation[key] != null && (
+                    <div key={key}>
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>
+                        {key.replace("_", " ")}
+                      </div>
+                      <div style={{ fontWeight: 600 }}>{draft.accommodation[key]}</div>
+                    </div>
+                  )
+                ))}
+              </div>
+            </Card>
+          )}
+
           {/* Eligibility Summary */}
           {draft?.eligibility && (
             <Card title="Eligibility Summary">
@@ -361,6 +379,23 @@ export default function PreauthDraft({ ctx }) {
                 ))}
               </div>
             )}
+
+            {/* Clinical justification chips (read-only, auto-attached) */}
+            {[
+              ["Chief Complaints", draft?.chief_complaints],
+              ["Clinical Findings", draft?.clinical_findings],
+              ["Medications", draft?.medications],
+              ["Investigations", draft?.investigations],
+            ].map(([label, codes]) => codes?.length > 0 && (
+              <div key={label} style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>{label}</div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {codes.map((c, i) => (
+                    <span key={i} className="badge-modern badge-info" style={{ fontSize: "11px" }}>{c.name || c.code}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
 
             {/* Diagnoses (editable) */}
             <div style={{ marginBottom: "16px" }}>
@@ -512,6 +547,26 @@ export default function PreauthDraft({ ctx }) {
                   </div>
                 </div>
               ))}
+            </Card>
+          )}
+
+          {/* Discharge Summary — only present once the patient has been discharged */}
+          {draft?.discharge_summary && (
+            <Card title="Discharge Summary">
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
+                {draft.discharge_summary.condition && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Condition: </span><strong>{draft.discharge_summary.condition}</strong></div>
+                )}
+                {draft.discharge_summary.advice && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Advice: </span>{draft.discharge_summary.advice}</div>
+                )}
+                {draft.discharge_summary.followup_on && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Follow-up: </span>{draft.discharge_summary.followup_on}</div>
+                )}
+                {draft.discharge_summary.summary_html && (
+                  <div style={{ whiteSpace: "pre-wrap" }}>{draft.discharge_summary.summary_html.replace(/<[^>]*>/g, "")}</div>
+                )}
+              </div>
             </Card>
           )}
         </div>
