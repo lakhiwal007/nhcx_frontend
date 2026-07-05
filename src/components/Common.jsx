@@ -180,7 +180,7 @@ export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) =
   const [photoError, setPhotoError] = useState(false);
   return (
     <motion.div
-      whileHover={{ x: 2 }}
+      whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
       onClick={onClick}
       style={{
         padding: "14px 16px",
