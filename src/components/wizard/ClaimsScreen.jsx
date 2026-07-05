@@ -124,15 +124,22 @@ export default function ClaimsScreen({ ctx }) {
   const [resubmitEditItems, setResubmitEditItems] = useState(null);
 
   const claimId = caseState.claim_id || location.state?.claim_id;
+  const resolvedClaimId = claimId || caseState.claim_id || null;
+  const resolvedCashlessCaseId = caseState.cashless_case_id || location.state?.cashless_case_id || null;
 
   const loadDraft = async (id, params) => {
     setLoading(true);
     try {
-      const queryParams = params || (id || claimId ? { claim_id: id || claimId } : {});
+      const queryParams = params || (id || resolvedClaimId ? { claim_id: id || resolvedClaimId } : {});
       const res = await api.prepareClaimDraft(queryParams);
       setClaimDraft(res);
       setMissingFields(res.missing_fields ?? []);
-      if (res.claim_id && !claimId) updateCaseState({ claim_id: res.claim_id });
+      if (res.claim_id && !resolvedClaimId) {
+        updateCaseState({ claim_id: res.claim_id });
+      }
+      if (res.cashless_case_id && !resolvedCashlessCaseId) {
+        updateCaseState({ cashless_case_id: res.cashless_case_id });
+      }
     } catch (_) {
     } finally {
       setLoading(false);
@@ -144,9 +151,6 @@ export default function ClaimsScreen({ ctx }) {
       setActiveTab("decision");
       setPolling(true);
     } else {
-      const resolvedClaimId = caseState.claim_id || location.state?.claim_id;
-      const resolvedCashlessCaseId = caseState.cashless_case_id;
-
       if (!resolvedClaimId && !resolvedCashlessCaseId) {
         setLoading(false);
         setClaimDraft({ _error: "No claim ID available. Please complete the preauth step first." });
@@ -271,7 +275,11 @@ export default function ClaimsScreen({ ctx }) {
   const handleResubmitClaim = async () => {
     setSubmitting(true);
     try {
-      const body = { claim_id: claimDraft?.claim_id || claimId };
+      const body = {
+        ...(resolvedClaimId ? { claim_id: resolvedClaimId } : {}),
+        ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
+        ...(payerId ? { payer_id: payerId } : {}),
+      };
       if (resubmitEditItems?.length > 0) {
         const total = resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0);
         body.items = resubmitEditItems;
@@ -318,9 +326,16 @@ export default function ClaimsScreen({ ctx }) {
   useEffect(() => {
     if (location.state?.openAction !== "resubmit_claim") return;
     if (isClaimQueried || isClaimRejected || isPartialApproval) {
+      if (resolvedCashlessCaseId && !caseState.cashless_case_id) {
+        updateCaseState({ cashless_case_id: resolvedCashlessCaseId });
+      }
+      if (resolvedClaimId && !caseState.claim_id) {
+        updateCaseState({ claim_id: resolvedClaimId });
+      }
+      setActiveTab("decision");
       setShowResubmitDrawer(true);
     }
-  }, [location.state?.openAction, isClaimQueried, isClaimRejected, isPartialApproval]);
+  }, [location.state?.openAction, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimRejected, isPartialApproval, updateCaseState]);
 
   if (loading) {
     return (
