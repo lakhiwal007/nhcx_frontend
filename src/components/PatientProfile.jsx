@@ -103,6 +103,7 @@ function PatientDetail({ patient, onBack }) {
 
       const {
         status,
+        current_step,
         next_actions,
         policy_number,
         payer_code,
@@ -134,6 +135,14 @@ function PatientDetail({ patient, onBack }) {
       } else if (pDecision === "QUERIED" || pDecision === "REJECTED") {
         dest = "status";
       } else if (preauth_correlation_id && (!pDecision || pDecision === "pending")) {
+        dest = "status";
+      } else if (current_step === "claim_submitted" || current_step === "claim_decided") {
+        // Decision/correlation fields above didn't resolve it, but current_step
+        // is the authoritative journey position — don't fall back to Eligibility Prep.
+        dest = "claim";
+      } else if (current_step === "payment_pending" || current_step === "settled") {
+        dest = "payment";
+      } else if (current_step === "preauth_submitted" || current_step === "preauth_decided") {
         dest = "status";
       } else if (next_actions?.includes("prepare_preauth") || next_actions?.includes("submit_preauth")) {
         dest = "review";
