@@ -3917,6 +3917,15 @@ components:
           $ref: "#/components/schemas/InsurancePlanSummary"
         coverage_eligibility:
           $ref: "#/components/schemas/CashlessCaseCoverageEligibility"
+        preauth:
+          allOf:
+            - $ref: "#/components/schemas/PreauthStatusResponse"
+          nullable: true
+          description: >-
+            Present only once a preauth has been submitted for this case
+            (current_step is `preauth_submitted` or later). Same shape as
+            `GET /cashless/preauth/status/{correlation_id}` — use it to branch
+            on `decision` without a second round-trip.
 
     ProcedureBlock:
       type: object

@@ -111,11 +111,13 @@ function PatientDetail({ patient, onBack }) {
         payment_status,
         claim_decision,
         claim_correlation_id,
-        preauth_decision,
-        preauth_correlation_id,
+        preauth,
       } = fullCase;
 
-      const pDecision = preauth_decision || claimSummary.preauth_status;
+      // `preauth` is only present once current_step reaches preauth_submitted
+      // or later (see FRONTEND_API.yaml CashlessCase.preauth) — same shape as
+      // GET /cashless/preauth/status/{correlation_id}.
+      const pDecision = preauth?.decision || claimSummary.preauth_status;
       const cDecision = claim_decision || claimSummary.claim_status;
 
       let dest = "payer";
@@ -134,7 +136,7 @@ function PatientDetail({ patient, onBack }) {
         dest = "status";
       } else if (pDecision === "QUERIED" || pDecision === "REJECTED") {
         dest = "status";
-      } else if (preauth_correlation_id && (!pDecision || pDecision === "pending")) {
+      } else if (preauth?.correlation_id && (!pDecision || pDecision === "pending")) {
         dest = "status";
       } else if (current_step === "claim_submitted" || current_step === "claim_decided") {
         // Decision/correlation fields above didn't resolve it, but current_step

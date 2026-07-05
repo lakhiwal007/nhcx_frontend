@@ -1023,7 +1023,10 @@ The status screen should have:
 | Procedures | `procedures.source`, `procedures.items[]` |
 | Insurance Plan | `insurance_plan.status`, `plan_details`, `inclusions`, `exclusions`, `pricing`, `document_requirements` |
 | Coverage Eligibility | `coverage_eligibility.status` (aggregate across all 3 checks); then three sub-panels: `validation` (inforce status), `benefits` (benefit limits per service), `auth_requirements` (per-procedure preauth docs) |
+| Preauth | `preauth.status`, `preauth.decision`, `preauth.correlation_id` — present only once a preauth has been submitted for this case |
 | Tasks | `pending_tasks[]`, `completed_tasks[]` |
+
+Once `current_step` reaches `preauth_submitted` or `preauth_decided`, this response also carries a `preauth` object (same shape as `GET /cashless/preauth/status/{correlation_id}`) — use it to branch per the "Resume behavior" table above without a second round-trip. It is omitted entirely (not present as a key) until a preauth has actually been submitted for this case.
 
 `cashless/prepare` fires all three CE purposes simultaneously. The aggregate `status` field (`complete` / `pending` / `failed`) drives the polling stop condition. The three sub-objects carry individual results:
 
