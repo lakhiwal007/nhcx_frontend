@@ -150,19 +150,19 @@ export default function ClaimsScreen({ ctx }) {
     if (finalCorrelationId) {
       setActiveTab("decision");
       setPolling(true);
-    } else {
-      if (!resolvedClaimId && !resolvedCashlessCaseId) {
-        setLoading(false);
-        setClaimDraft({ _error: "No claim ID available. Please complete the preauth step first." });
-        return;
-      }
-
-      const params = {};
-      if (resolvedClaimId) params.claim_id = resolvedClaimId;
-      else if (resolvedCashlessCaseId) params.cashless_case_id = resolvedCashlessCaseId;
-
-      loadDraft(null, params);
     }
+    
+    if (!resolvedClaimId && !resolvedCashlessCaseId) {
+      setLoading(false);
+      setClaimDraft({ _error: "No claim ID available. Please complete the preauth step first." });
+      return;
+    }
+
+    const params = {};
+    if (resolvedClaimId) params.claim_id = resolvedClaimId;
+    else if (resolvedCashlessCaseId) params.cashless_case_id = resolvedCashlessCaseId;
+
+    loadDraft(null, params);
   }, []);
 
   // Discharge claim polling
@@ -324,7 +324,8 @@ export default function ClaimsScreen({ ctx }) {
   const isClaimRejected = claimDecision === "REJECTED";
 
   useEffect(() => {
-    if (location.state?.openAction !== "resubmit_claim") return;
+    const action = location.state?.openAction;
+    if (action !== "resubmit_claim" && action !== "respond_claim_query") return;
     if (isClaimQueried || isClaimRejected || isPartialApproval) {
       if (resolvedCashlessCaseId && !caseState.cashless_case_id) {
         updateCaseState({ cashless_case_id: resolvedCashlessCaseId });
@@ -333,7 +334,11 @@ export default function ClaimsScreen({ ctx }) {
         updateCaseState({ claim_id: resolvedClaimId });
       }
       setActiveTab("decision");
-      setShowResubmitDrawer(true);
+      if (action === "resubmit_claim") {
+        setShowResubmitDrawer(true);
+      } else if (action === "respond_claim_query") {
+        setShowQueryDrawer(true);
+      }
     }
   }, [location.state?.openAction, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimRejected, isPartialApproval, updateCaseState]);
 
