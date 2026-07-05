@@ -300,6 +300,7 @@ When the user opens a case directly (not via a task), the frontend has no `actio
 |---|---|---|
 | `insurance_and_eligibility` | Insurance plan / coverage eligibility in progress | Eligibility screen |
 | `preauth_ready` | Eligibility complete; preauth can be prepared/submitted | Preauth screen |
+| `preauth_submitted` | Preauth submitted to the payer; decision not yet received | Waiting-for-payer screen (poll, do not re-draft) |
 | `preauth_decided` | Preauth decision received (see `preauth_status`) | Preauth decision / next action |
 | `claim_submitted` | A discharge/final claim has been submitted | Claim Decision tab (poll) |
 | `claim_decided` | Claim decision received (see `claim_decision`) | Claim decision → payment or reprocess |

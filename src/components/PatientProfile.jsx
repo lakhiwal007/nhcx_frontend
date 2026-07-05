@@ -18,9 +18,11 @@ const STEP_LABELS = {
   insurance_and_eligibility: "Eligibility Check",
   preauth_ready: "Ready for Preauth",
   preauth_submitted: "Preauth Submitted",
-  preauth_approved: "Preauth Approved",
+  preauth_decided: "Preauth Decided",
   claim_submitted: "Claim Submitted",
-  complete: "Complete",
+  claim_decided: "Claim Decided",
+  payment_pending: "Payment Pending",
+  settled: "Settled",
 };
 
 const DECISION_CONFIG = {

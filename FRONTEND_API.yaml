@@ -3253,7 +3253,8 @@ components:
           nullable: true
           description: >-
             Authoritative journey position: insurance_and_eligibility, preauth_ready,
-            preauth_decided, claim_submitted, claim_decided, payment_pending, settled.
+            preauth_submitted, preauth_decided, claim_submitted, claim_decided,
+            payment_pending, settled.
         claim_decision:
           type: string
           nullable: true
@@ -3340,6 +3341,7 @@ components:
               enum:
                 - insurance_and_eligibility
                 - preauth_ready
+                - preauth_submitted
                 - preauth_decided
                 - claim_submitted
                 - claim_decided
@@ -3580,6 +3582,7 @@ components:
           enum:
             - insurance_and_eligibility
             - preauth_ready
+            - preauth_submitted
             - preauth_decided
             - claim_submitted
             - claim_decided
@@ -3867,6 +3870,7 @@ components:
           enum:
             - insurance_and_eligibility
             - preauth_ready
+            - preauth_submitted
             - preauth_decided
             - claim_submitted
             - claim_decided
