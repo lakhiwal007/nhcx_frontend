@@ -10,6 +10,10 @@ import {
   RefreshCw,
   RotateCcw,
   AlertCircle,
+  LayoutGrid,
+  List,
+  ArrowDownUp,
+  Inbox
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
@@ -491,6 +495,11 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const [selectedTask, setSelectedTask] = useState(null);
   const [retrying, setRetrying] = useState({});
   const [navigating, setNavigating] = useState({});
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("wq_viewMode") || "board");
+  const [sortBy, setSortBy] = useState("priority");
+  
+  useEffect(() => { localStorage.setItem("wq_viewMode", viewMode); }, [viewMode]);
+  
   const pollRef = useRef(null);
 
   const fetchTasks = useCallback(async () => {
@@ -566,7 +575,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     });
   };
 
-  const filteredTasks = tasks.filter((t) => {
+  let filteredTasks = tasks.filter((t) => {
     const q = searchQuery.toLowerCase();
     return (
       t.title?.toLowerCase().includes(q) ||
@@ -575,6 +584,15 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         .includes(q) ||
       String(t.claim_id ?? "").includes(q)
     );
+  });
+
+  filteredTasks.sort((a, b) => {
+    if (sortBy === "oldest") {
+      return Date.parse(a.created_at) - Date.parse(b.created_at);
+    } else if (sortBy === "newest") {
+      return Date.parse(b.created_at) - Date.parse(a.created_at);
+    }
+    return 0;
   });
 
   const urgentTasks = filteredTasks.filter((t) => t.priority === "urgent");
@@ -594,9 +612,11 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
     return (
       <motion.div
-        initial={{ opacity: 0, y: 6 }}
+        layout
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, height: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        whileHover={{ y: -2, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
         className="card-modern"
         style={{
           padding: "14px 18px",
@@ -610,6 +630,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           display: "flex",
           gap: "14px",
           alignItems: "center",
+          transition: "box-shadow 0.2s ease",
         }}
         onClick={() => setSelectedTask(task)}
       >
@@ -737,7 +758,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         </div>
         <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
           <Button
-            variant="outline"
+            variant={task.action ? "primary" : "outline"}
             size="small"
             disabled={!!navigating[taskId]}
             onClick={(e) => {
@@ -745,7 +766,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
               navigateToCase(task);
             }}
           >
-            {navigating[taskId] ? "Loading…" : "Open Case"}
+            {navigating[taskId] ? "Loading…" : (task.action?.label || "Open Case")}
           </Button>
           <ChevronRight size={20} color="var(--text-muted)" />
         </div>
@@ -776,6 +797,105 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             {sectionTasks.map((task) => (
               <TaskRow key={task.id ?? task.task_id} task={task} />
             ))}
+          </AnimatePresence>
+        </div>
+      </div>
+    );
+  };
+
+  const KanbanCard = ({ task }) => {
+    const age = ageLabel(task.created_at);
+    const taskId = task.id ?? task.task_id;
+    
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
+        onClick={() => setSelectedTask(task)}
+        className="card-modern"
+        style={{
+          padding: "16px",
+          borderTop: task.priority === "urgent" ? "3px solid var(--error)" : task.priority === "high" ? "3px solid var(--warning)" : "3px solid var(--primary)",
+          cursor: "pointer",
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          transition: "box-shadow 0.2s ease"
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <span className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>
+              {task.priority?.toUpperCase()}
+            </span>
+            <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>
+              {task.workflow}
+            </span>
+          </div>
+          {age && <span style={{ fontSize: "10px", fontWeight: 700, color: age.color, background: "color-mix(in srgb, currentColor 10%, transparent)", padding: "2px 6px", borderRadius: "10px", flexShrink: 0 }}>{age.text}</span>}
+        </div>
+        
+        <div style={{ fontWeight: 700, fontSize: "14px", lineHeight: "1.3" }}>
+          {task.title}
+        </div>
+        
+        <div style={{ fontSize: "11px", color: "var(--text-muted)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>{task.created_at ? new Date(task.created_at).toLocaleDateString() : ""}</span>
+          {task.facility_name && (
+            <span style={{ color: "var(--accent)", fontWeight: 600, background: "color-mix(in srgb, var(--accent) 10%, transparent)", padding: "2px 6px", borderRadius: "4px" }}>
+              {task.facility_name}
+            </span>
+          )}
+        </div>
+        
+        {task.required_documents?.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+            <FileText size={11} /> {task.required_documents.length} document{task.required_documents.length > 1 ? "s" : ""} required
+          </div>
+        )}
+        
+        <div style={{ marginTop: "6px" }}>
+          <Button
+            variant={task.action ? "primary" : "outline"}
+            size="small"
+            disabled={!!navigating[taskId]}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateToCase(task);
+            }}
+            style={{ width: "100%", justifyContent: "center" }}
+          >
+            {navigating[taskId] ? "Loading…" : (task.action?.label || "Open Case")}
+          </Button>
+        </div>
+      </motion.div>
+    );
+  };
+
+  const KanbanColumn = ({ title, tasks: sectionTasks, color }) => {
+    return (
+      <div style={{ flex: 1, minWidth: "300px", maxWidth: "33%", background: "color-mix(in srgb, var(--bg-main) 60%, transparent)", borderRadius: "var(--radius-lg)", padding: "16px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", margin: 0, color: `var(--${color})`, fontSize: "14px", fontWeight: 700 }}>
+          {color === "error" && <AlertTriangle size={16} />}
+          {title} <span style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", color: "var(--text-main)", padding: "2px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "auto" }}>{sectionTasks.length}</span>
+        </h3>
+        
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", minHeight: "150px" }}>
+          <AnimatePresence>
+            {sectionTasks.length === 0 ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ padding: "40px 16px", textAlign: "center", color: "var(--text-muted)", background: "var(--bg-card)", borderRadius: "var(--radius-md)", border: "1px dashed var(--border-color)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <Inbox size={32} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-main)" }}>No {title.toLowerCase()}</div>
+                <div style={{ fontSize: "12px", marginTop: "4px" }}>All caught up here.</div>
+              </motion.div>
+            ) : (
+              sectionTasks.map((task) => (
+                <KanbanCard key={task.id ?? task.task_id} task={task} />
+              ))
+            )}
           </AnimatePresence>
         </div>
       </div>
@@ -884,6 +1004,34 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           value={caseIdFilter}
           onChange={(e) => setCaseIdFilter(e.target.value)}
         />
+        
+        <select
+          className="input-modern"
+          style={{ width: "auto", minWidth: "140px" }}
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
+          <option value="priority">Sort by Priority</option>
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+        </select>
+        
+        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", marginLeft: "auto", gap: "4px" }}>
+          <button
+            title="Board View"
+            onClick={() => setViewMode("board")}
+            style={{ padding: "6px 12px", background: viewMode === "board" ? "var(--bg-main)" : "transparent", color: viewMode === "board" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "board" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "board" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+          >
+            <LayoutGrid size={16} />
+          </button>
+          <button
+            title="List View"
+            onClick={() => setViewMode("list")}
+            style={{ padding: "6px 12px", background: viewMode === "list" ? "var(--bg-main)" : "transparent", color: viewMode === "list" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "list" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "list" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+          >
+            <List size={16} />
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -909,19 +1057,19 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           {statusFilter === "pending" ? (
-            <>
-              <TaskSection title="Urgent" tasks={urgentTasks} color="error" />
-              <TaskSection
-                title="High Priority"
-                tasks={highTasks}
-                color="warning"
-              />
-              <TaskSection
-                title="Normal Priority"
-                tasks={normalTasks}
-                color="primary"
-              />
-            </>
+            viewMode === "board" ? (
+              <div style={{ display: "flex", gap: "24px", overflowX: "auto", paddingBottom: "16px", minHeight: "60vh" }}>
+                <KanbanColumn title="Urgent" tasks={urgentTasks} color="error" />
+                <KanbanColumn title="High Priority" tasks={highTasks} color="warning" />
+                <KanbanColumn title="Normal Priority" tasks={normalTasks} color="primary" />
+              </div>
+            ) : (
+              <>
+                <TaskSection title="Urgent" tasks={urgentTasks} color="error" />
+                <TaskSection title="High Priority" tasks={highTasks} color="warning" />
+                <TaskSection title="Normal Priority" tasks={normalTasks} color="primary" />
+              </>
+            )
           ) : (
             <div
               style={{ display: "flex", flexDirection: "column", gap: "8px" }}

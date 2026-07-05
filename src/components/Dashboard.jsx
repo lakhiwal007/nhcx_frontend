@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   Search, Activity, FileText, CheckCircle,
-  Clock, XCircle, AlertTriangle, Users, Inbox, AlertCircle,
+  Clock, XCircle, AlertTriangle, Users, Inbox, AlertCircle, LayoutGrid, List, MoreVertical, ChevronDown
 } from "lucide-react";
 import { api } from "../api";
 import { PageHeader, Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
@@ -72,6 +72,10 @@ export default function Dashboard({ allFacilitiesMode = false }) {
     () => new URLSearchParams(location.search).get("q") || ""
   );
   const [navigating, setNavigating] = useState({});
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("dash_viewMode") || "table");
+  const [sortBy, setSortBy] = useState("newest");
+  
+  useEffect(() => { localStorage.setItem("dash_viewMode", viewMode); }, [viewMode]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -114,7 +118,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
     navigate(`/case/${cid}/${route}`, { state });
   };
 
-  const filteredClaims = claims.filter((c) => {
+  let filteredClaims = claims.filter((c) => {
     const q = searchQuery.toLowerCase();
     const matchSearch =
       c.patient_name?.toLowerCase().includes(q) ||
@@ -122,9 +126,103 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       c.id?.toString().includes(q) ||
       c.payer_name?.toLowerCase().includes(q) ||
       c.payer_id?.toString().toLowerCase().includes(q);
-    const matchStatus = !statusFilter || c.status === statusFilter;
+    const matchStatus = !statusFilter || c.status === statusFilter || c.claim_decision === statusFilter || c.current_step === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  filteredClaims.sort((a, b) => {
+    if (sortBy === "oldest") {
+      return Date.parse(a.created_at) - Date.parse(b.created_at);
+    } else if (sortBy === "newest") {
+      return Date.parse(b.created_at) - Date.parse(a.created_at);
+    } else if (sortBy === "amount") {
+      return (b.approved_amount || 0) - (a.approved_amount || 0);
+    }
+    return 0;
+  });
+
+  const ClaimCard = ({ claim }) => {
+    const actionOptions = getActionOptions(claim);
+    const primaryAction = actionOptions[0];
+    
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
+        className="card-modern"
+        style={{
+          padding: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+          transition: "box-shadow 0.2s ease",
+          borderTop: "3px solid " + (claim.claim_decision === "APPROVED" ? "var(--success)" : claim.claim_decision === "REJECTED" ? "var(--error)" : claim.claim_decision === "PARTIALLY_APPROVED" ? "var(--warning)" : "var(--primary)")
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "1.2" }}>{claim.patient_name || claim.child_name}</div>
+            <div className="mono-cell" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>#{claim.id}</div>
+          </div>
+          <StatusBadge status={claim.current_step || claim.status} />
+        </div>
+        
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", marginTop: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "var(--text-muted)" }}>Payer:</span>
+            <span style={{ fontWeight: 600, textAlign: "right" }}>{claim.payer_name || claim.payer_id || "-"}</span>
+          </div>
+          {allFacilitiesMode && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "var(--text-muted)" }}>Facility:</span>
+              <span style={{ fontWeight: 600, textAlign: "right" }}>{claim.facility_name || "-"}</span>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "var(--text-muted)" }}>Submitted:</span>
+            <span>{new Date(claim.created_at).toLocaleDateString()}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
+            <span style={{ color: "var(--text-muted)" }}>Approved:</span>
+            <span className="mono-cell" style={{ fontWeight: 700, color: "var(--success)", fontSize: "14px" }}>
+              {claim.approved_amount != null ? `₹${claim.approved_amount.toLocaleString()}` : "-"}
+            </span>
+          </div>
+        </div>
+        
+        <div style={{ marginTop: "auto", paddingTop: "12px", display: "flex", gap: "8px" }}>
+          <Button
+            variant="primary"
+            size="small"
+            disabled={!!navigating[claim.id]}
+            onClick={() => navigateToClaim(claim, primaryAction.route)}
+            style={{ flex: 1, justifyContent: "center" }}
+          >
+            {navigating[claim.id] ? "Loading…" : primaryAction.label}
+          </Button>
+          {actionOptions.length > 1 && (
+            <select
+              className="input-modern"
+              defaultValue=""
+              title="More Actions"
+              style={{ width: "36px", padding: "0 0 0 8px", background: "transparent", color: "var(--text-muted)" }}
+              onChange={(e) => {
+                const route = e.target.value;
+                if (route) { navigateToClaim(claim, route); e.target.value = ""; }
+              }}
+            >
+              <option value="" disabled>⋯</option>
+              {actionOptions.slice(1).map((opt) => (
+                <option key={opt.route} value={opt.route}>{opt.label}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <div className="dashboard-screen">
@@ -257,8 +355,8 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           )}
 
           <Card title="Recent Claims">
-            <div style={{ display: "flex", gap: "12px", marginBottom: "20px", alignItems: "center" }}>
-              <div style={{ flex: 1, maxWidth: "360px" }}>
+            <div style={{ display: "flex", gap: "12px", marginBottom: "20px", alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 250px", maxWidth: "360px" }}>
                 <Input
                   icon={Search}
                   placeholder="Search patient or claim ID…"
@@ -266,10 +364,39 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
+              
+              <select
+                className="input-modern"
+                style={{ width: "auto", minWidth: "140px" }}
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="amount">Highest Amount</option>
+              </select>
+
+              <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", gap: "4px" }}>
+                <button
+                  title="Grid View"
+                  onClick={() => setViewMode("grid")}
+                  style={{ padding: "6px 12px", background: viewMode === "grid" ? "var(--bg-main)" : "transparent", color: viewMode === "grid" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "grid" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "grid" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  title="Table View"
+                  onClick={() => setViewMode("table")}
+                  style={{ padding: "6px 12px", background: viewMode === "table" ? "var(--bg-main)" : "transparent", color: viewMode === "table" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "table" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "table" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+                >
+                  <List size={16} />
+                </button>
+              </div>
+
               {statusFilter && (
                 <button
                   onClick={() => setStatusFilter(null)}
-                  style={{ fontSize: "12px", fontWeight: 600, color: "var(--primary)", background: "var(--primary-light)", border: "1px solid var(--primary)", borderRadius: "var(--radius-pill)", padding: "6px 14px", cursor: "pointer" }}
+                  style={{ fontSize: "12px", fontWeight: 600, color: "var(--primary)", background: "var(--primary-light)", border: "1px solid var(--primary)", borderRadius: "var(--radius-pill)", padding: "6px 14px", cursor: "pointer", marginLeft: "auto" }}
                 >
                   {statusFilter} ×
                 </button>
@@ -277,6 +404,19 @@ export default function Dashboard({ allFacilitiesMode = false }) {
             </div>
 
             <div className="table-responsive-wrapper">
+              {viewMode === "grid" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px", padding: "4px" }}>
+                  {filteredClaims.map(claim => (
+                    <ClaimCard key={claim.id} claim={claim} />
+                  ))}
+                  {filteredClaims.length === 0 && (
+                    <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px" }}>
+                      <Inbox size={32} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
+                      <div style={{ fontSize: "14px", fontWeight: 700 }}>No claims match your filters</div>
+                    </div>
+                  )}
+                </div>
+              ) : (
               <table className="table-modern">
                 <thead>
                   <tr>
@@ -336,26 +476,33 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                           {new Date(claim.created_at).toLocaleDateString()}
                         </td>
                         <td>
-                          <select
-                            className="input-modern"
-                            defaultValue=""
-                            disabled={!!navigating[claim.id]}
-                            style={{ minWidth: "150px", fontSize: "12px", padding: "6px 10px" }}
-                            onChange={(e) => {
-                              const route = e.target.value;
-                              if (route) {
-                                navigateToClaim(claim, route);
-                              }
-                              e.target.value = "";
-                            }}
-                          >
-                            <option value="">Choose action</option>
-                            {actionOptions.map((option) => (
-                              <option key={`${claim.id}-${option.route}-${option.label}`} value={option.route}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <Button
+                              variant="primary"
+                              size="small"
+                              disabled={!!navigating[claim.id]}
+                              onClick={() => navigateToClaim(claim, actionOptions[0].route)}
+                            >
+                              {navigating[claim.id] ? "Loading…" : actionOptions[0].label}
+                            </Button>
+                            {actionOptions.length > 1 && (
+                              <select
+                                className="input-modern"
+                                defaultValue=""
+                                title="More Actions"
+                                style={{ width: "32px", padding: "0 0 0 8px", background: "transparent", color: "var(--text-muted)" }}
+                                onChange={(e) => {
+                                  const route = e.target.value;
+                                  if (route) { navigateToClaim(claim, route); e.target.value = ""; }
+                                }}
+                              >
+                                <option value="" disabled>⋯</option>
+                                {actionOptions.slice(1).map((opt) => (
+                                  <option key={opt.route} value={opt.route}>{opt.label}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -377,6 +524,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                   )}
                 </tbody>
               </table>
+              )}
             </div>
           </Card>
         </motion.div>
