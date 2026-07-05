@@ -167,42 +167,16 @@ function SummaryStrip({ tasks }) {
   );
 }
 
-function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode }) {
-  const [executing, setExecuting] = useState(false);
-  const [result, setResult] = useState(null);
+function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, onNavigate }) {
   const [completing, setCompleting] = useState(false);
 
   const taskId = task?.id ?? task?.task_id;
-
-  const handleExecute = async () => {
-    if (!task?.action) return;
-    setExecuting(true);
-    setResult(null);
-    try {
-      // Resolve method+URL via ACTION_MAP using stable action.code; falls back
-      // to action.endpoint (assumed POST) only when the code is unknown.
-      const { method, url } = resolveAction(task.action);
-      const res = method === "GET"
-        ? await api.rawGet(url, task.action.payload_hint ?? {})
-        : await api.rawPost(url, task.action.payload_hint ?? {});
-      setResult({
-        success: true,
-        correlation_id: res?.correlation_id,
-        message: res?.message,
-      });
-    } catch (err) {
-      setResult({ success: false, message: err.message });
-    } finally {
-      setExecuting(false);
-    }
-  };
 
   const handleComplete = async () => {
     setCompleting(true);
     try {
       await api.completeTask(taskId, {
         note: "Actioned from Work Queue",
-        metadata: { submitted_correlation_id: result?.correlation_id },
       });
       onActionComplete();
       onClose();
@@ -210,6 +184,11 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode }
     } finally {
       setCompleting(false);
     }
+  };
+
+  const handleNavigate = () => {
+    onClose();
+    onNavigate(task);
   };
 
   return (
@@ -456,39 +435,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode }
                 </div>
               </div>
 
-              {result && (
-                <div
-                  style={{
-                    padding: "12px 16px",
-                    background: result.success
-                      ? "rgba(16,185,129,0.08)"
-                      : "rgba(239,68,68,0.08)",
-                    border: `1px solid ${result.success ? "var(--success)" : "var(--error)"}`,
-                    borderRadius: "var(--radius-md)",
-                    fontSize: "13px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      color: result.success ? "var(--success)" : "var(--error)",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    {result.success ? "Action Submitted" : "Action Failed"}
-                  </div>
-                  {result.correlation_id && (
-                    <code style={{ fontSize: "11px" }}>
-                      Correlation: {result.correlation_id}
-                    </code>
-                  )}
-                  {result.message && (
-                    <div style={{ color: "var(--text-muted)" }}>
-                      {result.message}
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Task results (if any) used to be shown here, removed for navigation flow */}
             </div>
 
             <div
@@ -499,22 +446,21 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode }
                 gap: "12px",
               }}
             >
-              {!result && task.action && (
+              {task.action && (
                 <Button
                   variant="primary"
-                  disabled={executing || allFacilitiesMode}
+                  disabled={allFacilitiesMode}
                   title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
-                  onClick={handleExecute}
+                  onClick={handleNavigate}
                   style={{ flex: 1, justifyContent: "center" }}
                 >
-                  {executing ? "Executing…" : task.action.label}
+                  {task.action.label || "Review Case"} &rarr;
                 </Button>
               )}
-              {result?.success && (
+              {task.task_type === "acknowledge_payment" && (
                 <Button
-                  variant="primary"
+                  variant="outline"
                   disabled={completing || allFacilitiesMode}
-                  title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
                   onClick={handleComplete}
                   style={{ flex: 1, justifyContent: "center" }}
                 >
@@ -606,11 +552,11 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         claim_id: task.claim_id,
         cashless_case_id: task.cashless_case_id,
         openAction:
-          task.task_type === "resubmit_preauth"
-            ? "resubmit_preauth"
-            : task.task_type === "resubmit_claim"
-              ? "resubmit_claim"
-              : undefined,
+          task.task_type === "resubmit_preauth" ? "resubmit_preauth" :
+          task.task_type === "respond_preauth_query" ? "respond_preauth_query" :
+          task.task_type === "resubmit_claim" ? "resubmit_claim" :
+          task.task_type === "respond_claim_query" ? "respond_claim_query" :
+          undefined,
         tab: task.task_type?.includes("discharge")
           ? "discharge"
           : task.task_type?.includes("final")
@@ -997,6 +943,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           setSelectedTask(null);
         }}
         allFacilitiesMode={allFacilitiesMode}
+        onNavigate={navigateToCase}
       />
     </div>
   );
