@@ -629,10 +629,6 @@ export default function EligibilityPrep({ ctx }) {
             ...(admission_id && { admission_id }),
           });
         }
-        if (STEP_FORWARD_ROUTE[res.current_step]) {
-          navigate(`../${STEP_FORWARD_ROUTE[res.current_step]}`, { replace: true });
-          return;
-        }
         setCaseData(res);
         setCashlessCase(res);
         updateCaseState({
@@ -642,6 +638,12 @@ export default function EligibilityPrep({ ctx }) {
             res.coverage_eligibility?.validation?.correlation_id ??
             res.coverage_eligibility?.correlation_id,
         });
+
+        if (STEP_FORWARD_ROUTE[res.current_step]) {
+          navigate(`../${STEP_FORWARD_ROUTE[res.current_step]}`, { replace: true });
+          return;
+        }
+
         if (!shouldStopPolling(res)) {
           setPolling(true);
         }
