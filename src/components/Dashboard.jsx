@@ -27,6 +27,9 @@ const METRICS = [
 ];
 
 function contextualAction(claim) {
+  if (claim.pending_tasks?.some((t) => t.task_type === "review_payment_ack_failure")) {
+    return { label: "Retry Acknowledgement", route: "payment" };
+  }
   if (claim.payment_status === "PAYMENT_SETTLED") return { label: "View Payment", route: "payment" };
   if (claim.claim_decision === "APPROVED" || claim.claim_decision === "PARTIALLY_APPROVED") return { label: "View Payment", route: "payment" };
   if (claim.claim_decision === "QUERIED") return { label: "Respond to Query", route: "claim" };

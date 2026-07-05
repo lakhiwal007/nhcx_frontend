@@ -91,7 +91,7 @@ function ConfirmModal({ open, onClose, title, children }) {
 
 export default function PreauthStatus({ ctx }) {
   const navigate = useNavigate();
-  const { caseState, updateCaseState, cashlessCase } = ctx;
+  const { caseState, updateCaseState, cashlessCase, setCashlessCase } = ctx;
   const { preauthCorrelationId, claim_id, cashless_case_id, draftData } = caseState;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
 
@@ -171,13 +171,18 @@ export default function PreauthStatus({ ctx }) {
   }, [polling]);
 
   // Swap in a new correlation id and restart the elapsed timer; usePoll picks up
-  // the change and immediately polls the new id.
+  // the change and immediately polls the new id. Also clears the prior terminal
+  // decision so the case stepper doesn't keep showing the stale REJECTED/QUERIED
+  // badge until the next poll tick resolves the new decision (backend clears its
+  // own copy on resubmit, but the frontend's cached caseState/cashlessCase don't
+  // know that until we clear them here too).
   const restartPoll = (newCorrelationId) => {
     startTimeRef.current = Date.now();
     setPollElapsed(0);
     setStatusData(null);
     setPolling(true);
-    updateCaseState({ preauthCorrelationId: newCorrelationId });
+    updateCaseState({ preauthCorrelationId: newCorrelationId, preauthDecision: null, approvedAmount: null });
+    setCashlessCase?.((prev) => (prev ? { ...prev, preauth_status: null } : prev));
   };
 
   const handleQuerySubmit = async () => {

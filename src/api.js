@@ -225,6 +225,28 @@ const http = {
       throw err;
     }
   },
+  /** Fire an arbitrary GET to a full path (used by GET-only Work Queue task actions). */
+  rawGet: async (fullPath, params = {}) => {
+    const merged = { request_id: generateRequestId(), ...params };
+    const base = fullPath.startsWith("http")
+      ? fullPath
+      : window.location.origin + fullPath;
+    const url = new URL(base);
+    Object.entries(merged).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "")
+        url.searchParams.append(k, v);
+    });
+    try {
+      const res = await fetch(url.toString(), {
+        headers: { ...getProviderHeader(), ...getAuthHeader() },
+      });
+      if (!res.ok) throw new Error(await extractErrorMessage(res));
+      return await res.json();
+    } catch (err) {
+      dispatchError(err.message);
+      throw err;
+    }
+  },
 };
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -997,6 +1019,15 @@ const mock = {
     };
   },
 
+  patchCashlessPatientContext: async (cashless_case_id, data) => {
+    await delay(800);
+    return {
+      status: "success",
+      message: "Patient context updated",
+      missing_fields: [],
+    };
+  },
+
   submitDischargeClaim: async () => {
     await delay(1000);
     return {
@@ -1610,6 +1641,13 @@ const mock = {
       message: "Action submitted (mock)",
     };
   },
+  rawGet: async (fullPath, params = {}) => {
+    await delay(500);
+    return {
+      status: "complete",
+      message: "Status fetched (mock)",
+    };
+  },
 
   // ─── Gateway Status Recovery ─────────────────────────────────────────────────
   requestGatewayStatus: async (data) => {
@@ -1792,6 +1830,9 @@ const real = {
   patchPatientContext: (claim_id, data) =>
     http.patch(`/cashless/claims/${claim_id}/patient-context`, data),
 
+  patchCashlessPatientContext: (cashless_case_id, data) =>
+    http.patch(`/cashless/${cashless_case_id}/patient-context`, data),
+
   submitDischargeClaim: (data) => http.post("/cashless/claims/discharge", data),
 
   submitFinalClaim: (data) => http.post("/cashless/claims/submit", data),
@@ -1852,6 +1893,7 @@ const real = {
 
   // ─── Escape hatch for Work Queue task actions ────────────────────────────────
   rawPost: (fullPath, body = {}) => http.rawPost(fullPath, body),
+  rawGet: (fullPath, params = {}) => http.rawGet(fullPath, params),
 };
 
 // ─── Exported API  ────────────────────────────────────────────────────────────

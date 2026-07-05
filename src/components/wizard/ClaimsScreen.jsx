@@ -413,6 +413,23 @@ export default function ClaimsScreen({ ctx }) {
               <div style={{ fontWeight: 700, color: "var(--primary)" }}>₹{claimDraft?.total_amount?.toLocaleString()}</div>
             </div>
           </div>
+          {/* Clinical justification chips (read-only, auto-attached) */}
+          {[
+            ["Chief Complaints", claimDraft?.chief_complaints],
+            ["Clinical Findings", claimDraft?.clinical_findings],
+            ["Medications", claimDraft?.medications],
+            ["Investigations", claimDraft?.investigations],
+          ].map(([label, codes]) => codes?.length > 0 && (
+            <div key={label} style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "8px", textTransform: "uppercase" }}>{label}</div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {codes.map((c, i) => (
+                  <span key={i} className="badge-modern badge-info" style={{ fontSize: "11px" }}>{c.name || c.code}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+
           <div className="table-responsive-wrapper" style={{ marginBottom: "20px" }}>
             <table className="table-modern" style={{ fontSize: "13px" }}>
               <thead>
@@ -433,6 +450,28 @@ export default function ClaimsScreen({ ctx }) {
               </tbody>
             </table>
           </div>
+
+          {/* Discharge Summary — only present once the patient has been discharged */}
+          {claimDraft?.discharge_summary && (
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "8px", textTransform: "uppercase" }}>Discharge Summary</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}>
+                {claimDraft.discharge_summary.condition && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Condition: </span><strong>{claimDraft.discharge_summary.condition}</strong></div>
+                )}
+                {claimDraft.discharge_summary.advice && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Advice: </span>{claimDraft.discharge_summary.advice}</div>
+                )}
+                {claimDraft.discharge_summary.followup_on && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Follow-up: </span>{claimDraft.discharge_summary.followup_on}</div>
+                )}
+                {claimDraft.discharge_summary.summary_html && (
+                  <div style={{ whiteSpace: "pre-wrap" }}>{claimDraft.discharge_summary.summary_html.replace(/<[^>]*>/g, "")}</div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <Button variant="primary" disabled={!hasPreauthRef || hasMissingFields} onClick={() => setActiveTab("discharge")}>
               Proceed to Discharge Docs <ArrowRight size={16} style={{ marginLeft: "8px" }} />

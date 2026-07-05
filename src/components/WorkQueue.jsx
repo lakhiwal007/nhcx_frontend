@@ -12,7 +12,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
-import { resolveActionUrl } from "../api/actionMap";
+import { resolveAction } from "../api/actionMap";
 import { PageHeader, Button, Input } from "./Common";
 import { useNavigate } from "react-router-dom";
 
@@ -179,10 +179,12 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode }
     setExecuting(true);
     setResult(null);
     try {
-      // Resolve URL via ACTION_MAP using stable action.code; falls back to
-      // action.endpoint only when the code is unknown (forwards-compatibility).
-      const url = resolveActionUrl(task.action);
-      const res = await api.rawPost(url, task.action.payload_hint ?? {});
+      // Resolve method+URL via ACTION_MAP using stable action.code; falls back
+      // to action.endpoint (assumed POST) only when the code is unknown.
+      const { method, url } = resolveAction(task.action);
+      const res = method === "GET"
+        ? await api.rawGet(url, task.action.payload_hint ?? {})
+        : await api.rawPost(url, task.action.payload_hint ?? {});
       setResult({
         success: true,
         correlation_id: res?.correlation_id,

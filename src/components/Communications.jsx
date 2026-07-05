@@ -5,7 +5,7 @@ import {
   Paperclip, FileText, Clock, ExternalLink, Circle, AlertCircle, Send,
 } from "lucide-react";
 import { api } from "../api";
-import { resolveActionUrl } from "../api/actionMap";
+import { resolveAction } from "../api/actionMap";
 import { PageHeader, Card, Button, Input } from "./Common";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import { useNavigate } from "react-router-dom";
@@ -89,10 +89,12 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
     setExecuting(true);
     setExecuteResult(null);
     try {
-      // Resolve via stable action.code (ACTION_MAP); fall back to the DB-stored
-      // action.endpoint only when the code is unknown to this build.
-      const url = resolveActionUrl(taskAction);
-      const res = await api.rawPost(url, taskAction.payload_hint ?? {});
+      // Resolve method+URL via stable action.code (ACTION_MAP); fall back to
+      // the DB-stored action.endpoint (assumed POST) only when unknown.
+      const { method, url } = resolveAction(taskAction);
+      const res = method === "GET"
+        ? await api.rawGet(url, taskAction.payload_hint ?? {})
+        : await api.rawPost(url, taskAction.payload_hint ?? {});
       setExecuteResult({ success: true, correlation_id: res?.correlation_id, message: res?.message });
     } catch (err) {
       setExecuteResult({ success: false, message: err.message });
