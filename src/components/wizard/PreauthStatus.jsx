@@ -312,13 +312,18 @@ export default function PreauthStatus({ ctx }) {
   const hasClaimContext = Boolean(claim_id || statusData?.claim_id || cashlessCase?.claim_id || caseState.draftData?.claim_id);
 
   useEffect(() => {
-    if (location.state?.openAction !== "resubmit_preauth") return;
+    const action = location.state?.openAction;
+    if (action !== "resubmit_preauth" && action !== "respond_preauth_query") return;
     const canResubmit = Boolean(resolvedCashlessCaseId || claim_id || statusData?.claim_id || cashlessCase?.claim_id);
     if (canResubmit && (isQueried || isRejected || isPartial)) {
       if (resolvedCashlessCaseId) {
         updateCaseState({ cashless_case_id: resolvedCashlessCaseId });
       }
-      setShowResubmitDrawer(true);
+      if (action === "resubmit_preauth") {
+        setShowResubmitDrawer(true);
+      } else if (action === "respond_preauth_query") {
+        setShowQueryDrawer(true);
+      }
     }
   }, [location.state?.openAction, resolvedCashlessCaseId, claim_id, statusData?.claim_id, cashlessCase?.claim_id, isQueried, isRejected, isPartial, updateCaseState]);
   // Payer returned a decision that could not be classified — neutral state with
