@@ -175,7 +175,12 @@ export default function CaseWrapper() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.18 }}
               >
-                <Routes>
+                {/* Pin Routes to this exact location instead of reading it live from
+                    context. Without this, the previous Routes instance kept mounted by
+                    AnimatePresence during its exit animation also picks up the new
+                    location via context and briefly mounts the next screen a second
+                    time, double-firing its init effect (e.g. prepareCashless). */}
+                <Routes location={location}>
                   <Route path="/" element={<Navigate to="payer" replace />} />
                   <Route path="payer" element={<PayerPolicy ctx={contextValue} />} />
                   <Route path="prep" element={<EligibilityPrep ctx={contextValue} />} />
