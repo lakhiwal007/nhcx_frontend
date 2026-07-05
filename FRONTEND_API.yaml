@@ -3926,6 +3926,15 @@ components:
             (current_step is `preauth_submitted` or later). Same shape as
             `GET /cashless/preauth/status/{correlation_id}` — use it to branch
             on `decision` without a second round-trip.
+        claim:
+          allOf:
+            - $ref: "#/components/schemas/ClaimStatusResponse"
+          nullable: true
+          description: >-
+            Present only once a discharge/final claim has been submitted for
+            this case (current_step is `claim_submitted` or later). Same shape
+            as `GET /cashless/claims/status/{correlation_id}` — use it to
+            branch on `decision`/`payment_status` without a second round-trip.
 
     ProcedureBlock:
       type: object

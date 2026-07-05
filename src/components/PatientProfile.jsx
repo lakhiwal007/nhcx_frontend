@@ -107,26 +107,24 @@ function PatientDetail({ patient, onBack }) {
         next_actions,
         policy_number,
         payer_code,
-        payment_reference,
-        payment_status,
-        claim_decision,
-        claim_correlation_id,
+        claim,
         preauth,
       } = fullCase;
 
-      // `preauth` is only present once current_step reaches preauth_submitted
-      // or later (see FRONTEND_API.yaml CashlessCase.preauth) — same shape as
-      // GET /cashless/preauth/status/{correlation_id}.
+      // `preauth`/`claim` are only present once current_step reaches
+      // preauth_submitted / claim_submitted or later respectively (see
+      // FRONTEND_API.yaml CashlessCase.preauth / .claim) — same shape as
+      // GET /cashless/preauth/status/{cid} and /cashless/claims/status/{cid}.
       const pDecision = preauth?.decision || claimSummary.preauth_status;
-      const cDecision = claim_decision || claimSummary.claim_status;
+      const cDecision = claim?.decision || claimSummary.claim_decision;
 
       let dest = "payer";
 
-      if (payment_reference && payment_status === "failed") {
+      if (claim?.payment_status === "PAYMENT_SETTLED" || claim?.payment_status === "PAYMENT_INITIATED") {
         dest = "payment";
       } else if (cDecision === "APPROVED" || cDecision === "PARTIALLY_APPROVED") {
         dest = "payment";
-      } else if (claim_correlation_id && !cDecision) {
+      } else if (claim?.correlation_id && !cDecision) {
         dest = "claim";
       } else if (pDecision === "APPROVED") {
         dest = "claim";
