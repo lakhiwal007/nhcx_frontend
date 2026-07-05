@@ -191,7 +191,8 @@ export default function PreauthStatus({ ctx }) {
     setSubmitting(true);
     try {
       const body = {
-        ...(cashless_case_id ? { cashless_case_id } : { claim_id }),
+        ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
+        ...(claim_id ? { claim_id } : {}),
         supporting_documents: queryDocs,
         ...(queryAnswer && {
           questionnaire_response: {
@@ -235,13 +236,15 @@ export default function PreauthStatus({ ctx }) {
         amount: Number(item.net_amount) || (Number(item.quantity) || 1) * (Number(item.unit_price || item.amount || 0)),
       }));
       const body = {
-        ...(cashless_case_id ? { cashless_case_id } : { claim_id }),
+        ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
+        ...(claim_id ? { claim_id } : {}),
         ...(payerId ? { payer_id: payerId } : {}),
-        ...(policyNumber ? { policyNumber: policyNumber } : {}),
+        ...(policyNumber ? { policy_number: policyNumber, policyNumber } : {}),
         ...(statusData?.preauth_ref ? { preauth_ref: statusData.preauth_ref } : {}),
         total_amount: totalAmount,
         items: editableItems,
         procedures,
+        ...(draftData?.editedDiagnoses || statusData?.diagnoses?.length ? { diagnoses: draftData?.editedDiagnoses ?? statusData?.diagnoses } : {}),
       };
       const res = await api.resubmitPreauth(body);
       setShowResubmitDrawer(false);
@@ -256,7 +259,8 @@ export default function PreauthStatus({ ctx }) {
     setSubmitting(true);
     try {
       const body = {
-        ...(cashless_case_id ? { cashless_case_id } : { claim_id }),
+        ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
+        ...(claim_id ? { claim_id } : {}),
         preauth_ref: statusData?.preauth_ref,
         reason: cancelReason,
         description: cancelDesc,
@@ -298,6 +302,7 @@ export default function PreauthStatus({ ctx }) {
     );
   }
 
+  const resolvedCashlessCaseId = cashless_case_id || location.state?.cashless_case_id || statusData?.cashless_case_id || cashlessCase?.cashless_case_id || caseState.draftData?.cashless_case_id || null;
   const isComplete = statusData?.status === "complete";
   const decision = statusData?.decision;
   const isApproved = decision === "APPROVED";
@@ -308,11 +313,14 @@ export default function PreauthStatus({ ctx }) {
 
   useEffect(() => {
     if (location.state?.openAction !== "resubmit_preauth") return;
-    const canResubmit = Boolean(cashless_case_id || claim_id || statusData?.claim_id || cashlessCase?.claim_id);
+    const canResubmit = Boolean(resolvedCashlessCaseId || claim_id || statusData?.claim_id || cashlessCase?.claim_id);
     if (canResubmit && (isQueried || isRejected || isPartial)) {
+      if (resolvedCashlessCaseId) {
+        updateCaseState({ cashless_case_id: resolvedCashlessCaseId });
+      }
       setShowResubmitDrawer(true);
     }
-  }, [location.state?.openAction, cashless_case_id, claim_id, statusData?.claim_id, cashlessCase?.claim_id, isQueried, isRejected, isPartial]);
+  }, [location.state?.openAction, resolvedCashlessCaseId, claim_id, statusData?.claim_id, cashlessCase?.claim_id, isQueried, isRejected, isPartial, updateCaseState]);
   // Payer returned a decision that could not be classified — neutral state with
   // recovery actions (Refresh / Request Gateway Status) per the contract.
   const isUnknown = isComplete && (!decision || decision === "UNKNOWN");

@@ -38,7 +38,11 @@ function getActionOptions(claim) {
     options.push({ label: "Respond to Query", route: "claim" });
   }
   if (claim.claim_decision === "REJECTED") {
-    options.push({ label: "Appeal / Reprocess", route: "reprocess" });
+    if (claim.use_type === "claim" || claim.claim_id) {
+      options.push({ label: "Appeal / Reprocess", route: "reprocess" });
+    } else {
+      options.push({ label: "Resubmit Preauth", route: "status" });
+    }
   }
   if (claim.use_type === "claim") {
     options.push({ label: "View Claim", route: "claim" });
@@ -100,7 +104,14 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       setNavigating((p) => ({ ...p, [claim.id]: false }));
     }
     if (!cid) return;
-    navigate(`/case/${cid}/${route}`);
+    const state = {
+      claim_id: claim.claim_id ?? claim.id ?? null,
+      cashless_case_id: claim.cashless_case_id ?? claim.id ?? null,
+    };
+    if (route === "status" && claim.claim_decision === "REJECTED" && !(claim.use_type === "claim" || claim.claim_id)) {
+      state.openAction = "resubmit_preauth";
+    }
+    navigate(`/case/${cid}/${route}`, { state });
   };
 
   const filteredClaims = claims.filter((c) => {

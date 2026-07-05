@@ -39,8 +39,8 @@ export default function CaseWrapper() {
     payer: null,
     policy: null,
     admission_id: location.state?.admission_id || null,
-    cashless_case_id: null,
-    claim_id: null,
+    cashless_case_id: location.state?.cashless_case_id || null,
+    claim_id: location.state?.claim_id || null,
     eligibility_correlation_id: null,
     preauthCorrelationId: null,
     preauthRef: null,
@@ -85,8 +85,8 @@ export default function CaseWrapper() {
           if (child.latest_claim) {
             setCashlessCase(child.latest_claim);
             updateCaseState({
-              cashless_case_id: child.latest_claim.cashless_case_id ?? caseState.cashless_case_id,
-              claim_id: child.latest_claim.claim_id ?? caseState.claim_id,
+              cashless_case_id: location.state?.cashless_case_id ?? child.latest_claim.cashless_case_id ?? caseState.cashless_case_id,
+              claim_id: location.state?.claim_id ?? child.latest_claim.claim_id ?? caseState.claim_id,
             });
           }
         }
