@@ -21,8 +21,12 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     effectiveCase.approved_amount ?? effectiveCase.preauth_approved_amount ?? caseState.approvedAmount,
   );
   const claimDecision = effectiveCase.claim_decision || effectiveCase.claim_status;
+  const utr = effectiveCase.utr || effectiveCase.latest_utr;
+  // Payment completion must come from payment-specific signals only — the
+  // claim's generic `status` can already read "complete" as soon as an earlier
+  // step (e.g. preauth) resolves, well before payment happens.
   const paymentDone =
-    String(effectiveCase.status || "").toLowerCase() === "complete" || !!effectiveCase.utr;
+    String(effectiveCase.payment_status || "").toUpperCase() === "PAYMENT_SETTLED" || !!utr;
 
   const policyNumber =
     caseState.policy?.policyNumber || caseState.policy?.policy_number || effectiveCase.policy_number;
@@ -55,7 +59,7 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     },
     payment: {
       done: paymentDone,
-      note: effectiveCase.utr ? `UTR ${effectiveCase.utr}` : paymentDone ? "Acknowledged" : "",
+      note: utr ? `UTR ${utr}` : paymentDone ? "Acknowledged" : "",
     },
   };
 
