@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, User, Calendar, Phone, ChevronDown, ChevronRight, ChevronLeft,
-  BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle,
+  BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle, LayoutGrid, List
 } from "lucide-react";
 import { api } from "../api";
 import { PageHeader, Card, StatusBadge, Button, Input, PatientCard } from "./Common";
@@ -450,6 +450,10 @@ export default function PatientProfile() {
   const [searchQuery, setSearchQuery] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("registry_viewMode") || "grid");
+  const [sortBy, setSortBy] = useState("newest");
+  
+  useEffect(() => { localStorage.setItem("registry_viewMode", viewMode); }, [viewMode]);
 
   const loadChildren = useCallback(async (query = "", pageNum = 1) => {
     setLoading(true);
@@ -538,6 +542,33 @@ export default function PatientProfile() {
           />
         </div>
         <Button variant="primary" onClick={handleSearch}>Search</Button>
+        
+        <select
+          className="input-modern"
+          style={{ width: "auto", minWidth: "140px" }}
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+        </select>
+        
+        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", gap: "4px" }}>
+          <button
+            title="Grid View"
+            onClick={() => setViewMode("grid")}
+            style={{ padding: "6px 12px", background: viewMode === "grid" ? "var(--bg-main)" : "transparent", color: viewMode === "grid" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "grid" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "grid" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+          >
+            <LayoutGrid size={16} />
+          </button>
+          <button
+            title="List View"
+            onClick={() => setViewMode("list")}
+            style={{ padding: "6px 12px", background: viewMode === "list" ? "var(--bg-main)" : "transparent", color: viewMode === "list" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "list" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "list" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+          >
+            <List size={16} />
+          </button>
+        </div>
         {selectedPatient && (
           <Button variant="outline" icon={ArrowLeft} onClick={() => setSelectedPatient(null)}>
             All Patients
@@ -609,25 +640,76 @@ export default function PatientProfile() {
                   </div>
                 )}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: "10px" }}>
-                {children.map((child) => (
-                  <PatientCard
-                    key={child.child_id}
-                    patient={child}
-                    age={calculateAge(child.dob)}
-                    isSelected={selectedPatient?.child_id === child.child_id}
-                    onClick={() => handleSelectPatient(child)}
-                    statusSlot={child.latest_claim && (
-                      <>
-                        <CaseStatusChip claim={child.latest_claim} />
-                        {child.latest_claim.payer_code && (
-                          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_code}</span>
-                        )}
-                      </>
-                    )}
-                  />
-                ))}
-              </div>
+              {viewMode === "grid" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: "10px" }}>
+                  {[...children].sort((a,b) => sortBy === "oldest" ? Date.parse(a.created_at) - Date.parse(b.created_at) : Date.parse(b.created_at) - Date.parse(a.created_at)).map((child) => (
+                    <PatientCard
+                      key={child.child_id}
+                      patient={child}
+                      age={calculateAge(child.dob)}
+                      isSelected={selectedPatient?.child_id === child.child_id}
+                      onClick={() => handleSelectPatient(child)}
+                      statusSlot={child.latest_claim && (
+                        <>
+                          <CaseStatusChip claim={child.latest_claim} />
+                          {child.latest_claim.payer_code && (
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_code}</span>
+                          )}
+                        </>
+                      )}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <Card style={{ padding: 0, overflow: "hidden" }}>
+                  <div className="table-responsive-wrapper">
+                    <table className="table-modern">
+                      <thead>
+                        <tr>
+                          <th>Patient Name</th>
+                          <th>ID</th>
+                          <th>Gender</th>
+                          <th>Age</th>
+                          <th>Mobile</th>
+                          <th>Latest Case</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...children].sort((a,b) => sortBy === "oldest" ? Date.parse(a.created_at) - Date.parse(b.created_at) : Date.parse(b.created_at) - Date.parse(a.created_at)).map((child) => {
+                          const age = calculateAge(child.dob);
+                          return (
+                            <tr key={child.child_id} onClick={() => handleSelectPatient(child)} style={{ cursor: "pointer" }}>
+                              <td style={{ fontWeight: 700 }}>{child.name}</td>
+                              <td className="mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>#{child.child_id}</td>
+                              <td style={{ textTransform: "capitalize" }}>{child.gender}</td>
+                              <td>{age !== null ? `${age} yrs` : "-"}</td>
+                              <td>{child.mobile || "-"}</td>
+                              <td>
+                                {child.latest_claim ? (
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <CaseStatusChip claim={child.latest_claim} />
+                                    {child.latest_claim.payer_code && (
+                                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_code}</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>No Cases</span>
+                                )}
+                              </td>
+                              <td>
+                                <Button variant="outline" size="small" onClick={(e) => { e.stopPropagation(); handleSelectPatient(child); }}>
+                                  View
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
               {totalPages > 1 && (
                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", marginTop: "20px" }}>
                   <button
