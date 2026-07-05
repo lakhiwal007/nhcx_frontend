@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, MessageSquare, AlertTriangle, X, CheckCircle2,
-  Paperclip, FileText, Clock, ExternalLink, Circle, AlertCircle, Send,
+  Paperclip, FileText, Clock, ExternalLink, Circle, AlertCircle, Send, LayoutGrid, List
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
@@ -294,6 +294,10 @@ export default function Communications({ allFacilitiesMode = false }) {
   const [payerFilter, setPayerFilter] = useState("");
   const [selectedCorrelationId, setSelectedCorrelationId] = useState(null);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("communications_viewMode") || "grid");
+  const [sortBy, setSortBy] = useState("newest");
+  
+  useEffect(() => { localStorage.setItem("communications_viewMode", viewMode); }, [viewMode]);
 
   const fetchComms = async (params = {}) => {
     setLoading(true);
@@ -330,6 +334,15 @@ export default function Communications({ allFacilitiesMode = false }) {
       c.subject?.toLowerCase().includes(q);
     const matchPayer = !payerFilter || c.payer_code === payerFilter;
     return matchSearch && matchPayer;
+  }).sort((a, b) => {
+    if (sortBy === "priority") {
+      const pA = a.priority === "urgent" || a.priority === "stat" ? 2 : a.priority === "asap" ? 1 : 0;
+      const pB = b.priority === "urgent" || b.priority === "stat" ? 2 : b.priority === "asap" ? 1 : 0;
+      if (pA !== pB) return pB - pA;
+    }
+    const tA = Date.parse(a.sent_at) || 0;
+    const tB = Date.parse(b.sent_at) || 0;
+    return sortBy === "oldest" ? tA - tB : tB - tA;
   });
 
   return (
@@ -367,11 +380,37 @@ export default function Communications({ allFacilitiesMode = false }) {
           <Input icon={Search} placeholder="Search topic, payer, claim, subject…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
         {uniquePayers.length > 0 && (
-          <select className="input-modern" style={{ width: "auto", minWidth: "180px" }} value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}>
+          <select className="input-modern" style={{ width: "auto", minWidth: "160px" }} value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}>
             <option value="">All Payers</option>
             {uniquePayers.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         )}
+        <select
+          className="input-modern"
+          style={{ width: "auto", minWidth: "140px" }}
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="priority">Priority First</option>
+        </select>
+        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", gap: "4px" }}>
+          <button
+            title="Grid View"
+            onClick={() => setViewMode("grid")}
+            style={{ padding: "6px 12px", background: viewMode === "grid" ? "var(--bg-main)" : "transparent", color: viewMode === "grid" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "grid" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "grid" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+          >
+            <LayoutGrid size={16} />
+          </button>
+          <button
+            title="Table View"
+            onClick={() => setViewMode("table")}
+            style={{ padding: "6px 12px", background: viewMode === "table" ? "var(--bg-main)" : "transparent", color: viewMode === "table" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "table" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "table" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+          >
+            <List size={16} />
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -385,14 +424,26 @@ export default function Communications({ allFacilitiesMode = false }) {
           <h3>No Communications</h3>
           <p className="text-muted mt-2">No payer messages match your filters.</p>
         </div>
-      ) : (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      ) : viewMode === "grid" ? (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "16px" }}>
           {filteredComms.map((comm) => {
             const reasonCfg = REASON_CONFIG[comm.reason_code] ?? {};
             const hasAction = comm.pending_tasks?.length > 0;
             const isUnread = !comm.provider_read;
             return (
-              <Card key={comm.correlation_id}>
+              <motion.div
+                key={comm.correlation_id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
+                className="card-modern"
+                style={{
+                  transition: "box-shadow 0.2s ease",
+                  borderLeft: isUnread ? "3px solid var(--info)" : hasAction ? "3px solid var(--error)" : "3px solid transparent",
+                  padding: "16px",
+                }}
+              >
                 <div style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
                   <div style={{ position: "relative", flexShrink: 0 }}>
                     <div style={{ width: "42px", height: "42px", borderRadius: "var(--radius-md)", background: hasAction ? "color-mix(in srgb, var(--error) 12%, transparent)" : isUnread ? "color-mix(in srgb, var(--info) 12%, transparent)" : "var(--primary-light)", color: hasAction ? "var(--error)" : isUnread ? "var(--info)" : "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -435,10 +486,52 @@ export default function Communications({ allFacilitiesMode = false }) {
                     {hasAction ? "Review & Act" : "View"}
                   </Button>
                 </div>
-              </Card>
+              </motion.div>
             );
           })}
         </motion.div>
+      ) : (
+        <Card style={{ padding: 0, overflow: "hidden" }}>
+          <div className="table-responsive-wrapper">
+            <table className="table-modern">
+              <thead>
+                <tr>
+                  <th>Topic</th>
+                  <th>Payer</th>
+                  <th>Claim Reference</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredComms.map((comm) => {
+                  const hasAction = comm.pending_tasks?.length > 0;
+                  const isUnread = !comm.provider_read;
+                  return (
+                    <tr key={comm.correlation_id} style={{ borderLeft: isUnread ? "3px solid var(--info)" : hasAction ? "3px solid var(--error)" : "3px solid transparent" }}>
+                      <td>
+                        <div style={{ fontWeight: isUnread ? 800 : 600 }}>{comm.topic_display}</div>
+                        {hasAction && <div style={{ fontSize: "11px", color: "var(--error)", fontWeight: 700 }}><AlertTriangle size={10} style={{ display: "inline" }}/> Action Required</div>}
+                      </td>
+                      <td>{comm.payer_code}</td>
+                      <td>{comm.claim_reference || "-"}</td>
+                      <td>{new Date(comm.sent_at).toLocaleString()}</td>
+                      <td>
+                        {isUnread ? <span style={{ color: "var(--info)", fontWeight: 600 }}>Unread</span> : <span style={{ color: "var(--success)" }}>Read</span>}
+                      </td>
+                      <td>
+                        <Button variant={hasAction ? "primary" : "outline"} size="small" onClick={() => setSelectedCorrelationId(comm.correlation_id)}>
+                          {hasAction ? "Review & Act" : "View"}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       <CommunicationDetailDrawer
