@@ -28,6 +28,20 @@ const shouldStopPolling = (res) =>
   TERMINAL_STATUSES.includes(res?.status) ||
   (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
 
+// Once current_step moves past preauth_ready, this screen has nothing left to
+// do - `next_actions` will never offer `prepare_preauth` again, so staying
+// here dead-ends on a permanent "Preparing…" button. Send the user to
+// wherever the journey actually is instead (covers direct/bookmarked
+// navigation to this screen, not just the Patient Profile "Resume" button).
+const STEP_FORWARD_ROUTE = {
+  preauth_submitted: "status",
+  preauth_decided: "status",
+  claim_submitted: "claim",
+  claim_decided: "claim",
+  payment_pending: "payment",
+  settled: "payment",
+};
+
 // Doc requirements arrive either as a flat {name}/{type:{display}} shape, or as
 // a raw FHIR extension: {url, values: [{url: "category", display}, {url: "code", display}]}.
 function describeDocRequirement(d) {
@@ -597,6 +611,10 @@ export default function EligibilityPrep({ ctx }) {
             ...(admission_id && { admission_id }),
           });
         }
+        if (STEP_FORWARD_ROUTE[res.current_step]) {
+          navigate(`../${STEP_FORWARD_ROUTE[res.current_step]}`, { replace: true });
+          return;
+        }
         setCaseData(res);
         setCashlessCase(res);
         updateCaseState({
@@ -637,6 +655,11 @@ export default function EligibilityPrep({ ctx }) {
   const pollStatus = async (signal) => {
     try {
       const res = await api.getCashlessStatus(caseData.cashless_case_id, signal);
+      if (STEP_FORWARD_ROUTE[res.current_step]) {
+        setPolling(false);
+        navigate(`../${STEP_FORWARD_ROUTE[res.current_step]}`, { replace: true });
+        return;
+      }
       setCaseData(res);
       updateCaseState({
         eligibility_correlation_id:
