@@ -1,6 +1,6 @@
 # NHCX Frontend Implementation Guide
 
-This guide translates [FRONTEND_API.yaml](FRONTEND_API.yaml) into a hospital-facing frontend experience. The UI calls only the wrapper API under `/api/v1/insurance`; it never calls NHCX directly.
+This guide translates [FRONTEND_API.yaml](FRONTEND_API.yaml) into a hospital-facing frontend experience. The UI calls only the wrapper API under `/nhcx/api/v1/insurance`; it never calls NHCX directly.
 
 The product goal is to help billing and insurance desk users move a patient from cashless discovery to preauth, claim submission, reprocess, payment reconciliation, and payer communication handling with the fewest context switches.
 
@@ -105,7 +105,7 @@ The facility resolved from the token is used as the `x-hcx-sender_code` on all o
 The frontend does **not** log in against nhcx directly — it obtains the parent-HIS session token from the parent's own login, then bootstraps the nhcx session:
 
 ```http
-GET /api/v1/insurance/session   (Authorization: Bearer <parent token>)
+GET /nhcx/api/v1/insurance/session   (Authorization: Bearer <parent token>)
 ```
 
 ```json
@@ -225,7 +225,7 @@ Every task from `GET /cashless/tasks` and `GET /cashless/tasks/{task_id}` carrie
     "label": "Respond to query",
     "code": "respond_preauth_query",
     "method": "POST",
-    "endpoint": "/api/v1/insurance/cashless/preauth/query-response",
+    "endpoint": "/nhcx/api/v1/insurance/cashless/preauth/query-response",
     "payload_hint": { "claim_id": 101 }
   },
   "required_documents": [ ... ]
@@ -347,14 +347,14 @@ Showing the patient context form for `diagnoses` or `items` is a frontend bug �
 Use the cashless-case-scoped endpoint at the preauth stage (when no `claim_id` exists yet), and the claim-scoped endpoint at the claim stage:
 
 ```http
-PATCH /api/v1/insurance/cashless/{cashless_case_id}/patient-context
+PATCH /nhcx/api/v1/insurance/cashless/{cashless_case_id}/patient-context
 Content-Type: application/json
 
 { "patient_context": { "member_id": "PMJAY-MEM-00123", "abha": "91-7112-3456-7890", "dob": "2018-04-12" } }
 ```
 
 ```http
-PATCH /api/v1/insurance/cashless/claims/{claim_id}/patient-context
+PATCH /nhcx/api/v1/insurance/cashless/claims/{claim_id}/patient-context
 Content-Type: application/json
 
 { "patient_context": { "member_id": "PMJAY-MEM-00123", "abha": "91-7112-3456-7890", "dob": "2018-04-12" } }
@@ -556,9 +556,9 @@ The backend auto-completes superseded tasks: submitting a preauth clears the `su
 `task_id` is the integer primary key of the task row. The path carries two verbs:
 
 ```
-GET   /api/v1/insurance/cashless/tasks/{task_id}            Read one task
-PATCH /api/v1/insurance/cashless/tasks/{task_id}            Mark it completed
-PATCH /api/v1/insurance/cashless/tasks/{task_id}/complete   Alias of the above
+GET   /nhcx/api/v1/insurance/cashless/tasks/{task_id}            Read one task
+PATCH /nhcx/api/v1/insurance/cashless/tasks/{task_id}            Mark it completed
+PATCH /nhcx/api/v1/insurance/cashless/tasks/{task_id}/complete   Alias of the above
 ```
 
 The bare `PATCH` and the `/complete` form are aliases — both mark the task completed. Use the bare form.
@@ -655,7 +655,7 @@ The `action.payload_hint` is pre-seeded with `claim_id`. The `required_documents
 Use when the desk needs to proactively contact the payer about an existing claim/preauth — file a grievance, chase a slow decision, or push additional documents without waiting for a payer query. This is a **submit**, not a callback: it returns `202` with a `correlation_id`, and the payer's response comes back later as a normal inbound communication.
 
 ```http
-POST /api/v1/insurance/cashless/communications
+POST /nhcx/api/v1/insurance/cashless/communications
 ```
 
 ```json
@@ -737,7 +737,7 @@ Purpose: give billing staff one place to act on payer callbacks without searchin
 API:
 
 ```http
-GET /api/v1/insurance/cashless/tasks?status=pending&workflow=&task_type=&cashless_case_id=&limit=20&offset=0
+GET /nhcx/api/v1/insurance/cashless/tasks?status=pending&workflow=&task_type=&cashless_case_id=&limit=20&offset=0
 ```
 
 All filter params are optional and combinable:
@@ -788,7 +788,7 @@ The queue should default to pending tasks sorted by priority first, then age des
 When the user completes the action, resolve the URL from `task.action.code` via the ACTION_MAP, call it, then mark the task completed:
 
 ```http
-PATCH /api/v1/insurance/cashless/tasks/{task_id}
+PATCH /nhcx/api/v1/insurance/cashless/tasks/{task_id}
 Content-Type: application/json
 
 {
@@ -806,8 +806,8 @@ Purpose: let users scan all cashless cases, filter by status, and resume the rig
 APIs:
 
 ```http
-GET /api/v1/insurance/cashless/dashboard/stats
-GET /api/v1/insurance/cashless/dashboard/claims?status=&child_id=&limit=20&offset=0
+GET /nhcx/api/v1/insurance/cashless/dashboard/stats
+GET /nhcx/api/v1/insurance/cashless/dashboard/claims?status=&child_id=&limit=20&offset=0
 ```
 
 Top metric cards:
@@ -829,12 +829,14 @@ Claims table columns:
 | Patient | `patient_name` or `child_name` |
 | Claim | `id` |
 | Use Type | `use_type` |
-| Workflow Status | `status` |
+| Workflow Status | `current_step` (see the `current_step` table above for labels) — **not** `status` |
 | Decision | `claim_decision` |
 | Approved Amount | `approved_amount` |
 | Payment | `payment_status` |
 | UTR | `latest_utr` |
 | Created | `created_at` |
+
+> Same caveat as the case-detail screen applies here: `status` on each row is the InsurancePlan + CoverageEligibility prep roll-up only — a row can show `status: complete` with `preauth_status`/`claim_decision`/`approved_amount` all still null, meaning cashless prep finished but preauth/claim hasn't even been submitted yet. Don't surface `status` as "Workflow Status" in the UI; use `current_step` for that column, and reserve `status` for filtering/internal use (`?status=` query param) if needed.
 
 Row actions should be contextual:
 
@@ -874,7 +876,7 @@ Each step should preserve state so users can leave and resume from a dashboard r
 API:
 
 ```http
-GET /api/v1/insurance/cashless/child?child_id=&name=&mobile=&abha_number=&limit=20&offset=0
+GET /nhcx/api/v1/insurance/cashless/child?child_id=&name=&mobile=&abha_number=&limit=20&offset=0
 ```
 
 Search sources: results come from `child_abha_profiles`. Name, mobile, and ABHA number searches return only ABHA-linked patients. A `child_id` lookup also returns unlinked patients (those without an ABHA profile) — their `abha_number` field will be `null`.
@@ -907,8 +909,8 @@ Empty and error states:
 APIs:
 
 ```http
-GET /api/v1/insurance/cashless/payers/search?name=&scheme=&from_date=&to_date=
-POST /api/v1/insurance/cashless/policies/fetch
+GET /nhcx/api/v1/insurance/cashless/payers/search?name=&scheme=&from_date=&to_date=
+POST /nhcx/api/v1/insurance/cashless/policies/fetch
 ```
 
 Policy fetch request:
@@ -947,7 +949,7 @@ Send `force_refresh: true` on the policy fetch only when the user explicitly req
 **De-linking a wrongly-linked policy.** When a policy was linked to the wrong patient, or the patient's coverage ends, offer a "Remove policy" action on the stored policy row:
 
 ```http
-DELETE /api/v1/insurance/cashless/policies/{id}/link
+DELETE /nhcx/api/v1/insurance/cashless/policies/{id}/link
 ```
 
 Where `{id}` is the stored `children_insurance_plans.id`. This is a **soft** de-link — the record is retained for audit (never destroyed) and simply hidden from active-policy lists; the response is `{ status: "unlinked", plan_id, unlinked_at, unlinked_by }`. It is provider-scoped, so it returns `404` for a plan that doesn't belong to the acting facility. Confirm the action with the user (it affects which policy the case uses) and refresh the policy list after a `200`.
@@ -968,8 +970,8 @@ Empty and error states:
 APIs:
 
 ```http
-POST /api/v1/insurance/cashless/prepare
-GET /api/v1/insurance/cashless/{cashless_case_id}
+POST /nhcx/api/v1/insurance/cashless/prepare
+GET /nhcx/api/v1/insurance/cashless/{cashless_case_id}
 ```
 
 > **`cashless_case_id` has exactly one source: the `cashless/prepare` response.** Do **not** hardcode, guess, or carry a stale id from another session/patient into `GET /cashless/{id}`. A case only exists after a successful `POST /cashless/prepare` — there is no case to poll before that. Polling a non-existent id returns **`404 WRAPPER-ERROR:1003` ("Couldn't find NhcxCashlessCase with 'id'=…")**.
@@ -1067,7 +1069,7 @@ Prepare error states:
 API:
 
 ```http
-GET /api/v1/insurance/cashless/preauth/prepare?claim_id=101&admission_id=&child_id=&payer_id=&policy_number=
+GET /nhcx/api/v1/insurance/cashless/preauth/prepare?claim_id=101&admission_id=&child_id=&payer_id=&policy_number=
 ```
 
 Purpose: review and correct the draft built from hospital records before submitting preauth.
@@ -1115,7 +1117,7 @@ The document checklist should show document name, category/code, event date, sou
 Submit preauth:
 
 ```http
-POST /api/v1/insurance/cashless/preauth/submit
+POST /nhcx/api/v1/insurance/cashless/preauth/submit
 ```
 
 Minimal request:
@@ -1155,7 +1157,7 @@ Send optional overrides only for user-edited fields:
 API:
 
 ```http
-GET /api/v1/insurance/cashless/preauth/status/{correlation_id}
+GET /nhcx/api/v1/insurance/cashless/preauth/status/{correlation_id}
 ```
 
 Status response drives the whole page:
@@ -1186,10 +1188,10 @@ Decision behavior:
 Preauth follow-up APIs:
 
 ```http
-POST /api/v1/insurance/cashless/preauth/query-response
-POST /api/v1/insurance/cashless/preauth/resubmit
-POST /api/v1/insurance/cashless/preauth/enhancement
-POST /api/v1/insurance/cashless/preauth/cancel
+POST /nhcx/api/v1/insurance/cashless/preauth/query-response
+POST /nhcx/api/v1/insurance/cashless/preauth/resubmit
+POST /nhcx/api/v1/insurance/cashless/preauth/enhancement
+POST /nhcx/api/v1/insurance/cashless/preauth/cancel
 ```
 
 Use drawers for query response, resubmit, and enhancement. Use a confirmation modal for cancel because it is destructive to the workflow.
@@ -1226,7 +1228,7 @@ This screen is **user-initiated**, not payer-triggered: it is reached from the `
 ### Step 1 — Fetch the delta (read-only)
 
 ```http
-GET /api/v1/insurance/cashless/preauth/enhancement/prepare?claim_id=101
+GET /nhcx/api/v1/insurance/cashless/preauth/enhancement/prepare?claim_id=101
 ```
 
 The backend re-derives the live clinical and billing record from the hospital DB (latest `ipd_clinical_notes`, revised `ipd_invoices`, discharge date) and diffs it against the snapshot of the last submitted/approved preauth. It returns:
@@ -1270,7 +1272,7 @@ States:
 Start from `suggested_request`, drop any `items`/`procedures` the user unchecked, then POST:
 
 ```http
-POST /api/v1/insurance/cashless/preauth/enhancement
+POST /nhcx/api/v1/insurance/cashless/preauth/enhancement
 Content-Type: application/json
 
 {
@@ -1296,10 +1298,10 @@ The response is a standard `202` with a new `correlation_id`. Poll `GET /cashles
 API:
 
 ```http
-GET /api/v1/insurance/cashless/claims/prepare?cashless_case_id=42
-POST /api/v1/insurance/cashless/claims/discharge
-POST /api/v1/insurance/cashless/claims/submit
-GET /api/v1/insurance/cashless/claims/status/{correlation_id}
+GET /nhcx/api/v1/insurance/cashless/claims/prepare?cashless_case_id=42
+POST /nhcx/api/v1/insurance/cashless/claims/discharge
+POST /nhcx/api/v1/insurance/cashless/claims/submit
+GET /nhcx/api/v1/insurance/cashless/claims/status/{correlation_id}
 ```
 
 > `claims/prepare` takes `cashless_case_id` (preferred) and **creates+links the claim on first call**, returning `claim_id`. Read that `claim_id` from the prepare response and use it for discharge/submit — do not expect it on the task. `claim_id` is still accepted transitionally.
@@ -1375,8 +1377,8 @@ Claim decision actions:
 Follow-up APIs:
 
 ```http
-POST /api/v1/insurance/cashless/claims/query-response
-POST /api/v1/insurance/cashless/claims/resubmit
+POST /nhcx/api/v1/insurance/cashless/claims/query-response
+POST /nhcx/api/v1/insurance/cashless/claims/resubmit
 ```
 
 Empty and error states:
@@ -1393,8 +1395,8 @@ Empty and error states:
 APIs:
 
 ```http
-POST /api/v1/insurance/cashless/reprocess/submit
-GET /api/v1/insurance/cashless/reprocess/status/{correlation_id}
+POST /nhcx/api/v1/insurance/cashless/reprocess/submit
+GET /nhcx/api/v1/insurance/cashless/reprocess/status/{correlation_id}
 ```
 
 Use reprocess for partial approvals, rejections, or disputed query outcomes.
@@ -1426,9 +1428,9 @@ When status returns `APPROVED`, route the user back to claim/payment next steps.
 APIs:
 
 ```http
-GET /api/v1/insurance/cashless/payment/status?claim_id=101
-GET /api/v1/insurance/cashless/payment/status/{correlation_id}
-POST /api/v1/insurance/cashless/payment/acknowledge
+GET /nhcx/api/v1/insurance/cashless/payment/status?claim_id=101
+GET /nhcx/api/v1/insurance/cashless/payment/status/{correlation_id}
+POST /nhcx/api/v1/insurance/cashless/payment/acknowledge
 ```
 
 Payment summary:
@@ -1484,10 +1486,10 @@ Empty and error states:
 APIs:
 
 ```http
-GET   /api/v1/insurance/cashless/communications?payer_id=&child_id=&cashless_case_id=&limit=20&offset=0
-POST  /api/v1/insurance/cashless/communications           # provider-initiated (beta)
-GET   /api/v1/insurance/cashless/communication/status/{correlation_id}
-PATCH /api/v1/insurance/cashless/communication/{correlation_id}/read
+GET   /nhcx/api/v1/insurance/cashless/communications?payer_id=&child_id=&cashless_case_id=&limit=20&offset=0
+POST  /nhcx/api/v1/insurance/cashless/communications           # provider-initiated (beta)
+GET   /nhcx/api/v1/insurance/cashless/communication/status/{correlation_id}
+PATCH /nhcx/api/v1/insurance/cashless/communication/{correlation_id}/read
 ```
 
 Purpose: review payer-initiated communications such as TAT queries, grievances, wallet updates, policy changes, and additional information requests — and, via the `POST`, raise the hospital's own message to a payer.
@@ -1526,7 +1528,7 @@ Render `payload[]` inline. If the communication has a pending `review_communicat
 Call mark-as-read when the detail view first mounts:
 
 ```http
-PATCH /api/v1/insurance/cashless/communication/{correlation_id}/read?request_id={uuid}
+PATCH /nhcx/api/v1/insurance/cashless/communication/{correlation_id}/read?request_id={uuid}
 ```
 
 This is idempotent — safe to call on every open. The response is the updated communication with `provider_read: true` and `provider_read_at` set.
@@ -1557,10 +1559,10 @@ Purpose: a standalone, case-agnostic view of one patient. Step 1 of the wizard s
 It reuses the same enriched search endpoint; passing `child_id` (or `name`) returns the visit-level detail that the lightweight list call omits.
 
 ```http
-GET /api/v1/insurance/cashless/child?child_id=12
-GET /api/v1/insurance/cashless/dashboard/claims?child_id=12
-GET /api/v1/insurance/cashless/tasks?child_id=12&status=pending
-GET /api/v1/insurance/cashless/communications?child_id=12
+GET /nhcx/api/v1/insurance/cashless/child?child_id=12
+GET /nhcx/api/v1/insurance/cashless/dashboard/claims?child_id=12
+GET /nhcx/api/v1/insurance/cashless/tasks?child_id=12&status=pending
+GET /nhcx/api/v1/insurance/cashless/communications?child_id=12
 ```
 
 Layout:
@@ -1617,24 +1619,24 @@ Both FKs are populated when `claim_reference` resolves to a known hospital Claim
 The normal frontend flow should use `POST /cashless/prepare`, because it triggers InsurancePlan and CoverageEligibility together. Keep the direct endpoints for advanced troubleshooting or future specialized screens:
 
 ```http
-POST /api/v1/insurance/cashless/insurance_plan/request
-GET /api/v1/insurance/cashless/insurance_plan/status/{correlation_id}
-POST /api/v1/insurance/cashless/coverage_eligibility/check
-GET /api/v1/insurance/cashless/coverage_eligibility/status/{correlation_id}
+POST /nhcx/api/v1/insurance/cashless/insurance_plan/request
+GET /nhcx/api/v1/insurance/cashless/insurance_plan/status/{correlation_id}
+POST /nhcx/api/v1/insurance/cashless/coverage_eligibility/check
+GET /nhcx/api/v1/insurance/cashless/coverage_eligibility/status/{correlation_id}
 ```
 
 Use `/coverage_eligibility/check` with a `purpose` of `validation`, `benefits`, or `auth-requirements` when the UI explicitly needs one CE check on its own.
 
 > **Deprecated:** the dedicated `coverage_eligibility/validation`, `/benefits`, and `/auth-requirements` endpoints are deprecated — they are thin wrappers for `check?purpose=…`. Use `check` with the `purpose` field for any new work; the aliases remain for backward compatibility only.
 
-> **Deprecated route tree:** the frontend must call the documented `/api/v1/insurance/*` paths. A parallel `/api/v1/nhcx/*` mirror tree exists but is **deprecated** (the backend logs `[DEPRECATED-ROUTE]` on every hit) and will be removed — do not target it.
+> **Deprecated route tree:** the frontend must call the documented `/nhcx/api/v1/insurance/*` paths. A parallel `/nhcx/api/v1/nhcx/*` mirror tree exists but is **deprecated** (the backend logs `[DEPRECATED-ROUTE]` on every hit) and will be removed — do not target it.
 
 ## Gateway Status Recovery
 
 If a workflow remains pending longer than expected, expose a "Request Gateway Status" action for support users.
 
 ```http
-POST /api/v1/insurance/cashless/status/request
+POST /nhcx/api/v1/insurance/cashless/status/request
 ```
 
 Request:
@@ -1768,7 +1770,7 @@ When displaying a PAYR code to a non-technical user, show the `message` field (e
 
 ## Endpoint Reference
 
-All paths are relative to `/api/v1/insurance`.
+All paths are relative to `/nhcx/api/v1/insurance`.
 
 | Method | Path | Use |
 |---|---|---|

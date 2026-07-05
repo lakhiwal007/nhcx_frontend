@@ -1574,7 +1574,7 @@ const mock = {
             action: {
               label: "Submit Documents",
               method: "POST",
-              endpoint: "/api/v1/insurance/cashless/claims/query-response",
+              endpoint: "/nhcx/api/v1/insurance/cashless/claims/query-response",
               payload_hint: { claim_id: 102 },
             },
             metadata: {

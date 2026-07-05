@@ -933,7 +933,7 @@ export const mock = {
           ],
           action: {
             label: "Respond to Query",
-            endpoint: "/api/v1/insurance/cashless/preauth/query-response",
+            endpoint: "/nhcx/api/v1/insurance/cashless/preauth/query-response",
             payload_hint: { claim_id: 101 },
           },
           created_at: "2026-05-12T10:00:00+05:30",
@@ -953,7 +953,7 @@ export const mock = {
           required_documents: [],
           action: {
             label: "Retry Acknowledgement",
-            endpoint: "/api/v1/insurance/cashless/payment/acknowledge",
+            endpoint: "/nhcx/api/v1/insurance/cashless/payment/acknowledge",
             payload_hint: { payment_reference: "PAY-2026-00001" },
           },
           created_at: "2026-05-13T08:30:00+05:30",
@@ -974,7 +974,7 @@ export const mock = {
           required_documents: [{ code: "FINAL_BILL", display: "Final Bill" }],
           action: {
             label: "Submit Claim",
-            endpoint: "/api/v1/insurance/cashless/claims/submit",
+            endpoint: "/nhcx/api/v1/insurance/cashless/claims/submit",
             payload_hint: { claim_id: 103 },
           },
           created_at: "2026-05-14T12:00:00+05:30",
@@ -1004,7 +1004,7 @@ export const mock = {
       ],
       action: {
         label: "Respond to Query",
-        endpoint: "/api/v1/insurance/cashless/preauth/query-response",
+        endpoint: "/nhcx/api/v1/insurance/cashless/preauth/query-response",
         payload_hint: { claim_id: 101 },
       },
       metadata: {

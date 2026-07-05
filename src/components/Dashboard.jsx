@@ -253,7 +253,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                     <th>Patient</th>
                     {allFacilitiesMode && <th>Facility</th>}
                     <th>Use Type</th>
-                    <th>Status</th>
+                    <th>Workflow Status</th>
                     <th>Decision</th>
                     <th style={{ textAlign: "right" }}>Approved</th>
                     <th>Payment</th>
@@ -277,7 +277,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                             {claim.use_type}
                           </span>
                         </td>
-                        <td><StatusBadge status={claim.status} /></td>
+                        <td><StatusBadge status={claim.current_step || claim.status} /></td>
                         <td>
                           {claim.claim_decision
                             ? <StatusBadge status={claim.claim_decision} />

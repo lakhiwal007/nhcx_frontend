@@ -58,8 +58,8 @@ info:
     that single facility like any other user. Write endpoints always require a
     single facility, so an admin must select one to submit/acknowledge.
 servers:
-  - url: http://localhost:8082/api/v1/insurance
-    description: Local wrapper API. All paths below are relative to `/api/v1/insurance`.
+  - url: http://localhost:8082/nhcx/api/v1/insurance
+    description: Local wrapper API. All paths below are relative to `/nhcx/api/v1/insurance`.
 
 tags:
   - name: Dashboard
@@ -139,7 +139,7 @@ paths:
       tags: [Dashboard]
       operationId: insuranceHealth
       summary: Insurance API health check
-      description: Full local URL is `/api/v1/insurance/health`.
+      description: Full local URL is `/nhcx/api/v1/insurance/health`.
       responses:
         "200":
           description: Insurance API is reachable
@@ -3222,12 +3222,38 @@ components:
         provider_id:
           type: string
           nullable: true
+        facility_name:
+          type: string
+          nullable: true
+        payer_id:
+          type: string
+          nullable: true
+        policy_number:
+          type: string
+          nullable: true
         use_type:
           type: string
           nullable: true
         status:
           type: string
           nullable: true
+          description: >-
+            Cashless-prep roll-up only (pending/partial/complete/failed) — reflects
+            InsurancePlan + CoverageEligibility, not the whole journey.
+            `status: complete` does NOT mean preauth/claim/payment is done. Use
+            `current_step` for the actual journey position.
+        preauth_status:
+          type: string
+          nullable: true
+          description: >-
+            Set once a preauth decision has been received (see current_step:
+            preauth_decided).
+        current_step:
+          type: string
+          nullable: true
+          description: >-
+            Authoritative journey position: insurance_and_eligibility, preauth_ready,
+            preauth_decided, claim_submitted, claim_decided, payment_pending, settled.
         claim_decision:
           type: string
           nullable: true
