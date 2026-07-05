@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { usePoll } from "../../hooks/usePoll";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
@@ -91,9 +91,11 @@ function ConfirmModal({ open, onClose, title, children }) {
 
 export default function PreauthStatus({ ctx }) {
   const navigate = useNavigate();
-  const { caseState, updateCaseState, cashlessCase } = ctx;
+  const location = useLocation();
+  const { caseState, updateCaseState, cashlessCase, setCashlessCase } = ctx;
   const { preauthCorrelationId, claim_id, cashless_case_id, draftData } = caseState;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
+  const policyNumber = caseState.policy?.policyNumber || caseState.policy?.policy_number || cashlessCase?.policy_number || "";
 
   const [statusData, setStatusData] = useState(null);
   const [polling, setPolling] = useState(true);
@@ -171,13 +173,18 @@ export default function PreauthStatus({ ctx }) {
   }, [polling]);
 
   // Swap in a new correlation id and restart the elapsed timer; usePoll picks up
-  // the change and immediately polls the new id.
+  // the change and immediately polls the new id. Also clears the prior terminal
+  // decision so the case stepper doesn't keep showing the stale REJECTED/QUERIED
+  // badge until the next poll tick resolves the new decision (backend clears its
+  // own copy on resubmit, but the frontend's cached caseState/cashlessCase don't
+  // know that until we clear them here too).
   const restartPoll = (newCorrelationId) => {
     startTimeRef.current = Date.now();
     setPollElapsed(0);
     setStatusData(null);
     setPolling(true);
-    updateCaseState({ preauthCorrelationId: newCorrelationId });
+    updateCaseState({ preauthCorrelationId: newCorrelationId, preauthDecision: null, approvedAmount: null });
+    setCashlessCase?.((prev) => (prev ? { ...prev, preauth_status: null } : prev));
   };
 
   const handleQuerySubmit = async () => {
@@ -207,9 +214,34 @@ export default function PreauthStatus({ ctx }) {
   const handleResubmitSubmit = async () => {
     setSubmitting(true);
     try {
+      const baseItems = draftData?.editedItems ?? draftData?.items ?? statusData?.claim_items ?? statusData?.items ?? [];
+      const editableItems = (resubmitItems.length > 0 ? resubmitItems : baseItems).map((item) => {
+        const quantity = Number(item.quantity) || 1;
+        const unitPrice = Number(item.unit_price ?? item.amount ?? item.net_amount ?? 0) || 0;
+        const netAmount = Number(item.net_amount) || quantity * unitPrice;
+        return {
+          ...item,
+          quantity,
+          unit_price: unitPrice,
+          net_amount: netAmount,
+        };
+      });
+      const totalAmount = editableItems.reduce((sum, item) => sum + (Number(item.net_amount) || 0), 0);
+      const procedures = editableItems.map((item) => ({
+        code: item.service_code || item.code || item.service_name || "",
+        description: item.service_name || item.description || item.name || "Service",
+        quantity: Number(item.quantity) || 1,
+        unit_price: Number(item.unit_price || item.amount || 0),
+        amount: Number(item.net_amount) || (Number(item.quantity) || 1) * (Number(item.unit_price || item.amount || 0)),
+      }));
       const body = {
         ...(cashless_case_id ? { cashless_case_id } : { claim_id }),
-        ...(resubmitItems.length > 0 && { items: resubmitItems }),
+        ...(payerId ? { payer_id: payerId } : {}),
+        ...(policyNumber ? { policyNumber: policyNumber } : {}),
+        ...(statusData?.preauth_ref ? { preauth_ref: statusData.preauth_ref } : {}),
+        total_amount: totalAmount,
+        items: editableItems,
+        procedures,
       };
       const res = await api.resubmitPreauth(body);
       setShowResubmitDrawer(false);
@@ -272,6 +304,15 @@ export default function PreauthStatus({ ctx }) {
   const isPartial = decision === "PARTIALLY_APPROVED";
   const isQueried = decision === "QUERIED";
   const isRejected = decision === "REJECTED";
+  const hasClaimContext = Boolean(claim_id || statusData?.claim_id || cashlessCase?.claim_id || caseState.draftData?.claim_id);
+
+  useEffect(() => {
+    if (location.state?.openAction !== "resubmit_preauth") return;
+    const canResubmit = Boolean(cashless_case_id || claim_id || statusData?.claim_id || cashlessCase?.claim_id);
+    if (canResubmit && (isQueried || isRejected || isPartial)) {
+      setShowResubmitDrawer(true);
+    }
+  }, [location.state?.openAction, cashless_case_id, claim_id, statusData?.claim_id, cashlessCase?.claim_id, isQueried, isRejected, isPartial]);
   // Payer returned a decision that could not be classified — neutral state with
   // recovery actions (Refresh / Request Gateway Status) per the contract.
   const isUnknown = isComplete && (!decision || decision === "UNKNOWN");
@@ -471,9 +512,11 @@ export default function PreauthStatus({ ctx }) {
                   <Button variant="outline" onClick={() => setShowResubmitDrawer(true)}>
                     Resubmit Preauth
                   </Button>
-                  <Button variant="outline" onClick={() => navigate("../reprocess")}>
-                    Appeal / Reprocess
-                  </Button>
+                  {hasClaimContext && (
+                    <Button variant="outline" onClick={() => navigate("../reprocess")}>
+                      Appeal / Reprocess
+                    </Button>
+                  )}
                 </>
               )}
               {(isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED && (

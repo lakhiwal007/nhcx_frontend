@@ -12,7 +12,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "../api";
-import { resolveActionUrl } from "../api/actionMap";
+import { resolveAction } from "../api/actionMap";
 import { PageHeader, Button, Input } from "./Common";
 import { useNavigate } from "react-router-dom";
 
@@ -179,10 +179,12 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode }
     setExecuting(true);
     setResult(null);
     try {
-      // Resolve URL via ACTION_MAP using stable action.code; falls back to
-      // action.endpoint only when the code is unknown (forwards-compatibility).
-      const url = resolveActionUrl(task.action);
-      const res = await api.rawPost(url, task.action.payload_hint ?? {});
+      // Resolve method+URL via ACTION_MAP using stable action.code; falls back
+      // to action.endpoint (assumed POST) only when the code is unknown.
+      const { method, url } = resolveAction(task.action);
+      const res = method === "GET"
+        ? await api.rawGet(url, task.action.payload_hint ?? {})
+        : await api.rawPost(url, task.action.payload_hint ?? {});
       setResult({
         success: true,
         correlation_id: res?.correlation_id,
@@ -602,6 +604,13 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     navigate(path, {
       state: {
         claim_id: task.claim_id,
+        cashless_case_id: task.cashless_case_id,
+        openAction:
+          task.task_type === "resubmit_preauth"
+            ? "resubmit_preauth"
+            : task.task_type === "resubmit_claim"
+              ? "resubmit_claim"
+              : undefined,
         tab: task.task_type?.includes("discharge")
           ? "discharge"
           : task.task_type?.includes("final")
