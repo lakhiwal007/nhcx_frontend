@@ -207,7 +207,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
               className="input-modern"
               defaultValue=""
               title="More Actions"
-              style={{ width: "36px", padding: "0 0 0 8px", background: "transparent", color: "var(--text-muted)" }}
+              style={{ width: "36px", padding: "0 0 0 8px", background: "transparent", color: "var(--text-muted)", appearance: "none", cursor: "pointer" }}
               onChange={(e) => {
                 const route = e.target.value;
                 if (route) { navigateToClaim(claim, route); e.target.value = ""; }
@@ -490,7 +490,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                                 className="input-modern"
                                 defaultValue=""
                                 title="More Actions"
-                                style={{ width: "32px", padding: "0 0 0 8px", background: "transparent", color: "var(--text-muted)" }}
+                                style={{ width: "32px", padding: "0 0 0 8px", background: "transparent", color: "var(--text-muted)", appearance: "none", cursor: "pointer" }}
                                 onChange={(e) => {
                                   const route = e.target.value;
                                   if (route) { navigateToClaim(claim, route); e.target.value = ""; }
