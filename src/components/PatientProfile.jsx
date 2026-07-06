@@ -68,6 +68,10 @@ function PatientDetail({ patient, onBack }) {
 
   const age = calculateAge(patient.dob);
 
+  const totalBilled = patient.visits?.reduce((sum, visit) => {
+    return sum + (visit.invoices?.reduce((invSum, inv) => invSum + (inv.amount_billed || 0), 0) || 0);
+  }, 0);
+
   useEffect(() => {
     setLoadingExtra(true);
     Promise.all([
@@ -208,6 +212,11 @@ function PatientDetail({ patient, onBack }) {
               }
               {patient.cashless_cases_count > 0 && (
                 <span className="badge-modern badge-info" style={{ fontSize: "11px" }}>{patient.cashless_cases_count} case{patient.cashless_cases_count !== 1 ? "s" : ""}</span>
+              )}
+              {totalBilled > 0 && (
+                <span className="badge-modern badge-warning" style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}>
+                  ₹{totalBilled.toLocaleString("en-IN")} billed
+                </span>
               )}
             </div>
           </div>

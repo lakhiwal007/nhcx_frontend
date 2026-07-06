@@ -698,16 +698,28 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             <div
               style={{
                 display: "flex",
+                flexWrap: "wrap",
                 alignItems: "center",
-                gap: "5px",
-                fontSize: "11px",
-                color: "var(--text-muted)",
-                marginTop: "5px",
+                gap: "6px",
+                marginTop: "8px",
               }}
             >
-              <FileText size={11} />
-              {task.required_documents.length} document
-              {task.required_documents.length > 1 ? "s" : ""} required
+              <FileText size={11} color="var(--text-muted)" />
+              {task.required_documents.map((doc, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    fontSize: "10px",
+                    padding: "2px 6px",
+                    background: "var(--bg-main)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "4px",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  {doc}
+                </span>
+              ))}
             </div>
           )}
           {isAckTask && (
@@ -852,8 +864,23 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         </div>
         
         {task.required_documents?.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
-            <FileText size={11} /> {task.required_documents.length} document{task.required_documents.length > 1 ? "s" : ""} required
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", marginTop: "4px" }}>
+            <FileText size={11} color="var(--text-muted)" />
+            {task.required_documents.map((doc, idx) => (
+              <span
+                key={idx}
+                style={{
+                  fontSize: "10px",
+                  padding: "2px 6px",
+                  background: "var(--bg-main)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "4px",
+                  color: "var(--text-muted)",
+                }}
+              >
+                {doc}
+              </span>
+            ))}
           </div>
         )}
         

@@ -163,7 +163,14 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "1.2" }}>{claim.patient_name || claim.child_name}</div>
+            <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "1.2", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+              {claim.patient_name || claim.child_name}
+              {claim.pending_tasks?.length > 0 && (
+                <span className="badge-modern badge-error" style={{ fontSize: "9px", padding: "1px 4px", display: "flex", alignItems: "center", gap: "2px" }}>
+                  <AlertCircle size={10} /> ACTION REQUIRED
+                </span>
+              )}
+            </div>
             <div className="mono-cell" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>#{claim.id}</div>
           </div>
           <StatusBadge status={claim.current_step || claim.status} />

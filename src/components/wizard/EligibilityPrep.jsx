@@ -105,9 +105,14 @@ function InsurancePlanPanel({ plan }) {
           }}
         >
           <div
-            style={{ fontWeight: 700, fontSize: "14px", marginBottom: "4px" }}
+            style={{ fontWeight: 700, fontSize: "14px", marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
           >
-            {details.name}
+            <span>{details.name}</span>
+            {plan.pricing?.sum_insured != null && (
+              <span className="mono-cell" style={{ color: "var(--success)", fontSize: "13px" }}>
+                ₹{plan.pricing.sum_insured.toLocaleString("en-IN")}
+              </span>
+            )}
           </div>
           <div
             style={{
