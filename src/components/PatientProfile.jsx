@@ -240,7 +240,7 @@ function PatientDetail({ patient, onBack }) {
           </div>
           <div>
             <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Payer</span>
-            <span style={{ fontWeight: 600 }}>{patient.latest_claim.payer_code}</span>
+            <span style={{ fontWeight: 600 }}>{patient.latest_claim.payer_name || patient.latest_claim.payer_id || patient.latest_claim.payer_code || "-"}</span>
           </div>
           <div>
             <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Policy</span>
@@ -541,7 +541,6 @@ export default function PatientProfile() {
             onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
           />
         </div>
-        <Button variant="primary" onClick={handleSearch}>Search</Button>
         
         <select
           className="input-modern"
@@ -562,7 +561,7 @@ export default function PatientProfile() {
             <LayoutGrid size={16} />
           </button>
           <button
-            title="List View"
+            title="Table View"
             onClick={() => setViewMode("list")}
             style={{ padding: "6px 12px", background: viewMode === "list" ? "var(--bg-main)" : "transparent", color: viewMode === "list" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "list" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "list" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
           >
@@ -652,8 +651,8 @@ export default function PatientProfile() {
                       statusSlot={child.latest_claim && (
                         <>
                           <CaseStatusChip claim={child.latest_claim} />
-                          {child.latest_claim.payer_code && (
-                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_code}</span>
+                          {(child.latest_claim.payer_name || child.latest_claim.payer_id || child.latest_claim.payer_code) && (
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id || child.latest_claim.payer_code}</span>
                           )}
                         </>
                       )}
@@ -689,8 +688,8 @@ export default function PatientProfile() {
                                 {child.latest_claim ? (
                                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                     <CaseStatusChip claim={child.latest_claim} />
-                                    {child.latest_claim.payer_code && (
-                                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_code}</span>
+                                    {(child.latest_claim.payer_name || child.latest_claim.payer_id || child.latest_claim.payer_code) && (
+                                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id || child.latest_claim.payer_code}</span>
                                     )}
                                   </div>
                                 ) : (
