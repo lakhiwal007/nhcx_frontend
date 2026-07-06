@@ -705,21 +705,24 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
               }}
             >
               <FileText size={11} color="var(--text-muted)" />
-              {task.required_documents.map((doc, idx) => (
-                <span
-                  key={idx}
-                  style={{
-                    fontSize: "10px",
-                    padding: "2px 6px",
-                    background: "var(--bg-main)",
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "4px",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  {doc}
-                </span>
-              ))}
+              {task.required_documents.map((doc, idx) => {
+                const docLabel = typeof doc === 'string' ? doc : (doc.display || doc.code || "Document");
+                return (
+                  <span
+                    key={idx}
+                    style={{
+                      fontSize: "10px",
+                      padding: "2px 6px",
+                      background: "var(--bg-main)",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: "4px",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {docLabel}
+                  </span>
+                );
+              })}
             </div>
           )}
           {isAckTask && (
@@ -866,21 +869,24 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         {task.required_documents?.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", marginTop: "4px" }}>
             <FileText size={11} color="var(--text-muted)" />
-            {task.required_documents.map((doc, idx) => (
-              <span
-                key={idx}
-                style={{
-                  fontSize: "10px",
-                  padding: "2px 6px",
-                  background: "var(--bg-main)",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "4px",
-                  color: "var(--text-muted)",
-                }}
-              >
-                {doc}
-              </span>
-            ))}
+            {task.required_documents.map((doc, idx) => {
+              const docLabel = typeof doc === 'string' ? doc : (doc.display || doc.code || "Document");
+              return (
+                <span
+                  key={idx}
+                  style={{
+                    fontSize: "10px",
+                    padding: "2px 6px",
+                    background: "var(--bg-main)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "4px",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  {docLabel}
+                </span>
+              );
+            })}
           </div>
         )}
         
