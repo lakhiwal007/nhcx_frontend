@@ -304,7 +304,8 @@ export default function PreauthStatus({ ctx }) {
 
   const resolvedCashlessCaseId = cashless_case_id || location.state?.cashless_case_id || statusData?.cashless_case_id || cashlessCase?.cashless_case_id || caseState.draftData?.cashless_case_id || null;
   const isComplete = statusData?.status === "complete";
-  const decision = statusData?.decision;
+  const decision = statusData?.decision || caseState.preauthDecision;
+  const knownDecision = caseState.preauthDecision && caseState.preauthDecision !== "UNKNOWN";
   const isApproved = decision === "APPROVED";
   const isPartial = decision === "PARTIALLY_APPROVED";
   const isQueried = decision === "QUERIED";
@@ -335,7 +336,7 @@ export default function PreauthStatus({ ctx }) {
 
   return (
     <div className="wizard-step">
-      {!isComplete && (
+      {!isComplete && !knownDecision && (
         <Card className="mb-6">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -363,6 +364,20 @@ export default function PreauthStatus({ ctx }) {
               Payer decisions can take minutes to hours. You can safely leave this page - the result will appear in your Work Queue when it arrives.
             </div>
           )}
+        </Card>
+      )}
+
+      {!isComplete && knownDecision && (
+        <Card className="mb-6">
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div className="spinner" style={{ width: "24px", height: "24px", borderTopColor: "var(--primary)" }} />
+            <div>
+              <div style={{ fontWeight: 700 }}>Loading adjudication details...</div>
+              <div style={{ fontSize: "12px", color: "var(--text-muted)", textTransform: "capitalize" }}>
+                Decision: {String(decision).toLowerCase().replace(/_/g, " ")}
+              </div>
+            </div>
+          </div>
         </Card>
       )}
 
