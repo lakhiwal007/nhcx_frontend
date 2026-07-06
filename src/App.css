@@ -2520,10 +2520,31 @@ code {
 
 /* ─── Metrics responsive grid ────────────────────────────────────────────── */
 .metrics-grid-responsive {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 1fr));
-    gap: 10px;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 12px;
     margin-bottom: 20px;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+}
+
+.metrics-grid-responsive::-webkit-scrollbar {
+    height: 6px;
+}
+
+.metrics-grid-responsive::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.metrics-grid-responsive::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: var(--radius-pill);
+}
+
+.metrics-grid-responsive > * {
+    flex: 1 1 0;
+    min-width: 140px;
 }
 
 /* ─── Stat cards (opt-in per screen: .dashboard-screen, .payments-screen) ── */
@@ -2689,8 +2710,5 @@ code {
 
 /* ─── Mobile (≤768px) additions ──────────────────────────────────────────── */
 @media (max-width: 768px) {
-    .metrics-grid-responsive {
-        grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 1fr));
-        gap: 10px;
-    }
+    /* (Intentionally left blank for future additions, or can be removed if empty) */
 }
