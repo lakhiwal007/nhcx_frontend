@@ -85,16 +85,21 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     }
   });
 
+  const activeIndex = visible.findIndex((s) => s.path === currentPath);
+
   // The spine records progress; it doesn't drive the workflow forward. Only
   // completed stages, the current stage, and branch action nodes are clickable
   // — the next not-yet-done step stays locked so clicking can't skip ahead.
-  return visible.map((s) => {
-    const isActive = s.path === currentPath;
-    const clickable = s.branch || s.done || isActive;
+  return visible.map((s, i) => {
+    const isActive = i === activeIndex;
+    const isPassed = activeIndex !== -1 && i < activeIndex;
+    const clickable = s.branch || s.done || isActive || isPassed;
+    
     let state = "upcoming";
     if (isActive) state = "active";
-    else if (s.done) state = "done";
+    else if (s.done || isPassed) state = "done";
     else if (s.branch) state = "available";
+    
     return { ...s, state, clickable };
   });
 }
