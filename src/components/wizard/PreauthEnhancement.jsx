@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Send, AlertCircle } from "lucide-react";
 import { api } from "../../api";
-import { Button, StatusBadge } from "../Common";
+import { Button, StatusBadge, LoadingBlock } from "../Common";
 
 export default function PreauthEnhancement({ ctx, onClose }) {
   const { caseState, updateCaseState } = ctx;
@@ -59,7 +59,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
   };
 
   if (loading) {
-    return <div className="flex-center py-8"><div className="spinner" /></div>;
+    return <LoadingBlock compact />;
   }
 
   if (!preview) {

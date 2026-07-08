@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Home, RefreshCw, AlertCircle, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "../../api";
-import { Card, Button, StatusBadge } from "../Common";
+import { Card, Button, StatusBadge, EmptyState, LoadingBlock } from "../Common";
 
 export default function PaymentReconciliation({ ctx }) {
   const navigate = useNavigate();
@@ -64,12 +64,7 @@ export default function PaymentReconciliation({ ctx }) {
   };
 
   if (loading) {
-    return (
-      <div className="flex-center py-20 flex-col">
-        <div className="spinner mb-4" />
-        <p className="text-muted">Fetching payment status…</p>
-      </div>
-    );
+    return <LoadingBlock text="Fetching payment status…" />;
   }
 
   const isNotFound = !paymentData || paymentData.status === "not_found" || paymentData.total_events === 0;
@@ -97,10 +92,10 @@ export default function PaymentReconciliation({ ctx }) {
         </div>
 
         {isNotFound ? (
-          <div className="empty-view py-10 text-center">
-            <h3>No Payment Events Yet</h3>
-            <p className="text-muted">The payer initiates payment notices on their schedule - typically hours to days after claim approval. The backend will auto-acknowledge when it arrives.</p>
-          </div>
+          <EmptyState
+            title="No Payment Events Yet"
+            description="The payer initiates payment notices on their schedule - typically hours to days after claim approval. The backend will auto-acknowledge when it arrives."
+          />
         ) : (
           <div>
             {paymentData?.settled && (

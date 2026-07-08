@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
-import { Button, Input } from "./Common";
+import { Button, Input, EmptyState, LoadingBlock } from "./Common";
 import { useNavigate } from "react-router-dom";
 
 const POLL_INTERVAL_MS = 45_000;
@@ -1064,25 +1064,15 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       </div>
 
       {loading ? (
-        <div className="flex-center py-20 flex-col">
-          <div className="spinner mb-4" />
-          <p className="text-muted">Loading tasks…</p>
-        </div>
+        <LoadingBlock text="Loading tasks…" />
       ) : filteredTasks.length === 0 ? (
-        <div className="empty-view py-20 text-center">
-          <CheckCircle2
-            size={48}
-            style={{
-              opacity: 0.4,
-              color: "var(--success)",
-              marginBottom: "16px",
-            }}
-          />
-          <h3>All Caught Up!</h3>
-          <p className="text-muted mt-2">
-            No {statusFilter} tasks match your filters.
-          </p>
-        </div>
+        <EmptyState
+          icon={CheckCircle2}
+          iconOpacity={0.4}
+          iconColor="var(--success)"
+          title="All Caught Up!"
+          description={`No ${statusFilter} tasks match your filters.`}
+        />
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           {statusFilter === "pending" ? (

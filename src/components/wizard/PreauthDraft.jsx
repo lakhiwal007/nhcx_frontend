@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
-import { Card, Button, DocumentChecklist, MissingFieldsAlert } from "../Common";
+import { Card, Button, DocumentChecklist, MissingFieldsAlert, LoadingBlock } from "../Common";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -243,12 +243,7 @@ export default function PreauthDraft({ ctx }) {
   };
 
   if (loading) {
-    return (
-      <div className="flex-center py-20 flex-col">
-        <div className="spinner mb-4" />
-        <p className="text-muted">Building preauth draft…</p>
-      </div>
-    );
+    return <LoadingBlock text="Building preauth draft…" />;
   }
 
   const patientContextMissing = missingFields.filter((f) => !HIS_BLOCKERS.has(f.toLowerCase()));

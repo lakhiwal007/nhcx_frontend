@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
-import { Button } from "../Common";
+import { Button, EmptyState, LoadingBlock } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
 import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
@@ -99,21 +99,14 @@ export default function CaseWrapper() {
   }, [id]);
 
   if (loading) {
-    return (
-      <div className="flex-center py-20 flex-col">
-        <div className="spinner mb-4" />
-        <p className="text-muted">Loading Case…</p>
-      </div>
-    );
+    return <LoadingBlock text="Loading Case…" />;
   }
 
   if (!patient) {
     return (
-      <div className="empty-view py-20 text-center">
-        <h3>Patient Not Found</h3>
-        <p className="text-muted">The patient record you are looking for does not exist.</p>
+      <EmptyState title="Patient Not Found" description="The patient record you are looking for does not exist.">
         <Button onClick={() => navigate("/registry")} className="mt-4">Back to Registry</Button>
-      </div>
+      </EmptyState>
     );
   }
 

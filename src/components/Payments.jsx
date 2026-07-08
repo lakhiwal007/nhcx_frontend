@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Search, CreditCard, CheckCircle, AlertCircle, Clock, Landmark, Wallet, LayoutGrid, List } from "lucide-react";
-import { Card, StatusBadge, Input, SkeletonTable } from "./Common";
+import { Card, StatusBadge, Input, SkeletonTable, EmptyState } from "./Common";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -149,15 +149,12 @@ export default function Payments() {
           <SkeletonTable rows={5} cols={9} />
         </Card>
       ) : filtered.length === 0 ? (
-        <div className="empty-view py-20 text-center">
-          <CreditCard
-            size={48}
-            className="text-muted mb-4 mx-auto"
-            style={{ opacity: 0.5 }}
-          />
-          <h3>No Payments Found</h3>
-          <p className="text-muted mt-2">No matching payment records.</p>
-        </div>
+        <EmptyState
+          icon={CreditCard}
+          iconOpacity={0.5}
+          title="No Payments Found"
+          description="No matching payment records."
+        />
       ) : viewMode === "grid" ? (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px" }}>
           {filtered.map((pay, i) => (

@@ -13,7 +13,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Card, Button, StatusBadge } from "../Common";
+import { Card, Button, StatusBadge, LoadingBlock } from "../Common";
 import PayrErrorList from "../PayrErrorList";
 
 const POLL_INTERVAL_MS = 7000;
@@ -743,12 +743,7 @@ export default function EligibilityPrep({ ctx }) {
   };
 
   if (loading) {
-    return (
-      <div className="flex-center py-20 flex-col">
-        <div className="spinner mb-4" />
-        <p className="text-muted">Initiating eligibility preparation…</p>
-      </div>
-    );
+    return <LoadingBlock text="Initiating eligibility preparation…" />;
   }
 
   if (sumInsuredError) {

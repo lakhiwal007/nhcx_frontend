@@ -4,7 +4,7 @@ import { Send, ArrowRight, AlertCircle, X, Edit2, ChevronDown, ChevronUp } from 
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid, MissingFieldsAlert } from "../Common";
+import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid, MissingFieldsAlert, LoadingBlock } from "../Common";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
 const POLL_INTERVAL_MS = 7000;
@@ -372,12 +372,7 @@ export default function ClaimsScreen({ ctx }) {
   }, [location.state?.openAction, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimRejected, isPartialApproval, updateCaseState]);
 
   if (loading) {
-    return (
-      <div className="flex-center py-20 flex-col">
-        <div className="spinner mb-4" />
-        <p className="text-muted">Building claim draft…</p>
-      </div>
-    );
+    return <LoadingBlock text="Building claim draft…" />;
   }
 
   if (claimDraft?._error) {

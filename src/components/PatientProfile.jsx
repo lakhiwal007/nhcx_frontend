@@ -5,7 +5,7 @@ import {
   BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle, LayoutGrid, List
 } from "lucide-react";
 import { api } from "../api";
-import { Card, StatusBadge, Button, Input, PatientCard } from "./Common";
+import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock } from "./Common";
 import { useNavigate } from "react-router-dom";
 
 function calculateAge(dob) {
@@ -585,25 +585,17 @@ export default function PatientProfile() {
       ) : (
         <div>
           {loading || loadingDetail ? (
-            <div className="flex-center py-20 flex-col">
-              <div className="spinner mb-4" />
-              <p className="text-muted">{loadingDetail ? "Loading patient details…" : "Loading patients…"}</p>
-            </div>
+            <LoadingBlock text={loadingDetail ? "Loading patient details…" : "Loading patients…"} />
           ) : children.length === 0 ? (
-            <div className="empty-view" style={{ minHeight: "40vh" }}>
-              <User size={48} style={{ opacity: 0.3, marginBottom: "16px" }} />
-              {hasSearched ? (
-                <>
-                  <h3>No patients found</h3>
-                  <p className="text-muted mt-2">Try a different name or ID number.</p>
-                </>
-              ) : (
-                <>
-                  <h3>Search for a patient</h3>
-                  <p className="text-muted mt-2">Enter a patient name or ID number above and click Search.</p>
-                </>
-              )}
-            </div>
+            <EmptyState
+              icon={User}
+              title={hasSearched ? "No patients found" : "Search for a patient"}
+              description={
+                hasSearched
+                  ? "Try a different name or ID number."
+                  : "Enter a patient name or ID number above and click Search."
+              }
+            />
           ) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>

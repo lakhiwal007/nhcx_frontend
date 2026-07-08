@@ -23,7 +23,7 @@ import {
   PanelTop,
 } from "lucide-react";
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
-import { Button } from "./Common";
+import { Button, EmptyState, LoadingBlock } from "./Common";
 
 const DEFAULT_FACILITY_KEY = "nhcx_default_facility";
 
@@ -1256,24 +1256,15 @@ export default function Settings({
       )}
 
       {loading ? (
-        <div className="flex-center py-20 flex-col">
-          <div className="spinner mb-4" />
-          <p className="text-muted">Loading facilities…</p>
-        </div>
+        <LoadingBlock text="Loading facilities…" />
       ) : facilities.length === 0 ? (
-        <div className="empty-view" style={{ minHeight: "40vh" }}>
-          <Building2
-            size={52}
-            style={{ opacity: 0.25, marginBottom: "16px" }}
-          />
-          <h3>No Facilities Registered</h3>
-          <p
-            className="text-muted mt-2"
-            style={{ maxWidth: "360px", textAlign: "center" }}
-          >
-            Register your hospital's HCX facility to enable preauth, claims, and
-            eligibility workflows.
-          </p>
+        <EmptyState
+          icon={Building2}
+          iconSize={52}
+          iconOpacity={0.25}
+          title="No Facilities Registered"
+          description="Register your hospital's HCX facility to enable preauth, claims, and eligibility workflows."
+        >
           <Button
             variant="primary"
             icon={Plus}
@@ -1282,7 +1273,7 @@ export default function Settings({
           >
             Register First Facility
           </Button>
-        </div>
+        </EmptyState>
       ) : (
         <motion.div
           initial={{ opacity: 0, y: 8 }}

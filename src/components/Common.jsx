@@ -497,6 +497,42 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
 };
 
 /**
+ * Full-block loading indicator: spinner plus an optional status message.
+ * `compact` drops the message layout for small inline uses (e.g. within a card).
+ * @category Feedback
+ */
+export const LoadingBlock = ({ text, compact = false }) => (
+  <div className={compact ? "flex-center py-8" : "flex-center py-20 flex-col"}>
+    <div className={compact ? "spinner" : "spinner mb-4"} />
+    {text && <p className="text-muted">{text}</p>}
+  </div>
+);
+
+/**
+ * Centered empty-state card: optional icon, title, description, and children
+ * (e.g. a call-to-action Button).
+ * @category Feedback
+ */
+export const EmptyState = ({
+  icon: Icon,
+  iconSize = 48,
+  iconColor,
+  iconOpacity = 0.3,
+  title,
+  description,
+  children,
+}) => (
+  <div className="empty-view">
+    {Icon && (
+      <Icon size={iconSize} style={{ opacity: iconOpacity, color: iconColor, marginBottom: "16px" }} />
+    )}
+    <h3>{title}</h3>
+    {description && <p>{description}</p>}
+    {children}
+  </div>
+);
+
+/**
  * Loading placeholder shaped like a data table, with staggered shimmer rows.
  * Use while a table's real rows are still being fetched.
  * @category Feedback

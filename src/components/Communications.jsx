@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
-import { Card, Button, Input } from "./Common";
+import { Card, Button, Input, EmptyState, LoadingBlock } from "./Common";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import { useNavigate } from "react-router-dom";
 
@@ -413,16 +413,13 @@ export default function Communications({ allFacilitiesMode = false }) {
       </div>
 
       {loading ? (
-        <div className="flex-center py-20 flex-col">
-          <div className="spinner mb-4" />
-          <p className="text-muted">Loading communications…</p>
-        </div>
+        <LoadingBlock text="Loading communications…" />
       ) : filteredComms.length === 0 ? (
-        <div className="empty-view" style={{ minHeight: "40vh" }}>
-          <MessageSquare size={48} style={{ opacity: 0.3, marginBottom: "16px" }} />
-          <h3>No Communications</h3>
-          <p className="text-muted mt-2">No payer messages match your filters.</p>
-        </div>
+        <EmptyState
+          icon={MessageSquare}
+          title="No Communications"
+          description="No payer messages match your filters."
+        />
       ) : viewMode === "grid" ? (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "16px" }}>
           {filteredComms.map((comm) => {
