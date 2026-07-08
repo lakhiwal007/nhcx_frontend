@@ -51,6 +51,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [theme, setTheme] = useState("light");
   const [apiErrors, setApiErrors] = useState([]);
+  const apiErrorTimers = useRef({});
   const [pendingTaskCount, setPendingTaskCount] = useState(0);
   const [urgentTaskCount, setUrgentTaskCount] = useState(0);
   const [allFacilitiesMode, setAllFacilitiesMode] = useState(
@@ -135,15 +136,35 @@ export default function App() {
   }, [hasProvider]);
 
   useEffect(() => {
-    const handleApiError = (e) => {
-      const id = Date.now() + Math.random();
-      setApiErrors((prev) => [...prev, { id, message: e.detail }]);
-      setTimeout(() => {
+    const MAX_TOASTS = 4;
+    const scheduleDismiss = (id) => {
+      clearTimeout(apiErrorTimers.current[id]);
+      apiErrorTimers.current[id] = setTimeout(() => {
         setApiErrors((prev) => prev.filter((err) => err.id !== id));
+        delete apiErrorTimers.current[id];
       }, 5000);
     };
+    const handleApiError = (e) => {
+      const message = e.detail;
+      setApiErrors((prev) => {
+        const existing = prev.find((err) => err.message === message);
+        if (existing) {
+          scheduleDismiss(existing.id);
+          return prev.map((err) =>
+            err.id === existing.id ? { ...err, count: err.count + 1 } : err,
+          );
+        }
+        const id = Date.now() + Math.random();
+        scheduleDismiss(id);
+        return [...prev, { id, message, count: 1 }].slice(-MAX_TOASTS);
+      });
+    };
     window.addEventListener("api-error", handleApiError);
-    return () => window.removeEventListener("api-error", handleApiError);
+    return () => {
+      window.removeEventListener("api-error", handleApiError);
+      Object.values(apiErrorTimers.current).forEach(clearTimeout);
+      apiErrorTimers.current = {};
+    };
   }, []);
 
   const toggleTheme = () => {
@@ -605,7 +626,10 @@ export default function App() {
               }}
             >
               <AlertCircle size={18} style={{ flexShrink: 0, marginTop: "1px" }} />
-              <div style={{ fontSize: "13px", fontWeight: 600, lineHeight: 1.5, flex: 1 }}>{err.message}</div>
+              <div style={{ fontSize: "13px", fontWeight: 600, lineHeight: 1.5, flex: 1 }}>
+                {err.message}
+                {err.count > 1 && ` (×${err.count})`}
+              </div>
               <button
                 onClick={() => setApiErrors((prev) => prev.filter((e) => e.id !== err.id))}
                 style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "white", cursor: "pointer", padding: "4px 6px", display: "flex", borderRadius: "var(--radius-xs)", flexShrink: 0, marginTop: "-2px" }}
