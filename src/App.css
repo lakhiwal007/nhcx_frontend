@@ -279,6 +279,7 @@ h3,
     align-items: center;
     gap: 28px;
     min-width: 0;
+    overflow: hidden;
 }
 
 .command-brand {
@@ -311,6 +312,15 @@ h3,
     display: flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.command-nav::-webkit-scrollbar {
+    display: none;
 }
 
 .command-nav-pill {
@@ -325,6 +335,7 @@ h3,
     font-weight: 500;
     font-size: 13px;
     white-space: nowrap;
+    flex-shrink: 0;
     transition: color 0.2s;
 }
 
