@@ -888,6 +888,18 @@ paths:
         the caller to supply `child_id`, `payer_id`, or `policy_number` again.
         Use only on explicit user action ("Re-run Eligibility Check"), never on
         routine polling.
+
+
+        **Safe at any journey stage.** `force_refresh` is not gated on
+        `current_step` or preauth/claim status — it works identically whether
+        the case is still at `insurance_and_eligibility` or has progressed to
+        `preauth_submitted`, `preauth_decided`, or beyond. Re-firing it only
+        refreshes the `insurance_plan` / `coverage_eligibility` blocks in the
+        response (e.g. updated sum insured or plan status); it never touches
+        the submitted preauth/claim, never changes `preauth_status` or
+        `decision`, and never resubmits anything to the payer. `current_step`
+        itself never regresses because it is derived from the furthest stage
+        reached, not from this call.
       parameters:
         - $ref: "#/components/parameters/RequestIdParam"
         - $ref: "#/components/parameters/ProviderIdHeader"

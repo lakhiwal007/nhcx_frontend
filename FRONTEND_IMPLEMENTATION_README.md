@@ -310,6 +310,8 @@ When the user opens a case directly (not via a task), the frontend has no `actio
 
 > The case-level `status` (`pending`/`partial`/`complete`/`failed`) describes only the **pre-auth** roll-up — `status: complete` means pre-auth is done, **not** the whole journey. For the real position use `current_step`, with `claim_decision` and `payment_status` for the claim/payment detail.
 
+**Re-checking eligibility after preauth is submitted.** The backend does not gate coverage-eligibility refresh on `current_step` — `GET /cashless/{cashless_case_id}?force_refresh=true` (or `POST /cashless/prepare` with `force_refresh: true`) works the same whether the case is at `insurance_and_eligibility` or `settled`. Firing it does **not** touch the submitted preauth/claim, does **not** change `preauth_status`/`decision`, and does **not** resubmit anything to the payer — it only refreshes the `insurance_plan` / `coverage_eligibility` blocks (e.g. an updated sum insured or plan status). Surface it as a clearly-labeled secondary action (e.g. "Re-check Eligibility", not grouped with the primary decision actions) so users don't mistake it for resubmitting the preauth. See **Screen 5: Preauth Status And Actions** for where to place it.
+
 ### When the frontend doesn't have the data to act: prepare/preview endpoints
 
 Some actions need data the frontend cannot know on its own — most notably **preauth enhancement** ("the patient had an extra procedure; what exactly is new?"). For these, the action is a two-step: a `GET` **prepare/preview** call that returns server-computed detail, then a `POST` that submits the user's selection.
@@ -1005,6 +1007,7 @@ Cashless prepare request:
 - The previous prepare returned `failed` and the user wants a clean retry
 - `next_actions` contains `"resubmit"` — this now appears both when `status` is `partial` (a sub-check failed) **and** when `status` is `pending` past the server timeout with no payer callback (*stale pending*, request likely lost)
 - You resumed to this screen after the user selected a different policy but the policy number happens to be the same as a prior case
+- The case has already progressed past preauth submission (`current_step` is `preauth_submitted` or later) and the user wants updated InsurancePlan/CoverageEligibility data — this is safe at any `current_step` and does not affect the submitted preauth (see **Screen 5: Preauth Status And Actions**)
 
 For the `cashless_case_id`-in-hand cases, prefer `GET /cashless/{id}?force_refresh=true` over re-POSTing prepare (see "To force-refresh once a case exists" below).
 
@@ -1194,6 +1197,8 @@ Decision behavior:
 | `UNKNOWN` or null | Neutral state | Refresh, Request Gateway Status |
 
 > `decision` is classified from the payer's authoritative NHCX workflow id (e.g. preauth rejected/queried), so `QUERIED` and `REJECTED` are reported as such even when the payer's FHIR bundle does not carry the matching outcome/reason codes — they will not collapse into a false `APPROVED`.
+
+**Re-checking coverage eligibility from this screen.** Independent of `decision`, offer a low-emphasis "Re-check Eligibility" action (e.g. in an overflow menu, not next to the primary decision actions) that calls `GET /cashless/{cashless_case_id}?force_refresh=true`. This is useful when the user wants fresh sum-insured/coverage data before acting on Prepare Claim, Reprocess/Appeal, or Enhancement — the policy may have changed at the payer since submission. It only updates the `insurance_plan` / `coverage_eligibility` blocks; it never changes `preauth_status`, `decision`, or `preauth_ref`, and it's safe to call in any decision state, including `CANCELLED`. Do not offer it as a "retry" for a rejected/queried preauth — use Resubmit Preauth for that.
 
 Preauth follow-up APIs:
 
