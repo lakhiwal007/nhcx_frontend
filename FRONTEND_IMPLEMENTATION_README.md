@@ -199,6 +199,7 @@ Resume behavior must be deterministic:
 | Claim correlation exists and no terminal decision | Claim Decision |
 | Preauth `decision` is `APPROVED` or `PARTIALLY_APPROVED` | Claims |
 | Preauth `decision` is `QUERIED` or `REJECTED` | Preauth Status And Actions |
+| Preauth `decision` is `CANCELLED` | Preauth Status And Actions (read-only void banner; no claim/enhancement actions) |
 | Preauth correlation exists and no terminal decision | Preauth Status And Actions |
 | Cashless `next_actions` contains `prepare_preauth` | Preauth Draft |
 | Cashless case exists and status is `pending` or `partial` | Eligibility Preparation |
@@ -519,12 +520,15 @@ The Work Queue is not a passive list — it is the mechanism that converts every
 | InsurancePlan returned document requirements | `review_insurance_plan_documents` | normal |
 | Preauth `APPROVED` | `submit_discharge_claim`, `submit_final_claim` | normal |
 | Preauth `QUERIED` | `respond_preauth_query` | high |
-| Preauth `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_preauth`, `submit_reprocess` | high / normal |
+| Preauth `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_preauth`, `submit_reprocess`¹ | high / normal |
 | Claim `QUERIED` | `respond_claim_query` | high |
 | Claim `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_claim`, `submit_reprocess` | high |
+| Reprocess `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_claim` | normal |
 | Payment notice received | `acknowledge_payment` | normal |
 | Payment ack failed | `review_payment_ack_failure` | high |
 | Communication received | `review_communication` | urgent if payer flagged, else normal |
+
+> ¹ `submit_reprocess` is only offered once an adjudicated **claim** exists (reprocess acts on a claim). A case-first preauth rejection has no claim yet, so only `resubmit_preauth` appears there — its `action.payload_hint` carries `cashless_case_id` (with `claim_id: null`), and the preauth resubmit/query-response endpoints act on the case, so use `cashless_case_id` in that flow.
 
 **The task state machine — and the part teams miss:** a task leaves `pending` in *two* ways.
 
@@ -1186,6 +1190,7 @@ Decision behavior:
 | `PARTIALLY_APPROVED` | Amber banner and amount comparison | Prepare Claim, Request Enhancement, Reprocess/Appeal, Cancel Preauth |
 | `QUERIED` | Blue query banner with payer notes | Respond to Query, Resubmit Preauth, Cancel Preauth |
 | `REJECTED` | Red rejection banner with reasons | Resubmit Preauth, Reprocess/Appeal |
+| `CANCELLED` | Grey "cancelled — preauth void" banner | Refresh only — no Prepare Claim / Enhancement / Reprocess / Cancel |
 | `UNKNOWN` or null | Neutral state | Refresh, Request Gateway Status |
 
 > `decision` is classified from the payer's authoritative NHCX workflow id (e.g. preauth rejected/queried), so `QUERIED` and `REJECTED` are reported as such even when the payer's FHIR bundle does not carry the matching outcome/reason codes — they will not collapse into a false `APPROVED`.
@@ -1223,6 +1228,14 @@ Cancel request:
   "description": "Patient requested cancellation"
 }
 ```
+
+Cancel is asynchronous: the `202` only means the request was accepted. **Poll
+`GET /preauth/status/{correlation_id}` until `decision: CANCELLED`** — that is the
+confirmation the payer processed the cancellation. Once cancelled, `preauth_status`
+becomes `CANCELLED`, `current_step` returns to `preauth_decided`, and the backend
+withdraws any `submit_discharge_claim` / `submit_final_claim` tasks. The UI must then
+treat the preauth as void: show the cancelled banner and stop offering claim,
+enhancement, reprocess, or re-cancel actions on it.
 
 ## Screen 5b: Preauth Enhancement Review
 

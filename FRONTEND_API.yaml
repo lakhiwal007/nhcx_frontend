@@ -1,12 +1,21 @@
 openapi: 3.0.3
 info:
   title: NHCX Wrapper Frontend API
-  version: 1.4.0
+  version: 1.5.0
   description: >
     Minimal frontend-facing API contract for payer discovery, policy fetch,
     cashless preparation, and preauthorization. These endpoints are hospital UI
     APIs exposed by the wrapper; the frontend does not call NHCX or granular
     workflow APIs directly.
+
+
+    **v1.5.0 (non-breaking):** preauth `decision` can now be `CANCELLED` once a
+    payer acknowledges a `preauth/cancel` (previously cancellations were not
+    reflected) — treat the preauth as void and hide claim actions. Preauth
+    corrective task hints (`resubmit_preauth`, `respond_preauth_query`) now also
+    carry `cashless_case_id` for the case-first flow. A `REJECTED`/`PARTIALLY_APPROVED`
+    reprocess now surfaces a `resubmit_claim` task instead of a dead-end. No fields
+    were removed or renamed.
 
 
     **Authentication — `Authorization: Bearer <token>` is required on all
@@ -1561,6 +1570,13 @@ paths:
         Requires a prior approved or pending preauth (`preauth_ref` must exist on
         the claim; auto-resolved from `claim.preauth_ref` when omitted).
         Calling this without a stored `preauth_ref` will return a 400 error.
+
+
+        **After the payer acknowledges the cancellation**, `preauth/status` reports
+        `decision: CANCELLED` and the case's `preauth_status` becomes `CANCELLED`
+        (`current_step` returns to `preauth_decided`). Any `submit_discharge_claim` /
+        `submit_final_claim` tasks are withdrawn — the UI should treat the preauth
+        as void and not offer claim actions on it.
       requestBody:
         required: true
         content:
@@ -2067,11 +2083,13 @@ paths:
       summary: Check reprocess status
       description: >
         Poll after `reprocess/submit` until `status: complete`. Check
-        `decision` to determine next step — APPROVED means the appeal
-        succeeded and the claim can proceed; REJECTED means no further
-        appeal path exists via NHCX. If the payer never responds, use
-        `status/request` to query the NHCX gateway directly for the
-        reprocess `correlation_id`.
+        `decision` (standard vocabulary: `APPROVED`, `PARTIALLY_APPROVED`,
+        `QUERIED`, `REJECTED`) to determine next step — APPROVED means the appeal
+        succeeded and the claim can proceed. On `REJECTED`/`PARTIALLY_APPROVED`
+        the task queue now surfaces a `resubmit_claim` task so the case isn't a
+        dead-end (correct the claim and resubmit if appropriate). If the payer
+        never responds, use `status/request` to query the NHCX gateway directly
+        for the reprocess `correlation_id`.
       parameters:
         - $ref: "#/components/parameters/RequestIdParam"
         - $ref: "#/components/parameters/ProviderIdHeader"
@@ -5209,6 +5227,12 @@ components:
         decision:
           type: string
           nullable: true
+          enum: [APPROVED, PARTIALLY_APPROVED, QUERIED, REJECTED, CANCELLED, UNKNOWN, null]
+          description: >-
+            Classified business decision. `CANCELLED` is set once the payer
+            acknowledges a `preauth/cancel` (the preauth is voided; discharge/final
+            claim actions are withdrawn). Null until a decision is received.
+            Distinct from `outcome` (the raw FHIR outcome).
         outcome:
           type: string
           nullable: true
@@ -6166,7 +6190,14 @@ components:
             payload_hint:
               type: object
               additionalProperties: true
-              description: Seed the request body from this object; merge user edits on top.
+              description: >
+                Seed the request body from this object; merge user edits on top.
+                For preauth corrective tasks (`resubmit_preauth`,
+                `respond_preauth_query`) the hint carries `cashless_case_id` in
+                addition to `claim_id` — in the case-first flow `claim_id` is null
+                and these endpoints act on the case, so use `cashless_case_id` then.
+                `submit_reprocess` is only ever offered once an adjudicated claim
+                exists (its hint always has a non-null `claim_id`).
         metadata:
           type: object
           additionalProperties: true
