@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Building2, FileText, ArrowRight } from "lucide-react";
+import { Search, Building2, FileText, ArrowRight, AlertTriangle } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, Input, StatusBadge } from "../Common";
 
@@ -272,6 +272,27 @@ export default function PayerPolicy({ ctx }) {
                         )}
                         {(policy.status || !policy.fetched_at) && <StatusBadge status={policy.status || "active"} />}
                       </div>
+                      {caseState.estimatedBillAmount > 0 && policy.sum_insured > 0 && policy.sum_insured < caseState.estimatedBillAmount && (
+                        <div
+                          style={{
+                            marginTop: "var(--space-2)",
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "6px",
+                            padding: "8px 10px",
+                            background: "rgba(245,158,11,0.08)",
+                            border: "1px solid var(--warning)",
+                            borderRadius: "var(--radius-sm)",
+                            fontSize: "12px",
+                            color: "var(--text-main)",
+                          }}
+                        >
+                          <AlertTriangle size={14} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
+                          <span>
+                            Estimated bill (₹{caseState.estimatedBillAmount.toLocaleString()}) may exceed this policy's sum insured (₹{policy.sum_insured.toLocaleString()}). Consider selecting a different policy.
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

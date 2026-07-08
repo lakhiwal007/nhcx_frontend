@@ -86,10 +86,18 @@ function PatientDetail({ patient, onBack }) {
       .finally(() => setLoadingExtra(false));
   }, [patient.child_id]);
 
-  const startWorkflow = (visit) =>
+  const startWorkflow = (visit) => {
+    // Thread the visit's known bill total forward so the payer/policy step can
+    // warn when a policy's sum_insured looks too low — this is the only point
+    // in the journey where an invoice total is on hand before a case exists.
+    const estimatedBillAmount = visit?.invoices?.reduce(
+      (sum, inv) => sum + (inv.final_amount ?? inv.amount_billed ?? 0),
+      0,
+    ) || null;
     navigate(`/case/${patient.child_id}/payer`, {
-      state: { admission_id: visit?.admission_no, newCase: true },
+      state: { admission_id: visit?.admission_no, newCase: true, estimatedBillAmount },
     });
+  };
 
   const resumeCase = async (claimSummary) => {
     if (!claimSummary) {

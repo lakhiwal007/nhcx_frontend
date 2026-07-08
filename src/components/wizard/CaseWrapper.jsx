@@ -39,6 +39,7 @@ export default function CaseWrapper() {
     payer: null,
     policy: null,
     admission_id: location.state?.admission_id || null,
+    estimatedBillAmount: location.state?.estimatedBillAmount || null,
     cashless_case_id: location.state?.cashless_case_id || null,
     claim_id: location.state?.claim_id || null,
     eligibility_correlation_id: null,
