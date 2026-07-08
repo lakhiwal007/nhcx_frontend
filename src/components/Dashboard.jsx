@@ -5,7 +5,7 @@ import {
   Clock, XCircle, AlertTriangle, Users, Inbox, AlertCircle, LayoutGrid, List, MoreVertical, ChevronDown
 } from "lucide-react";
 import { api } from "../api";
-import { PageHeader, Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
+import { Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const statsContainerVariants = {
@@ -233,8 +233,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
 
   return (
     <div className="dashboard-screen">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-        <PageHeader title="Cashless Cases" subtitle="Overview of all active and past claims" />
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "16px" }}>
         <Button
           variant="primary"
           disabled={allFacilitiesMode}

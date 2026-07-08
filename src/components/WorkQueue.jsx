@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
-import { PageHeader, Button, Input } from "./Common";
+import { Button, Input } from "./Common";
 import { useNavigate } from "react-router-dom";
 
 const POLL_INTERVAL_MS = 45_000;
@@ -940,15 +940,11 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           alignItems: "center",
-          marginBottom: "10px",
+          marginBottom: "16px",
         }}
       >
-        <PageHeader
-          title="Work Queue"
-          subtitle="Pending tasks and required actions from payer callbacks."
-        />
         <Button
           variant="outline"
           size="small"

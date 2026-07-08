@@ -23,7 +23,7 @@ import {
   PanelTop,
 } from "lucide-react";
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
-import { PageHeader, Button } from "./Common";
+import { Button } from "./Common";
 
 const DEFAULT_FACILITY_KEY = "nhcx_default_facility";
 
@@ -1024,15 +1024,11 @@ export default function Settings({
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "28px",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          marginBottom: "16px",
         }}
       >
-        <PageHeader
-          title="Settings"
-          subtitle="Manage HCX facility registrations, RSA keys, and ABDM configuration."
-        />
         <Button variant="primary" icon={Plus} onClick={openCreate}>
           Register Facility
         </Button>

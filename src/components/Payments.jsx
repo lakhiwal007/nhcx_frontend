@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Search, CreditCard, CheckCircle, AlertCircle, Clock, Landmark, Wallet, LayoutGrid, List } from "lucide-react";
-import { PageHeader, Card, StatusBadge, Input, SkeletonTable } from "./Common";
+import { Card, StatusBadge, Input, SkeletonTable } from "./Common";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -74,11 +74,6 @@ export default function Payments() {
 
   return (
     <div className="payments-screen">
-      <PageHeader
-        title="Payment Reconciliation"
-        subtitle="Track payment settlements, UTRs, and TDS deductions from payers."
-      />
-
       {loadError && (
         <div className="inline-error-banner">
           <AlertCircle size={16} />

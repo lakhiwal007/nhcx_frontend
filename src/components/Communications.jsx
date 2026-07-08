@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
-import { PageHeader, Card, Button, Input } from "./Common";
+import { Card, Button, Input } from "./Common";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import { useNavigate } from "react-router-dom";
 
@@ -347,9 +347,8 @@ export default function Communications({ allFacilitiesMode = false }) {
 
   return (
     <div className="communications-screen">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
-        <PageHeader title="Payer Communications" subtitle="Review payer-initiated messages, queries, and notices." />
-        <div style={{ display: "flex", gap: "10px", marginTop: "4px", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "16px" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           {OUTBOUND_COMMUNICATIONS_ENABLED && (
             <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)}>
               Message Payer

@@ -5,7 +5,7 @@ import {
   BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle, LayoutGrid, List
 } from "lucide-react";
 import { api } from "../api";
-import { PageHeader, Card, StatusBadge, Button, Input, PatientCard } from "./Common";
+import { Card, StatusBadge, Button, Input, PatientCard } from "./Common";
 import { useNavigate } from "react-router-dom";
 
 function calculateAge(dob) {
@@ -522,10 +522,6 @@ export default function PatientProfile() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <PageHeader title="Child Registry" subtitle="Search or browse patients to view their profile or start a cashless case." />
-      </div>
-
       {loadError && (
         <div className="inline-error-banner">
           <AlertCircle size={16} />
