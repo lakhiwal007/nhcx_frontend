@@ -113,6 +113,8 @@ export default function PreauthStatus({ ctx }) {
   const [cancelDesc, setCancelDesc] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
+  const [recheckingEligibility, setRecheckingEligibility] = useState(false);
+  const [recheckMessage, setRecheckMessage] = useState("");
 
   const correlationId = preauthCorrelationId;
   const startTimeRef = useRef(Date.now());
@@ -281,6 +283,23 @@ export default function PreauthStatus({ ctx }) {
   };
 
   const resolvedCashlessCaseId = cashless_case_id || location.state?.cashless_case_id || statusData?.cashless_case_id || cashlessCase?.cashless_case_id || caseState.draftData?.cashless_case_id || null;
+
+  // Safe at any decision state (including CANCELLED) — only refreshes the
+  // insurance_plan/coverage_eligibility blocks, never touches preauth_status/decision.
+  const handleRecheckEligibility = async () => {
+    if (!resolvedCashlessCaseId) return;
+    setRecheckingEligibility(true);
+    setRecheckMessage("");
+    try {
+      const res = await api.getCashlessStatus(resolvedCashlessCaseId, undefined, true);
+      setCashlessCase?.((prev) => (prev ? { ...prev, insurance_plan: res.insurance_plan, coverage_eligibility: res.coverage_eligibility } : prev));
+      setRecheckMessage("Eligibility data refreshed.");
+    } catch (_) {
+      setRecheckMessage("Could not refresh eligibility data.");
+    } finally {
+      setRecheckingEligibility(false);
+    }
+  };
   const isComplete = statusData?.status === "complete";
   const decision = statusData?.decision || caseState.preauthDecision;
   const knownDecision = caseState.preauthDecision && caseState.preauthDecision !== "UNKNOWN";
@@ -520,8 +539,25 @@ export default function PreauthStatus({ ctx }) {
           )}
 
 
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
-            <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "var(--space-6)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+              <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
+              {resolvedCashlessCaseId && (
+                <Button
+                  variant="text"
+                  size="small"
+                  icon={RefreshCw}
+                  disabled={recheckingEligibility}
+                  title="Refresh sum-insured/coverage data from the payer without affecting the preauth decision"
+                  onClick={handleRecheckEligibility}
+                >
+                  {recheckingEligibility ? "Refreshing…" : "Re-check Eligibility"}
+                </Button>
+              )}
+              {recheckMessage && (
+                <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{recheckMessage}</span>
+              )}
+            </div>
             <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
               {(isApproved || isPartial) && (
                 <>
