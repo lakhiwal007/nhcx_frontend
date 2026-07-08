@@ -101,7 +101,7 @@ export default function PayerPolicy({ ctx }) {
     <div className="wizard-step">
       <div className="grid-1-to-2" style={{ gap: "24px" }}>
         {/* Payer Selection */}
-        <Card title="1. Select Payer">
+        <Card title="Select Payer">
           <div style={{ display: "flex", gap: "12px" }}>
             <div style={{ flex: 1 }}>
               <Input
@@ -183,7 +183,7 @@ export default function PayerPolicy({ ctx }) {
 
         {/* Policy Selection */}
         {selectedPayer && (
-          <Card title="2. Select Policy">
+          <Card title="Select Policy">
             {loadingPolicies ? (
               <div className="flex-center py-10 flex-col">
                 <div className="spinner mb-4" />

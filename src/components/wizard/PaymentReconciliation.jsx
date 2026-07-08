@@ -76,7 +76,7 @@ export default function PaymentReconciliation({ ctx }) {
 
   return (
     <div className="wizard-step">
-      <Card title="Payment Reconciliation">
+      <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             {paymentData?.settled && (

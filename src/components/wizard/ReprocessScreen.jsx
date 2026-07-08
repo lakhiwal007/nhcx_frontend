@@ -114,7 +114,7 @@ export default function ReprocessScreen({ ctx }) {
   return (
     <div className="wizard-step">
       <div className="grid-1-to-2" style={{ gap: "24px" }}>
-        <Card title="File an Appeal (Reprocess)">
+        <Card title="File an Appeal">
           <p className="text-muted" style={{ fontSize: "14px", marginBottom: "20px" }}>
             Use this when the claim was partially approved or rejected and you have additional justification or missing documents to submit.
           </p>
