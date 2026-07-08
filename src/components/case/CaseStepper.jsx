@@ -41,7 +41,7 @@ export default function CaseStepper({ stages, onNavigate }) {
                   {s.state === "done" ? <Check size={14} strokeWidth={3} /> : s.branch ? "+" : s.num}
                 </motion.span>
                 <span className="cx-step-label">{s.label}</span>
-                {s.note && (
+                {s.note && s.state !== "active" && (
                   <span className={`cx-step-note${s.tone ? ` tone-${s.tone}` : ""}`}>{s.note}</span>
                 )}
               </motion.button>
