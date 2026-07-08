@@ -9,6 +9,7 @@ import {
   FileText,
   CheckCircle2,
   ChevronRight,
+  Ban,
 } from "lucide-react";
 
 /**
@@ -413,6 +414,8 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
   const isApproved = decision === "APPROVED";
   const isQueried = decision === "QUERIED";
   const isPartial = decision === "PARTIALLY_APPROVED";
+  // The preauth was voided after the payer acknowledged a cancellation request.
+  const isCancelled = decision === "CANCELLED";
   // Neutral state when the payer decision could not be classified. The raw FHIR
   // `outcome` is surfaced only here (per the contract) for support triage.
   const isUnknown = !decision || decision === "UNKNOWN";
@@ -421,21 +424,21 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
     ? "rgba(16,185,129,0.1)"
     : isQueried
       ? "rgba(59,130,246,0.1)"
-      : isUnknown
+      : isUnknown || isCancelled
         ? "rgba(100,116,139,0.08)"
         : "rgba(245,158,11,0.1)";
   const border = isApproved
     ? "var(--success)"
     : isQueried
       ? "#3b82f6"
-      : isUnknown
+      : isUnknown || isCancelled
         ? "var(--border-color)"
         : "var(--warning)";
   const iconColor = isApproved
     ? "var(--success)"
     : isQueried
       ? "#3b82f6"
-      : isUnknown
+      : isUnknown || isCancelled
         ? "var(--text-muted)"
         : "var(--warning)";
 
@@ -454,19 +457,21 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
     >
       {isApproved ? (
         <CheckCircle2 size={36} color={iconColor} />
+      ) : isCancelled ? (
+        <Ban size={36} color={iconColor} />
       ) : (
         <AlertTriangle size={36} color={iconColor} />
       )}
       <div>
         <div style={{ fontSize: "22px", fontWeight: 800 }}>
-          {decision?.replace(/_/g, " ") || "Decision unavailable"}
+          {isCancelled ? "Cancelled — Preauth Void" : decision?.replace(/_/g, " ") || "Decision unavailable"}
         </div>
         {isUnknown && outcome && (
           <div style={{ fontSize: "13px", marginTop: "var(--space-1)", color: "var(--text-muted)" }}>
             Payer outcome: <strong>{outcome}</strong>
           </div>
         )}
-        {approvedAmount != null && (
+        {approvedAmount != null && !isCancelled && (
           <div
             style={{
               color: "var(--text-muted)",

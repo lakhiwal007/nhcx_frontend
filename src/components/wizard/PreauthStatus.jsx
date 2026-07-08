@@ -280,28 +280,6 @@ export default function PreauthStatus({ ctx }) {
     } catch (_) {}
   };
 
-  if (!correlationId) {
-    return (
-      <div className="wizard-step">
-        <Card>
-          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
-            <AlertCircle size={22} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: "6px" }}>No preauth submission found for this session</div>
-              <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 16px" }}>
-                If you submitted a preauth earlier, the result will appear in your Work Queue when the payer responds. You can also go back and resubmit from the Preauth Draft screen.
-              </p>
-              <div style={{ display: "flex", gap: "var(--space-3)" }}>
-                <Button variant="primary" onClick={() => navigate("/work-queue")}>Go to Work Queue</Button>
-                <Button variant="outline" onClick={() => navigate("../review")}>Back to Preauth Draft</Button>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
   const resolvedCashlessCaseId = cashless_case_id || location.state?.cashless_case_id || statusData?.cashless_case_id || cashlessCase?.cashless_case_id || caseState.draftData?.cashless_case_id || null;
   const isComplete = statusData?.status === "complete";
   const decision = statusData?.decision || caseState.preauthDecision;
@@ -310,8 +288,16 @@ export default function PreauthStatus({ ctx }) {
   const isPartial = decision === "PARTIALLY_APPROVED";
   const isQueried = decision === "QUERIED";
   const isRejected = decision === "REJECTED";
+  // Payer acknowledged a preauth/cancel — the preauth is void; only Refresh
+  // is offered (no claim/enhancement/reprocess/re-cancel actions).
+  const isCancelled = decision === "CANCELLED";
   const hasClaimContext = Boolean(claim_id || statusData?.claim_id || cashlessCase?.claim_id || caseState.draftData?.claim_id);
 
+  // Must run unconditionally on every render (Rules of Hooks) — the early
+  // "no correlationId" return below happens after this, so this effect can't
+  // sit after it or the hook count changes once correlationId resolves mid-
+  // mount (e.g. the recovery effect finds one after a page refresh), which
+  // crashes the render with "Rendered more hooks than during the previous render."
   useEffect(() => {
     const action = location.state?.openAction;
     if (action !== "resubmit_preauth" && action !== "respond_preauth_query") return;
@@ -333,6 +319,28 @@ export default function PreauthStatus({ ctx }) {
   const pendingTasks = statusData?.pending_tasks ?? [];
   const showSoftWarning = polling && pollElapsed > SOFT_WARNING_MS;
   const showGatewayRecovery = polling && pollElapsed > GATEWAY_RECOVERY_MS;
+
+  if (!correlationId) {
+    return (
+      <div className="wizard-step">
+        <Card>
+          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
+            <AlertCircle size={22} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: "6px" }}>No preauth submission found for this session</div>
+              <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 16px" }}>
+                If you submitted a preauth earlier, the result will appear in your Work Queue when the payer responds. You can also go back and resubmit from the Preauth Draft screen.
+              </p>
+              <div style={{ display: "flex", gap: "var(--space-3)" }}>
+                <Button variant="primary" onClick={() => navigate("/work-queue")}>Go to Work Queue</Button>
+                <Button variant="outline" onClick={() => navigate("../review")}>Back to Preauth Draft</Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="wizard-step">
@@ -562,13 +570,20 @@ export default function PreauthStatus({ ctx }) {
                   </Button>
                 </>
               )}
-              <Button
-                variant="primary"
-                disabled={!isApproved && !isPartial}
-                onClick={() => navigate("../claim", { state: { claim_id: statusData?.claim_id || caseState.claim_id } })}
-              >
-                Proceed to Claim <ArrowRight size={18} style={{ marginLeft: "8px" }} />
-              </Button>
+              {isCancelled && (
+                <Button variant="outline" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>
+                  Refresh
+                </Button>
+              )}
+              {!isCancelled && (
+                <Button
+                  variant="primary"
+                  disabled={!isApproved && !isPartial}
+                  onClick={() => navigate("../claim", { state: { claim_id: statusData?.claim_id || caseState.claim_id } })}
+                >
+                  Proceed to Claim <ArrowRight size={18} style={{ marginLeft: "8px" }} />
+                </Button>
+              )}
             </div>
           </div>
         </>
