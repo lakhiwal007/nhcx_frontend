@@ -559,7 +559,7 @@ h3,
 }
 
 .top-bar {
-    padding: 14px 40px;
+    padding: 11px 40px;
     background: var(--glass);
     backdrop-filter: blur(10px);
     display: flex;
@@ -633,7 +633,7 @@ h3,
 }
 
 .main-view {
-    padding: 20px 40px 32px;
+    padding: 16px 40px 24px;
     max-width: 1440px;
     margin: 0 auto;
     width: 100%;
@@ -661,7 +661,7 @@ h3,
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    padding: 20px 24px;
+    padding: 16px 20px;
     transition:
         transform 0.2s,
         box-shadow 0.2s;
@@ -675,8 +675,8 @@ h3,
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 14px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -789,7 +789,7 @@ h3,
 }
 
 .table-modern th {
-    padding: 11px 16px;
+    padding: 9px 14px;
     text-align: left;
     font-size: 11px;
     font-weight: 700;
@@ -801,7 +801,7 @@ h3,
 }
 
 .table-modern tr td {
-    padding: 13px 16px;
+    padding: 10px 14px;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border-color);
     font-size: 13px;
@@ -818,7 +818,7 @@ h3,
 }
 
 .table-modern tfoot td {
-    padding: 13px 16px;
+    padding: 10px 14px;
     background: var(--bg-main);
     border-top: 1px solid var(--border-color);
     font-size: 13px;
@@ -2534,9 +2534,9 @@ code {
     display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
-    gap: 12px;
-    margin-bottom: 20px;
-    padding-bottom: 8px;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 6px;
     scrollbar-width: thin;
 }
 

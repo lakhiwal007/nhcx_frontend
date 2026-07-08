@@ -33,9 +33,9 @@
   --cx-shadow: var(--shadow);
 
   /* break out of .main-view padding to claim the full canvas */
-  margin: -32px -40px;
-  min-height: calc(100vh - 64px);
-  padding: 28px 40px 56px;
+  margin: -24px -40px;
+  min-height: calc(100vh - 56px);
+  padding: 22px 40px 44px;
   background:
     radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0) 0 0 / 22px 22px,
     var(--cx-paper);
@@ -60,7 +60,7 @@
 .cx-stack {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 16px;
   max-width: 1320px;
   margin: 0 auto;
 }
@@ -74,8 +74,8 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px 20px;
-  padding: 11px 16px;
-  margin-bottom: 16px;
+  padding: 10px 16px;
+  margin-bottom: 0;
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
