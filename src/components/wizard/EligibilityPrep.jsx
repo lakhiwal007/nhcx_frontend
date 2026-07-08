@@ -82,7 +82,7 @@ function InsurancePlanPanel({ plan }) {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "8px",
+          gap: "var(--space-2)",
           marginBottom: "10px",
           flexWrap: "wrap",
         }}
@@ -101,11 +101,11 @@ function InsurancePlanPanel({ plan }) {
             padding: "10px 12px",
             background: "var(--bg-main)",
             borderRadius: "var(--radius-sm)",
-            marginBottom: "12px",
+            marginBottom: "var(--space-3)",
           }}
         >
           <div
-            style={{ fontWeight: 700, fontSize: "14px", marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
+            style={{ fontWeight: 700, fontSize: "14px", marginBottom: "var(--space-1)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
           >
             <span>{details.name}</span>
             {plan.pricing?.sum_insured != null && (
@@ -117,7 +117,7 @@ function InsurancePlanPanel({ plan }) {
           <div
             style={{
               display: "flex",
-              gap: "16px",
+              gap: "var(--space-4)",
               fontSize: "12px",
               color: "var(--text-muted)",
               flexWrap: "wrap",
@@ -147,7 +147,7 @@ function InsurancePlanPanel({ plan }) {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "8px",
+            gap: "var(--space-2)",
             color: "var(--text-muted)",
             fontSize: "13px",
             padding: "8px 0",
@@ -158,7 +158,7 @@ function InsurancePlanPanel({ plan }) {
       )}
 
       {inclusions.length > 0 && (
-        <div style={{ marginBottom: "12px" }}>
+        <div style={{ marginBottom: "var(--space-3)" }}>
           <div
             style={{
               display: "flex",
@@ -223,7 +223,7 @@ function InsurancePlanPanel({ plan }) {
               </div>
             )}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             {pageInclusions.map((inc, i) => {
               const globalIdx = page * PAGE_SIZE + i;
               const code = inc.type?.code;
@@ -246,7 +246,7 @@ function InsurancePlanPanel({ plan }) {
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
+                      gap: "var(--space-2)",
                       background: isOpen
                         ? "var(--primary-light)"
                         : "transparent",
@@ -292,7 +292,7 @@ function InsurancePlanPanel({ plan }) {
                         background: "var(--bg-main)",
                         display: "flex",
                         flexDirection: "column",
-                        gap: "4px",
+                        gap: "var(--space-1)",
                       }}
                     >
                       {limits.map((lim, li) => (
@@ -328,8 +328,8 @@ function InsurancePlanPanel({ plan }) {
               style={{
                 display: "flex",
                 justifyContent: "center",
-                gap: "4px",
-                marginTop: "8px",
+                gap: "var(--space-1)",
+                marginTop: "var(--space-2)",
               }}
             >
               {Array.from({ length: totalPages }, (_, i) => (
@@ -358,7 +358,7 @@ function InsurancePlanPanel({ plan }) {
       )}
 
       {exclusions.length > 0 && (
-        <div style={{ marginBottom: "12px" }}>
+        <div style={{ marginBottom: "var(--space-3)" }}>
           <div
             style={{
               fontSize: "11px",
@@ -377,7 +377,7 @@ function InsurancePlanPanel({ plan }) {
                 fontSize: "12px",
                 padding: "4px 0",
                 display: "flex",
-                gap: "8px",
+                gap: "var(--space-2)",
                 alignItems: "center",
                 borderBottom: "1px solid var(--border-color)",
               }}
@@ -413,7 +413,7 @@ function InsurancePlanPanel({ plan }) {
       )}
 
       {plan.errors?.length > 0 && (
-        <div style={{ marginTop: "8px" }}>
+        <div style={{ marginTop: "var(--space-2)" }}>
           {plan.errors.map((err, i) => (
             <div
               key={i}
@@ -423,7 +423,7 @@ function InsurancePlanPanel({ plan }) {
                 background: "rgba(239,68,68,0.05)",
                 borderRadius: "var(--radius-xs)",
                 padding: "6px 8px",
-                marginBottom: "4px",
+                marginBottom: "var(--space-1)",
               }}
             >
               {err.message || err.code}
@@ -749,21 +749,21 @@ export default function EligibilityPrep({ ctx }) {
   if (sumInsuredError) {
     return (
       <Card>
-        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", marginBottom: "20px" }}>
+        <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start", marginBottom: "var(--space-5)" }}>
           <AlertCircle color="var(--error)" size={24} style={{ flexShrink: 0, marginTop: "2px" }} />
           <div>
-            <div style={{ fontWeight: 700, color: "var(--error)", fontSize: "16px", marginBottom: "8px" }}>
+            <div style={{ fontWeight: 700, color: "var(--error)", fontSize: "16px", marginBottom: "var(--space-2)" }}>
               Estimated bill exceeds policy sum insured
             </div>
             {sumInsuredError.estimated && sumInsuredError.limit ? (
-              <div style={{ fontSize: "14px", marginBottom: "12px" }}>
+              <div style={{ fontSize: "14px", marginBottom: "var(--space-3)" }}>
                 Estimated bill{" "}
                 <strong style={{ color: "var(--error)" }}>₹{sumInsuredError.estimated.toLocaleString()}</strong>
                 {" "}exceeds this policy's sum insured of{" "}
                 <strong>₹{sumInsuredError.limit.toLocaleString()}</strong>.
               </div>
             ) : (
-              <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
+              <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
                 {sumInsuredError.raw}
               </div>
             )}
@@ -772,7 +772,7 @@ export default function EligibilityPrep({ ctx }) {
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "var(--space-3)" }}>
           <Button variant="primary" onClick={() => navigate("../payer")}>
             Select Different Policy
           </Button>
@@ -790,9 +790,9 @@ export default function EligibilityPrep({ ctx }) {
         <div
           style={{
             display: "flex",
-            gap: "12px",
+            gap: "var(--space-3)",
             alignItems: "center",
-            marginBottom: "16px",
+            marginBottom: "var(--space-4)",
           }}
         >
           <AlertCircle color="var(--error)" size={24} />
@@ -839,7 +839,7 @@ export default function EligibilityPrep({ ctx }) {
             alignItems: "center",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
             {polling ? (
               <div
                 className="spinner"
@@ -870,7 +870,7 @@ export default function EligibilityPrep({ ctx }) {
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
             <StatusBadge status={caseData?.status} />
             {!polling && !isComplete && !isFailed && (
               <Button
@@ -900,7 +900,7 @@ export default function EligibilityPrep({ ctx }) {
 
       <div
         className="grid-1-to-2"
-        style={{ gap: "24px", marginBottom: "24px" }}
+        style={{ gap: "var(--space-6)", marginBottom: "var(--space-6)" }}
       >
         <InsurancePlanPanel plan={caseData?.insurance_plan} />
         <CoverageEligibilityPanel
@@ -915,7 +915,7 @@ export default function EligibilityPrep({ ctx }) {
             style={{
               fontSize: "11px",
               color: "var(--text-muted)",
-              marginBottom: "8px",
+              marginBottom: "var(--space-2)",
             }}
           >
             Source: <strong>{caseData.procedures.source}</strong>
@@ -928,7 +928,7 @@ export default function EligibilityPrep({ ctx }) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "var(--space-2)",
                 padding: "8px 0",
                 borderBottom: "1px solid var(--border-color)",
                 fontSize: "13px",
@@ -1004,7 +1004,7 @@ export default function EligibilityPrep({ ctx }) {
       )}
 
       {benefitsTimedOut && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "color-mix(in srgb, var(--warning) 10%, var(--bg-card))", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "color-mix(in srgb, var(--warning) 10%, var(--bg-card))", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
           <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
           <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete. You can still proceed to preauth - eligibility will remain pending in the background.</span>
         </div>

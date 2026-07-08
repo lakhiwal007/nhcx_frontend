@@ -99,10 +99,10 @@ export default function PayerPolicy({ ctx }) {
 
   return (
     <div className="wizard-step">
-      <div className="grid-1-to-2" style={{ gap: "24px" }}>
+      <div className="grid-1-to-2" style={{ gap: "var(--space-6)" }}>
         {/* Payer Selection */}
         <Card title="Select Payer">
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ display: "flex", gap: "var(--space-3)" }}>
             <div style={{ flex: 1 }}>
               <Input
                 icon={Search}
@@ -120,12 +120,12 @@ export default function PayerPolicy({ ctx }) {
           </div>
           <div
             style={{
-              marginTop: "16px",
+              marginTop: "var(--space-4)",
               maxHeight: "400px",
               overflowY: "auto",
               display: "flex",
               flexDirection: "column",
-              gap: "12px",
+              gap: "var(--space-3)",
             }}
           >
             {loadingPayers ? (
@@ -140,7 +140,7 @@ export default function PayerPolicy({ ctx }) {
                   key={payer.code}
                   onClick={() => handlePayerSelect(payer)}
                   style={{
-                    padding: "16px",
+                    padding: "var(--space-4)",
                     border: `1.5px solid ${selectedPayer?.code === payer.code ? "var(--primary)" : "var(--border-color)"}`,
                     borderRadius: "var(--radius-md)",
                     background:
@@ -150,7 +150,7 @@ export default function PayerPolicy({ ctx }) {
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
-                    gap: "16px",
+                    gap: "var(--space-4)",
                   }}
                 >
                   <Building2
@@ -162,7 +162,7 @@ export default function PayerPolicy({ ctx }) {
                     }
                   />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: "15px", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ fontWeight: 700, fontSize: "15px", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                       {payer.name}
                       {payer.is_demo && (
                         <span className="badge-modern badge-warning" style={{ fontSize: "10px" }}>Demo</span>
@@ -202,7 +202,7 @@ export default function PayerPolicy({ ctx }) {
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "12px",
+                  gap: "var(--space-3)",
                 }}
               >
                 {policies.map((policy) => (
@@ -210,7 +210,7 @@ export default function PayerPolicy({ ctx }) {
                     key={policy.policyNumber || policy.policy_number}
                     onClick={() => handlePolicySelect(policy)}
                     style={{
-                      padding: "16px",
+                      padding: "var(--space-4)",
                       border: `1.5px solid ${selectedPolicy?.policyNumber === (policy.policyNumber || policy.policy_number) || selectedPolicy?.policy_number === (policy.policyNumber || policy.policy_number) ? "var(--primary)" : "var(--border-color)"}`,
                       borderRadius: "var(--radius-md)",
                       background:
@@ -219,7 +219,7 @@ export default function PayerPolicy({ ctx }) {
                           : "var(--bg-main)",
                       cursor: "pointer",
                       display: "flex",
-                      gap: "16px",
+                      gap: "var(--space-4)",
                     }}
                   >
                     <FileText
@@ -235,7 +235,7 @@ export default function PayerPolicy({ ctx }) {
                         style={{
                           fontWeight: 700,
                           fontSize: "15px",
-                          marginBottom: "4px",
+                          marginBottom: "var(--space-1)",
                         }}
                       >
                         {policy.productName || policy.product_name}
@@ -245,7 +245,7 @@ export default function PayerPolicy({ ctx }) {
                           fontSize: "11px",
                           color: "var(--text-muted)",
                           display: "block",
-                          marginBottom: "8px",
+                          marginBottom: "var(--space-2)",
                         }}
                       >
                         {policy.policyNumber || policy.policy_number}
@@ -286,7 +286,7 @@ export default function PayerPolicy({ ctx }) {
         style={{
           display: "flex",
           justifyContent: "flex-end",
-          marginTop: "24px",
+          marginTop: "var(--space-6)",
         }}
       >
         <Button

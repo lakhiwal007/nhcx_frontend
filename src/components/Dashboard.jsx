@@ -153,15 +153,15 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
         className="card-modern"
         style={{
-          padding: "16px",
+          padding: "var(--space-4)",
           display: "flex",
           flexDirection: "column",
-          gap: "12px",
+          gap: "var(--space-3)",
           transition: "box-shadow 0.2s ease",
           borderTop: "3px solid " + (claim.claim_decision === "APPROVED" ? "var(--success)" : claim.claim_decision === "REJECTED" ? "var(--error)" : claim.claim_decision === "PARTIALLY_APPROVED" ? "var(--warning)" : "var(--primary)")
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)" }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "1.2", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
               {claim.patient_name || claim.child_name}
@@ -171,12 +171,12 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                 </span>
               )}
             </div>
-            <div className="mono-cell" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>#{claim.id}</div>
+            <div className="mono-cell" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "var(--space-1)" }}>#{claim.id}</div>
           </div>
           <StatusBadge status={claim.current_step || claim.status} />
         </div>
         
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", marginTop: "4px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", marginTop: "var(--space-1)" }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "var(--text-muted)" }}>Payer:</span>
             <span style={{ fontWeight: 600, textAlign: "right" }}>{claim.payer_name || claim.payer_id || "-"}</span>
@@ -191,7 +191,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
             <span style={{ color: "var(--text-muted)" }}>Submitted:</span>
             <span>{new Date(claim.created_at).toLocaleDateString()}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "var(--space-1)", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
             <span style={{ color: "var(--text-muted)" }}>Approved:</span>
             <span className="mono-cell" style={{ fontWeight: 700, color: "var(--success)", fontSize: "14px" }}>
               {claim.approved_amount != null ? `₹${claim.approved_amount.toLocaleString()}` : "-"}
@@ -199,7 +199,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           </div>
         </div>
         
-        <div style={{ marginTop: "auto", paddingTop: "12px", display: "flex", gap: "8px" }}>
+        <div style={{ marginTop: "auto", paddingTop: "12px", display: "flex", gap: "var(--space-2)" }}>
           <Button
             variant="primary"
             size="small"
@@ -233,7 +233,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
 
   return (
     <div className="dashboard-screen">
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "16px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "var(--space-4)" }}>
         <Button
           variant="primary"
           disabled={allFacilitiesMode}
@@ -256,7 +256,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           <div className="metrics-grid-responsive">
             {Array.from({ length: 7 }).map((_, i) => (
               <div key={i} className="dx-stat-card">
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
                   <span className="skeleton-line" style={{ width: 20, height: 20, borderRadius: "var(--radius-xs)", flexShrink: 0 }} />
                   <span className="skeleton-line" style={{ width: 34, height: 20 }} />
                 </div>
@@ -361,7 +361,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           )}
 
           <Card title="Recent Claims">
-            <div style={{ display: "flex", gap: "12px", marginBottom: "20px", alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-5)", alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 250px", maxWidth: "360px" }}>
                 <Input
                   icon={Search}
@@ -382,7 +382,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                 <option value="amount">Highest Amount</option>
               </select>
 
-              <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", gap: "4px" }}>
+              <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
                 <button
                   title="Grid View"
                   onClick={() => setViewMode("grid")}
@@ -411,7 +411,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
 
             <div className="table-responsive-wrapper">
               {viewMode === "grid" ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px", padding: "4px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-4)", padding: "var(--space-1)" }}>
                   {filteredClaims.map(claim => (
                     <ClaimCard key={claim.id} claim={claim} />
                   ))}

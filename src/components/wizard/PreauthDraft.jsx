@@ -59,14 +59,14 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
   };
 
   return (
-    <div style={{ border: "1px solid var(--error)", borderRadius: "var(--radius-md)", overflow: "hidden", marginBottom: "16px" }}>
+    <div style={{ border: "1px solid var(--error)", borderRadius: "var(--radius-md)", overflow: "hidden", marginBottom: "var(--space-4)" }}>
       <div
         onClick={() => setOpen((p) => !p)}
         style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(239,68,68,0.06)", cursor: "pointer", transition: "background 0.2s ease" }}
         onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.1)"}
         onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.06)"}
       >
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", fontWeight: 700, color: "var(--error)", fontSize: "14px" }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", fontWeight: 700, color: "var(--error)", fontSize: "14px" }}>
           <AlertCircle size={16} /> Supply Missing Patient Attributes
         </div>
         <motion.div animate={{ rotate: open ? 180 : 0 }} style={{ color: "var(--error)" }}>
@@ -81,10 +81,10 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
             exit={{ height: 0, opacity: 0 }}
             style={{ overflow: "hidden" }}
           >
-            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
+            <div style={{ padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
               {allFields.map((f) => (
                 <div key={f.key}>
-                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "var(--space-1)" }}>
                     {f.label}
                   </label>
                   <input
@@ -96,7 +96,7 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
                   />
                 </div>
               ))}
-              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "8px" }}>
+              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
                 {saving ? "Saving…" : "Save & Refresh"}
               </Button>
             </div>
@@ -255,7 +255,7 @@ export default function PreauthDraft({ ctx }) {
   return (
     <div className="wizard-step">
       {hisBlockers.length > 0 && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
           <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
           <div>
             <strong style={{ color: "var(--error)" }}>Clinical / billing data is incomplete.</strong>
@@ -281,19 +281,19 @@ export default function PreauthDraft({ ctx }) {
       )}
 
       {draft?.eligibility && draft.eligibility.status !== "complete" && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
           <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
           <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete - the preauth draft was built from available eligibility data.</span>
         </div>
       )}
 
-      <div className="grid-1-to-3" style={{ gap: "24px" }}>
+      <div className="grid-1-to-3" style={{ gap: "var(--space-6)" }}>
         {/* ── Left rail ── */}
-        <div style={{ gridColumn: "span 1", display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div style={{ gridColumn: "span 1", display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
 
           {/* Patient & Admission */}
           <Card title="Patient & Admission">
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "16px" }}>
+            <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)" }}>
               <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "var(--primary-light)", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "18px" }}>
                 <User size={20} />
               </div>
@@ -304,7 +304,7 @@ export default function PreauthDraft({ ctx }) {
                 </div>
               </div>
             </div>
-            <div style={{ display: "flex", gap: "24px", fontSize: "13px" }}>
+            <div style={{ display: "flex", gap: "var(--space-6)", fontSize: "13px" }}>
               <div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Admission</div>
                 <div style={{ fontWeight: 600 }}>{draft?.admission_date || "-"}</div>
@@ -325,7 +325,7 @@ export default function PreauthDraft({ ctx }) {
           {/* Accommodation */}
           {draft?.accommodation && (
             <Card title="Accommodation">
-              <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", fontSize: "13px" }}>
+              <div style={{ display: "flex", gap: "var(--space-6)", flexWrap: "wrap", fontSize: "13px" }}>
                 {["ward", "specialty", "room", "bed_code"].map((key) => (
                   draft.accommodation[key] != null && (
                     <div key={key}>
@@ -375,10 +375,10 @@ export default function PreauthDraft({ ctx }) {
           <Card title="Clinical Information">
             {/* Procedures (read-only) */}
             {draft?.procedures?.length > 0 && (
-              <div style={{ marginBottom: "16px" }}>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>Procedures</div>
+              <div style={{ marginBottom: "var(--space-4)" }}>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-2)", textTransform: "uppercase" }}>Procedures</div>
                 {draft.procedures.map((proc, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", padding: "8px 12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px" }}>
                     <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{proc.code}</span>
                     <span style={{ fontSize: "13px", fontWeight: 600 }}>{proc.name}</span>
                     {proc.date && (
@@ -396,8 +396,8 @@ export default function PreauthDraft({ ctx }) {
               ["Medications", draft?.medications],
               ["Investigations", draft?.investigations],
             ].map(([label, codes]) => codes?.length > 0 && (
-              <div key={label} style={{ marginBottom: "16px" }}>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>{label}</div>
+              <div key={label} style={{ marginBottom: "var(--space-4)" }}>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-2)", textTransform: "uppercase" }}>{label}</div>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {codes.map((c, i) => (
                     <span key={i} className="badge-modern badge-info" style={{ fontSize: "11px" }}>{c.name || c.code}</span>
@@ -407,12 +407,12 @@ export default function PreauthDraft({ ctx }) {
             ))}
 
             {/* Diagnoses (editable) */}
-            <div style={{ marginBottom: "16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
                 <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Diagnoses</div>
                 <button
                   onClick={addDiagnosis}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 700, padding: "2px 6px" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "12px", fontWeight: 700, padding: "2px 6px" }}
                 >
                   <Plus size={13} /> Add
                 </button>
@@ -426,7 +426,7 @@ export default function PreauthDraft({ ctx }) {
                     exit={{ opacity: 0, height: 0 }}
                     style={{ overflow: "hidden" }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px", background: "var(--bg-card)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", padding: "8px 10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px", background: "var(--bg-card)" }}>
                       <input
                         className="input-modern"
                         style={{ width: "90px", fontSize: "12px", padding: "4px 8px" }}
@@ -460,7 +460,7 @@ export default function PreauthDraft({ ctx }) {
 
             {/* Line Items (editable) */}
             <div>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>Line Items</div>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-2)", textTransform: "uppercase" }}>Line Items</div>
               <div className="table-responsive-wrapper">
                 <table className="table-modern" style={{ fontSize: "13px" }}>
                   <thead>
@@ -515,16 +515,16 @@ export default function PreauthDraft({ ctx }) {
           {/* Care Team */}
           {displayCareTeam.length > 0 && (
             <Card title="Care Team">
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-2)" }}>
                 <button
                   onClick={() => setCareTeamEditMode((p) => !p)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 700, padding: "2px 6px" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "12px", fontWeight: 700, padding: "2px 6px" }}
                 >
                   {careTeamEditMode ? <><CheckCircle2 size={13} /> Done</> : <><Edit2 size={13} /> Edit</>}
                 </button>
               </div>
               {displayCareTeam.map((doc, i) => (
-                <div key={i} style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "10px 0", borderBottom: "1px solid var(--border-color)" }}>
+                <div key={i} style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start", padding: "10px 0", borderBottom: "1px solid var(--border-color)" }}>
                   <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "var(--primary-light)", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "14px", flexShrink: 0 }}>
                     {doc.doc_name?.[0]?.toUpperCase()}
                   </div>
@@ -561,7 +561,7 @@ export default function PreauthDraft({ ctx }) {
                           {doc.registration_no && ` · Reg: ${doc.registration_no}`}
                         </div>
                         {doc.role && (
-                          <span className="badge-modern badge-info" style={{ fontSize: "10px", marginTop: "4px" }}>{doc.role}</span>
+                          <span className="badge-modern badge-info" style={{ fontSize: "10px", marginTop: "var(--space-1)" }}>{doc.role}</span>
                         )}
                       </>
                     )}
@@ -593,31 +593,31 @@ export default function PreauthDraft({ ctx }) {
         </div>
 
         {/* ── Right side ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
           <Card title="Required Documents">
             <DocumentChecklist documents={draft?.supporting_documents} onUpload={handleUpload} />
           </Card>
 
           <Card>
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "8px" }}>Total Request</div>
+            <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
+              <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Total Request</div>
               <div style={{ fontSize: "32px", fontWeight: 800, color: "var(--primary)" }}>
                 ₹{effectiveTotal?.toLocaleString()}
               </div>
               {editedItems && (
-                <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>Edited · recomputed from line items</div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "var(--space-1)" }}>Edited · recomputed from line items</div>
               )}
             </div>
 
             {hasMissingFields && (
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "12px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
                 <AlertCircle size={14} />
                 Resolve missing patient attributes above before submitting.
               </div>
             )}
 
             {hasMissingDocs && !hasMissingFields && (
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "12px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
                 <AlertCircle size={14} />
                 Upload all required documents before submitting.
               </div>
@@ -643,12 +643,12 @@ export default function PreauthDraft({ ctx }) {
         background: "var(--glass)", backdropFilter: "blur(12px)",
         borderTop: "1px solid var(--border-color)",
         padding: "14px 24px", margin: "24px -24px -24px -24px",
-        display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px",
+        display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)",
       }}>
         <Button variant="ghost" icon={ArrowLeft} onClick={() => navigate("../prep")}>
           Back
         </Button>
-        <div style={{ display: "flex", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "var(--space-3)" }}>
           <Button variant="secondary" icon={Save} onClick={handleSaveDraft}>
             Save Draft
           </Button>

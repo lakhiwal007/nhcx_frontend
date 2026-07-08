@@ -114,18 +114,18 @@ function SummaryStrip({ tasks }) {
     <div
       style={{
         display: "flex",
-        gap: "16px",
+        gap: "var(--space-4)",
         alignItems: "center",
         padding: "12px 16px",
         background: "var(--bg-card)",
         border: "1px solid var(--border-color)",
         borderRadius: "var(--radius-md)",
-        marginBottom: "20px",
+        marginBottom: "var(--space-5)",
         flexWrap: "wrap",
         fontSize: "13px",
       }}
     >
-      <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "center" }}>
         {urgent > 0 && (
           <span
             style={{
@@ -157,7 +157,7 @@ function SummaryStrip({ tasks }) {
           background: "var(--border-color)",
         }}
       />
-      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
         {Object.entries(byWorkflow).map(([wf, count]) => (
           <span
             key={wf}
@@ -243,9 +243,9 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 <div
                   style={{
                     display: "flex",
-                    gap: "8px",
+                    gap: "var(--space-2)",
                     alignItems: "center",
-                    marginBottom: "4px",
+                    marginBottom: "var(--space-1)",
                   }}
                 >
                   <span
@@ -302,7 +302,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
               style={{
                 flex: 1,
                 overflowY: "auto",
-                padding: "24px",
+                padding: "var(--space-6)",
                 display: "flex",
                 flexDirection: "column",
                 gap: "18px",
@@ -334,7 +334,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                     style={{
                       fontWeight: 700,
                       color: "var(--info)",
-                      marginBottom: "4px",
+                      marginBottom: "var(--space-1)",
                     }}
                   >
                     Payer Note
@@ -403,7 +403,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                   style={{
                     fontWeight: 700,
                     color: "var(--text-muted)",
-                    marginBottom: "8px",
+                    marginBottom: "var(--space-2)",
                     textTransform: "uppercase",
                     letterSpacing: "0.4px",
                   }}
@@ -447,7 +447,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 padding: "16px 24px",
                 borderTop: "1px solid var(--border-color)",
                 display: "flex",
-                gap: "12px",
+                gap: "var(--space-3)",
               }}
             >
               {task.action && (
@@ -701,7 +701,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
                 flexWrap: "wrap",
                 alignItems: "center",
                 gap: "6px",
-                marginTop: "8px",
+                marginTop: "var(--space-2)",
               }}
             >
               <FileText size={11} color="var(--text-muted)" />
@@ -728,10 +728,10 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           {isAckTask && (
             <div
               style={{
-                marginTop: "8px",
+                marginTop: "var(--space-2)",
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "var(--space-2)",
               }}
             >
               <span
@@ -753,7 +753,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "4px",
+                  gap: "var(--space-1)",
                   padding: "3px 10px",
                   background: "var(--error)",
                   color: "white",
@@ -771,7 +771,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", flexShrink: 0 }}>
           <Button
             variant={task.action ? "primary" : "outline"}
             size="small"
@@ -797,7 +797,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "8px",
+            gap: "var(--space-2)",
             marginBottom: "14px",
             color: `var(--${color})`,
             fontSize: "14px",
@@ -807,7 +807,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           {color === "error" && <AlertTriangle size={16} />}
           {title} ({sectionTasks.length})
         </h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <AnimatePresence>
             {sectionTasks.map((task) => (
               <TaskRow key={task.id ?? task.task_id} task={task} />
@@ -832,7 +832,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         onClick={() => setSelectedTask(task)}
         className="card-modern"
         style={{
-          padding: "16px",
+          padding: "var(--space-4)",
           borderTop: task.priority === "urgent" ? "3px solid var(--error)" : task.priority === "high" ? "3px solid var(--warning)" : "3px solid var(--primary)",
           cursor: "pointer",
           display: "flex",
@@ -841,7 +841,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           transition: "box-shadow 0.2s ease"
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)" }}>
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             <span className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>
               {task.priority?.toUpperCase()}
@@ -867,7 +867,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         </div>
         
         {task.required_documents?.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", marginTop: "4px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-1)", marginTop: "var(--space-1)" }}>
             <FileText size={11} color="var(--text-muted)" />
             {task.required_documents.map((doc, idx) => {
               const docLabel = typeof doc === 'string' ? doc : (doc.display || doc.code || "Document");
@@ -910,19 +910,19 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
   const KanbanColumn = ({ title, tasks: sectionTasks, color }) => {
     return (
-      <div style={{ flex: 1, minWidth: "300px", maxWidth: "33%", background: "color-mix(in srgb, var(--bg-main) 60%, transparent)", borderRadius: "var(--radius-lg)", padding: "16px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "16px" }}>
-        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", margin: 0, color: `var(--${color})`, fontSize: "14px", fontWeight: 700 }}>
+      <div style={{ flex: 1, minWidth: "300px", maxWidth: "33%", background: "color-mix(in srgb, var(--bg-main) 60%, transparent)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+        <h3 style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", margin: 0, color: `var(--${color})`, fontSize: "14px", fontWeight: 700 }}>
           {color === "error" && <AlertTriangle size={16} />}
           {title} <span style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", color: "var(--text-main)", padding: "2px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "auto" }}>{sectionTasks.length}</span>
         </h3>
         
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", minHeight: "150px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)", minHeight: "150px" }}>
           <AnimatePresence>
             {sectionTasks.length === 0 ? (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ padding: "40px 16px", textAlign: "center", color: "var(--text-muted)", background: "var(--bg-card)", borderRadius: "var(--radius-md)", border: "1px dashed var(--border-color)", display: "flex", flexDirection: "column", alignItems: "center" }}>
                 <Inbox size={32} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
                 <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-main)" }}>No {title.toLowerCase()}</div>
-                <div style={{ fontSize: "12px", marginTop: "4px" }}>All caught up here.</div>
+                <div style={{ fontSize: "12px", marginTop: "var(--space-1)" }}>All caught up here.</div>
               </motion.div>
             ) : (
               sectionTasks.map((task) => (
@@ -942,7 +942,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           display: "flex",
           justifyContent: "flex-end",
           alignItems: "center",
-          marginBottom: "16px",
+          marginBottom: "var(--space-4)",
         }}
       >
         <Button
@@ -968,7 +968,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         style={{
           display: "flex",
           gap: "10px",
-          marginBottom: "20px",
+          marginBottom: "var(--space-5)",
           flexWrap: "wrap",
         }}
       >
@@ -980,7 +980,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "var(--space-2)" }}>
           {["pending", "completed"].map((s) => (
             <button
               key={s}
@@ -1045,7 +1045,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           <option value="oldest">Oldest First</option>
         </select>
         
-        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", marginLeft: "auto", gap: "4px" }}>
+        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", marginLeft: "auto", gap: "var(--space-1)" }}>
           <button
             title="Board View"
             onClick={() => setViewMode("board")}
@@ -1077,7 +1077,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           {statusFilter === "pending" ? (
             viewMode === "board" ? (
-              <div style={{ display: "flex", gap: "24px", overflowX: "auto", paddingBottom: "16px", minHeight: "60vh" }}>
+              <div style={{ display: "flex", gap: "var(--space-6)", overflowX: "auto", paddingBottom: "16px", minHeight: "60vh" }}>
                 <KanbanColumn title="Urgent" tasks={urgentTasks} color="error" />
                 <KanbanColumn title="High Priority" tasks={highTasks} color="warning" />
                 <KanbanColumn title="Normal Priority" tasks={normalTasks} color="primary" />
@@ -1091,7 +1091,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             )
           ) : (
             <div
-              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}
             >
               {filteredTasks.map((task) => (
                 <TaskRow key={task.id ?? task.task_id} task={task} />

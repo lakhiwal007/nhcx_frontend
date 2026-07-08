@@ -217,7 +217,7 @@ export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) =
           {patient.mobile && <span>{patient.mobile}</span>}
         </div>
         {statusSlot && (
-          <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
             {statusSlot}
           </div>
         )}
@@ -250,12 +250,12 @@ export const MissingFieldsAlert = ({ fields, onResolve }) => {
         background: "rgba(239,68,68,0.08)",
         borderColor: "var(--error)",
         display: "flex",
-        gap: "12px",
+        gap: "var(--space-3)",
         alignItems: "flex-start",
         justifyContent: "space-between",
       }}
     >
-      <div style={{ display: "flex", gap: "12px" }}>
+      <div style={{ display: "flex", gap: "var(--space-3)" }}>
         <AlertCircle
           size={18}
           color="var(--error)"
@@ -271,7 +271,7 @@ export const MissingFieldsAlert = ({ fields, onResolve }) => {
           >
             Missing Required Patient Context
           </div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
             {fields.map((f, i) => (
               <span
                 key={i}
@@ -322,7 +322,7 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
           </span>
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         {documents.map((doc, i) => {
           const attached = !!doc.url;
           const missing = !doc.optional && !attached;
@@ -341,7 +341,7 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
               style={{
                 display: "flex",
                 alignItems: "flex-start",
-                gap: "12px",
+                gap: "var(--space-3)",
                 padding: "11px 14px",
                 borderRadius: "10px",
                 border: "1px solid var(--border-color)",
@@ -368,7 +368,7 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
               </div>
 
               {/* fixed action zone — never shrinks, stays aligned to the first line */}
-              <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "8px", marginTop: "1px" }}>
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "1px" }}>
                 {missing && (
                   <span style={{ fontSize: "10px", color: "var(--error)", fontWeight: 700, letterSpacing: "0.04em" }}>
                     REQUIRED
@@ -380,7 +380,7 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
                     target="_blank"
                     rel="noreferrer"
                     className="badge-modern badge-success"
-                    style={{ fontSize: "10px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}
+                    style={{ fontSize: "10px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "var(--space-1)", whiteSpace: "nowrap" }}
                   >
                     <CheckCircle2 size={11} /> Attached
                   </a>
@@ -448,8 +448,8 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
         padding: "20px 24px",
         display: "flex",
         alignItems: "center",
-        gap: "16px",
-        marginBottom: "24px",
+        gap: "var(--space-4)",
+        marginBottom: "var(--space-6)",
       }}
     >
       {isApproved ? (
@@ -462,7 +462,7 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
           {decision?.replace(/_/g, " ") || "Decision unavailable"}
         </div>
         {isUnknown && outcome && (
-          <div style={{ fontSize: "13px", marginTop: "4px", color: "var(--text-muted)" }}>
+          <div style={{ fontSize: "13px", marginTop: "var(--space-1)", color: "var(--text-muted)" }}>
             Payer outcome: <strong>{outcome}</strong>
           </div>
         )}
@@ -471,7 +471,7 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
             style={{
               color: "var(--text-muted)",
               fontSize: "14px",
-              marginTop: "4px",
+              marginTop: "var(--space-1)",
             }}
           >
             Approved Amount:{" "}
@@ -524,7 +524,7 @@ export const EmptyState = ({
 }) => (
   <div className="empty-view">
     {Icon && (
-      <Icon size={iconSize} style={{ opacity: iconOpacity, color: iconColor, marginBottom: "16px" }} />
+      <Icon size={iconSize} style={{ opacity: iconOpacity, color: iconColor, marginBottom: "var(--space-4)" }} />
     )}
     <h3>{title}</h3>
     {description && <p>{description}</p>}
@@ -570,7 +570,7 @@ export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
 export const AmountGrid = ({ totals }) => {
   if (!totals) return null;
   return (
-    <div className="grid-1-to-4" style={{ gap: "16px", marginBottom: "24px" }}>
+    <div className="grid-1-to-4" style={{ gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
       {Object.entries(totals).map(([k, v]) => (
         <div
           key={k}
@@ -622,7 +622,7 @@ export const TaskCard = ({ task, onClick }) => (
     whileHover={{ y: -2 }}
     className="card-modern"
     style={{
-      padding: "16px",
+      padding: "var(--space-4)",
       cursor: "pointer",
       borderLeft:
         task.priority === "urgent"
@@ -631,7 +631,7 @@ export const TaskCard = ({ task, onClick }) => (
             ? "4px solid var(--warning)"
             : "4px solid var(--primary)",
       display: "flex",
-      gap: "16px",
+      gap: "var(--space-4)",
       alignItems: "center",
     }}
     onClick={onClick}
@@ -640,9 +640,9 @@ export const TaskCard = ({ task, onClick }) => (
       <div
         style={{
           display: "flex",
-          gap: "8px",
+          gap: "var(--space-2)",
           alignItems: "center",
-          marginBottom: "8px",
+          marginBottom: "var(--space-2)",
         }}
       >
         <span
@@ -662,7 +662,7 @@ export const TaskCard = ({ task, onClick }) => (
         style={{
           fontSize: "13px",
           color: "var(--text-muted)",
-          marginTop: "4px",
+          marginTop: "var(--space-1)",
         }}
       >
         {task.description || `Action required for claim #${task.claim_id}`}

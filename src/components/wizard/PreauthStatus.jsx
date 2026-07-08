@@ -47,7 +47,7 @@ function Drawer({ open, onClose, title, children }) {
                 <X size={22} />
               </button>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-6)" }}>
               {children}
             </div>
           </motion.div>
@@ -75,7 +75,7 @@ function ConfirmModal({ open, onClose, title, children }) {
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "500px", padding: "28px", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px" }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-5)" }}>
               <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h3>
               <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
                 <X size={22} />
@@ -284,14 +284,14 @@ export default function PreauthStatus({ ctx }) {
     return (
       <div className="wizard-step">
         <Card>
-          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
             <AlertCircle size={22} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: "2px" }} />
             <div>
               <div style={{ fontWeight: 700, marginBottom: "6px" }}>No preauth submission found for this session</div>
               <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 16px" }}>
                 If you submitted a preauth earlier, the result will appear in your Work Queue when the payer responds. You can also go back and resubmit from the Preauth Draft screen.
               </p>
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div style={{ display: "flex", gap: "var(--space-3)" }}>
                 <Button variant="primary" onClick={() => navigate("/work-queue")}>Go to Work Queue</Button>
                 <Button variant="outline" onClick={() => navigate("../review")}>Back to Preauth Draft</Button>
               </div>
@@ -339,7 +339,7 @@ export default function PreauthStatus({ ctx }) {
       {!isComplete && !knownDecision && (
         <Card className="mb-6">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
               <div className="spinner" style={{ width: "24px", height: "24px", borderTopColor: "var(--warning)" }} />
               <div>
                 <div style={{ fontWeight: 700 }}>Awaiting payer decision</div>
@@ -348,7 +348,7 @@ export default function PreauthStatus({ ctx }) {
                 </div>
               </div>
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
               {showGatewayRecovery && (
                 <Button variant="outline" size="small" icon={Wifi} onClick={handleGatewayStatus}>
                   Request Gateway Status
@@ -360,7 +360,7 @@ export default function PreauthStatus({ ctx }) {
             </div>
           </div>
           {showSoftWarning && (
-            <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(245,158,11,0.08)", borderRadius: "var(--radius-sm)", border: "1px solid var(--warning)", fontSize: "13px", color: "var(--text-main)" }}>
+            <div style={{ marginTop: "var(--space-3)", padding: "10px 14px", background: "rgba(245,158,11,0.08)", borderRadius: "var(--radius-sm)", border: "1px solid var(--warning)", fontSize: "13px", color: "var(--text-main)" }}>
               Payer decisions can take minutes to hours. You can safely leave this page - the result will appear in your Work Queue when it arrives.
             </div>
           )}
@@ -369,7 +369,7 @@ export default function PreauthStatus({ ctx }) {
 
       {!isComplete && knownDecision && (
         <Card className="mb-6">
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
             <div className="spinner" style={{ width: "24px", height: "24px", borderTopColor: "var(--primary)" }} />
             <div>
               <div style={{ fontWeight: 700 }}>Loading adjudication details...</div>
@@ -382,7 +382,7 @@ export default function PreauthStatus({ ctx }) {
       )}
 
       {pendingTasks.length > 0 && (
-        <div style={{ marginBottom: "16px", padding: "12px 16px", background: "rgba(245,158,11,0.06)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ marginBottom: "var(--space-4)", padding: "12px 16px", background: "rgba(245,158,11,0.06)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: "13px", fontWeight: 600 }}>
             {pendingTasks.length} pending task{pendingTasks.length > 1 ? "s" : ""} in your Work Queue
           </div>
@@ -401,7 +401,7 @@ export default function PreauthStatus({ ctx }) {
           />
 
           <Card title="Adjudication Summary" className="mb-6">
-            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: statusData?.items?.length > 0 ? "16px" : 0 }}>
+            <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", marginBottom: statusData?.items?.length > 0 ? "16px" : 0 }}>
               {[
                 { label: "Eligible Amount", value: statusData?.totals?.eligible?.value, currency: statusData?.totals?.eligible?.currency, color: "var(--success)" },
                 { label: "Benefit", value: statusData?.totals?.benefit?.value, currency: statusData?.totals?.benefit?.currency, color: "var(--primary)" },
@@ -409,7 +409,7 @@ export default function PreauthStatus({ ctx }) {
                 { label: "Submitted", value: statusData?.totals?.submitted?.value, currency: statusData?.totals?.submitted?.currency, color: "var(--text-main)" },
               ].filter(t => t.value != null).map((t, i) => (
                 <div key={i} style={{ flex: "1 1 120px", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", textAlign: "center" }}>
-                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>{t.label}</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: "var(--space-1)" }}>{t.label}</div>
                   <div style={{ fontSize: "20px", fontWeight: 800, color: t.color }}>
                     {t.currency === "INR" ? "₹" : (t.currency || "")}{t.value?.toLocaleString()}
                   </div>
@@ -424,7 +424,7 @@ export default function PreauthStatus({ ctx }) {
             {/* Claim Items table */}
             {(statusData?.claim_items?.length > 0 || statusData?.items?.length > 0) && (
               <div className="table-responsive-wrapper">
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>Claim Items</div>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Claim Items</div>
                 <table className="table-modern" style={{ fontSize: "13px" }}>
                   <thead>
                     <tr>
@@ -472,7 +472,7 @@ export default function PreauthStatus({ ctx }) {
 
           {/* Procedures + Diagnoses side by side */}
           {(statusData?.procedures?.length > 0 || statusData?.diagnoses?.length > 0) && (
-            <div className="grid-2-col" style={{ gap: "16px", marginBottom: "16px" }}>
+            <div className="grid-2-col" style={{ gap: "var(--space-4)", marginBottom: "var(--space-4)" }}>
               {statusData?.procedures?.length > 0 && (
                 <Card title="Procedures">
                   {statusData.procedures.map((p, i) => (
@@ -489,7 +489,7 @@ export default function PreauthStatus({ ctx }) {
               {statusData?.diagnoses?.length > 0 && (
                 <Card title="Diagnoses">
                   {statusData.diagnoses.map((d, i) => (
-                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-color)", fontSize: "13px", display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-color)", fontSize: "13px", display: "flex", gap: "var(--space-2)", alignItems: "flex-start" }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600 }}>{d.name}</div>
                         <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
@@ -512,9 +512,9 @@ export default function PreauthStatus({ ctx }) {
           )}
 
 
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
             <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
               {(isApproved || isPartial) && (
                 <>
                   <Button variant="outline" icon={PlusCircle} onClick={() => setShowEnhancement(true)}>
@@ -575,10 +575,10 @@ export default function PreauthStatus({ ctx }) {
       )}
 
       <Drawer open={showQueryDrawer} onClose={() => setShowQueryDrawer(false)} title="Respond to Payer Query">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
+        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Provide a clinical justification and attach any documents requested by the payer.
         </p>
-        <div style={{ marginBottom: "16px" }}>
+        <div style={{ marginBottom: "var(--space-4)" }}>
           <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Clinical Justification</label>
           <textarea
             className="input-modern"
@@ -588,7 +588,7 @@ export default function PreauthStatus({ ctx }) {
             onChange={(e) => setQueryAnswer(e.target.value)}
           />
         </div>
-        <div style={{ marginBottom: "20px" }}>
+        <div style={{ marginBottom: "var(--space-5)" }}>
           <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Supporting Document URL</label>
           <input
             className="input-modern"
@@ -615,7 +615,7 @@ export default function PreauthStatus({ ctx }) {
       </Drawer>
 
       <Drawer open={showResubmitDrawer} onClose={() => setShowResubmitDrawer(false)} title="Resubmit Preauth">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
+        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Correct clinical or billing data and resubmit. Only the fields you change here will be sent; everything else is re-derived from the hospital DB.
         </p>
         {(() => {
@@ -623,8 +623,8 @@ export default function PreauthStatus({ ctx }) {
           const baseItems = draftData?.editedItems ?? draftData?.items ?? statusData?.claim_items ?? statusData?.items ?? [];
           const displayItems = resubmitItems.length > 0 ? resubmitItems : baseItems;
           return baseItems.length > 0 ? (
-            <div style={{ marginBottom: "20px" }}>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>Line Items (editable)</div>
+            <div style={{ marginBottom: "var(--space-5)" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Line Items (editable)</div>
               <div className="table-responsive-wrapper">
                 <table className="table-modern" style={{ fontSize: "12px" }}>
                   <thead>
@@ -694,7 +694,7 @@ export default function PreauthStatus({ ctx }) {
       </Drawer>
 
       <ConfirmModal open={showCancelModal} onClose={() => setShowCancelModal(false)} title="Cancel Preauthorization">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
+        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Cancellation is irreversible. The preauth reference <strong>{statusData?.preauth_ref}</strong>
           {statusData?.totals?.eligible?.value != null && (
             <> and its approved amount of <strong style={{ color: "var(--error)" }}>₹{statusData.totals.eligible.value.toLocaleString()}</strong></>
@@ -712,7 +712,7 @@ export default function PreauthStatus({ ctx }) {
             ))}
           </select>
         </div>
-        <div style={{ marginBottom: "20px" }}>
+        <div style={{ marginBottom: "var(--space-5)" }}>
           <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Description (optional)</label>
           <textarea
             className="input-modern"
@@ -722,7 +722,7 @@ export default function PreauthStatus({ ctx }) {
             onChange={(e) => setCancelDesc(e.target.value)}
           />
         </div>
-        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
           <Button variant="outline" onClick={() => setShowCancelModal(false)}>Keep Preauth</Button>
           <Button variant="primary" disabled={submitting} onClick={handleCancelSubmit}
             style={{ background: "var(--error)", borderColor: "var(--error)" }}>
@@ -756,7 +756,7 @@ export default function PreauthStatus({ ctx }) {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "640px", padding: "28px", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
             >
-              <h3 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "20px" }}>Request Preauth Enhancement</h3>
+              <h3 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "var(--space-5)" }}>Request Preauth Enhancement</h3>
               <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} />
             </motion.div>
           </div>

@@ -64,7 +64,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
 
   if (!preview) {
     return (
-      <div style={{ padding: "16px", color: "var(--error)", fontSize: "14px" }}>
+      <div style={{ padding: "var(--space-4)", color: "var(--error)", fontSize: "14px" }}>
         Failed to load enhancement preview.
       </div>
     );
@@ -73,10 +73,10 @@ export default function PreauthEnhancement({ ctx, onClose }) {
   if (!preview.enhanceable) {
     return (
       <div>
-        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "20px" }}>
+        <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start", padding: "14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-5)" }}>
           <AlertCircle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: "2px" }} />
           <div>
-            <div style={{ fontWeight: 700, color: "var(--warning)", marginBottom: "4px" }}>Enhancement Unavailable</div>
+            <div style={{ fontWeight: 700, color: "var(--warning)", marginBottom: "var(--space-1)" }}>Enhancement Unavailable</div>
             <div style={{ fontSize: "13px" }}>{preview.reason || "No new procedures or billing found since the approved preauth."}</div>
           </div>
         </div>
@@ -86,8 +86,8 @@ export default function PreauthEnhancement({ ctx, onClose }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div style={{ display: "flex", gap: "16px", alignItems: "center", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", fontSize: "13px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+      <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "center", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", fontSize: "13px" }}>
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Preauth Ref</div>
           <div style={{ fontWeight: 700 }}>{preview.preauth_ref || "-"}</div>
@@ -112,7 +112,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
         <div>
           <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "10px" }}>New Procedures</div>
           {preview.new_procedures.map((proc, i) => (
-            <label key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "8px", cursor: "pointer" }}>
+            <label key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-2)", cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={!!checkedProcedures[i]}
@@ -129,7 +129,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
 
       {preview.new_items?.length > 0 && (
         <div>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>New Line Items</div>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>New Line Items</div>
           <table className="table-modern" style={{ fontSize: "12px", width: "100%" }}>
             <thead>
               <tr>
@@ -161,7 +161,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
         />
       </div>
 
-      <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button
           variant="primary"

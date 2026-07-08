@@ -89,7 +89,7 @@ export default function SendCommunicationModal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "520px", padding: "28px", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
               <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>Message Payer</h3>
               <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
                 <X size={22} />
@@ -100,12 +100,12 @@ export default function SendCommunicationModal({
             </p>
 
             {result ? (
-              <div style={{ padding: "14px 16px", background: result.success ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${result.success ? "var(--success)" : "var(--error)"}`, borderRadius: "10px", fontSize: "13px", marginBottom: "8px" }}>
-                <div style={{ fontWeight: 700, color: result.success ? "var(--success)" : "var(--error)", marginBottom: "4px" }}>
+              <div style={{ padding: "14px 16px", background: result.success ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${result.success ? "var(--success)" : "var(--error)"}`, borderRadius: "10px", fontSize: "13px", marginBottom: "var(--space-2)" }}>
+                <div style={{ fontWeight: 700, color: result.success ? "var(--success)" : "var(--error)", marginBottom: "var(--space-1)" }}>
                   {result.success ? "Sent to payer" : "Could not send"}
                 </div>
                 {result.correlation_id && <code style={{ fontSize: "11px" }}>{result.correlation_id}</code>}
-                {result.message && <div style={{ color: "var(--text-muted)", marginTop: "4px" }}>{result.message}</div>}
+                {result.message && <div style={{ color: "var(--text-muted)", marginTop: "var(--space-1)" }}>{result.message}</div>}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>

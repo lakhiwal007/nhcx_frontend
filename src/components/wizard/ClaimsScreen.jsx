@@ -48,7 +48,7 @@ function Drawer({ open, onClose, title, children }) {
                 <X size={22} />
               </button>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-6)" }}>
               {children}
             </div>
           </motion.div>
@@ -82,7 +82,7 @@ function PatientContextForm({ claimId, onResolved }) {
         onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.1)"}
         onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.06)"}
       >
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", fontWeight: 700, color: "var(--error)", fontSize: "14px" }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", fontWeight: 700, color: "var(--error)", fontSize: "14px" }}>
           <AlertCircle size={16} /> Supply Missing Patient Attributes
         </div>
         <motion.div animate={{ rotate: open ? 180 : 0 }} style={{ color: "var(--error)" }}>
@@ -97,10 +97,10 @@ function PatientContextForm({ claimId, onResolved }) {
             exit={{ height: 0, opacity: 0 }}
             style={{ overflow: "hidden" }}
           >
-            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
+            <div style={{ padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
               {PATIENT_CONTEXT_FIELDS.map((f) => (
                 <div key={f.key}>
-                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>{f.label}</label>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "var(--space-1)" }}>{f.label}</label>
                   <input
                     className="input-modern"
                     type={f.type || "text"}
@@ -110,7 +110,7 @@ function PatientContextForm({ claimId, onResolved }) {
                   />
                 </div>
               ))}
-              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "8px" }}>
+              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
                 {saving ? "Saving…" : "Save & Refresh"}
               </Button>
             </div>
@@ -378,14 +378,14 @@ export default function ClaimsScreen({ ctx }) {
   if (claimDraft?._error) {
     return (
       <Card>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", padding: "8px 0" }}>
+        <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", padding: "8px 0" }}>
           <AlertCircle size={22} color="var(--error)" />
           <div>
-            <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "4px" }}>Cannot load claim</div>
+            <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "var(--space-1)" }}>Cannot load claim</div>
             <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>{claimDraft._error}</div>
           </div>
         </div>
-        <div style={{ marginTop: "16px" }}>
+        <div style={{ marginTop: "var(--space-4)" }}>
           <Button variant="outline" onClick={() => navigate("../status")}>← Back to Preauth Status</Button>
         </div>
       </Card>
@@ -394,7 +394,7 @@ export default function ClaimsScreen({ ctx }) {
 
   return (
     <div className="wizard-step">
-      <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid var(--border-color)", paddingBottom: "16px", marginBottom: "24px", overflowX: "auto" }}>
+      <div style={{ display: "flex", gap: "var(--space-2)", borderBottom: "1px solid var(--border-color)", paddingBottom: "16px", marginBottom: "var(--space-6)", overflowX: "auto" }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -420,7 +420,7 @@ export default function ClaimsScreen({ ctx }) {
       {activeTab === "draft" && (
         <Card title="Claim Draft">
           {hisBlockers.length > 0 && (
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--text-main)" }}>
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
               <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
               <div>
                 <strong style={{ color: "var(--error)" }}>Clinical / billing data is incomplete.</strong>
@@ -434,17 +434,17 @@ export default function ClaimsScreen({ ctx }) {
             </div>
           )}
           {patientContextMissing.length > 0 && (
-            <div style={{ marginBottom: "16px" }}>
+            <div style={{ marginBottom: "var(--space-4)" }}>
               <MissingFieldsAlert fields={patientContextMissing} onResolve={() => setShowContextDrawer(true)} />
             </div>
           )}
           {!hasPreauthRef && (
-            <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "13px", color: "var(--error)", fontWeight: 600 }}>
+            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--error)", fontWeight: 600 }}>
               <AlertCircle size={14} />
               No approved preauth reference on this claim. Submit and await preauth before proceeding.
             </div>
           )}
-          <div style={{ display: "flex", gap: "24px", marginBottom: "20px", fontSize: "13px" }}>
+          <div style={{ display: "flex", gap: "var(--space-6)", marginBottom: "var(--space-5)", fontSize: "13px" }}>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Admission</div>
               <div style={{ fontWeight: 600 }}>{claimDraft?.admission_date || "-"}</div>
@@ -471,8 +471,8 @@ export default function ClaimsScreen({ ctx }) {
             ["Medications", claimDraft?.medications],
             ["Investigations", claimDraft?.investigations],
           ].map(([label, codes]) => codes?.length > 0 && (
-            <div key={label} style={{ marginBottom: "16px" }}>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "8px", textTransform: "uppercase" }}>{label}</div>
+            <div key={label} style={{ marginBottom: "var(--space-4)" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "var(--space-2)", textTransform: "uppercase" }}>{label}</div>
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                 {codes.map((c, i) => (
                   <span key={i} className="badge-modern badge-info" style={{ fontSize: "11px" }}>{c.name || c.code}</span>
@@ -481,7 +481,7 @@ export default function ClaimsScreen({ ctx }) {
             </div>
           ))}
 
-          <div className="table-responsive-wrapper" style={{ marginBottom: "20px" }}>
+          <div className="table-responsive-wrapper" style={{ marginBottom: "var(--space-5)" }}>
             <table className="table-modern" style={{ fontSize: "13px" }}>
               <thead>
                 <tr>
@@ -504,9 +504,9 @@ export default function ClaimsScreen({ ctx }) {
 
           {/* Discharge Summary — only present once the patient has been discharged */}
           {claimDraft?.discharge_summary && (
-            <div style={{ marginBottom: "20px" }}>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "8px", textTransform: "uppercase" }}>Discharge Summary</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}>
+            <div style={{ marginBottom: "var(--space-5)" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "var(--space-2)", textTransform: "uppercase" }}>Discharge Summary</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", fontSize: "13px" }}>
                 {claimDraft.discharge_summary.condition && (
                   <div><span style={{ color: "var(--text-muted)" }}>Condition: </span><strong>{claimDraft.discharge_summary.condition}</strong></div>
                 )}
@@ -538,7 +538,7 @@ export default function ClaimsScreen({ ctx }) {
 
           {/* Discharge polling / status */}
           {dischargePolling && (
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "12px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", marginBottom: "var(--space-4)" }}>
               <div className="spinner" style={{ width: "20px", height: "20px" }} />
               <div>
                 <div style={{ fontWeight: 700, fontSize: "13px" }}>Discharge claim submitted - awaiting payer decision</div>
@@ -547,14 +547,14 @@ export default function ClaimsScreen({ ctx }) {
             </div>
           )}
           {dischargeStatus?.status === "complete" && (
-            <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "var(--radius-sm)", fontSize: "12px", marginBottom: "16px" }}>
+            <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "var(--radius-sm)", fontSize: "12px", marginBottom: "var(--space-4)" }}>
               Discharge claim adjudicated - decision: <strong>{dischargeStatus.decision || "complete"}</strong>
             </div>
           )}
 
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
             <Button variant="text" onClick={() => setActiveTab("draft")}>Back</Button>
-            <div style={{ display: "flex", gap: "12px" }}>
+            <div style={{ display: "flex", gap: "var(--space-3)" }}>
               <Button
                 variant="primary"
                 disabled={!canSubmit || !!dischargeCorrelationId}
@@ -575,7 +575,7 @@ export default function ClaimsScreen({ ctx }) {
       {/* ── Final Claim ── */}
       {activeTab === "final" && (
         <Card title="Final Claim">
-          <div style={{ display: "flex", gap: "24px", marginBottom: "20px", fontSize: "13px" }}>
+          <div style={{ display: "flex", gap: "var(--space-6)", marginBottom: "var(--space-5)", fontSize: "13px" }}>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Discharge</div>
               <div style={{ fontWeight: 600 }}>{claimDraft?.discharge_date || "-"}</div>
@@ -585,7 +585,7 @@ export default function ClaimsScreen({ ctx }) {
               <div style={{ fontWeight: 600 }}>{claimDraft?.preauth_ref || "-"}</div>
             </div>
           </div>
-          <div className="table-responsive-wrapper" style={{ marginBottom: "24px" }}>
+          <div className="table-responsive-wrapper" style={{ marginBottom: "var(--space-6)" }}>
             <table className="table-modern" style={{ fontSize: "13px" }}>
               <thead>
                 <tr>
@@ -605,8 +605,8 @@ export default function ClaimsScreen({ ctx }) {
               </tbody>
             </table>
           </div>
-          <div style={{ textAlign: "center", marginBottom: "16px", padding: "20px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "8px" }}>Final Claim Total</div>
+          <div style={{ textAlign: "center", marginBottom: "var(--space-4)", padding: "var(--space-5)", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
+            <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Final Claim Total</div>
             <div style={{ fontSize: "32px", fontWeight: 800, color: "var(--primary)" }}>₹{claimDraft?.total_amount?.toLocaleString()}</div>
           </div>
           <div style={{ display: "flex", justifyContent: "center" }}>
@@ -628,7 +628,7 @@ export default function ClaimsScreen({ ctx }) {
         <div>
           {(!claimStatus || polling) ? (
             <Card className="mb-6">
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
                 <div className="spinner" style={{ width: "24px", height: "24px" }} />
                 <div>
                   <div style={{ fontWeight: 700 }}>Claim Adjudication in Progress</div>
@@ -644,7 +644,7 @@ export default function ClaimsScreen({ ctx }) {
 
               {/* Claim reference + payment status strip */}
               {(claimStatus?.claim_response_ref || claimStatus?.payment_status) && (
-                <div style={{ display: "flex", gap: "16px", marginBottom: "16px", padding: "10px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", fontSize: "13px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "var(--space-4)", marginBottom: "var(--space-4)", padding: "10px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", fontSize: "13px", flexWrap: "wrap" }}>
                   {claimStatus.claim_response_ref && (
                     <div>
                       <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Payer Ref: </span>
@@ -665,8 +665,8 @@ export default function ClaimsScreen({ ctx }) {
 
                 {/* Payer notes */}
                 {claimStatus?.process_notes?.length > 0 && (
-                  <div style={{ marginTop: "16px" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>Payer Notes</div>
+                  <div style={{ marginTop: "var(--space-4)" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Payer Notes</div>
                     {claimStatus.process_notes.map((note, i) => (
                       <div key={i} style={{ fontSize: "13px", padding: "8px 12px", background: "rgba(245,158,11,0.06)", borderRadius: "var(--radius-sm)", borderLeft: "3px solid var(--warning)", marginBottom: "6px" }}>
                         {note.text}
@@ -678,7 +678,7 @@ export default function ClaimsScreen({ ctx }) {
 
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
                   {isClaimQueried && (
                     <>
                       <Button variant="outline" onClick={() => setShowQueryDrawer(true)}>Respond to Query</Button>
@@ -716,10 +716,10 @@ export default function ClaimsScreen({ ctx }) {
 
       {/* ── Query Drawer ── */}
       <Drawer open={showQueryDrawer} onClose={() => setShowQueryDrawer(false)} title="Respond to Claim Query">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
+        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Provide a clarification and attach any documents the payer requested.
         </p>
-        <div style={{ marginBottom: "16px" }}>
+        <div style={{ marginBottom: "var(--space-4)" }}>
           <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Clarification</label>
           <textarea
             className="input-modern"
@@ -736,14 +736,14 @@ export default function ClaimsScreen({ ctx }) {
 
       {/* ── Resubmit Drawer (editable items) ── */}
       <Drawer open={showResubmitDrawer} onClose={() => setShowResubmitDrawer(false)} title="Resubmit Claim">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
+        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Correct clinical or billing data. Only the fields you change are sent; everything else is re-derived from the hospital DB.
         </p>
         {resubmitEditItems?.length > 0 && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <div style={{ marginBottom: "var(--space-5)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
               <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Line Items</div>
-              <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--primary)" }}><Edit2 size={11} /> Editable</span>
+              <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "11px", color: "var(--primary)" }}><Edit2 size={11} /> Editable</span>
             </div>
             <div className="table-responsive-wrapper">
               <table className="table-modern" style={{ fontSize: "13px" }}>
@@ -802,7 +802,7 @@ export default function ClaimsScreen({ ctx }) {
 
       {/* ── Patient Context Drawer ── */}
       <Drawer open={showContextDrawer} onClose={() => setShowContextDrawer(false)} title="Supply Missing Patient Attributes">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>
+        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           These attributes are required by NHCX but could not be resolved from the hospital DB. They are saved to the cashless case and do not need to be re-sent on submission.
         </p>
         <PatientContextForm

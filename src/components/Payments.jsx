@@ -103,7 +103,7 @@ export default function Payments() {
       })()}
 
       <Card className="mb-6">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: "280px", maxWidth: "400px" }}>
             <Input
               icon={Search}
@@ -112,7 +112,7 @@ export default function Payments() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
             <select
               className="input-modern"
               style={{ width: "auto", minWidth: "160px" }}
@@ -124,7 +124,7 @@ export default function Payments() {
               <option value="highest_amount">Highest Amount</option>
               <option value="highest_tds">Highest TDS</option>
             </select>
-            <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", gap: "4px" }}>
+            <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
               <button
                 title="Grid View"
                 onClick={() => setViewMode("grid")}
@@ -156,7 +156,7 @@ export default function Payments() {
           description="No matching payment records."
         />
       ) : viewMode === "grid" ? (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px" }}>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "var(--space-4)" }}>
           {filtered.map((pay, i) => (
             <motion.div
               key={pay.payment_reference || i}
@@ -166,14 +166,14 @@ export default function Payments() {
               whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
               className="card-modern"
               style={{
-                padding: "16px",
+                padding: "var(--space-4)",
                 display: "flex",
                 flexDirection: "column",
-                gap: "12px",
+                gap: "var(--space-3)",
                 transition: "box-shadow 0.2s ease",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)" }}>
                 <div>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Claim Ref</div>
                   <a href="#" onClick={(e) => { e.preventDefault(); navigate(`/dashboard?q=${encodeURIComponent(pay.claim_reference)}`); }} style={{ fontWeight: 700, fontSize: "15px" }}>
@@ -197,7 +197,7 @@ export default function Payments() {
                     <span className="mono-cell" style={{ color: "var(--primary)", fontWeight: 600 }}>{pay.utr}</span>
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-1)", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
                   <span style={{ color: "var(--text-muted)" }}>Gross Amount:</span>
                   <span className="mono-cell">₹{pay.gross_amount?.toLocaleString()}</span>
                 </div>
@@ -205,18 +205,18 @@ export default function Payments() {
                   <span style={{ color: "var(--text-muted)" }}>TDS Deducted:</span>
                   <span className="mono-cell" style={{ color: "var(--error)" }}>-₹{pay.tds_amount?.toLocaleString()}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-1)", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
                   <span style={{ fontWeight: 700 }}>Net Payment:</span>
                   <span className="mono-cell" style={{ fontWeight: 800, color: "var(--success)", fontSize: "14px" }}>₹{pay.net_payment_amount?.toLocaleString()}</span>
                 </div>
               </div>
               <div style={{ marginTop: "auto", paddingTop: "12px" }}>
                 {pay.acknowledgement_status === "submitted" ? (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--success)", fontSize: "11px", fontWeight: 700, background: "var(--success-light)", padding: "4px 8px", borderRadius: "4px" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)", color: "var(--success)", fontSize: "11px", fontWeight: 700, background: "var(--success-light)", padding: "4px 8px", borderRadius: "4px" }}>
                     <CheckCircle size={12} /> ACKNOWLEDGED
                   </div>
                 ) : (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--warning)", fontSize: "11px", fontWeight: 700, background: "var(--warning-light)", padding: "4px 8px", borderRadius: "4px" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)", color: "var(--warning)", fontSize: "11px", fontWeight: 700, background: "var(--warning-light)", padding: "4px 8px", borderRadius: "4px" }}>
                     <Clock size={12} /> PENDING ACKNOWLEDGEMENT
                   </div>
                 )}
@@ -283,7 +283,7 @@ export default function Payments() {
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: "4px",
+                            gap: "var(--space-1)",
                             color: "var(--success)",
                             fontSize: "11px",
                             fontWeight: 600,

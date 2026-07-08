@@ -143,7 +143,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
             style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(600px, 95vw)", background: "var(--bg-card)", borderLeft: "1px solid var(--border-color)", zIndex: 91, display: "flex", flexDirection: "column" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--border-color)" }}>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
                 <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800 }}>Communication Detail</h3>
                 {detail?.reason_code && <span className={`badge-modern ${reasonCfg.badge || "badge-info"}`}>{reasonCfg.label || detail.reason_code}</span>}
                 {detail?.priority && priorityBadge(detail.priority)}
@@ -153,7 +153,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
               </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-6)", display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
               {loading && <div className="flex-center py-10"><div className="spinner" /></div>}
 
               {detail && (
@@ -166,7 +166,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                     </div>
                   )}
 
-                  <div className="grid-2-col" style={{ gap: "14px", padding: "16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+                  <div className="grid-2-col" style={{ gap: "14px", padding: "var(--space-4)", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
                     <DetailField label="Payer" value={detail.payer_code} />
                     <DetailField label="Claim Reference" value={detail.claim_reference} />
                     <DetailField label="Subject" value={detail.subject} />
@@ -175,11 +175,11 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                     <DetailField label="Received" value={detail.received_at ? new Date(detail.received_at).toLocaleString() : null} />
                     {detail.authored_on && <DetailField label="Task Created" value={new Date(detail.authored_on).toLocaleString()} />}
                     {detail.comm_status && <DetailField label="Status" value={detail.comm_status} />}
-                    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-color)", marginTop: "4px", flexWrap: "wrap" }}>
-                      <span className={`badge-modern badge-${detail.provider_read ? "success" : "warning"}`} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-color)", marginTop: "var(--space-1)", flexWrap: "wrap" }}>
+                      <span className={`badge-modern badge-${detail.provider_read ? "success" : "warning"}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
                         {detail.provider_read ? <><CheckCircle2 size={11} /> Read</> : <><Circle size={11} /> Unread</>}
                       </span>
-                      <span className="badge-modern badge-success" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span className="badge-modern badge-success" style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
                         <CheckCircle2 size={11} /> Auto-acknowledged
                       </span>
                       {detail.ack_correlation_id && <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>ACK: {detail.ack_correlation_id}</span>}
@@ -190,14 +190,14 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                     <div>
                       <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>Message from Payer</div>
                       {detail.payload.map((p, i) => (
-                        <div key={i} style={{ padding: "14px 16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "8px", fontSize: "13px", lineHeight: 1.6 }}>
+                        <div key={i} style={{ padding: "14px 16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "var(--space-2)", fontSize: "13px", lineHeight: 1.6 }}>
                           {p.content_string && <p style={{ margin: 0 }}>{p.content_string}</p>}
                           {p.content_attachment && (
                             <a href={p.content_attachment} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--primary)", fontWeight: 600, textDecoration: "none", marginTop: p.content_string ? "8px" : 0 }}>
                               <Paperclip size={14} /> View Attachment
                             </a>
                           )}
-                          {p.content_reference && <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "4px" }}>Ref: {p.content_reference}</div>}
+                          {p.content_reference && <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "var(--space-1)" }}>Ref: {p.content_reference}</div>}
                         </div>
                       ))}
                     </div>
@@ -217,9 +217,9 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                   )}
 
                   {isAdditionalInfo && taskAction && (
-                    <div style={{ padding: "16px", background: "rgba(239,68,68,0.04)", border: "1px solid var(--error)", borderRadius: "10px" }}>
+                    <div style={{ padding: "var(--space-4)", background: "rgba(239,68,68,0.04)", border: "1px solid var(--error)", borderRadius: "10px" }}>
                       <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--error)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>Required Action</div>
-                      <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
+                      <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
                         Submit the documents listed above to the payer to unblock this claim. Once submitted, mark this communication as reviewed to close it from your queue.
                       </div>
                       {!executeResult ? (
@@ -234,7 +234,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                         </Button>
                       ) : (
                         <div style={{ padding: "10px 14px", background: executeResult.success ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${executeResult.success ? "var(--success)" : "var(--error)"}`, borderRadius: "8px", fontSize: "13px" }}>
-                          <div style={{ fontWeight: 700, color: executeResult.success ? "var(--success)" : "var(--error)", marginBottom: "4px" }}>
+                          <div style={{ fontWeight: 700, color: executeResult.success ? "var(--success)" : "var(--error)", marginBottom: "var(--space-1)" }}>
                             {executeResult.success ? "Submitted successfully" : "Submission failed"}
                           </div>
                           {executeResult.correlation_id && <code style={{ fontSize: "11px" }}>{executeResult.correlation_id}</code>}
@@ -246,9 +246,9 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
 
                   {detail.completed_tasks?.length > 0 && (
                     <div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>Completed Actions</div>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "var(--space-2)" }}>Completed Actions</div>
                       {detail.completed_tasks.map((t, i) => (
-                        <div key={i} style={{ fontSize: "12px", color: "var(--text-muted)", padding: "6px 10px", background: "var(--bg-main)", borderRadius: "6px", marginBottom: "4px" }}>✓ {t.title}</div>
+                        <div key={i} style={{ fontSize: "12px", color: "var(--text-muted)", padding: "6px 10px", background: "var(--bg-main)", borderRadius: "6px", marginBottom: "var(--space-1)" }}>✓ {t.title}</div>
                       ))}
                     </div>
                   )}
@@ -347,7 +347,7 @@ export default function Communications({ allFacilitiesMode = false }) {
 
   return (
     <div className="communications-screen">
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "16px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "var(--space-4)" }}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           {OUTBOUND_COMMUNICATIONS_ENABLED && (
             <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)}>
@@ -374,7 +374,7 @@ export default function Communications({ allFacilitiesMode = false }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-6)", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 280px" }}>
           <Input icon={Search} placeholder="Search topic, payer, claim, subject…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
@@ -394,7 +394,7 @@ export default function Communications({ allFacilitiesMode = false }) {
           <option value="oldest">Oldest First</option>
           <option value="priority">Priority First</option>
         </select>
-        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", gap: "4px" }}>
+        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
           <button
             title="Grid View"
             onClick={() => setViewMode("grid")}
@@ -421,7 +421,7 @@ export default function Communications({ allFacilitiesMode = false }) {
           description="No payer messages match your filters."
         />
       ) : viewMode === "grid" ? (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "16px" }}>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "var(--space-4)" }}>
           {filteredComms.map((comm) => {
             const reasonCfg = REASON_CONFIG[comm.reason_code] ?? {};
             const hasAction = comm.pending_tasks?.length > 0;
@@ -437,7 +437,7 @@ export default function Communications({ allFacilitiesMode = false }) {
                 style={{
                   transition: "box-shadow 0.2s ease",
                   borderLeft: isUnread ? "3px solid var(--info)" : hasAction ? "3px solid var(--error)" : "3px solid transparent",
-                  padding: "16px",
+                  padding: "var(--space-4)",
                 }}
               >
                 <div style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
@@ -451,14 +451,14 @@ export default function Communications({ allFacilitiesMode = false }) {
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "5px", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginBottom: "5px", flexWrap: "wrap" }}>
                       <h3 style={{ margin: 0, fontSize: "14px", fontWeight: isUnread ? 800 : 600 }}>{comm.topic_display}</h3>
                       {comm.priority && priorityBadge(comm.priority)}
                       {comm.reason_code && <span className={`badge-modern ${reasonCfg.badge || "badge-info"}`}>{reasonCfg.label || comm.reason_display || comm.reason_code}</span>}
                       {hasAction && <span style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "11px", color: "var(--error)", fontWeight: 700 }}><AlertTriangle size={11} /> Action Required</span>}
                     </div>
 
-                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "12px", color: "var(--text-muted)" }}>
+                    <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", fontSize: "12px", color: "var(--text-muted)" }}>
                       {comm.facility_name && <span><strong style={{ color: "var(--text-main)" }}>Facility:</strong> {comm.facility_name}</span>}
                       <span><strong style={{ color: "var(--text-main)" }}>Payer:</strong> {comm.payer_code}</span>
                       {comm.claim_reference && <span><strong style={{ color: "var(--text-main)" }}>Claim:</strong> {comm.claim_reference}</span>}
@@ -471,7 +471,7 @@ export default function Communications({ allFacilitiesMode = false }) {
                     </div>
 
                     {hasAction && (
-                      <div style={{ marginTop: "8px", padding: "7px 12px", background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,66,0.25)", borderRadius: "8px", fontSize: "12px" }}>
+                      <div style={{ marginTop: "var(--space-2)", padding: "7px 12px", background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,66,0.25)", borderRadius: "8px", fontSize: "12px" }}>
                         <strong style={{ color: "var(--error)" }}>{comm.pending_tasks.length} task{comm.pending_tasks.length > 1 ? "s" : ""}:</strong>{" "}
                         {comm.pending_tasks.map((t) => t.title).join(", ")}
                       </div>

@@ -170,14 +170,14 @@ function PatientDetail({ patient, onBack }) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 16 }}
       transition={{ duration: 0.2 }}
-      style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+      style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}
     >
       <div className="patient-detail-header" style={{
         background: "var(--bg-card)", border: "1px solid var(--border-color)",
         borderRadius: "var(--radius-lg)", padding: "20px 24px",
-        display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px",
+        display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-4)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
           <div style={{
             width: "56px", height: "56px", borderRadius: "50%",
             background: "var(--primary)", color: "white",
@@ -193,16 +193,16 @@ function PatientDetail({ patient, onBack }) {
             <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "6px" }}>{patient.name}</h2>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", fontSize: "13px", color: "var(--text-muted)" }}>
               <span className="badge-modern badge-info">#{patient.child_id}</span>
-              <span style={{ textTransform: "capitalize", display: "flex", alignItems: "center", gap: "4px" }}>
+              <span style={{ textTransform: "capitalize", display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
                 <User size={13} /> {patient.gender}
               </span>
               {age !== null && (
-                <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
                   <Calendar size={13} /> {patient.dob} ({age} yrs)
                 </span>
               )}
               {patient.mobile && (
-                <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
                   <Phone size={13} /> {patient.mobile}
                 </span>
               )}
@@ -214,7 +214,7 @@ function PatientDetail({ patient, onBack }) {
                 <span className="badge-modern badge-info" style={{ fontSize: "11px" }}>{patient.cashless_cases_count} case{patient.cashless_cases_count !== 1 ? "s" : ""}</span>
               )}
               {totalBilled > 0 && (
-                <span className="badge-modern badge-warning" style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}>
+                <span className="badge-modern badge-warning" style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
                   ₹{totalBilled.toLocaleString("en-IN")} billed
                 </span>
               )}
@@ -237,7 +237,7 @@ function PatientDetail({ patient, onBack }) {
         <div style={{
           padding: "12px 16px", borderRadius: "var(--radius-md)",
           background: "rgba(79,70,229,0.05)", border: "1px solid var(--primary-light)",
-          display: "flex", gap: "20px", flexWrap: "wrap", fontSize: "13px",
+          display: "flex", gap: "var(--space-5)", flexWrap: "wrap", fontSize: "13px",
         }}>
           <div>
             <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Latest Case</span>
@@ -255,20 +255,20 @@ function PatientDetail({ patient, onBack }) {
             <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Policy</span>
             <span style={{ fontWeight: 600 }}>{patient.latest_claim.policy_number}</span>
           </div>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
             <CaseStatusChip claim={patient.latest_claim} />
           </div>
         </div>
       )}
 
-      <div className="grid-1-to-3" style={{ gap: "20px" }}>
-        <div className="col-span-2" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div className="grid-1-to-3" style={{ gap: "var(--space-5)" }}>
+        <div className="col-span-2" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <Card title="Visits & Admissions">
             {!patient.visits?.length ? (
               <div className="text-muted text-sm" style={{ padding: "20px 0", textAlign: "center" }}>No visits on record.</div>
             ) : (
               patient.visits.map((visit, vi) => (
-                <div key={vi} style={{ marginBottom: "12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                <div key={vi} style={{ marginBottom: "var(--space-3)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
                   <div
                     onClick={() => setExpandedVisit(expandedVisit === vi ? null : vi)}
                     style={{ padding: "14px 16px", background: "var(--bg-main)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
@@ -286,14 +286,14 @@ function PatientDetail({ patient, onBack }) {
                   <AnimatePresence>
                     {expandedVisit === vi && (
                       <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} style={{ overflow: "hidden" }}>
-                        <div style={{ padding: "16px", borderTop: "1px solid var(--border-color)" }}>
-                          <div className="grid-2-col" style={{ gap: "16px", marginBottom: "16px", fontSize: "13px" }}>
+                        <div style={{ padding: "var(--space-4)", borderTop: "1px solid var(--border-color)" }}>
+                          <div className="grid-2-col" style={{ gap: "var(--space-4)", marginBottom: "var(--space-4)", fontSize: "13px" }}>
                             <div>
-                              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>Diagnosis</div>
+                              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-1)" }}>Diagnosis</div>
                               <div>{visit.diagnosis || "-"}</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>Primary Doctor</div>
+                              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-1)" }}>Primary Doctor</div>
                               <div style={{ fontWeight: 600 }}>{visit.primary_doctor?.name || "-"}</div>
                               {visit.primary_doctor?.registration_no && (
                                 <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Reg: {visit.primary_doctor.registration_no}</div>
@@ -302,11 +302,11 @@ function PatientDetail({ patient, onBack }) {
                           </div>
 
                           {visit.procedures?.length > 0 && (
-                            <div style={{ marginBottom: "16px" }}>
-                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "8px", color: "var(--text-muted)", textTransform: "uppercase" }}>Procedures</div>
+                            <div style={{ marginBottom: "var(--space-4)" }}>
+                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--text-muted)", textTransform: "uppercase" }}>Procedures</div>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                                 {visit.procedures.map((proc, pi) => (
-                                  <span key={pi} className="badge-modern badge-info" style={{ fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                                  <span key={pi} className="badge-modern badge-info" style={{ fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}>
                                     <Activity size={10} />
                                     {proc.code && <code style={{ fontSize: "10px" }}>{proc.code}</code>}
                                     {proc.name}
@@ -317,15 +317,15 @@ function PatientDetail({ patient, onBack }) {
                           )}
 
                           {visit.invoices?.length > 0 && (
-                            <div style={{ marginBottom: "16px" }}>
-                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "8px", color: "var(--text-muted)", textTransform: "uppercase" }}>Invoices</div>
+                            <div style={{ marginBottom: "var(--space-4)" }}>
+                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--text-muted)", textTransform: "uppercase" }}>Invoices</div>
                               {visit.invoices.map((inv, ii) => (
-                                <div key={ii} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", marginBottom: "8px", fontSize: "13px" }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                                <div key={ii} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", marginBottom: "var(--space-2)", fontSize: "13px" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-1)" }}>
                                     <strong>{inv.invoice_no}</strong>
                                     <StatusBadge status={inv.billing_status} />
                                   </div>
-                                  <div style={{ display: "flex", gap: "20px", color: "var(--text-muted)" }}>
+                                  <div style={{ display: "flex", gap: "var(--space-5)", color: "var(--text-muted)" }}>
                                     <span>Billed: <strong style={{ color: "var(--text-main)" }}>₹{inv.amount_billed?.toLocaleString()}</strong></span>
                                     {inv.final_discount > 0 && <span>Discount: <strong style={{ color: "var(--success)" }}>-₹{inv.final_discount?.toLocaleString()}</strong></span>}
                                     <span>Final: <strong style={{ color: "var(--primary)" }}>₹{inv.final_amount?.toLocaleString()}</strong></span>
@@ -337,11 +337,11 @@ function PatientDetail({ patient, onBack }) {
 
                           {visit.claims?.length > 0 && (
                             <div>
-                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px", color: "var(--text-muted)", textTransform: "uppercase" }}>
+                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", display: "flex", alignItems: "center", gap: "6px", color: "var(--text-muted)", textTransform: "uppercase" }}>
                                 <BadgeIndianRupee size={13} /> Claims
                               </div>
                               {visit.claims.map((claim, ci) => (
-                                <div key={ci} style={{ background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", padding: "10px 12px", marginBottom: "8px" }}>
+                                <div key={ci} style={{ background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", padding: "10px 12px", marginBottom: "var(--space-2)" }}>
                                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
                                     <div>
                                       <div style={{ fontWeight: 700, fontSize: "13px" }}>
@@ -351,7 +351,7 @@ function PatientDetail({ patient, onBack }) {
                                         {claim.payer_name} · {claim.policy_number}
                                       </div>
                                     </div>
-                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                    <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexShrink: 0 }}>
                                       <div style={{ textAlign: "right" }}>
                                         <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Billed</div>
                                         <div style={{ fontWeight: 700, color: "var(--primary)" }}>₹{claim.total_billed?.toLocaleString()}</div>
@@ -377,7 +377,7 @@ function PatientDetail({ patient, onBack }) {
                             </div>
                           )}
 
-                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--space-3)", paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
                             <Button variant="primary" icon={Plus} onClick={() => startWorkflow(visit)}>
                               Start Cashless Case
                             </Button>
@@ -392,7 +392,7 @@ function PatientDetail({ patient, onBack }) {
           </Card>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <Card title="Pending Tasks">
             {loadingExtra ? (
               <div className="flex-center py-6"><div className="spinner" style={{ width: "24px", height: "24px" }} /></div>
@@ -409,7 +409,7 @@ function PatientDetail({ patient, onBack }) {
                       border: "1px solid var(--border-color)", borderLeftWidth: "3px",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-1)" }}>
                       <span className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>
                         {task.priority?.toUpperCase()}
                       </span>
@@ -431,7 +431,7 @@ function PatientDetail({ patient, onBack }) {
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {communications.map((comm) => (
                   <div key={comm.correlation_id} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", fontSize: "13px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-1)" }}>
                       <span style={{ fontWeight: 600 }}>{comm.topic_display}</span>
                       <span className={`badge-modern badge-${comm.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>{comm.priority}</span>
                     </div>
@@ -521,7 +521,7 @@ export default function PatientProfile() {
   const endItem = Math.min(page * PAGE_SIZE, totalCount);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
       {loadError && (
         <div className="inline-error-banner">
           <AlertCircle size={16} />
@@ -529,7 +529,7 @@ export default function PatientProfile() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "12px", maxWidth: "560px" }}>
+      <div style={{ display: "flex", gap: "var(--space-3)", maxWidth: "560px" }}>
         <div style={{ flex: 1 }}>
           <Input
             icon={Search}
@@ -557,7 +557,7 @@ export default function PatientProfile() {
           <option value="oldest">Oldest First</option>
         </select>
         
-        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "4px", gap: "4px" }}>
+        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
           <button
             title="Grid View"
             onClick={() => setViewMode("grid")}
@@ -598,17 +598,17 @@ export default function PatientProfile() {
             />
           ) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
                 <span style={{ fontSize: "13px", color: "var(--text-muted)", fontWeight: 600 }}>
                   Showing {startItem}–{endItem} of {totalCount} patient{totalCount !== 1 ? "s" : ""}
                 </span>
                 {totalPages > 1 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                     <button
                       onClick={() => handlePageChange(page - 1)}
                       disabled={page === 1}
                       style={{
-                        display: "flex", alignItems: "center", gap: "4px",
+                        display: "flex", alignItems: "center", gap: "var(--space-1)",
                         padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
                         border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
                         color: page === 1 ? "var(--text-muted)" : "var(--text-main)",
@@ -624,7 +624,7 @@ export default function PatientProfile() {
                       onClick={() => handlePageChange(page + 1)}
                       disabled={page === totalPages}
                       style={{
-                        display: "flex", alignItems: "center", gap: "4px",
+                        display: "flex", alignItems: "center", gap: "var(--space-1)",
                         padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
                         border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
                         color: page === totalPages ? "var(--text-muted)" : "var(--text-main)",
@@ -707,12 +707,12 @@ export default function PatientProfile() {
                 </Card>
               )}
               {totalPages > 1 && (
-                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", marginTop: "20px" }}>
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "var(--space-2)", marginTop: "var(--space-5)" }}>
                   <button
                     onClick={() => handlePageChange(page - 1)}
                     disabled={page === 1}
                     style={{
-                      display: "flex", alignItems: "center", gap: "4px",
+                      display: "flex", alignItems: "center", gap: "var(--space-1)",
                       padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
                       border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
                       color: page === 1 ? "var(--text-muted)" : "var(--text-main)",
@@ -728,7 +728,7 @@ export default function PatientProfile() {
                     onClick={() => handlePageChange(page + 1)}
                     disabled={page === totalPages}
                     style={{
-                      display: "flex", alignItems: "center", gap: "4px",
+                      display: "flex", alignItems: "center", gap: "var(--space-1)",
                       padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
                       border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
                       color: page === totalPages ? "var(--text-muted)" : "var(--text-main)",

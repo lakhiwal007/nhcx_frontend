@@ -76,7 +76,7 @@ export default function ReprocessScreen({ ctx }) {
       <div className="wizard-step">
         {!isComplete ? (
           <Card className="mb-6">
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
               <div className="spinner" style={{ width: "24px", height: "24px" }} />
               <div>
                 <div style={{ fontWeight: 700 }}>Appeal in Progress</div>
@@ -90,14 +90,14 @@ export default function ReprocessScreen({ ctx }) {
           <>
             <DecisionBanner decision={status?.decision} message={status?.claim_response?.errors?.[0]?.detail || status?.process_notes?.[0]?.text} />
             {status?.decision === "REJECTED" ? (
-              <div style={{ padding: "16px 20px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginTop: "16px", marginBottom: "16px" }}>
+              <div style={{ padding: "16px 20px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginTop: "var(--space-4)", marginBottom: "var(--space-4)" }}>
                 <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "6px" }}>Appeal rejected</div>
                 <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                   The payer has rejected the appeal. This case remains in your history. Contact the payer directly if you wish to escalate further.
                 </div>
               </div>
             ) : null}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
               <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
               {status?.decision !== "REJECTED" && (
                 <Button variant="primary" onClick={() => navigate("../payment")}>
@@ -113,13 +113,13 @@ export default function ReprocessScreen({ ctx }) {
 
   return (
     <div className="wizard-step">
-      <div className="grid-1-to-2" style={{ gap: "24px" }}>
+      <div className="grid-1-to-2" style={{ gap: "var(--space-6)" }}>
         <Card title="File an Appeal">
-          <p className="text-muted" style={{ fontSize: "14px", marginBottom: "20px" }}>
+          <p className="text-muted" style={{ fontSize: "14px", marginBottom: "var(--space-5)" }}>
             Use this when the claim was partially approved or rejected and you have additional justification or missing documents to submit.
           </p>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
             <div>
               <label className="input-label-modern">Reason Code</label>
               <select
@@ -145,7 +145,7 @@ export default function ReprocessScreen({ ctx }) {
           </div>
         </Card>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
           <Card title="Supporting Evidence">
             <div className="warning-banner mb-4" style={{ background: "rgba(245,158,11,0.1)", color: "var(--warning)" }}>
               Attach any documents referenced in the payer's rejection notes.
@@ -168,7 +168,7 @@ export default function ReprocessScreen({ ctx }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
         <Button variant="text" onClick={() => navigate("../claim")}>← Back to Claim</Button>
         <Button variant="outline" onClick={() => navigate("../payment")}>
           Skip to Payment <ArrowRight size={18} style={{ marginLeft: "8px" }} />

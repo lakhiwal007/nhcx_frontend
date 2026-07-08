@@ -72,8 +72,8 @@ export default function PaymentReconciliation({ ctx }) {
   return (
     <div className="wizard-step">
       <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-5)" }}>
+          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
             {paymentData?.settled && (
               <span className="badge-modern badge-success">SETTLED</span>
             )}
@@ -99,7 +99,7 @@ export default function PaymentReconciliation({ ctx }) {
         ) : (
           <div>
             {paymentData?.settled && (
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px", padding: "14px 16px", background: "rgba(16,185,129,0.1)", borderRadius: "var(--radius-md)", border: "1px solid var(--success)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)", padding: "14px 16px", background: "rgba(16,185,129,0.1)", borderRadius: "var(--radius-md)", border: "1px solid var(--success)" }}>
                 <CheckCircle2 color="var(--success)" size={26} />
                 <div>
                   <div style={{ fontWeight: 800, fontSize: "15px", color: "var(--success)" }}>Payment Settled</div>
@@ -174,12 +174,12 @@ export default function PaymentReconciliation({ ctx }) {
                                   </button>
                                 </div>
                                 {pay.acknowledgement_error && (
-                                  <div style={{ fontSize: "10px", color: "var(--error)", marginTop: "4px" }}>{pay.acknowledgement_error}</div>
+                                  <div style={{ fontSize: "10px", color: "var(--error)", marginTop: "var(--space-1)" }}>{pay.acknowledgement_error}</div>
                                 )}
                               </div>
                             )}
                             {ackResult && (
-                              <div style={{ fontSize: "10px", color: ackResult.success ? "var(--success)" : "var(--error)", marginTop: "4px" }}>
+                              <div style={{ fontSize: "10px", color: ackResult.success ? "var(--success)" : "var(--error)", marginTop: "var(--space-1)" }}>
                                 {ackResult.success ? "Submitted ✓" : ackResult.message}
                               </div>
                             )}
@@ -189,9 +189,9 @@ export default function PaymentReconciliation({ ctx }) {
                         {isOpen && (
                           <tr key={`${i}-overrides`} style={{ background: "var(--bg-main)" }}>
                             <td colSpan="10" style={{ padding: "12px 16px" }}>
-                              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end" }}>
+                              <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", alignItems: "flex-end" }}>
                                 <div>
-                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "4px" }}>Claim Number</div>
+                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-1)" }}>Claim Number</div>
                                   <input
                                     className="input-modern"
                                     style={{ fontSize: "12px", padding: "4px 8px", width: "160px" }}
@@ -201,7 +201,7 @@ export default function PaymentReconciliation({ ctx }) {
                                   />
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "4px" }}>Amount Received</div>
+                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-1)" }}>Amount Received</div>
                                   <input
                                     className="input-modern"
                                     style={{ fontSize: "12px", padding: "4px 8px", width: "130px" }}
@@ -212,7 +212,7 @@ export default function PaymentReconciliation({ ctx }) {
                                   />
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "4px" }}>UTR</div>
+                                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-1)" }}>UTR</div>
                                   <input
                                     className="input-modern"
                                     style={{ fontSize: "12px", padding: "4px 8px", width: "180px" }}
@@ -241,7 +241,7 @@ export default function PaymentReconciliation({ ctx }) {
         )}
       </Card>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "24px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--space-6)" }}>
         <Button variant="primary" onClick={() => navigate("/dashboard")} icon={Home}>
           Done & Return to Dashboard
         </Button>

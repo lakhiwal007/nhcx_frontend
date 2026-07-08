@@ -91,7 +91,7 @@ function FormField({ label, required, hint, children }) {
           style={{
             fontSize: "11px",
             color: "var(--text-muted)",
-            marginTop: "4px",
+            marginTop: "var(--space-1)",
           }}
         >
           {hint}
@@ -145,7 +145,7 @@ function MultiCheckbox({ options, value = [], onChange }) {
   const toggle = (v) =>
     onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
       {options.map((o) => (
         <label
           key={o.value}
@@ -256,7 +256,7 @@ function Drawer({ open, onClose, title, subtitle, children, footer }) {
                     cursor: "pointer",
                     color: "var(--text-muted)",
                     display: "flex",
-                    padding: "4px",
+                    padding: "var(--space-1)",
                   }}
                 >
                   <X size={22} />
@@ -270,7 +270,7 @@ function Drawer({ open, onClose, title, subtitle, children, footer }) {
                 padding: "24px 28px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "20px",
+                gap: "var(--space-5)",
               }}
             >
               {children}
@@ -306,7 +306,7 @@ function SectionHeader({ title }) {
         letterSpacing: "0.6px",
         paddingBottom: "10px",
         borderBottom: "1px solid var(--border-color)",
-        marginTop: "4px",
+        marginTop: "var(--space-1)",
       }}
     >
       {title}
@@ -319,7 +319,7 @@ function FacilityForm({ form, onChange, isEdit }) {
     <>
       <SectionHeader title="Identity" />
       <div
-        className="grid-2-col" style={{ gap: "16px" }}
+        className="grid-2-col" style={{ gap: "var(--space-4)" }}
       >
         <FormField
           label="Facility Code"
@@ -361,7 +361,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       </FormField>
 
       <div
-        className="grid-2-col" style={{ gap: "16px" }}
+        className="grid-2-col" style={{ gap: "var(--space-4)" }}
       >
         <FormField label="Registry ID" hint="ABDM registryid / Client ID">
           <TextInput
@@ -380,7 +380,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       </div>
 
       <div
-        className="grid-2-col" style={{ gap: "16px" }}
+        className="grid-2-col" style={{ gap: "var(--space-4)" }}
       >
         <FormField label="Environment">
           <SelectInput
@@ -394,7 +394,7 @@ function FacilityForm({ form, onChange, isEdit }) {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "12px",
+              gap: "var(--space-3)",
               height: "44px",
             }}
           >
@@ -402,7 +402,7 @@ function FacilityForm({ form, onChange, isEdit }) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "var(--space-2)",
                 cursor: "pointer",
                 fontSize: "14px",
               }}
@@ -437,7 +437,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       </FormField>
 
       <div
-        className="grid-2-col" style={{ gap: "16px" }}
+        className="grid-2-col" style={{ gap: "var(--space-4)" }}
       >
         <FormField label="State">
           <TextInput
@@ -470,7 +470,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       </FormField>
 
       <div
-        className="grid-2-col" style={{ gap: "16px" }}
+        className="grid-2-col" style={{ gap: "var(--space-4)" }}
       >
         <FormField label="Primary Email">
           <TextInput
@@ -604,7 +604,7 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
         <div
           style={{
             display: "flex",
-            gap: "8px",
+            gap: "var(--space-2)",
             alignItems: "flex-start",
             padding: "10px 14px",
             background: "rgba(239,68,68,0.06)",
@@ -660,8 +660,8 @@ function FacilityCard({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "8px",
-              marginBottom: "4px",
+              gap: "var(--space-2)",
+              marginBottom: "var(--space-1)",
               flexWrap: "wrap",
             }}
           >
@@ -682,7 +682,7 @@ function FacilityCard({
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "4px",
+                  gap: "var(--space-1)",
                   fontSize: "11px",
                   fontWeight: 700,
                   color: "var(--primary)",
@@ -717,7 +717,7 @@ function FacilityCard({
         className="grid-2-col"
         style={{
           gap: "10px",
-          marginBottom: "16px",
+          marginBottom: "var(--space-4)",
           fontSize: "12px",
         }}
       >
@@ -747,13 +747,13 @@ function FacilityCard({
           </div>
         )}
         {facility.primary_email && (
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
             <Mail size={11} color="var(--text-muted)" />
             {facility.primary_email}
           </div>
         )}
         {facility.primary_mobile && (
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
             <Phone size={11} color="var(--text-muted)" />
             {facility.primary_mobile}
           </div>
@@ -763,7 +763,7 @@ function FacilityCard({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "4px",
+              gap: "var(--space-1)",
               gridColumn: "1 / -1",
             }}
           >
@@ -777,7 +777,7 @@ function FacilityCard({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "8px",
+          gap: "var(--space-2)",
           paddingTop: "14px",
           borderTop: "1px solid var(--border-color)",
         }}
@@ -800,7 +800,7 @@ function FacilityCard({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "4px",
+              gap: "var(--space-1)",
               fontSize: "11px",
               color: "var(--warning)",
               fontWeight: 600,
@@ -814,7 +814,7 @@ function FacilityCard({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "4px",
+              gap: "var(--space-1)",
               fontSize: "11px",
               color: "var(--success)",
               fontWeight: 600,
@@ -823,7 +823,7 @@ function FacilityCard({
             <CheckCircle2 size={11} /> ABDM registered
           </div>
         )}
-        <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-2)" }}>
           <Button
             size="small"
             variant="outline"
@@ -1026,7 +1026,7 @@ export default function Settings({
           display: "flex",
           justifyContent: "flex-end",
           alignItems: "center",
-          marginBottom: "16px",
+          marginBottom: "var(--space-4)",
         }}
       >
         <Button variant="primary" icon={Plus} onClick={openCreate}>
@@ -1037,14 +1037,14 @@ export default function Settings({
       {sessionFacilities && (
         <div
           style={{
-            marginBottom: "20px",
+            marginBottom: "var(--space-5)",
             padding: "16px 20px",
             background: "var(--bg-card)",
             border: "1px solid var(--border-color)",
             borderRadius: "var(--radius-lg)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
             <Building2 size={16} color="var(--primary)" />
             Active Facility
           </div>
@@ -1055,7 +1055,7 @@ export default function Settings({
               No cashless-enabled facility is linked to your account. Contact your administrator.
             </div>
           ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
               {sessionFacilities.map((f) => {
                 const isActive = !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
                 return (
@@ -1088,23 +1088,23 @@ export default function Settings({
 
       <div
         style={{
-          marginBottom: "20px",
+          marginBottom: "var(--space-5)",
           padding: "16px 20px",
           background: "var(--bg-card)",
           border: "1px solid var(--border-color)",
           borderRadius: "var(--radius-lg)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
           <Palette size={16} color="var(--primary)" />
           Appearance
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "28px" }}>
           <div>
-            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "var(--space-2)" }}>
               Theme
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
               <button
                 onClick={() => theme !== "light" && onToggleTheme?.()}
                 className={`badge-modern ${theme === "light" ? "badge-success" : "badge-info"}`}
@@ -1122,10 +1122,10 @@ export default function Settings({
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "var(--space-2)" }}>
               Navigation Layout
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
               <button
                 onClick={() => layoutDirection !== "A" && onToggleLayoutDirection?.()}
                 title="Dark rail sidebar on the left"
@@ -1150,17 +1150,17 @@ export default function Settings({
       {isAdmin && (
         <div
           style={{
-            marginBottom: "20px",
+            marginBottom: "var(--space-5)",
             padding: "16px 20px",
             background: "var(--bg-card)",
             border: "1px solid var(--border-color)",
             borderRadius: "var(--radius-lg)",
             display: "flex",
             alignItems: "center",
-            gap: "16px",
+            gap: "var(--space-4)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
             <Lock size={16} color="var(--primary)" />
             Admin Token
           </div>
@@ -1195,14 +1195,14 @@ export default function Settings({
             borderRadius: "var(--radius-lg)",
             display: "flex",
             alignItems: "center",
-            gap: "16px",
+            gap: "var(--space-4)",
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "8px",
+              gap: "var(--space-2)",
               fontSize: "13px",
               fontWeight: 700,
               color: "var(--text-muted)",
@@ -1269,7 +1269,7 @@ export default function Settings({
             variant="primary"
             icon={Plus}
             onClick={openCreate}
-            style={{ marginTop: "20px" }}
+            style={{ marginTop: "var(--space-5)" }}
           >
             Register First Facility
           </Button>
@@ -1282,7 +1282,7 @@ export default function Settings({
             display: "grid",
             gridTemplateColumns:
               "repeat(auto-fill, minmax(min(100%, 560px), 1fr))",
-            gap: "16px",
+            gap: "var(--space-4)",
           }}
         >
           {facilities.map((f) => (

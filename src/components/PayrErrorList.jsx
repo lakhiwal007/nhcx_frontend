@@ -14,7 +14,7 @@ const TONE = {
 export default function PayrErrorList({ errors }) {
   if (!errors?.length) return null;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
       {errors.map((raw, i) => {
         const e = classifyError(raw);
         const tone = TONE[e.severity] || TONE.error;
