@@ -1077,7 +1077,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           {statusFilter === "pending" ? (
             viewMode === "board" ? (
-              <div style={{ display: "flex", gap: "var(--space-6)", overflowX: "auto", paddingBottom: "16px", minHeight: "60vh" }}>
+              <div style={{ display: "flex", gap: "var(--space-6)", overflowX: "auto", paddingBottom: "16px", alignItems: "flex-start" }}>
                 <KanbanColumn title="Urgent" tasks={urgentTasks} color="error" />
                 <KanbanColumn title="High Priority" tasks={highTasks} color="warning" />
                 <KanbanColumn title="Normal Priority" tasks={normalTasks} color="primary" />
