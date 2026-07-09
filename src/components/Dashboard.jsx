@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Search, Activity, FileText, CheckCircle,
   Clock, XCircle, AlertTriangle, Users, Inbox, AlertCircle, LayoutGrid, List, MoreVertical, ChevronDown
@@ -57,6 +58,101 @@ function getActionOptions(claim) {
     options.push({ label: "Open Case", route: "" });
   }
   return options;
+}
+
+function ActionMenu({ options, onSelect, disabled, size = 32 }) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const updateCoords = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (rect) setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    };
+    updateCoords();
+    const handleClick = (e) => {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target) &&
+        menuRef.current && !menuRef.current.contains(e.target)
+      ) setOpen(false);
+    };
+    const handleKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    window.addEventListener("scroll", updateCoords, true);
+    window.addEventListener("resize", updateCoords);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("scroll", updateCoords, true);
+      window.removeEventListener("resize", updateCoords);
+    };
+  }, [open]);
+
+  if (!options?.length) return null;
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        title="More Actions"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center",
+          background: open ? "var(--bg-main)" : "transparent", color: "var(--text-muted)",
+          border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)",
+          cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1,
+          transition: "background 0.15s ease",
+        }}
+      >
+        <MoreVertical size={16} />
+      </button>
+      {createPortal(
+        <AnimatePresence>
+          {open && coords && (
+            <motion.div
+              ref={menuRef}
+              initial={{ opacity: 0, y: -4, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.96 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
+              style={{
+                position: "fixed", top: coords.top, right: coords.right, zIndex: 1000,
+                minWidth: "190px", background: "var(--bg-card)", border: "1px solid var(--border-color)",
+                borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-lg)", padding: "4px",
+                transformOrigin: "top right",
+              }}
+            >
+              {options.map((opt) => (
+                <button
+                  key={opt.route}
+                  type="button"
+                  onClick={() => { setOpen(false); onSelect(opt.route); }}
+                  style={{
+                    display: "block", width: "100%", textAlign: "left", padding: "8px 10px",
+                    fontSize: "13px", fontWeight: 500, color: "var(--text-main)", background: "transparent",
+                    border: "none", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-main)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
+  );
 }
 
 export default function Dashboard({ allFacilitiesMode = false }) {
@@ -210,21 +306,12 @@ export default function Dashboard({ allFacilitiesMode = false }) {
             {navigating[claim.id] ? "Loading…" : primaryAction.label}
           </Button>
           {actionOptions.length > 1 && (
-            <select
-              className="input-modern"
-              defaultValue=""
-              title="More Actions"
-              style={{ width: "36px", padding: "0 0 0 8px", background: "transparent", color: "var(--text-muted)", appearance: "none", cursor: "pointer" }}
-              onChange={(e) => {
-                const route = e.target.value;
-                if (route) { navigateToClaim(claim, route); e.target.value = ""; }
-              }}
-            >
-              <option value="" disabled>⋯</option>
-              {actionOptions.slice(1).map((opt) => (
-                <option key={opt.route} value={opt.route}>{opt.label}</option>
-              ))}
-            </select>
+            <ActionMenu
+              options={actionOptions.slice(1)}
+              disabled={!!navigating[claim.id]}
+              onSelect={(route) => navigateToClaim(claim, route)}
+              size={36}
+            />
           )}
         </div>
       </motion.div>
@@ -492,21 +579,11 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                               {navigating[claim.id] ? "Loading…" : actionOptions[0].label}
                             </Button>
                             {actionOptions.length > 1 && (
-                              <select
-                                className="input-modern"
-                                defaultValue=""
-                                title="More Actions"
-                                style={{ width: "32px", padding: "0 0 0 8px", background: "transparent", color: "var(--text-muted)", appearance: "none", cursor: "pointer" }}
-                                onChange={(e) => {
-                                  const route = e.target.value;
-                                  if (route) { navigateToClaim(claim, route); e.target.value = ""; }
-                                }}
-                              >
-                                <option value="" disabled>⋯</option>
-                                {actionOptions.slice(1).map((opt) => (
-                                  <option key={opt.route} value={opt.route}>{opt.label}</option>
-                                ))}
-                              </select>
+                              <ActionMenu
+                                options={actionOptions.slice(1)}
+                                disabled={!!navigating[claim.id]}
+                                onSelect={(route) => navigateToClaim(claim, route)}
+                              />
                             )}
                           </div>
                         </td>
