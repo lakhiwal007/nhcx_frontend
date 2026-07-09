@@ -927,9 +927,12 @@ Policy fetch request:
   "child_id": 728,
   "admission_id": "622",
   "payer_id": "1518@hcx",
+  "identifier_type": "AbhaNumber",
   "force_refresh": false
 }
 ```
+
+`identifier_type` is optional and takes `AbhaNumber`, `MemberId`, or `MobileNo`. Omit it to keep the default behavior: the backend tries ABHA, then Member ID, then Mobile, stopping at the first identifier that returns policies (up to 3 NHCX calls). Set it to restrict the lookup to exactly one identifier (one NHCX call) — surface this as a "Search by" dropdown next to the policy fetch action. If the child has no value on file for the chosen type, or NHCX returns nothing for it, `policies` comes back empty; it does not fall back to the other types.
 
 Payer search should be a searchable dropdown/list with `name`, `participant_code`, `scheme_type`, and `status`.
 

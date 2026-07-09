@@ -529,6 +529,14 @@ paths:
                   admission_id: "622"
                   payer_id: "1518@hcx"
                   force_refresh: true
+              specific_identifier:
+                summary: Search by a single identifier type (e.g. from a "Search by" dropdown)
+                value:
+                  child_id: 728
+                  admission_id: "622"
+                  payer_id: "1518@hcx"
+                  identifier_type: "MobileNo"
+                  force_refresh: true
       responses:
         "200":
           description: Policies fetched successfully
@@ -557,8 +565,8 @@ paths:
                           effective_from: "2026-01-01"
                           effective_to: "2026-12-31"
                       fetched_at: "2026-05-04T10:40:00+05:30"
-        "422":
-          description: Missing required child identifier
+        "400":
+          description: Missing required child identifier, or an unsupported `identifier_type` value
           content:
             application/json:
               schema:
@@ -1624,6 +1632,13 @@ paths:
       tags: [Preauthorization]
       operationId: getPreauthStatus
       summary: Check preauthorization callback result
+      description: >
+        To refresh coverage eligibility / InsurancePlan data after the
+        preauth has already been submitted (e.g. the user wants an updated
+        sum insured before deciding on Prepare Claim or Reprocess/Appeal),
+        call `GET /cashless/{cashless_case_id}?force_refresh=true` — it does
+        not affect this endpoint's `decision`/`preauth_ref`/`status` and does
+        not resubmit the preauth.
       parameters:
         - $ref: "#/components/parameters/RequestIdParam"
         - $ref: "#/components/parameters/ProviderIdHeader"
@@ -3660,6 +3675,19 @@ components:
           type: string
           description: Selected payer participant code from payer search.
           example: "1518@hcx"
+        identifier_type:
+          type: string
+          enum: [AbhaNumber, MemberId, MobileNo]
+          nullable: true
+          description: >
+            Optional. Restricts the lookup to a single identifier type instead
+            of the default cascade (tries ABHA, then Member ID, then Mobile,
+            stopping at the first that returns policies). Use this to back a
+            "Search by" dropdown. If the child has no value on file for the
+            requested type, or NHCX returns nothing for it, the response has
+            an empty `policies` array — it does NOT fall back to the other
+            identifier types. Omit this field for the default auto-cascade
+            behavior.
         force_refresh:
           type: boolean
           default: false
