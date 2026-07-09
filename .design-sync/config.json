@@ -13,6 +13,8 @@
     "MissingFieldsAlert": "src/components/Common.jsx",
     "DocumentChecklist": "src/components/Common.jsx",
     "DecisionBanner": "src/components/Common.jsx",
+    "LoadingBlock": "src/components/Common.jsx",
+    "EmptyState": "src/components/Common.jsx",
     "SkeletonTable": "src/components/Common.jsx",
     "AmountGrid": "src/components/Common.jsx",
     "TaskCard": "src/components/Common.jsx",

@@ -1,4 +1,4 @@
-/* Concatenated for claude.ai/design sync: design-system.css + App.css (see .design-sync/NOTES.md). Never edited by the converter — regenerate by re-running this cat if either source file changes. */
+/* Concatenated for claude.ai/design sync — see .design-sync/NOTES.md for why this is a real concat, not an @import wrapper */
 /*
   Unified design tokens for the NHCX frontend.
   Same variable names as the legacy App.css tokens so every existing
@@ -140,8 +140,19 @@ h3,
 /* Layout */
 .app-container {
     display: flex;
+    flex-direction: column;
     height: 100vh;
     width: 100%;
+    overflow: hidden;
+}
+
+/* Row that holds the sidebar + content; a separate layer from
+   .app-container so Direction B's command-bar/breadcrumb-strip can span
+   the full width above it. */
+.app-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -356,6 +367,211 @@ h3,
     color: #fff;
 }
 
+/* ─── Direction B: top command-bar + breadcrumb strip (desktop only) ─────
+   Hidden by default; the media query below reveals them only for
+   .dir-b at desktop widths. Mobile always falls back to the existing
+   .top-bar + sidebar slide-out, regardless of direction. */
+.command-bar,
+.breadcrumb-strip {
+    display: none;
+}
+
+.command-bar {
+    height: 58px;
+    padding: 0 24px;
+    background: var(--bg-sidebar);
+    color: white;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sidebar);
+}
+
+.command-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.command-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.command-brand-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.command-brand-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+}
+
+.command-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.command-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.command-nav-pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: var(--radius-pill);
+    color: rgba(255, 255, 255, 0.65);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+.command-nav-pill:hover {
+    color: white;
+}
+
+.command-nav-pill.active {
+    color: white;
+}
+
+.command-nav-pill--icon {
+    padding: 8px;
+}
+
+.command-nav-active {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius-pill);
+}
+
+.command-nav-badge {
+    min-width: 17px;
+    height: 17px;
+    border-radius: var(--radius-pill);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+
+.command-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.command-facility-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 220px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.command-facility-btn.is-all {
+    background: color-mix(in srgb, var(--info) 24%, transparent);
+    border-color: color-mix(in srgb, var(--info) 45%, transparent);
+}
+
+.command-facility-btn.is-missing {
+    background: color-mix(in srgb, var(--error) 24%, transparent);
+    border-color: color-mix(in srgb, var(--error) 45%, transparent);
+}
+
+.command-facility-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.command-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.command-bar .notif-badge {
+    border-color: var(--bg-sidebar);
+}
+
+.breadcrumb-strip {
+    height: 40px;
+    padding: 0 24px;
+    background: var(--bg-card);
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+@media (min-width: 769px) {
+    .app-container.dir-b .command-bar,
+    .app-container.dir-b .breadcrumb-strip {
+        display: flex;
+    }
+    .app-container.dir-b .sidebar {
+        display: none;
+    }
+    .app-container.dir-b .top-bar {
+        display: none;
+    }
+}
+
 /* ─── Breadcrumb steps ───────────────────────────────────────────────────── */
 .crumb-step {
     display: flex;
@@ -459,7 +675,7 @@ h3,
 }
 
 .top-bar {
-    padding: 14px 40px;
+    padding: 11px 40px;
     background: var(--glass);
     backdrop-filter: blur(10px);
     display: flex;
@@ -533,7 +749,7 @@ h3,
 }
 
 .main-view {
-    padding: 32px 40px;
+    padding: 16px 40px 24px;
     max-width: 1440px;
     margin: 0 auto;
     width: 100%;
@@ -561,7 +777,7 @@ h3,
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    padding: 20px 24px;
+    padding: 16px 20px;
     transition:
         transform 0.2s,
         box-shadow 0.2s;
@@ -575,8 +791,8 @@ h3,
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 14px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -689,7 +905,7 @@ h3,
 }
 
 .table-modern th {
-    padding: 11px 16px;
+    padding: 9px 14px;
     text-align: left;
     font-size: 11px;
     font-weight: 700;
@@ -701,7 +917,7 @@ h3,
 }
 
 .table-modern tr td {
-    padding: 13px 16px;
+    padding: 10px 14px;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border-color);
     font-size: 13px;
@@ -718,7 +934,7 @@ h3,
 }
 
 .table-modern tfoot td {
-    padding: 13px 16px;
+    padding: 10px 14px;
     background: var(--bg-main);
     border-top: 1px solid var(--border-color);
     font-size: 13px;
@@ -967,7 +1183,7 @@ h3,
     }
 
     .main-view {
-        padding: 20px 16px;
+        padding: 14px 16px 24px;
     }
 
     .stats-grid-modern {
@@ -2431,14 +2647,36 @@ code {
 
 /* ─── Metrics responsive grid ────────────────────────────────────────────── */
 .metrics-grid-responsive {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 1fr));
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     gap: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
 }
 
-/* ─── Dashboard stat cards (scoped to .dashboard-screen only) ───────────── */
-.dashboard-screen .dx-stat-card {
+.metrics-grid-responsive::-webkit-scrollbar {
+    height: 6px;
+}
+
+.metrics-grid-responsive::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.metrics-grid-responsive::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: var(--radius-pill);
+}
+
+.metrics-grid-responsive > * {
+    flex: 1 1 0;
+    min-width: 140px;
+}
+
+/* ─── Stat cards (opt-in per screen: .dashboard-screen, .payments-screen) ── */
+.dashboard-screen .dx-stat-card,
+.payments-screen .dx-stat-card {
     padding: var(--space-3);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -2447,30 +2685,35 @@ code {
     transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
-.dashboard-screen .dx-stat-card.is-clickable {
+.dashboard-screen .dx-stat-card.is-clickable,
+.payments-screen .dx-stat-card.is-clickable {
     cursor: pointer;
 }
 
-.dashboard-screen .dx-stat-card.is-active {
+.dashboard-screen .dx-stat-card.is-active,
+.payments-screen .dx-stat-card.is-active {
     background: color-mix(in srgb, var(--stat-color) 8%, var(--bg-card));
     border-color: var(--stat-color);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--stat-color) 25%, transparent);
 }
 
-.dashboard-screen .dx-stat-top {
+.dashboard-screen .dx-stat-top,
+.payments-screen .dx-stat-top {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     margin-bottom: var(--space-2);
 }
 
-.dashboard-screen .dx-stat-icon {
+.dashboard-screen .dx-stat-icon,
+.payments-screen .dx-stat-icon {
     padding: 4px;
     border-radius: var(--radius-xs);
     display: flex;
 }
 
-.dashboard-screen .dx-stat-value {
+.dashboard-screen .dx-stat-value,
+.payments-screen .dx-stat-value {
     font-size: var(--text-2xl);
     font-weight: var(--fw-bold);
     color: var(--text-main);
@@ -2478,7 +2721,8 @@ code {
     font-variant-numeric: tabular-nums;
 }
 
-.dashboard-screen .dx-stat-label {
+.dashboard-screen .dx-stat-label,
+.payments-screen .dx-stat-label {
     font-size: var(--text-xs);
     color: var(--text-muted);
     font-weight: var(--fw-semibold);
@@ -2593,8 +2837,5 @@ code {
 
 /* ─── Mobile (≤768px) additions ──────────────────────────────────────────── */
 @media (max-width: 768px) {
-    .metrics-grid-responsive {
-        grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 1fr));
-        gap: 10px;
-    }
+    /* (Intentionally left blank for future additions, or can be removed if empty) */
 }

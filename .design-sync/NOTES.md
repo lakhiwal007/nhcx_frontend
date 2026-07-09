@@ -9,6 +9,10 @@
   ```
   `entry.mjs` needs no such regeneration — it's a plain barrel of live `export` statements that stays correct as long as the export list matches `Common.jsx`.
 
+## Sync log
+
+- **2026-07-08**: `Common.jsx` gained two new exports (`LoadingBlock`, `EmptyState`, extracted from page components in commit `044eb07`) — added to `componentSrcMap` and `entry.mjs`'s barrel per the "Re-sync risks" note below. Both have `@category Feedback` JSDoc already. Authored previews for both (`.design-sync/previews/LoadingBlock.tsx`, `EmptyState.tsx`), composed from real call sites in `Payments.jsx`, `WorkQueue.jsx`, and `Settings.jsx` — graded `good` on first pass, no rework needed. Also regenerated `entry.css` (source `App.css`/`design-system.css` had changed via spacing-token commits `589c146`/`26a0dcf` since the last sync) — token/class validation against the fresh build found zero drift in `conventions.md`.
+
 ## Known render warns
 
 - **`Card` review capture (`_screenshots/review/layout__Card.png`) reproducibly renders blank** across repeat `package-capture.mjs` runs, while the render-check capture (`_screenshots/layout__Card.png`, from `package-validate.mjs`) always renders it correctly and completely. Root cause: `Card` is the only one of the 11 synced components with a Framer Motion mount transition (`initial={{opacity:0,y:20}} animate={{opacity:1,y:0}}`); the review harness navigates per-cell via `?story=` and screenshots on `networkidle`, which fires before the fade completes, while the render-check's single combined-grid page apparently gives it just enough extra time. Graded `good` (see `.design-sync/.cache/review/Card.grade.json`) based on the render-check screenshot, which is the real, complete, correctly-styled output. Not a defect in the preview or in `Card` itself — a re-sync seeing this same blank capture for `Card` again is expected, not a new regression.
