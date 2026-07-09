@@ -1,13 +1,19 @@
 /*
-  Unified design tokens for the NHCX frontend.
-  Same variable names as the legacy App.css tokens so every existing
-  consumer (Common.jsx, App.css utility classes, inline var() usages)
-  picks up new values with zero markup changes.
+  Design tokens for the NHCX frontend — clay + glass system.
+  Same variable names as the prior "Design System v2" pass so every existing
+  consumer (Common.jsx, App.css utility classes, inline var() usages,
+  case-workspace.css's --cx-* aliases) picks up the new values with zero
+  markup changes. --shadow/--shadow-lg/--shadow-sm/--shadow-xs are redefined
+  to *be* the clay raised-surface shadow (soft outer drop + inset highlight)
+  rather than adding parallel --clay-* tokens, so every card/button/table
+  that already consumes them gets the clay treatment for free.
 
-  Scope of this pass: App Shell + Dashboard get full structural/motion
-  treatment; every other screen inherits this token layer automatically
-  (color/typography/shape only) except the Case surface (`.cx-root`),
-  which redeclares its own `--cx-*` tokens and is fully insulated.
+  Structural surfaces (cards, buttons, inputs, tables, nav, badges) use the
+  --shadow* clay tokens. Overlay surfaces (modals, toasts, sticky chrome)
+  use the --glass* tokens instead — --glass/--glass-border already existed
+  here but were unused; --glass-blur/--glass-shadow are new additions to
+  complete that layer. --clay-inset is for pressed/active states (button
+  press, focus rings, step-circle grooves).
 */
 
 :root {
@@ -41,65 +47,78 @@
   --space-8: 32px;
   --space-10: 40px;
 
-  /* Shape — one radius scale used everywhere */
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  /* Shape — clay reads best with generous rounding */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
   --radius-pill: 999px;
   --radius: var(--radius-lg);
 
-  /* Z-index scale (values unchanged from prior literals, just named) */
+  /* Z-index scale (unchanged) */
   --z-topbar: 40;
   --z-sidebar: 50;
   --z-mobile-overlay: 999;
   --z-mobile-sidebar: 1000;
   --z-toast: 9999;
 
-  /* Color — neutral zinc base, single cobalt accent, distinct semantic hues */
+  /* Color — soft warm neutral base, cobalt accent, clay-safe semantic hues */
   --primary: #1d4ed8;
   --primary-hover: #1e40af;
-  --primary-light: #eff6ff;
+  --primary-light: #eaf1ff;
   --accent: #4f7fe0;
 
-  --bg-main: #f5f6f8;
-  --bg-sidebar: #18181b;
-  --bg-card: #ffffff;
+  --bg-main: #e9edf5;
+  --bg-sidebar: #1c1c23;
+  --bg-card: #fbfbfe;
 
-  --text-main: #18181b;
-  --text-muted: #71717a;
+  --text-main: #1f2430;
+  --text-muted: #6b7280;
   --text-white: #ffffff;
 
-  --border-color: #e4e4e7;
-  --border-hover: #d4d4d8;
+  --border-color: #e3e7f0;
+  --border-hover: #cfd6e4;
 
-  --success: #059669;
+  --success: #16a34a;
   --warning: #d97706;
   --error: #e11d48;
   --info: #0284c7;
 
-  --glass: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --shadow-xs: 0 1px 2px rgba(24, 24, 27, 0.04);
-  --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.06);
-  --shadow: 0 4px 10px -2px rgba(24, 24, 27, 0.08), 0 2px 4px -2px rgba(24, 24, 27, 0.05);
-  --shadow-lg: 0 12px 24px -8px rgba(24, 24, 27, 0.12), 0 4px 8px -4px rgba(24, 24, 27, 0.06);
+  /* Glass overlay layer (modals, toasts, sticky chrome) */
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-blur: 18px;
+  --glass-shadow: 0 8px 32px rgba(31, 41, 55, 0.14);
+
+  /* Clay shadow recipe — soft outer drop + inset top highlight + inset
+     bottom shade, giving structural surfaces a puffy/raised read. */
+  --shadow-xs: 0 1px 2px rgba(31, 41, 55, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --shadow-sm: 0 3px 8px rgba(31, 41, 55, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --shadow: 0 10px 20px -6px rgba(31, 41, 55, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -10px 16px -12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 18px 36px -8px rgba(31, 41, 55, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -12px 20px -12px rgba(15, 23, 42, 0.1);
+
+  /* Pressed/inset clay groove — active buttons, focus wells, step tracks */
+  --clay-inset: inset 0 2px 6px rgba(15, 23, 42, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.5);
 }
 
 [data-theme="dark"] {
-  --bg-main: #0b0b0e;
+  --bg-main: #0d0d11;
   --bg-sidebar: #08080a;
-  --bg-card: #131316;
+  --bg-card: #17171c;
 
-  --text-main: #fafafa;
-  --text-muted: #a1a1aa;
+  --text-main: #f2f2f5;
+  --text-muted: #9b9ba8;
 
-  --border-color: #27272a;
-  --border-hover: #3f3f46;
+  --border-color: #26262f;
+  --border-hover: #383845;
 
   --primary: #5b8def;
   --primary-hover: #79a3ff;
-  --primary-light: rgba(91, 141, 239, 0.14);
+  --primary-light: rgba(91, 141, 239, 0.16);
   --accent: #7da8ff;
 
   --success: #34d399;
@@ -107,8 +126,18 @@
   --error: #fb7185;
   --info: #38bdf8;
 
-  --glass: rgba(11, 11, 14, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 12px 24px -8px rgba(0, 0, 0, 0.45), 0 4px 8px -4px rgba(0, 0, 0, 0.35);
+  --glass: rgba(15, 15, 20, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-sm: 0 3px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -10px 18px -12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 20px 40px -8px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -12px 22px -12px rgba(0, 0, 0, 0.45);
+
+  --clay-inset: inset 0 2px 6px rgba(0, 0, 0, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }

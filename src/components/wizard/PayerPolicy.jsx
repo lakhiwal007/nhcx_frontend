@@ -230,7 +230,7 @@ export default function PayerPolicy({ ctx }) {
                 <p className="text-muted">Fetching policies...</p>
               </div>
             ) : policyError ? (
-              <div className="warning-banner" style={{ background: "rgba(239,68,68,0.08)", borderColor: "var(--error)", color: "var(--error)", fontSize: "13px" }}>
+              <div className="warning-banner tone-error" style={{ color: "var(--error)", fontSize: "13px" }}>
                 {policyError}
               </div>
             ) : policies.length === 0 ? (

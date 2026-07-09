@@ -28,7 +28,7 @@ import {
   Globe,
 } from "lucide-react";
 import "./App.css";
-import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY } from "./api";
+import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY } from "./api";
 
 import WorkQueue from "./components/WorkQueue";
 import Dashboard from "./components/Dashboard";
@@ -49,7 +49,9 @@ export default function App() {
   const location = useLocation();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [theme, setTheme] = useState("light");
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem(THEME_KEY) || "light",
+  );
   const [apiErrors, setApiErrors] = useState([]);
   const apiErrorTimers = useRef({});
   const [pendingTaskCount, setPendingTaskCount] = useState(0);
@@ -169,8 +171,8 @@ export default function App() {
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
+    localStorage.setItem(THEME_KEY, newTheme);
     setTheme(newTheme);
-    document.documentElement.setAttribute("data-theme", newTheme);
   };
 
   const toggleLayoutDirection = () => {
@@ -502,9 +504,9 @@ export default function App() {
                   display: "flex", alignItems: "center", gap: "6px",
                   fontSize: "12px", fontWeight: 600, padding: "5px 12px",
                   borderRadius: "var(--radius-pill)", cursor: "pointer",
-                  background: "rgba(225,29,72,0.12)",
+                  background: "color-mix(in srgb, var(--error) 12%, transparent)",
                   color: "var(--error)",
-                  border: "1px solid rgba(225,29,72,0.3)",
+                  border: "1px solid color-mix(in srgb, var(--error) 30%, transparent)",
                 }}
               >
                 <Building2 size={13} />
@@ -614,14 +616,14 @@ export default function App() {
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 60, scale: 0.88 }}
               transition={{ type: "spring", stiffness: 320, damping: 28 }}
               style={{
-                background: "linear-gradient(135deg, var(--error) 0%, #be123c 100%)",
+                background: "linear-gradient(135deg, var(--error) 0%, color-mix(in srgb, var(--error) 70%, black) 100%)",
                 color: "white",
                 padding: "14px 18px",
                 borderRadius: "var(--radius-md)",
                 display: "flex",
                 alignItems: "flex-start",
                 gap: "12px",
-                boxShadow: "0 8px 24px rgba(225, 29, 72, 0.35), 0 2px 8px rgba(0,0,0,0.1)",
+                boxShadow: "0 8px 24px color-mix(in srgb, var(--error) 40%, transparent), inset 0 1px 0 rgba(255,255,255,0.25)",
                 border: "1px solid rgba(255,255,255,0.15)",
               }}
             >

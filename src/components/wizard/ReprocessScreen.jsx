@@ -147,7 +147,7 @@ export default function ReprocessScreen({ ctx }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
           <Card title="Supporting Evidence">
-            <div className="warning-banner mb-4" style={{ background: "rgba(245,158,11,0.1)", color: "var(--warning)" }}>
+            <div className="warning-banner mb-4" style={{ color: "var(--warning)" }}>
               Attach any documents referenced in the payer's rejection notes.
             </div>
             <DocumentChecklist documents={supportingDocs} onUpload={handleUpload} />

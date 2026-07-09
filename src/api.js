@@ -23,6 +23,9 @@ export const ALL_FACILITIES_MODE_KEY = "nhcx_all_facilities_mode";
 // top command-bar + breadcrumb strip). Purely a presentation preference.
 export const LAYOUT_DIRECTION_KEY = "nhcx_layout_direction";
 
+// Light/dark theme preference, persisted across reloads.
+export const THEME_KEY = "nhcx_theme";
+
 const getProviderHeader = () => {
   if (localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true") return {};
   const code = localStorage.getItem("nhcx_default_provider_id");

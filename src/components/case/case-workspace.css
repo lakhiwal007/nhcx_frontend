@@ -79,11 +79,11 @@
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  box-shadow: var(--cx-shadow);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 .cx-id:hover {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
 }
 
@@ -239,9 +239,11 @@
   width: calc(100% - 26px);
   height: 2px;
   background: var(--cx-line);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 .cx-step-connector.is-filled {
   background: var(--cx-approve);
+  box-shadow: none;
 }
 
 .cx-step-btn {
@@ -285,8 +287,9 @@
   background: var(--cx-surface);
   border: 2px solid var(--cx-line-strong);
   color: var(--cx-ink-soft);
+  box-shadow: var(--shadow-xs);
   flex-shrink: 0;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .cx-step-btn:not([disabled]):hover .cx-step-circle {
   border-color: var(--cx-primary);
@@ -296,6 +299,8 @@
   background: var(--cx-approve);
   border-color: var(--cx-approve);
   color: #fff;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--cx-approve) 45%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .cx-step.is-done .cx-step-btn:not([disabled]):hover .cx-step-circle {
   color: #fff;
@@ -303,6 +308,7 @@
 .cx-step.is-active .cx-step-circle {
   border-color: var(--cx-pulse);
   color: var(--cx-primary);
+  box-shadow: var(--shadow-xs), 0 0 0 3px color-mix(in srgb, var(--cx-pulse) 18%, transparent);
 }
 .cx-step.is-branch .cx-step-circle {
   border-style: dashed;
@@ -400,6 +406,7 @@
   border-radius: var(--cx-radius-sm);
   background: var(--cx-surface-2);
   border: 1px solid var(--cx-line);
+  box-shadow: var(--clay-inset);
 }
 .cx-vital-dot {
   position: relative;
@@ -408,6 +415,7 @@
   justify-self: center;
   border-radius: 50%;
   background: var(--cx-line-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 .cx-vital.is-live .cx-vital-dot { background: var(--cx-pulse); }
 .cx-vital.is-live .cx-vital-dot::after {
@@ -487,8 +495,11 @@
   font-weight: 600;
   padding: 6px 11px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--cx-line);
-  background: var(--cx-surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  box-shadow: var(--glass-shadow);
   color: var(--cx-ink-soft);
   white-space: nowrap;
 }

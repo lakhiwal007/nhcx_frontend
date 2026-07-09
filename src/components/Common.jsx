@@ -181,29 +181,13 @@ export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) =
   const [photoError, setPhotoError] = useState(false);
   return (
     <motion.div
-      whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
+      whileHover={{ y: -4 }}
       onClick={onClick}
-      style={{
-        padding: "14px 16px",
-        border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border-color)"}`,
-        borderRadius: "var(--radius-md)",
-        background: isSelected ? "var(--primary-light)" : "var(--bg-card)",
-        cursor: "pointer",
-        transition: "all 0.15s",
-        display: "flex",
-        alignItems: "center",
-        gap: "14px",
-      }}
+      className={`patient-card-modern${isSelected ? " selected" : ""}`}
     >
-      <div style={{
-        width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0,
-        background: isSelected ? "var(--primary)" : "var(--primary-light)",
-        color: isSelected ? "white" : "var(--primary)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontWeight: 800, fontSize: "16px", overflow: "hidden",
-      }}>
+      <div className="patient-card-avatar">
         {patient.profile_photo && !photoError
-          ? <img src={patient.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setPhotoError(true)} />
+          ? <img src={patient.profile_photo} alt="" onError={() => setPhotoError(true)} />
           : patient.name?.[0]?.toUpperCase()
         }
       </div>
@@ -224,10 +208,7 @@ export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) =
         )}
       </div>
       {patient.cashless_cases_count > 0 && (
-        <div style={{
-          background: "var(--primary-light)", color: "var(--primary)",
-          borderRadius: "var(--radius-pill)", padding: "2px 8px", fontSize: "11px", fontWeight: 700, flexShrink: 0,
-        }}>
+        <div className="patient-card-count">
           {patient.cashless_cases_count} case{patient.cashless_cases_count !== 1 ? "s" : ""}
         </div>
       )}
@@ -246,10 +227,8 @@ export const MissingFieldsAlert = ({ fields, onResolve }) => {
   if (!fields?.length) return null;
   return (
     <div
-      className="warning-banner mb-6"
+      className="warning-banner tone-error mb-6"
       style={{
-        background: "rgba(239,68,68,0.08)",
-        borderColor: "var(--error)",
         display: "flex",
         gap: "var(--space-3)",
         alignItems: "flex-start",
@@ -307,12 +286,11 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
     <div>
       {missingRequired.length > 0 && (
         <div
-          className="warning-banner mb-4"
+          className="warning-banner tone-error mb-4"
           style={{
             display: "flex",
             gap: "10px",
             alignItems: "center",
-            background: "rgba(239,68,68,0.08)",
           }}
         >
           <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0 }} />
@@ -413,48 +391,29 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
 export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) => {
   const isApproved = decision === "APPROVED";
   const isQueried = decision === "QUERIED";
-  const isPartial = decision === "PARTIALLY_APPROVED";
   // The preauth was voided after the payer acknowledged a cancellation request.
   const isCancelled = decision === "CANCELLED";
   // Neutral state when the payer decision could not be classified. The raw FHIR
   // `outcome` is surfaced only here (per the contract) for support triage.
   const isUnknown = !decision || decision === "UNKNOWN";
 
-  const bg = isApproved
-    ? "rgba(16,185,129,0.1)"
+  const tone = isApproved
+    ? "tone-approve"
     : isQueried
-      ? "rgba(59,130,246,0.1)"
+      ? "tone-query"
       : isUnknown || isCancelled
-        ? "rgba(100,116,139,0.08)"
-        : "rgba(245,158,11,0.1)";
-  const border = isApproved
-    ? "var(--success)"
-    : isQueried
-      ? "#3b82f6"
-      : isUnknown || isCancelled
-        ? "var(--border-color)"
-        : "var(--warning)";
+        ? "tone-neutral"
+        : "tone-warn";
   const iconColor = isApproved
     ? "var(--success)"
     : isQueried
-      ? "#3b82f6"
+      ? "var(--info)"
       : isUnknown || isCancelled
         ? "var(--text-muted)"
         : "var(--warning)";
 
   return (
-    <div
-      style={{
-        background: bg,
-        border: `1.5px solid ${border}`,
-        borderRadius: "14px",
-        padding: "20px 24px",
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--space-4)",
-        marginBottom: "var(--space-6)",
-      }}
-    >
+    <div className={`decision-banner ${tone}`}>
       {isApproved ? (
         <CheckCircle2 size={36} color={iconColor} />
       ) : isCancelled ? (
@@ -577,16 +536,7 @@ export const AmountGrid = ({ totals }) => {
   return (
     <div className="grid-1-to-4" style={{ gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
       {Object.entries(totals).map(([k, v]) => (
-        <div
-          key={k}
-          style={{
-            background: "var(--bg-main)",
-            borderRadius: "10px",
-            padding: "14px",
-            textAlign: "center",
-            border: "1px solid var(--border-color)",
-          }}
-        >
+        <div key={k} className="amount-grid-cell">
           <div
             style={{
               fontSize: "11px",
@@ -625,19 +575,14 @@ export const AmountGrid = ({ totals }) => {
 export const TaskCard = ({ task, onClick }) => (
   <motion.div
     whileHover={{ y: -2 }}
-    className="card-modern"
+    className="card-modern task-card-modern"
     style={{
-      padding: "var(--space-4)",
-      cursor: "pointer",
-      borderLeft:
+      "--task-accent":
         task.priority === "urgent"
-          ? "4px solid var(--error)"
+          ? "var(--error)"
           : task.priority === "high"
-            ? "4px solid var(--warning)"
-            : "4px solid var(--primary)",
-      display: "flex",
-      gap: "var(--space-4)",
-      alignItems: "center",
+            ? "var(--warning)"
+            : "var(--primary)",
     }}
     onClick={onClick}
   >
