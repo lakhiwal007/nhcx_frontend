@@ -14,11 +14,14 @@ export default function CaseStepper({ stages, onNavigate }) {
           const ariaLabel = s.branch
             ? `${s.label}${s.note ? ` - ${s.note}` : ""}`
             : `Stage ${s.num}: ${s.label}${s.note ? ` - ${s.note}` : ""}`;
+          // The connector drawn inside step i spans downward to step i+1's
+          // circle, so its fill reflects whether progress has reached i+1.
+          const next = stages[i + 1];
           return (
             <div key={s.id} className={`cx-vstep is-${s.state}${s.branch ? " is-branch" : ""}`}>
-              {i > 0 && (
+              {next && (
                 <span
-                  className={`cx-vstep-connector${s.state === "done" || s.state === "active" ? " is-filled" : ""}`}
+                  className={`cx-vstep-connector${next.state === "done" || next.state === "active" ? " is-filled" : ""}`}
                   aria-hidden="true"
                 />
               )}
@@ -28,18 +31,12 @@ export default function CaseStepper({ stages, onNavigate }) {
                 onClick={() => s.clickable && onNavigate(s.path)}
                 aria-current={s.state === "active" ? "step" : undefined}
                 aria-label={ariaLabel}
-                whileHover={s.clickable ? { scale: 1.05 } : {}}
-                whileTap={s.clickable ? { scale: 0.95 } : {}}
+                whileHover={s.clickable ? { scale: 1.02 } : {}}
+                whileTap={s.clickable ? { scale: 0.97 } : {}}
               >
-                <motion.span
-                  className="cx-vstep-circle"
-                  aria-hidden="true"
-                  animate={{
-                    boxShadow: s.state === "active" ? "0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent)" : "none"
-                  }}
-                >
+                <span className="cx-vstep-circle" aria-hidden="true">
                   {s.state === "done" ? <Check size={14} strokeWidth={3} /> : s.branch ? "+" : s.num}
-                </motion.span>
+                </span>
                 <span className="cx-vstep-body">
                   <span className="cx-vstep-label">{s.label}</span>
                   {s.note && s.state !== "active" && (

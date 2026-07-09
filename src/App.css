@@ -484,9 +484,10 @@ h3,
 .breadcrumb-strip {
     height: 40px;
     padding: 0 20px;
-    background: var(--glass);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background-color: var(--glass);
+    background-image: var(--glass-sheen);
+    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
     align-items: center;
     border-bottom: 1px solid var(--glass-border);
     flex-shrink: 0;
@@ -608,12 +609,13 @@ h3,
     background: var(--text-muted);
 }
 
-/* ─── Top bar (Direction A) — sticky glass chrome ───────────────────────── */
+/* ─── Top bar (Direction A) — sticky liquid-glass chrome ────────────────── */
 .top-bar {
     padding: 11px 20px;
-    background: var(--glass);
-    backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+    background-color: var(--glass);
+    background-image: var(--glass-sheen);
+    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
     display: flex;
     justify-content: space-between;
     align-items: center;

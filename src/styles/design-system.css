@@ -84,11 +84,22 @@
   --error: #e11d48;
   --info: #0284c7;
 
-  /* Glass overlay layer (modals, toasts, sticky chrome) */
-  --glass: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.4);
-  --glass-blur: 18px;
-  --glass-shadow: 0 8px 32px rgba(31, 41, 55, 0.14);
+  /* Glass overlay layer (modals, toasts, sticky chrome). More translucent
+     base + heavier blur + a specular sheen gradient and inset edge
+     highlights give the "liquid glass" read; consumers pair --glass as
+     background-color with --glass-sheen as background-image. */
+  --glass: rgba(255, 255, 255, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-blur: 28px;
+  --glass-shadow: 0 8px 32px rgba(31, 41, 55, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+  --glass-sheen: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.08) 45%,
+    transparent 70%
+  );
 
   /* Clay shadow recipe — soft outer drop + inset top highlight + inset
      bottom shade, giving structural surfaces a puffy/raised read. */
@@ -126,9 +137,17 @@
   --error: #fb7185;
   --info: #38bdf8;
 
-  --glass: rgba(15, 15, 20, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --glass: rgba(16, 16, 24, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  --glass-sheen: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.03) 45%,
+    transparent 70%
+  );
 
   --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --shadow-sm: 0 3px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);

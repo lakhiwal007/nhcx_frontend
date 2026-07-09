@@ -76,7 +76,7 @@
   flex-wrap: wrap;
   gap: 10px 20px;
   padding: 10px 16px;
-  margin-bottom: 0;
+  margin-bottom: 18px;
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
@@ -203,6 +203,8 @@
 .cx-rail {
   flex: 0 0 220px;
   align-self: flex-start;
+  display: flex;
+  flex-direction: column;
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
@@ -210,8 +212,11 @@
   padding: 18px 16px;
   position: sticky;
   top: 56px;
-  max-height: calc(100vh - 96px);
+  /* Fill the viewport top to bottom while stuck: 56px top offset + 20px
+     bottom breathing room. Steps distribute across the full height. */
+  height: calc(100vh - 76px);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* caption kept for the a11y tree, visually hidden */
@@ -230,22 +235,29 @@
 .cx-rail-track {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
+/* Steps flex-grow so the track spans the rail's full height; the connector
+   spans each step's stretched box, keeping the line continuous whatever
+   the gap. The last step doesn't grow (nothing below it to connect to). */
 .cx-vstep {
   position: relative;
   padding-bottom: 22px;
+  flex: 1 1 auto;
 }
 .cx-vstep:last-child {
   padding-bottom: 0;
+  flex: 0 0 auto;
 }
 
-/* vertical connector — segment linking each circle to the one before it */
+/* vertical connector — segment linking this circle to the next one down.
+   left 12px centers the 2px line on the 26px circle (center x = 13). */
 .cx-vstep-connector {
   position: absolute;
-  left: 17px;
+  left: 12px;
   top: 26px;
-  bottom: -4px;
+  bottom: -2px;
   width: 2px;
   background: var(--cx-line);
   box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.08);
@@ -530,9 +542,10 @@
   padding: 6px 11px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--glass-border);
-  background: var(--glass);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  background-color: var(--glass);
+  background-image: var(--glass-sheen);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   box-shadow: var(--glass-shadow);
   color: var(--cx-ink-soft);
   white-space: nowrap;
