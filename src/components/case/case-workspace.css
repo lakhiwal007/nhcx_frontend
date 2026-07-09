@@ -33,9 +33,9 @@
   --cx-shadow: var(--shadow);
 
   /* break out of .main-view padding to claim the full canvas */
-  margin: -24px -40px;
+  margin: -24px -20px;
   min-height: calc(100vh - 56px);
-  padding: 22px 40px 44px;
+  padding: 22px 20px 44px;
   background:
     radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0) 0 0 / 22px 22px,
     var(--cx-paper);
@@ -56,11 +56,12 @@
   box-sizing: border-box;
 }
 
-/* ── Layout: stepper above the content canvas, single column ──────────── */
+/* ── Layout: sticky lifecycle rail beside the content canvas ───────────── */
 .cx-stack {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 20px;
   max-width: 1320px;
   margin: 0 auto;
 }
@@ -192,21 +193,29 @@
   letter-spacing: 0.02em;
 }
 
-/* ── The Case Stepper — a horizontal numbered lifecycle track ──────────
-   Circles connected by a track line; each stage's label + note sit below
-   the circle. Branch nodes (Enhancement, Reprocess) render a dashed ring
-   with a "+" instead of a number. The pulse-ring signature carries over
-   from the earlier spine design for the active node. */
-.cx-stepper {
+/* ── The Case Stepper — a sticky vertical lifecycle rail ────────────────
+   Circles connected by a vertical track line; each stage's label + note
+   sit beside the circle. Branch nodes (Enhancement, Reprocess) render a
+   dashed ring with a "+" instead of a number. The pulse-ring signature
+   carries over from the earlier spine design for the active node. Sticks
+   to the viewport as the stage content scrolls past it (56px accounts for
+   the app's top bar, matching .cx-root's own min-height assumption above). */
+.cx-rail {
+  flex: 0 0 220px;
+  align-self: flex-start;
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
   box-shadow: var(--cx-shadow);
-  padding: 20px 24px 16px;
+  padding: 18px 16px;
+  position: sticky;
+  top: 56px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
 }
 
 /* caption kept for the a11y tree, visually hidden */
-.cx-stepper-title {
+.cx-rail-title {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -218,40 +227,39 @@
   border: 0;
 }
 
-.cx-stepper-track {
+.cx-rail-track {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
 }
 
-.cx-step {
+.cx-vstep {
   position: relative;
-  display: flex;
-  align-items: flex-start;
-  flex: 1 1 0;
-  min-width: 0;
+  padding-bottom: 22px;
+}
+.cx-vstep:last-child {
+  padding-bottom: 0;
 }
 
-/* horizontal connector — segment linking each circle to the one before it */
-.cx-step-connector {
+/* vertical connector — segment linking each circle to the one before it */
+.cx-vstep-connector {
   position: absolute;
-  left: calc(-50% + 13px);
-  top: 13px;
-  width: calc(100% - 26px);
-  height: 2px;
+  left: 17px;
+  top: 26px;
+  bottom: -4px;
+  width: 2px;
   background: var(--cx-line);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.08);
 }
-.cx-step-connector.is-filled {
+.cx-vstep-connector.is-filled {
   background: var(--cx-approve);
   box-shadow: none;
 }
 
-.cx-step-btn {
+.cx-vstep-btn {
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 12px;
   width: 100%;
   padding: 0;
   border: none;
@@ -259,20 +267,26 @@
   font-family: var(--cx-font-body);
   color: inherit;
   cursor: pointer;
-  text-align: center;
+  text-align: left;
 }
-.cx-step-btn[disabled] {
+.cx-vstep-btn[disabled] {
   cursor: default;
 }
-.cx-step-btn:focus-visible {
+.cx-vstep-btn:focus-visible {
   outline: none;
 }
-.cx-step-btn:focus-visible .cx-step-circle {
+.cx-vstep-btn:focus-visible .cx-vstep-circle {
   border-color: var(--cx-primary);
   color: var(--cx-primary);
 }
+.cx-vstep-btn:not([disabled]):hover .cx-vstep-circle {
+  transform: scale(1.08);
+}
+.cx-vstep-btn:not([disabled]):active .cx-vstep-circle {
+  transform: scale(0.92);
+}
 
-.cx-step-circle {
+.cx-vstep-circle {
   position: relative;
   z-index: 1;
   width: 26px;
@@ -289,33 +303,33 @@
   color: var(--cx-ink-soft);
   box-shadow: var(--shadow-xs);
   flex-shrink: 0;
-  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
-.cx-step-btn:not([disabled]):hover .cx-step-circle {
+.cx-vstep-btn:not([disabled]):hover .cx-vstep-circle {
   border-color: var(--cx-primary);
   color: var(--cx-primary);
 }
-.cx-step.is-done .cx-step-circle {
+.cx-vstep.is-done .cx-vstep-circle {
   background: var(--cx-approve);
   border-color: var(--cx-approve);
   color: #fff;
   box-shadow: 0 3px 8px color-mix(in srgb, var(--cx-approve) 45%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
-.cx-step.is-done .cx-step-btn:not([disabled]):hover .cx-step-circle {
+.cx-vstep.is-done .cx-vstep-btn:not([disabled]):hover .cx-vstep-circle {
   color: #fff;
 }
-.cx-step.is-active .cx-step-circle {
+.cx-vstep.is-active .cx-vstep-circle {
   border-color: var(--cx-pulse);
   color: var(--cx-primary);
   box-shadow: var(--shadow-xs), 0 0 0 3px color-mix(in srgb, var(--cx-pulse) 18%, transparent);
 }
-.cx-step.is-branch .cx-step-circle {
+.cx-vstep.is-branch .cx-vstep-circle {
   border-style: dashed;
 }
 
 /* pulse ring on the active node */
-.cx-step.is-active .cx-step-circle::after {
+.cx-vstep.is-active .cx-vstep-circle::after {
   content: "";
   position: absolute;
   inset: -2px;
@@ -330,38 +344,57 @@
   100% { transform: scale(1.65); opacity: 0; }
 }
 
-.cx-step-label {
+.cx-vstep-body {
+  padding-top: 2px;
+  min-width: 0;
+}
+
+.cx-vstep-label {
+  display: block;
   font-family: var(--cx-font-display);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.25;
-  max-width: 90px;
 }
-.cx-step.is-upcoming .cx-step-label {
+.cx-vstep.is-upcoming .cx-vstep-label {
   color: var(--cx-ink-soft);
+  font-weight: 600;
 }
 
-.cx-step-note {
+.cx-vstep-note {
+  display: block;
   font-family: var(--cx-font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--cx-ink-soft);
-  line-height: 1.3;
-  max-width: 90px;
+  line-height: 1.4;
+  margin-top: 2px;
 }
-.cx-step-note.tone-approve { color: var(--cx-approve); }
-.cx-step-note.tone-wait { color: var(--cx-wait); }
-.cx-step-note.tone-urgent { color: var(--cx-urgent); }
-.cx-step-note.tone-live { color: var(--cx-pulse); }
+.cx-vstep-note.tone-approve { color: var(--cx-approve); }
+.cx-vstep-note.tone-wait { color: var(--cx-wait); }
+.cx-vstep-note.tone-urgent { color: var(--cx-urgent); }
+.cx-vstep-note.tone-live { color: var(--cx-pulse); }
 
-@media (max-width: 700px) {
-  .cx-stepper-track {
-    overflow-x: auto;
-    scrollbar-width: thin;
+/* Mobile: collapse to an icon-only rail — still sticky, still clickable.
+   The active stage's name is already carried by the stage heading above
+   the content pane, so nothing is lost, just de-duplicated. */
+@media (max-width: 768px) {
+  .cx-rail {
+    flex-basis: 56px;
+    padding: 16px 8px;
   }
-  .cx-step {
-    flex: 1 1 84px;
-    min-width: 84px;
+  .cx-rail-title {
+    display: none;
+  }
+  .cx-vstep-btn {
+    justify-content: center;
+  }
+  .cx-vstep-connector {
+    left: 50%;
+    transform: translateX(-1px);
+  }
+  .cx-vstep-body {
+    display: none;
   }
 }
 
@@ -458,6 +491,7 @@
 /* ── Stage workspace (right pane) ─────────────────────────────────────── */
 .cx-stage {
   min-width: 0;
+  flex: 1;
 }
 .cx-stage-head {
   display: flex;
@@ -518,7 +552,7 @@
 
 /* ── Reduced motion ───────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .cx-step.is-active .cx-step-circle::after { animation: none; opacity: 0; }
+  .cx-vstep.is-active .cx-vstep-circle::after { animation: none; opacity: 0; }
   .cx-vital.is-live .cx-vital-dot::after { animation: none; opacity: 0; }
   .cx-ecg polyline { animation: none; stroke-dashoffset: 0; }
 }
