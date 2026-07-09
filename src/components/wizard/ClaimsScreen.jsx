@@ -32,7 +32,8 @@ function Drawer({ open, onClose, title, children }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", zIndex: 90 }}
+            className="glass-overlay"
+            style={{ position: "fixed", inset: 0, zIndex: 90 }}
             onClick={onClose}
           />
           <motion.div
@@ -40,7 +41,8 @@ function Drawer({ open, onClose, title, children }) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(520px, 95vw)", background: "var(--bg-card)", borderLeft: "1px solid var(--border-color)", zIndex: 91, display: "flex", flexDirection: "column" }}
+            className="glass-panel"
+            style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(520px, 95vw)", zIndex: 91, display: "flex", flexDirection: "column" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--border-color)" }}>
               <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>{title}</h3>

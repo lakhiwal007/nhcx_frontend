@@ -640,8 +640,10 @@ export default function PreauthDraft({ ctx }) {
       {/* Sticky footer: Back · Save Draft · Submit */}
       <div style={{
         position: "sticky", bottom: 0, zIndex: 30,
-        background: "var(--glass)", backdropFilter: "blur(12px)",
-        borderTop: "1px solid var(--border-color)",
+        backgroundColor: "var(--glass)", backgroundImage: "var(--glass-sheen)",
+        backdropFilter: "blur(var(--glass-blur)) saturate(180%)",
+        WebkitBackdropFilter: "blur(var(--glass-blur)) saturate(180%)",
+        borderTop: "1px solid var(--glass-border)",
         padding: "14px 24px", margin: "24px -24px -24px -24px",
         display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)",
       }}>

@@ -31,7 +31,8 @@ function Drawer({ open, onClose, title, children }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", zIndex: 90 }}
+            className="glass-overlay"
+            style={{ position: "fixed", inset: 0, zIndex: 90 }}
             onClick={onClose}
           />
           <motion.div
@@ -39,7 +40,8 @@ function Drawer({ open, onClose, title, children }) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(520px, 95vw)", background: "var(--bg-card)", borderLeft: "1px solid var(--border-color)", zIndex: 91, display: "flex", flexDirection: "column" }}
+            className="glass-panel"
+            style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(520px, 95vw)", zIndex: 91, display: "flex", flexDirection: "column" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--border-color)" }}>
               <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>{title}</h3>
@@ -66,14 +68,16 @@ function ConfirmModal({ open, onClose, title, children }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+            className="glass-overlay"
+            style={{ position: "absolute", inset: 0 }}
             onClick={onClose}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "500px", padding: "28px", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px" }}
+            className="glass-panel"
+            style={{ position: "relative", width: "100%", maxWidth: "500px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-5)" }}>
               <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h3>
@@ -798,14 +802,16 @@ export default function PreauthStatus({ ctx }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+              className="glass-overlay"
+              style={{ position: "absolute", inset: 0 }}
               onClick={() => setShowEnhancement(false)}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              style={{ position: "relative", background: "var(--bg-card)", width: "100%", maxWidth: "640px", padding: "28px", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-color)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
+              className="glass-panel"
+              style={{ position: "relative", width: "100%", maxWidth: "640px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
             >
               <h3 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "var(--space-5)" }}>Request Preauth Enhancement</h3>
               <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} />

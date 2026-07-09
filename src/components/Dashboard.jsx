@@ -123,10 +123,10 @@ function ActionMenu({ options, onSelect, disabled, size = 32 }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.96 }}
               transition={{ duration: 0.14, ease: "easeOut" }}
+              className="glass-panel"
               style={{
                 position: "fixed", top: coords.top, right: coords.right, zIndex: 1000,
-                minWidth: "190px", background: "var(--bg-card)", border: "1px solid var(--border-color)",
-                borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-lg)", padding: "4px",
+                minWidth: "190px", borderRadius: "var(--radius-md)", padding: "4px",
                 transformOrigin: "top right",
               }}
             >

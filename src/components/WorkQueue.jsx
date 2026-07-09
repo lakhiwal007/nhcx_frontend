@@ -128,11 +128,10 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            className="glass-overlay"
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(0,0,0,0.45)",
-              backdropFilter: "blur(4px)",
               zIndex: 90,
             }}
             onClick={onClose}
@@ -142,14 +141,13 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 26, stiffness: 300 }}
+            className="glass-panel"
             style={{
               position: "fixed",
               right: 0,
               top: 0,
               bottom: 0,
               width: "min(560px, 95vw)",
-              background: "var(--bg-card)",
-              borderLeft: "1px solid var(--border-color)",
               zIndex: 91,
               display: "flex",
               flexDirection: "column",

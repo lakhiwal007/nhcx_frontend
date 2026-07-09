@@ -201,7 +201,8 @@
    to the viewport as the stage content scrolls past it (56px accounts for
    the app's top bar, matching .cx-root's own min-height assumption above). */
 .cx-rail {
-  flex: 0 0 220px;
+  /* same width as the app sidebar so the two rails read as siblings */
+  flex: 0 0 216px;
   align-self: flex-start;
   display: flex;
   flex-direction: column;
@@ -212,11 +213,21 @@
   padding: 18px 16px;
   position: sticky;
   top: 56px;
-  /* Fill the viewport top to bottom while stuck: 56px top offset + 20px
-     bottom breathing room. Steps distribute across the full height. */
-  height: calc(100vh - 76px);
+  /* Fill the viewport top to bottom without ever spilling past its edge:
+     at rest the rail's top sits ~73px into the viewport (top bar + page
+     padding), so 108px of allowance keeps the bottom inside the screen
+     both at rest and while stuck. Steps distribute across the height. */
+  height: calc(100vh - 108px);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Direction B pushes the scrollport down by the command bar + breadcrumb
+   strip (~98px), so the rail needs a shorter height and a smaller sticky
+   offset to stay inside the viewport there. */
+.app-container.dir-b .cx-rail {
+  top: 12px;
+  height: calc(100vh - 148px);
 }
 
 /* caption kept for the a11y tree, visually hidden */
@@ -381,6 +392,8 @@
   color: var(--cx-ink-soft);
   line-height: 1.4;
   margin-top: 2px;
+  /* long policy numbers/refs wrap instead of pushing the rail wider */
+  overflow-wrap: anywhere;
 }
 .cx-vstep-note.tone-approve { color: var(--cx-approve); }
 .cx-vstep-note.tone-wait { color: var(--cx-wait); }

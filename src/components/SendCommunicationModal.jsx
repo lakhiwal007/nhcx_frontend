@@ -80,14 +80,16 @@ export default function SendCommunicationModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+            className="glass-overlay"
+            style={{ position: "absolute", inset: 0 }}
             onClick={onClose}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            style={{ position: "relative", backgroundColor: "var(--glass)", backgroundImage: "var(--glass-sheen)", backdropFilter: "blur(var(--glass-blur)) saturate(180%)", WebkitBackdropFilter: "blur(var(--glass-blur)) saturate(180%)", width: "100%", maxWidth: "520px", padding: "28px", borderRadius: "var(--radius-lg)", boxShadow: "var(--glass-shadow)", border: "1px solid var(--glass-border)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
+            className="glass-panel"
+            style={{ position: "relative", width: "100%", maxWidth: "520px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
               <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>Message Payer</h3>

@@ -609,6 +609,25 @@ h3,
     background: var(--text-muted);
 }
 
+/* ─── Liquid glass surfaces (drawers, modals, menus) ─────────────────────
+   Shared visual treatment for every floating overlay; layout (position,
+   size, z-index) stays inline at each call site. .glass-overlay dims and
+   lightly blurs the page behind; .glass-panel is the surface itself. */
+.glass-overlay {
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.glass-panel {
+    background-color: var(--glass);
+    background-image: var(--glass-sheen);
+    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
 /* ─── Top bar (Direction A) — sticky liquid-glass chrome ────────────────── */
 .top-bar {
     padding: 11px 20px;
