@@ -4,6 +4,12 @@ import { Search, Building2, FileText, ArrowRight, AlertTriangle } from "lucide-r
 import { api } from "../../api";
 import { Card, Button, Input, StatusBadge } from "../Common";
 
+const IDENTIFIER_TYPE_LABELS = {
+  AbhaNumber: "ABHA Number",
+  MemberId: "Member ID",
+  MobileNo: "Mobile Number",
+};
+
 export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
   const { patient, caseState, updateCaseState } = ctx;
@@ -22,6 +28,7 @@ export default function PayerPolicy({ ctx }) {
   const [selectedPolicy, setSelectedPolicy] = useState(
     caseState.policy || null,
   );
+  const [identifierType, setIdentifierType] = useState("");
 
   const handlePayerSearchClick = async () => {
     setHasSearched(true);
@@ -45,9 +52,27 @@ export default function PayerPolicy({ ctx }) {
     status: "active",
   };
 
+  const fetchPoliciesFor = async (payer, idType) => {
+    setLoadingPolicies(true);
+    setPolicyError(null);
+    setPolicies([]);
+    try {
+      const body = { child_id: patient.child_id, payer_id: payer.code, force_refresh: false };
+      if (caseState.admission_id) body.admission_id = caseState.admission_id;
+      if (idType) body.identifier_type = idType;
+      const res = await api.fetchPolicies(body);
+      setPolicies(res?.data?.policies || []);
+    } catch (err) {
+      setPolicyError(err.message);
+    } finally {
+      setLoadingPolicies(false);
+    }
+  };
+
   const handlePayerSelect = async (payer) => {
     setSelectedPayer(payer);
     setSelectedPolicy(null);
+    setIdentifierType("");
     // Changing the payer invalidates any case prepared for a previous
     // payer/policy. Clear the case identifiers so `prep` runs a fresh
     // prepareCashless instead of resuming the stale case via status.
@@ -65,18 +90,14 @@ export default function PayerPolicy({ ctx }) {
       return;
     }
 
-    setLoadingPolicies(true);
-    setPolicyError(null);
-    setPolicies([]);
-    try {
-      const body = { child_id: patient.child_id, payer_id: payer.code, force_refresh: false };
-      if (caseState.admission_id) body.admission_id = caseState.admission_id;
-      const res = await api.fetchPolicies(body);
-      setPolicies(res?.data?.policies || []);
-    } catch (err) {
-      setPolicyError(err.message);
-    } finally {
-      setLoadingPolicies(false);
+    await fetchPoliciesFor(payer, "");
+  };
+
+  const handleIdentifierTypeChange = (idType) => {
+    setIdentifierType(idType);
+    setSelectedPolicy(null);
+    if (selectedPayer && !selectedPayer.is_demo) {
+      fetchPoliciesFor(selectedPayer, idType);
     }
   };
 
@@ -183,7 +204,26 @@ export default function PayerPolicy({ ctx }) {
 
         {/* Policy Selection */}
         {selectedPayer && (
-          <Card title="Select Policy">
+          <Card
+            title="Select Policy"
+            headerAction={
+              !selectedPayer.is_demo && (
+                <select
+                  className="input-modern"
+                  style={{ width: "auto", minWidth: "170px" }}
+                  value={identifierType}
+                  disabled={loadingPolicies}
+                  onChange={(e) => handleIdentifierTypeChange(e.target.value)}
+                  title="Restrict policy search to a single identifier"
+                >
+                  <option value="">Search by: Auto</option>
+                  <option value="AbhaNumber">Search by: ABHA Number</option>
+                  <option value="MemberId">Search by: Member ID</option>
+                  <option value="MobileNo">Search by: Mobile Number</option>
+                </select>
+              )
+            }
+          >
             {loadingPolicies ? (
               <div className="flex-center py-10 flex-col">
                 <div className="spinner mb-4" />
@@ -195,7 +235,19 @@ export default function PayerPolicy({ ctx }) {
               </div>
             ) : policies.length === 0 ? (
               <div className="text-center py-10 text-muted">
-                No policies found for this patient under {selectedPayer.name}.
+                No policies found for this patient under {selectedPayer.name}
+                {identifierType ? ` via ${IDENTIFIER_TYPE_LABELS[identifierType]}` : ""}.
+                {identifierType && (
+                  <>
+                    {" "}
+                    <span
+                      style={{ color: "var(--primary)", cursor: "pointer", textDecoration: "underline" }}
+                      onClick={() => handleIdentifierTypeChange("")}
+                    >
+                      Try Auto instead
+                    </span>
+                  </>
+                )}
               </div>
             ) : (
               <div

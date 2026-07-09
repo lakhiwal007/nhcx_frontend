@@ -491,12 +491,29 @@ const mock = {
   // ─── Policy Fetch ───────────────────────────────────────────────────────────
   fetchPolicies: async (data) => {
     await delay(1000);
+    // A specific, non-ABHA identifier_type simulates the "no fallback" rule:
+    // the cascade never runs, so a type this patient has no value for on file
+    // comes back with an empty policies array rather than trying the others.
+    if (data.identifier_type === "MobileNo") {
+      return {
+        status: "success",
+        data: {
+          child_id: data.child_id,
+          payer_id: data.payer_id,
+          identifier_used: { type: "MobileNo", value: null },
+          policies: [],
+          fetched_at: "2026-05-04T10:40:00+05:30",
+        },
+      };
+    }
     return {
       status: "success",
       data: {
         child_id: data.child_id,
         payer_id: data.payer_id,
-        identifier_used: { type: "AbhaNumber", value: "91711234567890" },
+        identifier_used: data.identifier_type
+          ? { type: data.identifier_type, value: "9123456780" }
+          : { type: "AbhaNumber", value: "91711234567890" },
         policies: [
           {
             policy_number: "POL-91711234567890-2026",
