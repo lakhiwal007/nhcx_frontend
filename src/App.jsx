@@ -424,6 +424,7 @@ export default function App() {
           </button>
         )}
 
+        {!isSidebarCollapsed && <div className="sidebar-nav-label">Workspace</div>}
         <nav className="sidebar-nav">
           {navItems.map(({ to, icon: Icon, label, badge }) => (
             <NavLink key={to} to={to} title={label} className={({ isActive }) => (isActive ? "active" : "")}>

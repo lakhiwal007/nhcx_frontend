@@ -96,81 +96,6 @@ function ageLabel(createdAt) {
   return null;
 }
 
-function SummaryStrip({ tasks }) {
-  const urgent = tasks.filter((t) => t.priority === "urgent").length;
-  const high = tasks.filter((t) => t.priority === "high").length;
-  const normal = tasks.filter(
-    (t) => t.priority !== "urgent" && t.priority !== "high",
-  ).length;
-
-  const byWorkflow = tasks.reduce((acc, t) => {
-    acc[t.workflow] = (acc[t.workflow] || 0) + 1;
-    return acc;
-  }, {});
-
-  if (tasks.length === 0) return null;
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: "var(--space-4)",
-        alignItems: "center",
-        padding: "12px 16px",
-        background: "var(--bg-card)",
-        border: "1px solid var(--border-color)",
-        borderRadius: "var(--radius-md)",
-        marginBottom: "var(--space-5)",
-        flexWrap: "wrap",
-        fontSize: "13px",
-      }}
-    >
-      <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "center" }}>
-        {urgent > 0 && (
-          <span
-            style={{
-              fontWeight: 700,
-              color: "var(--error)",
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-            }}
-          >
-            <AlertTriangle size={14} /> {urgent} Urgent
-          </span>
-        )}
-        {high > 0 && (
-          <span style={{ fontWeight: 700, color: "var(--warning)" }}>
-            {high} High
-          </span>
-        )}
-        {normal > 0 && (
-          <span style={{ fontWeight: 600, color: "var(--text-muted)" }}>
-            {normal} Normal
-          </span>
-        )}
-      </div>
-      <div
-        style={{
-          width: "1px",
-          height: "16px",
-          background: "var(--border-color)",
-        }}
-      />
-      <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-        {Object.entries(byWorkflow).map(([wf, count]) => (
-          <span
-            key={wf}
-            style={{ color: "var(--text-muted)", fontSize: "12px" }}
-          >
-            <strong style={{ color: "var(--text-main)" }}>{count}</strong> {wf}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, onNavigate }) {
   const [completing, setCompleting] = useState(false);
 
@@ -937,32 +862,12 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
   return (
     <div className="work-queue-screen">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          marginBottom: "var(--space-4)",
-        }}
-      >
-        <Button
-          variant="outline"
-          size="small"
-          icon={RefreshCw}
-          onClick={fetchTasks}
-        >
-          Refresh
-        </Button>
-      </div>
-
       {loadError && (
         <div className="inline-error-banner">
           <AlertCircle size={16} />
           Could not refresh the task list. Showing the last known results, if any.
         </div>
       )}
-
-      {statusFilter === "pending" && <SummaryStrip tasks={filteredTasks} />}
 
       <div
         style={{
@@ -1045,21 +950,26 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           <option value="oldest">Oldest First</option>
         </select>
         
-        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", marginLeft: "auto", gap: "var(--space-1)" }}>
-          <button
-            title="Board View"
-            onClick={() => setViewMode("board")}
-            style={{ padding: "6px 12px", background: viewMode === "board" ? "var(--bg-main)" : "transparent", color: viewMode === "board" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "board" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "board" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-          >
-            <LayoutGrid size={16} />
-          </button>
-          <button
-            title="List View"
-            onClick={() => setViewMode("list")}
-            style={{ padding: "6px 12px", background: viewMode === "list" ? "var(--bg-main)" : "transparent", color: viewMode === "list" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "list" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "list" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-          >
-            <List size={16} />
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginLeft: "auto" }}>
+          <Button variant="outline" size="small" icon={RefreshCw} onClick={fetchTasks}>
+            Refresh
+          </Button>
+          <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
+            <button
+              title="Board View"
+              onClick={() => setViewMode("board")}
+              style={{ padding: "6px 12px", background: viewMode === "board" ? "var(--bg-main)" : "transparent", color: viewMode === "board" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "board" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "board" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              title="List View"
+              onClick={() => setViewMode("list")}
+              style={{ padding: "6px 12px", background: viewMode === "list" ? "var(--bg-main)" : "transparent", color: viewMode === "list" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "list" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "list" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
+            >
+              <List size={16} />
+            </button>
+          </div>
         </div>
       </div>
 

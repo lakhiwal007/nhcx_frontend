@@ -318,19 +318,19 @@ export default function Dashboard({ allFacilitiesMode = false }) {
     );
   };
 
+  const newCaseButton = (
+    <Button
+      variant="primary"
+      disabled={allFacilitiesMode}
+      title={allFacilitiesMode ? "Select a facility in Settings to start a new case" : undefined}
+      onClick={() => navigate("/registry")}
+    >
+      New Cashless Case
+    </Button>
+  );
+
   return (
     <div className="dashboard-screen">
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "var(--space-4)" }}>
-        <Button
-          variant="primary"
-          disabled={allFacilitiesMode}
-          title={allFacilitiesMode ? "Select a facility in Settings to start a new case" : undefined}
-          onClick={() => navigate("/registry")}
-        >
-          New Cashless Case
-        </Button>
-      </div>
-
       {allFacilitiesMode && (
         <div className="inline-error-banner" style={{ background: "color-mix(in srgb, var(--info) 10%, var(--bg-card))", borderColor: "color-mix(in srgb, var(--info) 30%, transparent)", color: "var(--info)" }}>
           <AlertCircle size={16} />
@@ -447,7 +447,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
             </Card>
           )}
 
-          <Card title="Recent Claims">
+          <Card title="Recent Claims" headerAction={newCaseButton}>
             <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-5)", alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 250px", maxWidth: "360px" }}>
                 <Input
