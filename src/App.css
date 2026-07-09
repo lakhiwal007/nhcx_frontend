@@ -71,7 +71,7 @@ h3,
 .sidebar-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     white-space: nowrap;
     flex-shrink: 0;
     overflow: hidden;
@@ -98,11 +98,13 @@ h3,
     display: none;
 }
 
+/* 34px (down from 40) so toggle + logo + full "NHCX Service" name fit the
+   216px sidebar without clipping the wordmark */
 .brand-logo {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    min-height: 40px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
     background: linear-gradient(135deg, var(--primary), var(--accent));
     border-radius: var(--radius-md);
     display: flex;
@@ -803,11 +805,13 @@ h3,
 
 .table-responsive-wrapper {
     width: 100%;
+    /* overflow-y hidden (not the overflow shorthand) so the rounded
+       corners clip while wide tables can still scroll horizontally */
     overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    overflow: hidden;
     box-shadow: var(--shadow-sm);
 }
 

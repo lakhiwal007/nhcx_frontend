@@ -251,11 +251,15 @@
 
 /* Steps flex-grow so the track spans the rail's full height; the connector
    spans each step's stretched box, keeping the line continuous whatever
-   the gap. The last step doesn't grow (nothing below it to connect to). */
+   the gap. flex-basis 0 (not auto) so every step gets an equal share of
+   the height regardless of how tall its label/note content is — otherwise
+   steps with notes end up with visibly bigger circle-to-circle gaps.
+   The last step doesn't grow (nothing below it to connect to). */
 .cx-vstep {
   position: relative;
   padding-bottom: 22px;
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  min-height: fit-content;
 }
 .cx-vstep:last-child {
   padding-bottom: 0;
