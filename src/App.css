@@ -47,6 +47,12 @@ h3,
    rather than the theme-conditional --shadow tokens. ────────────────── */
 .sidebar {
     width: 216px;
+    /* Flex items default to shrinkable — without this, any non-wrapping
+       content in .content (a wide table, an unbreakable filter row) makes
+       the flex algorithm steal width from the sidebar instead of scrolling
+       .content, so the sidebar silently renders narrower than 216px and
+       by a different amount on every screen depending on what's inside it. */
+    flex-shrink: 0;
     background-color: var(--bg-sidebar);
     color: white;
     display: flex;
@@ -590,6 +596,12 @@ h3,
 /* Content Area */
 .content {
     flex-grow: 1;
+    /* Flex items default to min-width:auto (their intrinsic content size),
+       which is what was pushing back against the sidebar above. min-width:0
+       lets .content actually shrink to the space left after the sidebar,
+       so wide children (tables, filter rows) scroll within themselves
+       instead of resizing the sidebar. */
+    min-width: 0;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
