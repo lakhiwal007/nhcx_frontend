@@ -1,12 +1,23 @@
 openapi: 3.0.3
 info:
   title: NHCX Wrapper Frontend API
-  version: 1.5.0
+  version: 1.6.0
   description: >
     Minimal frontend-facing API contract for payer discovery, policy fetch,
     cashless preparation, and preauthorization. These endpoints are hospital UI
     APIs exposed by the wrapper; the frontend does not call NHCX or granular
     workflow APIs directly.
+
+
+    **v1.6.0 (non-breaking):** a rejected **discharge** (interim) claim no
+    longer dead-ends into the final-claim resubmit/reprocess actions, which
+    don't apply since no final claim has been submitted yet. It now surfaces
+    a new `resubmit_discharge_claim` task pointing at
+    `POST /claims/discharge/resubmit`, which corrects and resends the
+    discharge intimation under NHCX workflow `DC01` (Discharge Correction
+    Intimation). A successful resubmission also now correctly clears the
+    stale `REJECTED` decision (previously it could stay stuck on screen even
+    after a successful correction). No fields were removed or renamed.
 
 
     **v1.5.0 (non-breaking):** preauth `decision` can now be `CANCELLED` once a
@@ -1889,6 +1900,55 @@ paths:
                     status: "submitted"
                     message: "Discharge claim submitted (wf=14)"
 
+  /cashless/claims/discharge/resubmit:
+    post:
+      tags: [Claims]
+      operationId: resubmitDischargeClaim
+      summary: Resubmit a corrected discharge claim
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+      description: >
+        Use after `claims/status` (for the discharge submission's
+        `correlation_id`) returns `decision: REJECTED` on a **discharge**
+        claim — i.e. `submit_discharge` had not yet been followed by a final
+        claim submission. Sends the corrected discharge summary under NHCX
+        workflow `DC01` (Discharge Correction Intimation), the code the
+        payer expects for this exact case — distinct from `claims/resubmit`,
+        which corrects a rejected **final** claim under workflow 16 and does
+        not apply here (no final claim exists yet at the discharge stage).
+        Pass only the fields being corrected; everything else is re-derived
+        from DB, same as `claims/discharge`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DischargeClaimSubmitRequest"
+            examples:
+              corrected:
+                value:
+                  claim_id: 101
+                  items:
+                    - service_code: "47562"
+                      service_name: "Laparoscopic cholecystectomy"
+                      category: "SE"
+                      quantity: 1
+                      unit_price: 45000
+                      net_amount: 45000
+      responses:
+        "202":
+          description: Corrected discharge claim submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimAcceptedResponse"
+              examples:
+                accepted:
+                  value:
+                    correlation_id: "1a2b3c4d-5e6f-7089-abcd-ef1234567890"
+                    status: "submitted"
+                    message: "Discharge claim submitted (wf=14)"
+
   /cashless/claims/submit:
     post:
       tags: [Claims]
@@ -2299,7 +2359,7 @@ paths:
           description: Filter by task type. Useful for Work Queue views that only show one category (e.g. all review_communication tasks).
           schema:
             type: string
-            enum: [review_insurance_plan_documents, attach_eligibility_documents, fix_eligibility_error, submit_preauth, respond_preauth_query, resubmit_preauth, submit_discharge_claim, submit_final_claim, respond_claim_query, resubmit_claim, submit_reprocess, acknowledge_payment, review_payment_ack_failure, review_communication]
+            enum: [review_insurance_plan_documents, attach_eligibility_documents, fix_eligibility_error, submit_preauth, respond_preauth_query, resubmit_preauth, submit_discharge_claim, submit_final_claim, respond_claim_query, resubmit_claim, resubmit_discharge_claim, submit_reprocess, acknowledge_payment, review_payment_ack_failure, review_communication]
         - name: limit
           in: query
           required: false
@@ -5634,6 +5694,13 @@ components:
             `REJECTED` the underlying claim record's lifecycle status reverts to
             `draft` (re-editable); `APPROVED`/`PARTIALLY_APPROVED` move it to
             `submitted`; `QUERIED` leaves it unchanged.
+            **This field alone does not say whether the rejection was on a
+            discharge (interim) submission or a final claim** — both report
+            `decision: REJECTED` here identically. Use `pending_tasks[].task_type`
+            to tell them apart: `resubmit_discharge_claim` means correct and
+            resend via `claims/discharge/resubmit` (DC01); `resubmit_claim` +
+            `submit_reprocess` means the final claim was rejected. Always drive
+            the resubmit/reprocess UI off the task, not off `decision` alone.
         outcome:
           type: string
           nullable: true
@@ -6135,6 +6202,7 @@ components:
             - submit_final_claim
             - respond_claim_query
             - resubmit_claim
+            - resubmit_discharge_claim
             - submit_reprocess
             - acknowledge_payment
             - review_payment_ack_failure
@@ -6209,6 +6277,7 @@ components:
                 - submit_preauth
                 - respond_claim_query
                 - resubmit_claim
+                - resubmit_discharge_claim
                 - submit_discharge_claim
                 - submit_final_claim
                 - submit_reprocess
@@ -6237,7 +6306,9 @@ components:
                 addition to `claim_id` — in the case-first flow `claim_id` is null
                 and these endpoints act on the case, so use `cashless_case_id` then.
                 `submit_reprocess` is only ever offered once an adjudicated claim
-                exists (its hint always has a non-null `claim_id`).
+                exists (its hint always has a non-null `claim_id`) — a rejected
+                discharge (interim) claim gets `resubmit_discharge_claim`
+                instead, never `resubmit_claim` + `submit_reprocess`.
         metadata:
           type: object
           additionalProperties: true

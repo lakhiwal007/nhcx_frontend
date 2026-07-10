@@ -251,6 +251,7 @@ const ACTION_MAP: Record<string, { method: "GET" | "POST" | "PATCH"; path: strin
   submit_preauth:                  { method: "POST", path: "/cashless/preauth/submit" },
   respond_claim_query:             { method: "POST", path: "/cashless/claims/query-response" },
   resubmit_claim:                  { method: "POST", path: "/cashless/claims/resubmit" },
+  resubmit_discharge_claim:        { method: "POST", path: "/cashless/claims/discharge/resubmit" },
   submit_discharge_claim:          { method: "POST", path: "/cashless/claims/discharge" },
   submit_final_claim:              { method: "POST", path: "/cashless/claims/submit" },
   submit_reprocess:                { method: "POST", path: "/cashless/reprocess/submit" },
@@ -282,6 +283,7 @@ Because the backend generates tasks from payer callbacks (see `Nhcx::FrontendTas
 | `submit_final_claim` | Claims → Final tab | Claim draft |
 | `respond_claim_query` | Claim Decision | Query response drawer |
 | `resubmit_claim` | Claim Decision | Resubmit drawer |
+| `resubmit_discharge_claim` | Claims → Discharge tab | Discharge correction drawer (no reprocess option — no final claim exists yet) |
 | `submit_reprocess` | Reprocess And Appeal | Appeal form |
 | `acknowledge_payment` | Payment Reconciliation | Auto/retry ack |
 | `review_payment_ack_failure` | Payment Reconciliation | Retry ack with error |
@@ -524,13 +526,16 @@ The Work Queue is not a passive list — it is the mechanism that converts every
 | Preauth `QUERIED` | `respond_preauth_query` | high |
 | Preauth `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_preauth`, `submit_reprocess`¹ | high / normal |
 | Claim `QUERIED` | `respond_claim_query` | high |
-| Claim `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_claim`, `submit_reprocess` | high |
+| Claim `PARTIALLY_APPROVED` / `REJECTED` (final claim) | `resubmit_claim`, `submit_reprocess` | high |
+| **Discharge** claim `REJECTED`² | `resubmit_discharge_claim` (no `submit_reprocess`) | high |
 | Reprocess `PARTIALLY_APPROVED` / `REJECTED` | `resubmit_claim` | normal |
 | Payment notice received | `acknowledge_payment` | normal |
 | Payment ack failed | `review_payment_ack_failure` | high |
 | Communication received | `review_communication` | urgent if payer flagged, else normal |
 
 > ¹ `submit_reprocess` is only offered once an adjudicated **claim** exists (reprocess acts on a claim). A case-first preauth rejection has no claim yet, so only `resubmit_preauth` appears there — its `action.payload_hint` carries `cashless_case_id` (with `claim_id: null`), and the preauth resubmit/query-response endpoints act on the case, so use `cashless_case_id` in that flow.
+>
+> ² A rejected **discharge** (interim, `wf=14`) claim reports `decision: REJECTED` on `GET /claims/status/{correlation_id}` exactly like a rejected final claim — `decision` alone cannot distinguish them. Always route off the task's `task_type` instead: `resubmit_discharge_claim` means correct and resend the discharge intimation via `POST /claims/discharge/resubmit` (NHCX workflow `DC01`, Discharge Correction Intimation) — no reprocess option, since no final claim exists yet to appeal. `resubmit_claim` + `submit_reprocess` means it was the final claim that was rejected.
 
 **The task state machine — and the part teams miss:** a task leaves `pending` in *two* ways.
 
@@ -541,7 +546,7 @@ flowchart LR
     T -->|"next decision arrives<br/>backend supersedes"| A["completed (auto)"]
 ```
 
-The backend auto-completes superseded tasks: submitting a preauth clears the `submit_preauth` / `attach_eligibility_documents` tasks; a new preauth decision clears the prior `respond_preauth_query` / `resubmit_preauth` tasks; a claim decision clears the `submit_final_claim` / `submit_discharge_claim` / `respond_claim_query` / `resubmit_claim` tasks (matched by case **or** claim, so the case-anchored claim tasks created at preauth approval close too); a successful payment ack clears `acknowledge_payment` / `review_payment_ack_failure`. **Implication:** never assume a task you fetched is still pending — re-read before showing the action, and reconcile your local list on every poll. A task that vanished is not an error; it was resolved.
+The backend auto-completes superseded tasks: submitting a preauth clears the `submit_preauth` / `attach_eligibility_documents` tasks; a new preauth decision clears the prior `respond_preauth_query` / `resubmit_preauth` tasks; a claim decision clears the `submit_final_claim` / `submit_discharge_claim` / `respond_claim_query` / `resubmit_claim` / `resubmit_discharge_claim` tasks (matched by case **or** claim, so the case-anchored claim tasks created at preauth approval close too); a successful payment ack clears `acknowledge_payment` / `review_payment_ack_failure`. A successful `claims/discharge/resubmit` call also clears the stale `REJECTED` decision on the claim itself — `claim_decision`/`approved_amount` reset to null the same way a final-claim resubmission does, so the UI stops showing the old rejection once the correction is accepted. **Implication:** never assume a task you fetched is still pending — re-read before showing the action, and reconcile your local list on every poll. A task that vanished is not an error; it was resolved.
 
 **What to do, and when, on the Work Queue:**
 
@@ -1326,6 +1331,7 @@ API:
 ```http
 GET /nhcx/api/v1/insurance/cashless/claims/prepare?cashless_case_id=42
 POST /nhcx/api/v1/insurance/cashless/claims/discharge
+POST /nhcx/api/v1/insurance/cashless/claims/discharge/resubmit
 POST /nhcx/api/v1/insurance/cashless/claims/submit
 GET /nhcx/api/v1/insurance/cashless/claims/status/{correlation_id}
 ```
@@ -1398,6 +1404,15 @@ Claim decision actions:
 
 > **On `REJECTED` the claim's `status` reverts to `draft`** (while `decision` stays `REJECTED`), so the dashboard shows it as re-editable and the resubmit path is open; `APPROVED`/`PARTIALLY_APPROVED` move it to `submitted`. `QUERIED` leaves `status` unchanged — the claim is still live awaiting your response. Drive the UI off `decision` for the payer verdict and `status` for whether the claim is editable.
 
+> **`REJECTED` on a discharge claim is not the same action as `REJECTED` on a final claim, but `decision` can't tell you which one happened** — both report `decision: REJECTED` identically on `claims/status`. Route off `pending_tasks[].task_type` instead:
+>
+> | `task_type` | Meaning | Action |
+> |---|---|---|
+> | `resubmit_claim` + `submit_reprocess` | The **final** claim (`claims/submit`) was rejected | Resubmit Claim or Submit Reprocess (both apply — an adjudicated claim exists) |
+> | `resubmit_discharge_claim` | The **discharge** (interim, `wf=14`) claim was rejected — no final claim submitted yet | `POST /claims/discharge/resubmit` only. Do **not** offer Submit Reprocess here — there is nothing adjudicated to appeal. |
+>
+> `claims/discharge/resubmit` takes the same body as `claims/discharge` (`DischargeClaimSubmitRequest`) — pass only the corrected fields, everything else re-derives from DB. It sends the correction under NHCX workflow `DC01` (Discharge Correction Intimation), not the workflow-16 resubmit used for final claims. A successful call clears the stale `REJECTED` decision the same way a final-claim resubmit does.
+
 > **The payer's verdict is authoritative.** The backend classifies the decision from the inbound NHCX workflow id (e.g. preauth/claim rejected or queried) rather than re-deriving it from the FHIR bundle, so a reject or query is never silently shown as an approval even when the payer's bundle omits the matching outcome/reason codes. This also means a claim rejection delivered on any workflow id is routed and surfaced — it is no longer dropped.
 
 Follow-up APIs:
@@ -1405,6 +1420,7 @@ Follow-up APIs:
 ```http
 POST /nhcx/api/v1/insurance/cashless/claims/query-response
 POST /nhcx/api/v1/insurance/cashless/claims/resubmit
+POST /nhcx/api/v1/insurance/cashless/claims/discharge/resubmit
 ```
 
 Empty and error states:

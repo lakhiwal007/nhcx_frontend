@@ -136,7 +136,7 @@ export default function ClaimsScreen({ ctx }) {
   const [activeTab, setActiveTab] = useState(location.state?.tab || "draft");
 
   // Discharge flow
-  const [dischargeCorrelationId, setDischargeCorrelationId] = useState(null);
+  const [dischargeCorrelationId, setDischargeCorrelationId] = useState(caseState.dischargeCorrelationId || null);
   const [dischargeStatus, setDischargeStatus] = useState(null);
   const [dischargePolling, setDischargePolling] = useState(false);
 
@@ -147,6 +147,10 @@ export default function ClaimsScreen({ ctx }) {
 
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showResubmitDrawer, setShowResubmitDrawer] = useState(false);
+  // Separate from showResubmitDrawer: corrects a rejected *discharge*
+  // (interim, wf=14) claim via DC01, not the final claim (workflow 16) —
+  // no reprocess option applies since no final claim exists yet.
+  const [showDischargeResubmitDrawer, setShowDischargeResubmitDrawer] = useState(false);
   const [showContextDrawer, setShowContextDrawer] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [queryAnswer, setQueryAnswer] = useState("");
@@ -181,8 +185,12 @@ export default function ClaimsScreen({ ctx }) {
     if (finalCorrelationId) {
       setActiveTab("decision");
       setPolling(true);
+    } else if (dischargeCorrelationId) {
+      // Resume polling a discharge submission from a prior session/tab close
+      // — e.g. a resubmit_discharge_claim Work Queue task landing here fresh.
+      setDischargePolling(true);
     }
-    
+
     if (!resolvedClaimId && !resolvedCashlessCaseId) {
       setLoading(false);
       setClaimDraft({ _error: "No claim ID available. Please complete the preauth step first." });
@@ -201,7 +209,12 @@ export default function ClaimsScreen({ ctx }) {
     try {
       const res = await api.getClaimStatus(dischargeCorrelationId, signal);
       setDischargeStatus(res);
-      if (res.status === "complete" || res.status === "not_found") setDischargePolling(false);
+      // REJECTED is terminal for the interim discharge submission too — the
+      // claim itself reverts to draft, but there is nothing left to poll for
+      // until the hospital corrects and resubmits via DC01.
+      if (res.status === "complete" || res.status === "not_found" || res.decision === "REJECTED") {
+        setDischargePolling(false);
+      }
     } catch (_) {}
   };
   usePoll(pollDischarge, {
@@ -222,12 +235,13 @@ export default function ClaimsScreen({ ctx }) {
     intervalMs: POLL_INTERVAL_MS,
   });
 
-  // Seed resubmit drawer items when it opens
+  // Seed resubmit drawer items when either the final-claim or discharge-claim
+  // resubmit drawer opens.
   useEffect(() => {
-    if (showResubmitDrawer) {
+    if (showResubmitDrawer || showDischargeResubmitDrawer) {
       setResubmitEditItems(claimDraft?.items?.map((it) => ({ ...it })) ?? []);
     }
-  }, [showResubmitDrawer]);
+  }, [showResubmitDrawer, showDischargeResubmitDrawer]);
 
   const handleUpload = (doc) => {
     setClaimDraft((prev) => ({
@@ -259,6 +273,7 @@ export default function ClaimsScreen({ ctx }) {
     try {
       const res = await api.submitDischargeClaim({ claim_id: claimDraft.claim_id });
       setDischargeCorrelationId(res.correlation_id);
+      updateCaseState({ dischargeCorrelationId: res.correlation_id });
       setDischargePolling(true);
     } catch (_) {
     } finally {
@@ -328,6 +343,32 @@ export default function ClaimsScreen({ ctx }) {
     }
   };
 
+  // Corrects a rejected *discharge* claim under NHCX workflow DC01 — same
+  // body shape as the original discharge submit, distinct from
+  // handleResubmitClaim (final claim, workflow 16). Stays on the Discharge
+  // Claim tab and resumes polling the same correlation id, mirroring how a
+  // successful call clears the stale REJECTED decision server-side.
+  const handleResubmitDischargeClaim = async () => {
+    setSubmitting(true);
+    try {
+      const body = {
+        ...(resolvedClaimId ? { claim_id: resolvedClaimId } : {}),
+      };
+      if (resubmitEditItems?.length > 0) {
+        body.items = resubmitEditItems;
+      }
+      const res = await api.resubmitDischargeClaim(body);
+      setShowDischargeResubmitDrawer(false);
+      setDischargeCorrelationId(res.correlation_id);
+      updateCaseState({ dischargeCorrelationId: res.correlation_id });
+      setDischargeStatus(null);
+      setDischargePolling(true);
+    } catch (_) {
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const tabs = [
     { id: "draft", label: "Claim Draft" },
     { id: "discharge", label: "Discharge Claim" },
@@ -356,6 +397,21 @@ export default function ClaimsScreen({ ctx }) {
 
   useEffect(() => {
     const action = location.state?.openAction;
+    // The discharge (interim, wf=14) rejection has no claimStatus-derived
+    // decision to gate on — the task existing at all is the signal, there is
+    // no separate "decided" state to wait for like the final-claim actions
+    // below. Routes to the Discharge tab, not Claim Decision.
+    if (action === "resubmit_discharge_claim") {
+      if (resolvedCashlessCaseId && !caseState.cashless_case_id) {
+        updateCaseState({ cashless_case_id: resolvedCashlessCaseId });
+      }
+      if (resolvedClaimId && !caseState.claim_id) {
+        updateCaseState({ claim_id: resolvedClaimId });
+      }
+      setActiveTab("discharge");
+      setShowDischargeResubmitDrawer(true);
+      return;
+    }
     if (action !== "resubmit_claim" && action !== "respond_claim_query") return;
     if (isClaimQueried || isClaimRejected || isPartialApproval) {
       if (resolvedCashlessCaseId && !caseState.cashless_case_id) {
@@ -548,7 +604,20 @@ export default function ClaimsScreen({ ctx }) {
               </div>
             </div>
           )}
-          {dischargeStatus?.status === "complete" && (
+          {dischargeStatus?.decision === "REJECTED" ? (
+            <div style={{ padding: "12px 14px", background: "rgba(225,29,72,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)" }}>
+              <div style={{ fontWeight: 700, fontSize: "13px", color: "var(--error)", marginBottom: "6px" }}>
+                Discharge claim rejected
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--text-main)", marginBottom: "10px" }}>
+                No final claim has been submitted yet, so there's nothing to appeal — correct and
+                resend the discharge intimation instead.
+              </div>
+              <Button variant="outline" onClick={() => setShowDischargeResubmitDrawer(true)}>
+                Resubmit Discharge Claim
+              </Button>
+            </div>
+          ) : dischargeStatus?.status === "complete" && (
             <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "var(--radius-sm)", fontSize: "12px", marginBottom: "var(--space-4)" }}>
               Discharge claim adjudicated - decision: <strong>{dischargeStatus.decision || "complete"}</strong>
             </div>
@@ -564,7 +633,7 @@ export default function ClaimsScreen({ ctx }) {
               >
                 {submitting ? "Submitting…" : dischargeCorrelationId ? "Discharge Submitted ✓" : "Submit Discharge Claim"}
               </Button>
-              {(dischargeStatus?.status === "complete" || dischargeCorrelationId) && (
+              {(dischargeStatus?.status === "complete" || dischargeCorrelationId) && dischargeStatus?.decision !== "REJECTED" && (
                 <Button variant="primary" onClick={() => setActiveTab("final")}>
                   Proceed to Final Claim <ArrowRight size={16} style={{ marginLeft: "8px" }} />
                 </Button>
@@ -799,6 +868,74 @@ export default function ClaimsScreen({ ctx }) {
         )}
         <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitClaim} style={{ justifyContent: "center" }}>
           {submitting ? "Resubmitting…" : "Resubmit Claim"}
+        </Button>
+      </Drawer>
+
+      {/* ── Discharge Resubmit Drawer (DC01 correction — editable items) ── */}
+      <Drawer open={showDischargeResubmitDrawer} onClose={() => setShowDischargeResubmitDrawer(false)} title="Resubmit Discharge Claim">
+        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
+          Correct clinical or billing data on the discharge intimation. Only the fields you change
+          are sent; everything else is re-derived from the hospital DB. This resends under NHCX
+          workflow DC01 (Discharge Correction Intimation) — it does not touch the final claim.
+        </p>
+        {resubmitEditItems?.length > 0 && (
+          <div style={{ marginBottom: "var(--space-5)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Line Items</div>
+              <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "11px", color: "var(--primary)" }}><Edit2 size={11} /> Editable</span>
+            </div>
+            <div className="table-responsive-wrapper">
+              <table className="table-modern" style={{ fontSize: "13px" }}>
+                <thead>
+                  <tr>
+                    <th>Service</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th style={{ textAlign: "right" }}>Net Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resubmitEditItems.map((item, i) => (
+                    <tr key={i}>
+                      <td>{item.service_name}</td>
+                      <td>
+                        <input
+                          className="input-modern"
+                          style={{ width: "60px", fontSize: "12px", padding: "4px 6px" }}
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateResubmitItem(i, "quantity", e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="input-modern"
+                          style={{ width: "90px", fontSize: "12px", padding: "4px 6px" }}
+                          type="number"
+                          min="0"
+                          value={item.unit_price}
+                          onChange={(e) => updateResubmitItem(i, "unit_price", e.target.value)}
+                        />
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>₹{Number(item.net_amount)?.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
+                    <td style={{ textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>
+                      ₹{resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+        <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>
+          {submitting ? "Resubmitting…" : "Resubmit Discharge Claim"}
         </Button>
       </Drawer>
 

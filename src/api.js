@@ -1084,6 +1084,19 @@ const mock = {
     };
   },
 
+  // Corrects a rejected *discharge* (interim, wf=14) claim under NHCX
+  // workflow DC01 — distinct from resubmitClaim, which is for a rejected
+  // *final* claim (workflow 16). No reprocess option applies here since no
+  // final claim has been submitted yet to appeal.
+  resubmitDischargeClaim: async () => {
+    await delay(800);
+    return {
+      correlation_id: "abc123-discharge-resubmit",
+      status: "submitted",
+      message: "Discharge claim submitted (wf=14)",
+    };
+  },
+
   getClaimStatus: async (correlation_id) => {
     await delay(1200);
     return {
@@ -1861,6 +1874,7 @@ const real = {
     http.post("/cashless/claims/query-response", data),
 
   resubmitClaim: (data) => http.post("/cashless/claims/resubmit", data),
+  resubmitDischargeClaim: (data) => http.post("/cashless/claims/discharge/resubmit", data),
 
   getClaimStatus: (correlation_id, signal) =>
     http.get(`/cashless/claims/status/${correlation_id}`, {}, { signal }),

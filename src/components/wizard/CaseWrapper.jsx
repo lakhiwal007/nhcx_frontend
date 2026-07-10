@@ -48,6 +48,7 @@ export default function CaseWrapper() {
     preauthDecision: null,
     approvedAmount: null,
     claimCorrelationId: null,
+    dischargeCorrelationId: null,
     draftData: null,
     ...saved,
   });

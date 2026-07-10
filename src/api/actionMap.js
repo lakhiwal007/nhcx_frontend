@@ -13,6 +13,7 @@ export const ACTION_MAP = {
   submit_preauth:                  { method: "POST", path: "/cashless/preauth/submit" },
   respond_claim_query:             { method: "POST", path: "/cashless/claims/query-response" },
   resubmit_claim:                  { method: "POST", path: "/cashless/claims/resubmit" },
+  resubmit_discharge_claim:        { method: "POST", path: "/cashless/claims/discharge/resubmit" },
   submit_discharge_claim:          { method: "POST", path: "/cashless/claims/discharge" },
   submit_final_claim:              { method: "POST", path: "/cashless/claims/submit" },
   submit_reprocess:                { method: "POST", path: "/cashless/reprocess/submit" },
