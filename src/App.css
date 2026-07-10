@@ -637,7 +637,10 @@ h3,
 }
 
 .glass-panel {
-    background-color: var(--glass);
+    /* --glass-panel-bg (not --glass): these are large content surfaces
+       (drawers, modals) with a lot of body text — --glass's chrome-strip
+       transparency read as noise behind real content, not "glass". */
+    background-color: var(--glass-panel-bg);
     background-image: var(--glass-sheen);
     backdrop-filter: blur(var(--glass-blur)) saturate(180%);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
