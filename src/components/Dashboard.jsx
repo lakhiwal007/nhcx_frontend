@@ -257,8 +257,8 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           borderTop: "3px solid " + (claim.claim_decision === "APPROVED" ? "var(--success)" : claim.claim_decision === "REJECTED" ? "var(--error)" : claim.claim_decision === "PARTIALLY_APPROVED" ? "var(--warning)" : "var(--primary)")
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)" }}>
-          <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "1.2", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
               {claim.patient_name || claim.child_name}
               {claim.pending_tasks?.length > 0 && (
