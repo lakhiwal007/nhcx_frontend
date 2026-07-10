@@ -117,6 +117,9 @@ h3,
 .brand-name {
     font-size: 14px;
     letter-spacing: -0.2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .sidebar-nav {
