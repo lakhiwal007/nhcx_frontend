@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Send, ArrowRight, AlertCircle, X, Edit2, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, ArrowRight, AlertCircle, AlertTriangle, X, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
@@ -126,7 +126,7 @@ function PatientContextForm({ claimId, onResolved }) {
 export default function ClaimsScreen({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { caseState, updateCaseState, cashlessCase } = ctx;
+  const { caseState, updateCaseState, cashlessCase, moneyLedger, timelineEvents } = ctx;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
 
   const [loading, setLoading] = useState(true);
@@ -157,6 +157,11 @@ export default function ClaimsScreen({ ctx }) {
 
   // Editable items in resubmit drawer
   const [resubmitEditItems, setResubmitEditItems] = useState(null);
+
+  // Acknowledgement that the final bill exceeds the authorized ceiling — the
+  // over-ceiling excess is recovered from the patient (or needs an enhancement),
+  // so the desk must confirm before the final claim goes out (J2 guard).
+  const [ackOverCeiling, setAckOverCeiling] = useState(false);
 
   const claimId = caseState.claim_id || location.state?.claim_id;
   const resolvedClaimId = claimId || caseState.claim_id || null;
@@ -387,9 +392,30 @@ export default function ClaimsScreen({ ctx }) {
   const hasPreauthRef = !!claimDraft?.preauth_ref;
   // Docs block submit when any has no URL (all returned docs are required)
   const hasMissingDocs = claimDraft?.supporting_documents?.some((d) => !d.url);
+
+  // J2 — the final bill against the cumulative authorized ceiling (preauth +
+  // enhancements). When it exceeds the sanction, warn and require an explicit
+  // acknowledgement before submitting, since the excess is not payer-covered.
+  const authorizedCeiling = moneyLedger?.authorized_ceiling?.value;
+  const billedTotal = claimDraft?.total_amount;
+  const overCeiling =
+    authorizedCeiling != null && billedTotal != null && billedTotal > authorizedCeiling;
+  const ceilingExcess = overCeiling ? billedTotal - authorizedCeiling : 0;
+
   const canSubmit = !hasMissingFields && hasPreauthRef && !hasMissingDocs && !submitting;
+  // The final claim carries the extra over-ceiling acknowledgement gate; the
+  // interim discharge submit (which has no ack UI) keeps the base canSubmit.
+  const canSubmitFinal = canSubmit && (!overCeiling || ackOverCeiling);
 
   const claimDecision = claimStatus?.decision;
+  // Latest claim decision event from the audit trail — carries the payer's raw
+  // outcome / reason codes / classified_by / inbound workflow id for the banner
+  // (fuller provenance). nhcx_workflow_id is a sibling of `decision`, fold it in.
+  const claimDecisionEvent =
+    [...(timelineEvents || [])].reverse().find((e) => e.workflow === "claim" && e.decision);
+  const claimProvenance = claimDecisionEvent
+    ? { ...claimDecisionEvent.decision, nhcx_workflow_id: claimDecisionEvent.nhcx_workflow_id }
+    : null;
   const isClaimApproved = claimDecision === "APPROVED";
   const isPartialApproval = claimDecision === "PARTIALLY_APPROVED";
   const isClaimQueried = claimDecision === "QUERIED";
@@ -676,16 +702,49 @@ export default function ClaimsScreen({ ctx }) {
               </tbody>
             </table>
           </div>
-          <div style={{ textAlign: "center", marginBottom: "var(--space-4)", padding: "var(--space-5)", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
+          <div style={{ textAlign: "center", marginBottom: "var(--space-4)", padding: "var(--space-5)", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: `1px solid ${overCeiling ? "var(--warning)" : "var(--border-color)"}` }}>
             <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Final Claim Total</div>
-            <div style={{ fontSize: "32px", fontWeight: 800, color: "var(--primary)" }}>₹{claimDraft?.total_amount?.toLocaleString()}</div>
+            <div style={{ fontSize: "32px", fontWeight: 800, color: overCeiling ? "var(--warning)" : "var(--primary)" }}>₹{claimDraft?.total_amount?.toLocaleString()}</div>
+            {authorizedCeiling != null && (
+              <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "var(--space-2)" }}>
+                Authorized ceiling{moneyLedger?.authorized_ceiling?.cumulative ? " (cumulative)" : ""}: <strong>₹{authorizedCeiling.toLocaleString()}</strong>
+              </div>
+            )}
           </div>
+
+          {/* J2 — over-ceiling guard: warn + require acknowledgement before submit */}
+          {overCeiling && (
+            <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-5)" }}>
+              <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                <AlertTriangle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: "var(--warning)", marginBottom: "var(--space-1)" }}>
+                    Bill exceeds the authorized ceiling by ₹{ceilingExcess.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: "13px", color: "var(--text-main)" }}>
+                    The final bill of ₹{billedTotal?.toLocaleString()} is above the sanctioned ₹{authorizedCeiling?.toLocaleString()}.
+                    The payer will not cover the excess — it is recovered from the patient, or file an enhancement to raise the ceiling first.
+                  </div>
+                  <div style={{ marginTop: "var(--space-3)", display: "flex", gap: "var(--space-3)", alignItems: "center", flexWrap: "wrap" }}>
+                    <Button variant="outline" size="small" onClick={() => navigate("../enhancement")}>
+                      File Enhancement
+                    </Button>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                      <input type="checkbox" checked={ackOverCeiling} onChange={(e) => setAckOverCeiling(e.target.checked)} />
+                      I acknowledge the ₹{ceilingExcess.toLocaleString()} excess and will collect it from the patient.
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", justifyContent: "center" }}>
             <Button
               variant="primary"
               size="large"
               icon={Send}
-              disabled={!canSubmit || submitting}
+              disabled={!canSubmitFinal || submitting}
               onClick={handleSubmitFinal}
             >
               {submitting ? "Submitting…" : "Submit Final Claim"}
@@ -711,7 +770,7 @@ export default function ClaimsScreen({ ctx }) {
             </Card>
           ) : (
             <>
-              <DecisionBanner decision={claimDecision} outcome={claimStatus?.outcome} approvedAmount={claimStatus?.approved_amount} />
+              <DecisionBanner decision={claimDecision} outcome={claimStatus?.outcome} approvedAmount={claimStatus?.approved_amount} provenance={claimProvenance} />
 
               {/* Claim reference + payment status strip */}
               {(claimStatus?.claim_response_ref || claimStatus?.payment_status) && (
