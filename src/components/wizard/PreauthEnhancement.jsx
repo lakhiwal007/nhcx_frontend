@@ -17,6 +17,9 @@ export default function PreauthEnhancement({ ctx, onClose }) {
     const load = async () => {
       setLoading(true);
       try {
+        // Contract v1.7.0: enhancement prepare takes cashless_case_id as the
+        // PREFERRED anchor; claim_id is transitional (resolved to the linked
+        // case server-side). Prefer cashless_case_id, fall back to claim_id.
         const params = {};
         if (cashless_case_id) params.cashless_case_id = cashless_case_id;
         else if (claim_id) params.claim_id = claim_id;
