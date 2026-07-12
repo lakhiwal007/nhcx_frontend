@@ -388,18 +388,24 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
  * `outcome` when the decision itself couldn't be classified.
  * @category Feedback
  */
-export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) => {
+export const DecisionBanner = ({ decision, approvedAmount, message, outcome, provenance }) => {
   const isApproved = decision === "APPROVED";
   const isQueried = decision === "QUERIED";
   // The preauth was voided after the payer acknowledged a cancellation request.
   const isCancelled = decision === "CANCELLED";
   // Neutral state when the payer decision could not be classified.
   const isUnknown = !decision || decision === "UNKNOWN";
+  // The authoritative raw payer signal from the audit trail's decision event
+  // (reason_codes / classified_by / inbound nhcx_workflow_id), when available.
+  const rawOutcome = provenance?.raw_outcome ?? outcome;
+  const reasonCodes = provenance?.reason_codes || [];
   // Guard against a mis-classified decision hiding behind a confident banner:
-  // an approval whose raw FHIR outcome is not a success signal is suspect and
-  // must be verified, not shown as a clean green approval.
+  // prefer the wrapper's own `ambiguous` flag from the decision event; fall
+  // back to the heuristic (an approval whose raw FHIR outcome isn't a success
+  // signal is suspect and must be verified, not shown as a clean approval).
   const ambiguous =
-    isApproved && outcome != null && !["complete", "partial"].includes(String(outcome).toLowerCase());
+    provenance?.ambiguous ??
+    (isApproved && outcome != null && !["complete", "partial"].includes(String(outcome).toLowerCase()));
 
   // An ambiguous approval is demoted from green to a warning tone.
   const tone = ambiguous
@@ -444,6 +450,17 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
         {ambiguous && (
           <div style={{ fontSize: "13px", marginTop: "6px", color: "var(--warning)", fontWeight: 700 }}>
             Verify — the payer signal does not corroborate this approval.
+          </div>
+        )}
+        {/* Decision provenance from the audit trail — the payer's own reason
+            codes, which code path classified it, and the raw NHCX workflow id.
+            Makes a mis-classification auditable at the banner, not just the log. */}
+        {provenance && (reasonCodes.length > 0 || provenance.classified_by || provenance.nhcx_workflow_id != null) && (
+          <div style={{ fontSize: "12px", marginTop: "6px", color: "var(--text-muted)", fontFamily: "monospace" }}>
+            {reasonCodes.length > 0 && <>reason={reasonCodes.join(",")} · </>}
+            {rawOutcome != null && <>outcome={rawOutcome} · </>}
+            {provenance.classified_by && <>classified_by={provenance.classified_by}</>}
+            {provenance.nhcx_workflow_id != null && <> · wf {provenance.nhcx_workflow_id}</>}
           </div>
         )}
         {approvedAmount != null && !isCancelled && (
