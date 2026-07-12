@@ -96,7 +96,7 @@ function ConfirmModal({ open, onClose, title, children }) {
 export default function PreauthStatus({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { caseState, updateCaseState, cashlessCase, setCashlessCase } = ctx;
+  const { caseState, updateCaseState, cashlessCase, setCashlessCase, timelineEvents } = ctx;
   const { preauthCorrelationId, claim_id, cashless_case_id, draftData } = caseState;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
   const policyNumber = caseState.policy?.policyNumber || caseState.policy?.policy_number || cashlessCase?.policy_number || "";
@@ -314,6 +314,15 @@ export default function PreauthStatus({ ctx }) {
   };
   const isComplete = statusData?.status === "complete";
   const decision = statusData?.decision || caseState.preauthDecision;
+  // Latest preauth decision event from the audit trail — carries the payer's
+  // raw outcome / reason codes / classified_by / inbound workflow id for the
+  // banner (fuller provenance). nhcx_workflow_id is a sibling of `decision` on
+  // the event, so fold it in.
+  const preauthDecisionEvent =
+    [...(timelineEvents || [])].reverse().find((e) => e.workflow === "preauth" && e.decision);
+  const preauthProvenance = preauthDecisionEvent
+    ? { ...preauthDecisionEvent.decision, nhcx_workflow_id: preauthDecisionEvent.nhcx_workflow_id }
+    : null;
   const knownDecision = caseState.preauthDecision && caseState.preauthDecision !== "UNKNOWN";
   const isApproved = decision === "APPROVED";
   const isPartial = decision === "PARTIALLY_APPROVED";
@@ -437,6 +446,7 @@ export default function PreauthStatus({ ctx }) {
             outcome={statusData?.outcome}
             approvedAmount={statusData?.totals?.benefit?.value ?? statusData?.totals?.eligible?.value}
             message={statusData?.process_notes?.[0]?.text}
+            provenance={preauthProvenance}
           />
 
           <Card title="Adjudication Summary" className="mb-6">
