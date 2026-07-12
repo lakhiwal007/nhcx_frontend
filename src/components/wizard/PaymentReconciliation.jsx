@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Home, RefreshCw, AlertCircle, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "../../api";
@@ -132,8 +132,8 @@ export default function PaymentReconciliation({ ctx }) {
                     const needsRetry = pay.acknowledgement_status === "failed" && !ackResult?.success;
                     const isOpen = showOverrides[ref];
                     return (
-                      <>
-                        <tr key={i}>
+                      <Fragment key={i}>
+                        <tr>
                           <td style={{ fontWeight: 700 }}>{ref}</td>
                           <td style={{ fontSize: "12px" }}>{pay.claim_reference || <span className="text-muted">-</span>}</td>
                           <td style={{ fontSize: "12px" }}>{pay.payment_date || "-"}</td>
@@ -231,7 +231,7 @@ export default function PaymentReconciliation({ ctx }) {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
