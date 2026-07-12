@@ -368,6 +368,31 @@ function PatientDetail({ patient, onBack }) {
                             </div>
                           )}
 
+                          {(visit.payments?.length > 0 || visit.advance_payments?.length > 0) && (() => {
+                            // Cash the patient has already paid (deposits/advances +
+                            // collected) — needed to reconcile against the payer
+                            // settlement and compute any refund at discharge.
+                            const rows = [
+                              ...(visit.advance_payments || []).map((p) => ({ ...p, kind: "Advance" })),
+                              ...(visit.payments || []).map((p) => ({ ...p, kind: "Collected" })),
+                            ];
+                            const total = rows.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+                            return (
+                              <div style={{ marginBottom: "var(--space-4)" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--text-muted)", textTransform: "uppercase" }}>
+                                  <span>Patient Payments</span>
+                                  <span style={{ color: "var(--text-main)" }}>₹{total.toLocaleString()} collected</span>
+                                </div>
+                                {rows.map((p, pi) => (
+                                  <div key={pi} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", marginBottom: "6px", fontSize: "12px" }}>
+                                    <span style={{ color: "var(--text-muted)" }}>{p.kind}{p.mode ? ` · ${p.mode}` : ""}{p.date ? ` · ${p.date}` : ""}</span>
+                                    <strong>₹{Number(p.amount)?.toLocaleString()}</strong>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
+
                           {visit.claims?.length > 0 && (
                             <div>
                               <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", display: "flex", alignItems: "center", gap: "6px", color: "var(--text-muted)", textTransform: "uppercase" }}>
