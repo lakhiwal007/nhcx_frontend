@@ -45,14 +45,36 @@ export default function PreauthEnhancement({ ctx, onClose }) {
     load();
   }, []);
 
+  // Unchecking a new procedure drops it AND its line item from the submission,
+  // and the revised total is recomputed from what's actually being sent — so the
+  // checkboxes change the amount, not just the procedures list. New items are
+  // matched to their procedure by service_code/service_name; an item with no
+  // matching unchecked procedure is always kept (never silently dropped).
+  const uncheckedProcKeys = new Set(
+    (preview?.new_procedures || [])
+      .map((p, i) => (checkedProcedures[i] ? null : p.code ?? p.name))
+      .filter((k) => k != null),
+  );
+  const submittedItems = (preview?.suggested_request?.items || []).filter(
+    (it) => !uncheckedProcKeys.has(it.service_code) && !uncheckedProcKeys.has(it.service_name),
+  );
+  const revisedTotal =
+    uncheckedProcKeys.size === 0
+      ? preview?.current?.total_amount
+      : submittedItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0);
+  const revisedDelta =
+    revisedTotal != null && preview?.authorized?.total_amount != null
+      ? revisedTotal - preview.authorized.total_amount
+      : preview?.delta_amount;
+
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
       const selectedProcs = (preview.new_procedures || []).filter((_, i) => checkedProcedures[i]);
       const body = {
         ...(cashless_case_id ? { cashless_case_id } : { claim_id }),
-        total_amount: preview.current?.total_amount,
-        items: preview.suggested_request?.items || [],
+        total_amount: revisedTotal,
+        items: submittedItems,
         ...(selectedProcs.length > 0 && { procedures: selectedProcs }),
         supporting_documents: [
           ...(preview.supporting_documents || []),
@@ -110,12 +132,14 @@ export default function PreauthEnhancement({ ctx, onClose }) {
         </div>
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Revised Total</div>
-          <div style={{ fontWeight: 800, color: "var(--primary)" }}>₹{preview.current?.total_amount?.toLocaleString()}</div>
+          <div style={{ fontWeight: 800, color: "var(--primary)" }}>₹{revisedTotal?.toLocaleString()}</div>
         </div>
-        {preview.delta_amount != null && (
+        {revisedDelta != null && (
           <div>
             <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Delta</div>
-            <div style={{ fontWeight: 700, color: "var(--success)" }}>+₹{preview.delta_amount?.toLocaleString()}</div>
+            <div style={{ fontWeight: 700, color: revisedDelta > 0 ? "var(--success)" : "var(--text-muted)" }}>
+              {revisedDelta > 0 ? "+" : ""}₹{revisedDelta?.toLocaleString()}
+            </div>
           </div>
         )}
       </div>
