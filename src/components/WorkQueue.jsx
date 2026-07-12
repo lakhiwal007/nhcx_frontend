@@ -44,6 +44,7 @@ const TASK_TYPE_OPTIONS = [
   { value: "respond_preauth_query", label: "Respond Preauth Query" },
   { value: "resubmit_preauth", label: "Resubmit Preauth" },
   { value: "submit_discharge_claim", label: "Submit Discharge Claim" },
+  { value: "resubmit_discharge_claim", label: "Resubmit Discharge Claim" },
   { value: "submit_final_claim", label: "Submit Final Claim" },
   { value: "respond_claim_query", label: "Respond Claim Query" },
   { value: "resubmit_claim", label: "Resubmit Claim" },
@@ -61,6 +62,7 @@ const SCREEN_MAP = {
   respond_preauth_query: (cid) => `/case/${cid}/status`,
   resubmit_preauth: (cid) => `/case/${cid}/status`,
   submit_discharge_claim: (cid) => `/case/${cid}/claim`,
+  resubmit_discharge_claim: (cid) => `/case/${cid}/claim`,
   submit_final_claim: (cid) => `/case/${cid}/claim`,
   respond_claim_query: (cid) => `/case/${cid}/claim`,
   resubmit_claim: (cid) => `/case/${cid}/claim`,
@@ -488,6 +490,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           task.task_type === "respond_preauth_query" ? "respond_preauth_query" :
           task.task_type === "resubmit_claim" ? "resubmit_claim" :
           task.task_type === "respond_claim_query" ? "respond_claim_query" :
+          task.task_type === "resubmit_discharge_claim" ? "resubmit_discharge_claim" :
           undefined,
         tab: task.task_type?.includes("discharge")
           ? "discharge"
