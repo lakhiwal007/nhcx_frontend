@@ -109,8 +109,21 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
 
 export default function PreauthDraft({ ctx }) {
   const navigate = useNavigate();
-  const { caseState, updateCaseState } = ctx;
+  const { caseState, updateCaseState, cashlessCase } = ctx;
   const { payer, policy, cashless_case_id, claim_id, draftData } = caseState;
+
+  // This screen is a PRE-submission editor. Once a preauth has been submitted or
+  // decided for the case, re-entering it (e.g. clicking the Preauth step in the
+  // lifecycle stepper, which stays clickable as "done") would rebuild the draft
+  // from the live DB and offer to submit an already-decided preauth again. Detect
+  // that and send the user to the Decision screen instead. Corrections after a
+  // decision go through Resubmit/Enhancement on that screen, never a fresh draft.
+  const preauthAlreadyLive = !!(
+    caseState.preauthCorrelationId ||
+    caseState.preauthDecision ||
+    cashlessCase?.preauth_status ||
+    cashlessCase?.preauth?.correlation_id
+  );
 
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState(null);
@@ -144,6 +157,10 @@ export default function PreauthDraft({ ctx }) {
   useEffect(() => {
     if (!caseState.cashless_case_id && !caseState.claim_id) {
       navigate("../payer", { replace: true });
+      return;
+    }
+    if (preauthAlreadyLive) {
+      navigate("../status", { replace: true });
       return;
     }
     loadDraft();
