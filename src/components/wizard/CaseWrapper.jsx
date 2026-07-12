@@ -57,6 +57,12 @@ export default function CaseWrapper() {
 
   const [cashlessCase, setCashlessCase] = useState(null);
 
+  // The rolled-up money ledger + decision provenance for this case (GET
+  // /timeline). Fetched once here and shared with the header money strip
+  // (billed→authorized→approved→collect) and the decision banners (raw payer
+  // signal / classified_by), so each screen doesn't hit /timeline on its own.
+  const [timeline, setTimeline] = useState(null);
+
   const updateCaseState = useCallback((updates) => {
     setCaseState((prev) => {
       const next = { ...prev, ...updates };
@@ -67,6 +73,21 @@ export default function CaseWrapper() {
       return next;
     });
   }, [id]);
+
+  // Shared money-ledger / audit-trail fetch. Re-runs as the case advances
+  // (new preauth/claim decision, discharge, settlement) so the header strip
+  // and banner provenance track the latest state without a manual reload.
+  const ledgerCaseId = caseState.cashless_case_id;
+  const refreshTimeline = useCallback(async () => {
+    if (!ledgerCaseId) return;
+    try {
+      const res = await api.getCaseTimeline(ledgerCaseId, {});
+      setTimeline(res || null);
+    } catch (_) {}
+  }, [ledgerCaseId]);
+  useEffect(() => {
+    refreshTimeline();
+  }, [refreshTimeline, caseState.preauthDecision, caseState.approvedAmount, caseState.claimCorrelationId, caseState.dischargeCorrelationId]);
 
   // Stages are routed views swapped inside the scrollable .content pane;
   // React Router keeps the scroll offset across navigations, so a new stage
@@ -114,7 +135,16 @@ export default function CaseWrapper() {
     );
   }
 
-  const contextValue = { patient, cashlessCase, setCashlessCase, caseState, updateCaseState };
+  const contextValue = {
+    patient,
+    cashlessCase,
+    setCashlessCase,
+    caseState,
+    updateCaseState,
+    moneyLedger: timeline?.money_ledger || null,
+    timelineEvents: timeline?.events || [],
+    refreshTimeline,
+  };
 
   const effectiveCase = cashlessCase || {};
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
@@ -142,6 +172,7 @@ export default function CaseWrapper() {
             effectiveCase={effectiveCase}
             preauthRef={preauthRef}
             approvedAmount={approvedAmount}
+            moneyLedger={timeline?.money_ledger || null}
           />
 
           <div className="cx-stage-head">
