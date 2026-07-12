@@ -88,7 +88,7 @@ export default function ReprocessScreen({ ctx }) {
           </Card>
         ) : (
           <>
-            <DecisionBanner decision={status?.decision} message={status?.claim_response?.errors?.[0]?.detail || status?.process_notes?.[0]?.text} />
+            <DecisionBanner decision={status?.decision} message={status?.claim_response?.errors?.[0]?.detail} />
             {status?.decision === "REJECTED" ? (
               <div style={{ padding: "16px 20px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginTop: "var(--space-4)", marginBottom: "var(--space-4)" }}>
                 <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "6px" }}>Appeal rejected</div>
@@ -99,11 +99,18 @@ export default function ReprocessScreen({ ctx }) {
             ) : null}
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
               <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
-              {status?.decision !== "REJECTED" && (
+              {/* Payment is only reachable once the appeal actually succeeded.
+                  A QUERIED appeal needs a response on the claim; a REJECTED one
+                  has nowhere forward. Don't dump the user on an empty Payment screen. */}
+              {["APPROVED", "PARTIALLY_APPROVED", "REPROCESS_APPROVED"].includes(status?.decision) ? (
                 <Button variant="primary" onClick={() => navigate("../payment")}>
                   Proceed to Payment <ArrowRight size={18} style={{ marginLeft: "8px" }} />
                 </Button>
-              )}
+              ) : status?.decision === "QUERIED" ? (
+                <Button variant="primary" onClick={() => navigate("../claim")}>
+                  Respond on Claim <ArrowRight size={18} style={{ marginLeft: "8px" }} />
+                </Button>
+              ) : null}
             </div>
           </>
         )}
@@ -168,11 +175,12 @@ export default function ReprocessScreen({ ctx }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
+      {/* No "Skip to Payment" here: this is the appeal-FILING screen, reached only
+          because the claim was rejected/partially approved. There is no payment to
+          collect until an appeal (or resubmission) succeeds, so skipping forward
+          dead-ends on an empty Payment screen. */}
+      <div style={{ display: "flex", justifyContent: "flex-start", marginTop: "var(--space-6)" }}>
         <Button variant="text" onClick={() => navigate("../claim")}>← Back to Claim</Button>
-        <Button variant="outline" onClick={() => navigate("../payment")}>
-          Skip to Payment <ArrowRight size={18} style={{ marginLeft: "8px" }} />
-        </Button>
       </div>
     </div>
   );
