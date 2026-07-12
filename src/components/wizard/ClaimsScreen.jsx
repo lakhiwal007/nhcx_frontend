@@ -126,7 +126,7 @@ function PatientContextForm({ claimId, onResolved }) {
 export default function ClaimsScreen({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { caseState, updateCaseState, cashlessCase, moneyLedger, timelineEvents } = ctx;
+  const { caseState, updateCaseState, cashlessCase, moneyLedger, timelineEvents, refreshTimeline } = ctx;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
 
   const [loading, setLoading] = useState(true);
@@ -219,6 +219,10 @@ export default function ClaimsScreen({ ctx }) {
       // until the hospital corrects and resubmits via DC01.
       if (res.status === "complete" || res.status === "not_found" || res.decision === "REJECTED") {
         setDischargePolling(false);
+        // A terminal claim decision moves the money ledger — refresh the shared
+        // timeline so the case header's money strip tracks it (this screen polls
+        // locally, so caseState — which the header watches — wouldn't otherwise change).
+        refreshTimeline?.();
       }
     } catch (_) {}
   };
@@ -232,7 +236,10 @@ export default function ClaimsScreen({ ctx }) {
     try {
       const res = await api.getClaimStatus(finalCorrelationId, signal);
       setClaimStatus(res);
-      if (res.status === "complete" || res.status === "not_found") setPolling(false);
+      if (res.status === "complete" || res.status === "not_found") {
+        setPolling(false);
+        refreshTimeline?.();
+      }
     } catch (_) {}
   };
   usePoll(pollFinal, {
