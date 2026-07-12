@@ -39,7 +39,12 @@ function getActionOptions(claim) {
     options.push({ label: "Respond to Query", route: "claim" });
   }
   if (claim.claim_decision === "REJECTED") {
-    if (claim.use_type === "claim" || claim.claim_id) {
+    // A rejected *discharge* (interim) claim has no adjudicated final claim to
+    // appeal — it must be corrected and resent via DC01, signalled by a
+    // resubmit_discharge_claim task. Route there instead of Reprocess.
+    if (claim.pending_tasks?.some((t) => t.task_type === "resubmit_discharge_claim")) {
+      options.push({ label: "Resubmit Discharge", route: "claim" });
+    } else if (claim.use_type === "claim" || claim.claim_id) {
       options.push({ label: "Appeal / Reprocess", route: "reprocess" });
     } else {
       options.push({ label: "Resubmit Preauth", route: "status" });
@@ -48,10 +53,16 @@ function getActionOptions(claim) {
   if (claim.use_type === "claim") {
     options.push({ label: "View Claim", route: "claim" });
   }
-  if (claim.status === "draft") {
+  // claim.status here is the cashless case's own aggregate status
+  // (pending/partial/complete/failed — see NhcxCashlessCase#status); "draft"
+  // is a Claim#status value from a different endpoint's shape and never
+  // appears on dashboard/claims rows, so "Submit Preauth" could never surface.
+  // Gate off the fields this endpoint actually populates instead: a pending
+  // submit_preauth task means the case is ready but nothing's been sent yet;
+  // preauth_status being set means a preauth already exists to view.
+  if (claim.pending_tasks?.some((t) => t.task_type === "submit_preauth")) {
     options.push({ label: "Submit Preauth", route: "review" });
-  }
-  if (claim.status === "pending" || claim.status === "complete") {
+  } else if (claim.preauth_status) {
     options.push({ label: "View Preauth", route: "status" });
   }
   if (options.length === 0) {

@@ -289,13 +289,17 @@ const mock = {
           child_name: "Arjun Mehta",
           patient_name: "Arjun Mehta",
           use_type: "preauthorization",
-          status: "draft",
+          // "complete" here is the cashless case's own status — eligibility
+          // checks are done and it's ready for preauth, not the (unrelated)
+          // Claim#status "draft" value this endpoint never actually returns.
+          status: "complete",
+          preauth_status: null,
           claim_decision: null,
           approved_amount: null,
           payment_status: null,
           latest_utr: null,
           created_at: "2026-05-11T11:30:00+05:30",
-          pending_tasks: [],
+          pending_tasks: [{ id: 901, task_type: "submit_preauth", title: "Submit preauth" }],
           completed_tasks: [],
         },
         {
