@@ -132,8 +132,13 @@ export default function PreauthStatus({ ctx }) {
       if (res.preauth_ref) { stateUpdates.preauthRef = res.preauth_ref; stateUpdates.preauthDecision = res.decision; }
       if (res.claim_id && !claim_id) stateUpdates.claim_id = res.claim_id;
       if (res.cashless_case_id && !cashless_case_id) stateUpdates.cashless_case_id = res.cashless_case_id;
-      if (res.status === "complete" && res.totals?.eligible?.value != null) {
-        stateUpdates.approvedAmount = res.totals.eligible.value;
+      // The authorized amount is the payer's BENEFIT total, not `eligible`
+      // (eligible is pre-share and >= benefit; using it overstates the sanction
+      // and drives false "short payment" alarms at settlement). Fall back to
+      // eligible only if the payer omitted benefit.
+      if (res.status === "complete") {
+        const authorized = res.totals?.benefit?.value ?? res.totals?.eligible?.value;
+        if (authorized != null) stateUpdates.approvedAmount = authorized;
       }
       if (Object.keys(stateUpdates).length) updateCaseState(stateUpdates);
       if (res.status === "complete" || res.status === "not_found") setPolling(false);
@@ -155,8 +160,8 @@ export default function PreauthStatus({ ctx }) {
     const recover = async () => {
       try {
         const res = await api.getCashlessStatus(cashless_case_id || claim_id);
-        if (res.preauth_correlation_id) {
-          updateCaseState({ preauthCorrelationId: res.preauth_correlation_id });
+        if (res.preauth?.correlation_id) {
+          updateCaseState({ preauthCorrelationId: res.preauth.correlation_id });
         } else {
           setPolling(false);
         }
@@ -189,7 +194,10 @@ export default function PreauthStatus({ ctx }) {
     setPollElapsed(0);
     setStatusData(null);
     setPolling(true);
-    updateCaseState({ preauthCorrelationId: newCorrelationId, preauthDecision: null, approvedAmount: null });
+    // Clear the stale decision (a new one is pending) but KEEP the last authorized
+    // amount on screen — nulling it made the header "Approved" chip flicker away on
+    // every query/resubmit/enhancement round-trip. The next poll overwrites it.
+    updateCaseState({ preauthCorrelationId: newCorrelationId, preauthDecision: null });
     setCashlessCase?.((prev) => (prev ? { ...prev, preauth_status: null } : prev));
   };
 
@@ -427,7 +435,7 @@ export default function PreauthStatus({ ctx }) {
           <DecisionBanner
             decision={decision}
             outcome={statusData?.outcome}
-            approvedAmount={statusData?.totals?.eligible?.value}
+            approvedAmount={statusData?.totals?.benefit?.value ?? statusData?.totals?.eligible?.value}
             message={statusData?.process_notes?.[0]?.text}
           />
 
@@ -751,8 +759,8 @@ export default function PreauthStatus({ ctx }) {
       <ConfirmModal open={showCancelModal} onClose={() => setShowCancelModal(false)} title="Cancel Preauthorization">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Cancellation is irreversible. The preauth reference <strong>{statusData?.preauth_ref}</strong>
-          {statusData?.totals?.eligible?.value != null && (
-            <> and its approved amount of <strong style={{ color: "var(--error)" }}>₹{statusData.totals.eligible.value.toLocaleString()}</strong></>
+          {(statusData?.totals?.benefit?.value ?? statusData?.totals?.eligible?.value) != null && (
+            <> and its approved amount of <strong style={{ color: "var(--error)" }}>₹{(statusData.totals.benefit?.value ?? statusData.totals.eligible?.value).toLocaleString()}</strong></>
           )} will be permanently voided with the payer.
         </p>
         <div style={{ marginBottom: "14px" }}>
