@@ -1,12 +1,21 @@
 openapi: 3.0.3
 info:
   title: NHCX Wrapper Frontend API
-  version: 1.6.0
+  version: 1.7.0
   description: >
     Minimal frontend-facing API contract for payer discovery, policy fetch,
     cashless preparation, and preauthorization. These endpoints are hospital UI
     APIs exposed by the wrapper; the frontend does not call NHCX or granular
     workflow APIs directly.
+
+
+    **v1.7.0 (non-breaking):** new `GET /cashless/{cashless_case_id}/timeline`
+    returns a per-case audit trail — an ordered, timestamped, actor-attributed
+    event log (hospital / payer / system) plus a rolled-up `money_ledger`
+    (billed → authorized ceiling → approved → patient-payable → settled).
+    Reconstructed read-only from existing data; safe to poll. Decision events
+    carry both the raw payer signal and the derived verdict so a
+    mis-classification is auditable. No fields were removed or renamed.
 
 
     **v1.6.0 (non-breaking):** a rejected **discharge** (interim) claim no
@@ -1048,6 +1057,131 @@ paths:
                         errors: []
         "404":
           description: Cashless case not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cashless/{cashless_case_id}/timeline:
+    get:
+      tags: [Cashless Preparation]
+      operationId: getCaseTimeline
+      summary: Per-case audit trail / timeline
+      description: >
+        Returns an ordered, timestamped, actor-attributed audit log for the
+        cashless case — what happened, when, and who drove it (hospital user,
+        payer callback, or a system job) — plus a rolled-up `money_ledger`.
+        Reconstructed read-only from the workflow tables (no side effects), so it
+        is safe to poll or open at any journey stage. Events are ordered by `seq`
+        (a monotonic integer — the only ordering the UI should trust; timestamps
+        can tie). Use it to render a case timeline and to see the RAW payer signal
+        (`decision.raw_outcome` / `reason_codes` / inbound `nhcx_workflow_id`)
+        alongside the wrapper's derived verdict, so a mis-classified decision is
+        visible rather than hidden behind a confident banner.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflow
+          in: query
+          required: false
+          description: >-
+            Filter to one workflow lane: `case`, `insurance_plan`, `eligibility`,
+            `preauth`, `claim`, `reprocess`, `payment`, `communication`.
+          schema:
+            type: string
+        - name: actor
+          in: query
+          required: false
+          description: "Filter by who drove the event: `hospital`, `payer`, or `system`."
+          schema:
+            type: string
+            enum: [hospital, payer, system]
+        - name: since
+          in: query
+          required: false
+          description: ISO-8601 timestamp; only events at or after this instant are returned.
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 200
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: The case timeline and money ledger
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseTimelineResponse"
+              examples:
+                success:
+                  value:
+                    cashless_case_id: 4
+                    claim_id: 101
+                    child_id: 12
+                    generated_at: "2026-07-12T10:00:00+05:30"
+                    total_count: 6
+                    limit: 200
+                    offset: 0
+                    money_ledger:
+                      currency: "INR"
+                      billed: { value: 50000 }
+                      eligible: { value: 45000 }
+                      authorized_ceiling:
+                        value: 40000
+                        cumulative: true
+                        components:
+                          - { ref: "PA-2026-00001", value: 40000 }
+                      approved: { value: 40000 }
+                      copay: { value: 5000 }
+                      deductible: { value: null }
+                      disallowed: { value: 5000 }
+                      patient_payable: { value: 10000, confidence: "final", formula: "copay + disallowed" }
+                      settlement: { gross: 40000, tds: 400, net: 39600, utr: "UTR123456789", settled: true, short_payment: true }
+                      reconciliation: { variance_vs_authorized: 10000, to_collect_from_patient: 10000 }
+                    events:
+                      - seq: 3
+                        id: "auth-1"
+                        ts: "2026-05-01T12:00:00+05:30"
+                        type: "preauth.decision"
+                        title: "Preauth decision received"
+                        summary: "PARTIALLY_APPROVED."
+                        workflow: "preauth"
+                        stage: "decided"
+                        direction: "inbound"
+                        actor: { kind: "payer", name: "1518@hcx", participant_id: "1518@hcx" }
+                        correlation_id: "5c2a6db0-b4c1-47e2-bf6d-3db2ed6e8f11"
+                        nhcx_workflow_id: 241
+                        status: "ok"
+                        severity: "warning"
+                        decision:
+                          raw_outcome: "partial"
+                          reason_codes: ["room-rent-cap"]
+                          derived_decision: "PARTIALLY_APPROVED"
+                          classified_by: "workflow_id"
+                          ambiguous: false
+                        money:
+                          currency: "INR"
+                          field: "approved"
+                          value: 40000
+                          snapshot: { submitted: 50000, eligible: 45000, benefit: 40000, copay: 5000 }
+                        refs: { preauth_ref: "PA-2026-00001" }
+        "404":
+          description: Cashless case not found (or not visible to this provider)
           content:
             application/json:
               schema:
@@ -4053,6 +4187,258 @@ components:
             this case (current_step is `claim_submitted` or later). Same shape
             as `GET /cashless/claims/status/{correlation_id}` — use it to
             branch on `decision`/`payment_status` without a second round-trip.
+
+    CaseTimelineResponse:
+      type: object
+      properties:
+        cashless_case_id:
+          type: integer
+        claim_id:
+          type: integer
+          nullable: true
+        child_id:
+          type: integer
+          nullable: true
+        generated_at:
+          type: string
+          format: date-time
+        total_count:
+          type: integer
+          description: Total events before limit/offset paging.
+        limit:
+          type: integer
+        offset:
+          type: integer
+        money_ledger:
+          $ref: "#/components/schemas/MoneyLedger"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineEvent"
+
+    TimelineEvent:
+      type: object
+      properties:
+        seq:
+          type: integer
+          description: Monotonic ordering key — the only sort the UI should trust (timestamps can tie).
+        id:
+          type: string
+          description: Stable, opaque id for the event (safe as a React key).
+        ts:
+          type: string
+          format: date-time
+        type:
+          type: string
+          description: >-
+            Namespaced machine key `<workflow>.<action>`, e.g. `case.prepared`,
+            `preauth.submitted`, `preauth.decision`, `claim.submitted`,
+            `claim.decision`, `payment.settled`, `payment.ack`,
+            `communication.received`, `failure.prepare`, `failure.payment_ack`.
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        workflow:
+          type: string
+          enum: [case, insurance_plan, eligibility, preauth, claim, reprocess, payment, communication]
+        stage:
+          type: string
+          description: Sub-stage within the workflow (submitted, decided, settled, received, failed, …).
+        direction:
+          type: string
+          enum: [inbound, outbound, internal]
+          description: inbound = payer→hospital callback; outbound = hospital→payer submit; internal = local lifecycle.
+        actor:
+          type: object
+          description: Who drove the event.
+          properties:
+            kind:
+              type: string
+              enum: [hospital, payer, system]
+            name:
+              type: string
+              nullable: true
+            participant_id:
+              type: string
+              nullable: true
+        correlation_id:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+          nullable: true
+        nhcx_workflow_id:
+          nullable: true
+          description: The raw NHCX workflow id on the wire (int, or a string code like DC01).
+        status:
+          type: string
+          enum: [ok, pending, failed]
+        severity:
+          type: string
+          enum: [success, info, warning, error]
+        decision:
+          type: object
+          nullable: true
+          description: >-
+            Present only on decision-bearing events. Carries BOTH the raw payer
+            signal and the wrapper's derived verdict so a mis-classification is
+            auditable. Render `derived_decision` as the verdict but always show
+            `raw_outcome`/`reason_codes`; when `ambiguous` is true, show a
+            "verify" state and demote confident styling.
+          properties:
+            raw_outcome:
+              type: string
+              nullable: true
+              description: FHIR outcome verbatim (complete, partial, error, queued).
+            reason_codes:
+              type: array
+              items:
+                type: string
+            derived_decision:
+              type: string
+              nullable: true
+              enum: [APPROVED, PARTIALLY_APPROVED, QUERIED, REJECTED, CANCELLED, REPROCESS_APPROVED, REPROCESS_REJECTED, UNKNOWN, null]
+            classified_by:
+              type: string
+              description: Which code path decided — `workflow_id` (payer NHCX id), `fhir_outcome`, or `claim_record`.
+            ambiguous:
+              type: boolean
+        money:
+          type: object
+          nullable: true
+          description: Present when the event carries a monetary figure.
+          properties:
+            currency:
+              type: string
+            field:
+              type: string
+              description: Which ledger line this figure is (billed, approved, settled, …).
+            value:
+              type: number
+              nullable: true
+            snapshot:
+              type: object
+              additionalProperties:
+                type: number
+        refs:
+          type: object
+          nullable: true
+          description: Cross-reference identifiers (preauth_ref, claim_response_ref, payment_reference, utr, …).
+          additionalProperties: true
+        error:
+          type: object
+          nullable: true
+          description: Present on failure events that never reached the payer or failed at the gateway.
+          properties:
+            phase:
+              type: string
+              enum: [prepare, local_validation, gateway, cert, payer]
+            code:
+              type: string
+              nullable: true
+            message:
+              type: string
+              nullable: true
+        detail:
+          type: object
+          nullable: true
+          description: Expandable extras — process notes, submission counts, workflow_type, priority, reason_code.
+          additionalProperties: true
+
+    MoneyLedger:
+      type: object
+      description: >-
+        Best-effort financial reconciliation rolled up from persisted data.
+        Fields the schema does not store (deductible, patient-collected advances)
+        are null rather than guessed. `authorized_ceiling` is cumulated across the
+        original preauth plus every enhancement — the single "authorized-to-bill"
+        figure. `patient_payable.confidence` flips to `final` once the claim is
+        adjudicated.
+      properties:
+        currency:
+          type: string
+        billed:
+          $ref: "#/components/schemas/MoneyLine"
+        eligible:
+          $ref: "#/components/schemas/MoneyLine"
+        authorized_ceiling:
+          type: object
+          properties:
+            value:
+              type: number
+              nullable: true
+            cumulative:
+              type: boolean
+            components:
+              type: array
+              items:
+                type: object
+                properties:
+                  ref:
+                    type: string
+                    nullable: true
+                  value:
+                    type: number
+        approved:
+          $ref: "#/components/schemas/MoneyLine"
+        copay:
+          $ref: "#/components/schemas/MoneyLine"
+        deductible:
+          $ref: "#/components/schemas/MoneyLine"
+        disallowed:
+          $ref: "#/components/schemas/MoneyLine"
+        patient_payable:
+          type: object
+          nullable: true
+          properties:
+            value:
+              type: number
+            confidence:
+              type: string
+              enum: [estimated, final]
+            formula:
+              type: string
+        settlement:
+          type: object
+          nullable: true
+          properties:
+            gross:
+              type: number
+              nullable: true
+            tds:
+              type: number
+              nullable: true
+            net:
+              type: number
+              nullable: true
+            utr:
+              type: string
+              nullable: true
+            settled:
+              type: boolean
+            short_payment:
+              type: boolean
+              description: True when the settled net is below the approved amount.
+        reconciliation:
+          type: object
+          nullable: true
+          properties:
+            variance_vs_authorized:
+              type: number
+              nullable: true
+              description: billed − authorized_ceiling; positive means the bill exceeds the sanction.
+            to_collect_from_patient:
+              type: number
+              nullable: true
+
+    MoneyLine:
+      type: object
+      properties:
+        value:
+          type: number
+          nullable: true
 
     ProcedureBlock:
       type: object

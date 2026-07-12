@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { History } from "lucide-react";
 import { api } from "../../api";
 import { Button, EmptyState, LoadingBlock } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
@@ -17,6 +18,7 @@ import PreauthEnhancement from "./PreauthEnhancement";
 import ClaimsScreen from "./ClaimsScreen";
 import ReprocessScreen from "./ReprocessScreen";
 import PaymentReconciliation from "./PaymentReconciliation";
+import CaseTimeline from "./CaseTimeline";
 
 export default function CaseWrapper() {
   const { id } = useParams();
@@ -154,11 +156,20 @@ export default function CaseWrapper() {
               <h1 className="cx-stage-title">{activeStage?.label || "Case"}</h1>
               {activeStage?.hint && <p className="cx-stage-hint">{activeStage.hint}</p>}
             </div>
-            {activeStage?.note && (
-              <span className={`cx-stage-flag${activeStage.tone ? ` tone-${activeStage.tone}` : ""}`}>
-                {activeStage.note}
-              </span>
-            )}
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              {activeStage?.note && (
+                <span className={`cx-stage-flag${activeStage.tone ? ` tone-${activeStage.tone}` : ""}`}>
+                  {activeStage.note}
+                </span>
+              )}
+              {currentStepPath === "timeline" ? (
+                <Button variant="outline" size="small" onClick={() => navigate(-1)}>Back to case</Button>
+              ) : (
+                <Button variant="outline" size="small" icon={History} onClick={() => navigate(`/case/${id}/timeline`)}>
+                  Audit trail
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="cx-stage-body">
@@ -185,6 +196,7 @@ export default function CaseWrapper() {
                   <Route path="claim" element={<ClaimsScreen ctx={contextValue} />} />
                   <Route path="reprocess" element={<ReprocessScreen ctx={contextValue} />} />
                   <Route path="payment" element={<PaymentReconciliation ctx={contextValue} />} />
+                  <Route path="timeline" element={<CaseTimeline ctx={contextValue} />} />
                 </Routes>
               </motion.div>
             </AnimatePresence>

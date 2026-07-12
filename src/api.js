@@ -727,6 +727,109 @@ const mock = {
           errors: [],
         },
       },
+      // Nullable — only present once a preauth/claim has actually been
+      // submitted for this case. Kept here (rather than omitted) so mock mode
+      // exercises the same res.preauth?.correlation_id / res.claim?.status
+      // paths the real backend response takes.
+      preauth: null,
+      claim: null,
+    };
+  },
+
+  getCaseTimeline: async (cashless_case_id, params = {}) => {
+    await delay(500);
+    const events = [
+      {
+        seq: 1, id: "case-4-prepared", ts: "2026-05-01T09:00:00+05:30", type: "case.prepared",
+        title: "Cashless case prepared",
+        summary: "InsurancePlan and coverage-eligibility checks initiated for policy POL-91711234567890-2026.",
+        workflow: "case", stage: "prepared", direction: "internal",
+        actor: { kind: "hospital", name: "NHCX Test Hospital", participant_id: "1518@hcx" },
+        status: "ok", severity: "info", refs: { policy_number: "POL-91711234567890-2026" },
+      },
+      {
+        seq: 2, id: "tx-1", ts: "2026-05-01T10:00:00+05:30", type: "preauth.submitted",
+        title: "Preauth submitted", summary: "Submitted amount ₹50000.",
+        workflow: "preauth", stage: "submitted", direction: "outbound",
+        actor: { kind: "hospital", name: "NHCX Test Hospital", participant_id: "1518@hcx" },
+        correlation_id: "5c2a6db0-b4c1-47e2-bf6d-3db2ed6e8f11", request_id: "req-1", nhcx_workflow_id: 12,
+        status: "ok", severity: "info",
+        money: { currency: "INR", field: "billed", value: 50000, snapshot: { billed: 50000 } },
+        detail: { workflow_type: "new", counts: { procedures: 1, diagnoses: 1, items: 1 } },
+      },
+      {
+        seq: 3, id: "auth-1", ts: "2026-05-01T12:00:00+05:30", type: "preauth.decision",
+        title: "Preauth decision received", summary: "PARTIALLY_APPROVED.",
+        workflow: "preauth", stage: "decided", direction: "inbound",
+        actor: { kind: "payer", name: "1518@hcx", participant_id: "1518@hcx" },
+        correlation_id: "5c2a6db0-b4c1-47e2-bf6d-3db2ed6e8f11", nhcx_workflow_id: 241,
+        status: "ok", severity: "warning",
+        decision: {
+          raw_outcome: "partial", reason_codes: ["room-rent-cap"],
+          derived_decision: "PARTIALLY_APPROVED", classified_by: "workflow_id", ambiguous: false,
+        },
+        money: {
+          currency: "INR", field: "approved", value: 40000,
+          snapshot: { submitted: 50000, eligible: 45000, benefit: 40000, copay: 5000 },
+        },
+        refs: { preauth_ref: "PA-2026-00001" },
+        detail: { process_notes: ["Room rent exceeds policy sub-limit."] },
+      },
+      {
+        seq: 4, id: "tx-2", ts: "2026-05-08T14:00:00+05:30", type: "claim.submitted",
+        title: "Final claim submitted", summary: "Submitted amount ₹50000.",
+        workflow: "claim", stage: "submitted", direction: "outbound",
+        actor: { kind: "hospital", name: "NHCX Test Hospital", participant_id: "1518@hcx" },
+        correlation_id: "b19afd0a-9cca-4e31-948e-ffda91b02e58", nhcx_workflow_id: 15,
+        status: "ok", severity: "info",
+        money: { currency: "INR", field: "billed", value: 50000, snapshot: { billed: 50000 } },
+        detail: { workflow_type: "final" },
+      },
+      {
+        seq: 5, id: "claim-101-decision", ts: "2026-05-09T11:00:00+05:30", type: "claim.decision",
+        title: "Claim decision received", summary: "APPROVED — approved ₹40000.",
+        workflow: "claim", stage: "decided", direction: "inbound",
+        actor: { kind: "payer", name: "1518@hcx", participant_id: "1518@hcx" },
+        status: "ok", severity: "success",
+        decision: { raw_outcome: null, reason_codes: [], derived_decision: "APPROVED", classified_by: "claim_record", ambiguous: false },
+        money: { currency: "INR", field: "approved", value: 40000, snapshot: { approved: 40000 } },
+        refs: { claim_response_ref: "CR-2026-01", preauth_ref: "PA-2026-00001" },
+      },
+      {
+        seq: 6, id: "pay-1", ts: "2026-05-11T09:00:00+05:30", type: "payment.settled",
+        title: "Payment settled", summary: "Settled ₹39600 · UTR UTR123456789.",
+        workflow: "payment", stage: "settled", direction: "inbound",
+        actor: { kind: "payer", name: "1518@hcx", participant_id: "1518@hcx" },
+        correlation_id: "pay-corr-1", nhcx_workflow_id: 47, status: "ok", severity: "success",
+        money: { currency: "INR", field: "settled", value: 39600, snapshot: { gross: 40000, tds: 400, net: 39600 } },
+        refs: { payment_reference: "PAY-REF-1", utr: "UTR123456789" },
+      },
+    ];
+    const filtered = events.filter(
+      (e) => (!params.workflow || e.workflow === params.workflow) && (!params.actor || e.actor.kind === params.actor),
+    );
+    return {
+      cashless_case_id: Number(cashless_case_id) || 4,
+      claim_id: 101,
+      child_id: 12,
+      generated_at: new Date().toISOString(),
+      money_ledger: {
+        currency: "INR",
+        billed: { value: 50000 },
+        eligible: { value: 45000 },
+        authorized_ceiling: { value: 40000, cumulative: true, components: [{ ref: "PA-2026-00001", value: 40000 }] },
+        approved: { value: 40000 },
+        copay: { value: 5000 },
+        deductible: { value: null },
+        disallowed: { value: 5000 },
+        patient_payable: { value: 10000, confidence: "final", formula: "copay + disallowed" },
+        settlement: { gross: 40000, tds: 400, net: 39600, utr: "UTR123456789", settled: true, short_payment: true },
+        reconciliation: { variance_vs_authorized: 10000, to_collect_from_patient: 10000 },
+      },
+      total_count: filtered.length,
+      limit: params.limit || 200,
+      offset: params.offset || 0,
+      events: filtered,
     };
   },
 
@@ -1821,6 +1924,12 @@ const real = {
       forceRefresh ? { force_refresh: true } : {},
       { signal },
     ),
+
+  // Per-case audit trail: an ordered, timestamped, actor-attributed event log
+  // plus the rolled-up money ledger. `params` accepts { workflow, actor, since,
+  // limit, offset }.
+  getCaseTimeline: (cashless_case_id, params = {}, signal) =>
+    http.get(`/cashless/${cashless_case_id}/timeline`, params, { signal }),
 
   preparePreauth: (params = {}) =>
     http.get("/cashless/preauth/prepare", params),

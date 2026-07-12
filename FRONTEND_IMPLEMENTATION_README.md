@@ -1324,6 +1324,30 @@ The response is a standard `202` with a new `correlation_id`. Poll `GET /cashles
 
 > The same prepare-then-submit pattern applies anywhere the frontend lacks the data to act: `claims/prepare` before discharge/final claim, and `preauth/prepare` before the first submit. Enhancement is the sharpest case because the *delta*, not just the draft, is what the user reasons about.
 
+## Screen 5c: Case Timeline / Audit Trail
+
+API:
+
+```http
+GET /nhcx/api/v1/insurance/cashless/{cashless_case_id}/timeline
+```
+
+A read-only, cross-cutting view of the whole case — reachable from any stage (an "Audit trail" affordance on the case header), **not** a wizard stage. It answers "what happened to this case, when, and who did it," and surfaces the money picture in one place. Safe to open or poll at any point; it never mutates anything.
+
+The response has three parts:
+
+| Part | Use |
+|---|---|
+| `events[]` | Ordered event log. Sort by **`seq`** (monotonic int) — not `ts`, which can tie. Each event has `type`, `title`, `summary`, `workflow`, `stage`, `direction` (inbound/outbound/internal), `actor` (`kind` ∈ hospital/payer/system), `status`, `severity`, and optional `decision` / `money` / `error` / `detail`. |
+| `money_ledger` | Rolled-up financials: `billed`, `eligible`, `authorized_ceiling` (cumulative across preauth + enhancements), `approved`, `copay`, `deductible`, `disallowed`, `patient_payable`, `settlement`, and `reconciliation.to_collect_from_patient`. |
+| paging | `total_count`, `limit`, `offset`; filter with `?workflow=&actor=&since=`. |
+
+**Render rules:**
+- **Actor badges** are the "who": three fixed colours — hospital, payer, system. A payer callback must never read as a hospital action.
+- **Money deltas**: show `money.value` with its `field` label; expand to `money.snapshot` for the breakdown. Drive the persistent case money strip off `money_ledger`, and show `reconciliation.to_collect_from_patient` prominently at discharge — it is the number the desk reads to the counter.
+- **Decision provenance (important)**: decision events carry `decision.raw_outcome` + `reason_codes` + inbound `nhcx_workflow_id` **and** `derived_decision` + `classified_by`. Render the derived verdict, but always show the raw signal; when `decision.ambiguous` is true, show a **"verify"** state and demote confident (green) styling. This is the guard against a mis-classified denial showing as an approval.
+- **Failures**: events with `error` (or `status: "failed"`) get a red left border and a "never sent to payer" tag when `direction: "outbound"`, so a local-validation/gateway reject reads distinctly from a payer rejection.
+
 ## Screen 6: Claims
 
 API:
