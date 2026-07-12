@@ -393,24 +393,33 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
   const isQueried = decision === "QUERIED";
   // The preauth was voided after the payer acknowledged a cancellation request.
   const isCancelled = decision === "CANCELLED";
-  // Neutral state when the payer decision could not be classified. The raw FHIR
-  // `outcome` is surfaced only here (per the contract) for support triage.
+  // Neutral state when the payer decision could not be classified.
   const isUnknown = !decision || decision === "UNKNOWN";
+  // Guard against a mis-classified decision hiding behind a confident banner:
+  // an approval whose raw FHIR outcome is not a success signal is suspect and
+  // must be verified, not shown as a clean green approval.
+  const ambiguous =
+    isApproved && outcome != null && !["complete", "partial"].includes(String(outcome).toLowerCase());
 
-  const tone = isApproved
-    ? "tone-approve"
-    : isQueried
-      ? "tone-query"
-      : isUnknown || isCancelled
-        ? "tone-neutral"
-        : "tone-warn";
-  const iconColor = isApproved
-    ? "var(--success)"
-    : isQueried
-      ? "var(--info)"
-      : isUnknown || isCancelled
-        ? "var(--text-muted)"
-        : "var(--warning)";
+  // An ambiguous approval is demoted from green to a warning tone.
+  const tone = ambiguous
+    ? "tone-warn"
+    : isApproved
+      ? "tone-approve"
+      : isQueried
+        ? "tone-query"
+        : isUnknown || isCancelled
+          ? "tone-neutral"
+          : "tone-warn";
+  const iconColor = ambiguous
+    ? "var(--warning)"
+    : isApproved
+      ? "var(--success)"
+      : isQueried
+        ? "var(--info)"
+        : isUnknown || isCancelled
+          ? "var(--text-muted)"
+          : "var(--warning)";
 
   return (
     <div className={`decision-banner ${tone}`}>
@@ -425,9 +434,16 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome }) =
         <div style={{ fontSize: "22px", fontWeight: 800 }}>
           {isCancelled ? "Cancelled — Preauth Void" : decision?.replace(/_/g, " ") || "Decision unavailable"}
         </div>
-        {isUnknown && outcome && (
+        {/* Always surface the raw payer outcome next to the classified verdict so
+            a mis-classification is visible, not just in the UNKNOWN state. */}
+        {outcome && (
           <div style={{ fontSize: "13px", marginTop: "var(--space-1)", color: "var(--text-muted)" }}>
             Payer outcome: <strong>{outcome}</strong>
+          </div>
+        )}
+        {ambiguous && (
+          <div style={{ fontSize: "13px", marginTop: "6px", color: "var(--warning)", fontWeight: 700 }}>
+            Verify — the payer signal does not corroborate this approval.
           </div>
         )}
         {approvedAmount != null && !isCancelled && (
@@ -552,10 +568,15 @@ export const AmountGrid = ({ totals }) => {
             style={{
               fontWeight: 800,
               fontSize: "18px",
+              // Only the payable BENEFIT/approved figure is green. `eligible` is a
+              // pre-share figure (>= benefit) and must not read as the amount the
+              // payer will pay — tint it neutral so it isn't mistaken for approved.
               color:
-                k === "approved" || k === "eligible"
+                k === "approved" || k === "benefit"
                   ? "var(--success)"
-                  : "var(--primary)",
+                  : k === "copay" || k === "deductible"
+                    ? "var(--error)"
+                    : "var(--primary)",
             }}
           >
             {v?.currency || "₹"}{" "}
