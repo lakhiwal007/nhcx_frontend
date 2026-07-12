@@ -118,7 +118,7 @@ function PatientDetail({ patient, onBack }) {
         current_step,
         next_actions,
         policy_number,
-        payer_code,
+        payer_id,
         claim,
         preauth,
       } = fullCase;
@@ -158,7 +158,7 @@ function PatientDetail({ patient, onBack }) {
         dest = "prep";
       } else if (policy_number) {
         dest = "prep";
-      } else if (payer_code) {
+      } else if (payer_id) {
         dest = "payer";
       }
 
@@ -257,7 +257,7 @@ function PatientDetail({ patient, onBack }) {
           </div>
           <div>
             <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Payer</span>
-            <span style={{ fontWeight: 600 }}>{patient.latest_claim.payer_name || patient.latest_claim.payer_id || patient.latest_claim.payer_code || "-"}</span>
+            <span style={{ fontWeight: 600 }}>{patient.latest_claim.payer_name || patient.latest_claim.payer_id || "-"}</span>
           </div>
           <div>
             <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Policy</span>
@@ -443,7 +443,7 @@ function PatientDetail({ patient, onBack }) {
                       <span style={{ fontWeight: 600 }}>{comm.topic_display}</span>
                       <span className={`badge-modern badge-${comm.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>{comm.priority}</span>
                     </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>From: {comm.payer_code}</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>From: {comm.payer_id}</div>
                   </div>
                 ))}
               </div>
@@ -656,8 +656,8 @@ export default function PatientProfile() {
                       statusSlot={child.latest_claim && (
                         <>
                           <CaseStatusChip claim={child.latest_claim} />
-                          {(child.latest_claim.payer_name || child.latest_claim.payer_id || child.latest_claim.payer_code) && (
-                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id || child.latest_claim.payer_code}</span>
+                          {(child.latest_claim.payer_name || child.latest_claim.payer_id) && (
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id}</span>
                           )}
                         </>
                       )}
@@ -693,8 +693,8 @@ export default function PatientProfile() {
                                 {child.latest_claim ? (
                                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                     <CaseStatusChip claim={child.latest_claim} />
-                                    {(child.latest_claim.payer_name || child.latest_claim.payer_id || child.latest_claim.payer_code) && (
-                                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id || child.latest_claim.payer_code}</span>
+                                    {(child.latest_claim.payer_name || child.latest_claim.payer_id) && (
+                                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id}</span>
                                     )}
                                   </div>
                                 ) : (

@@ -169,7 +169,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                   )}
 
                   <div className="grid-2-col" style={{ gap: "14px", padding: "var(--space-4)", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
-                    <DetailField label="Payer" value={detail.payer_code} />
+                    <DetailField label="Payer" value={detail.payer_id} />
                     <DetailField label="Claim Reference" value={detail.claim_reference} />
                     <DetailField label="Subject" value={detail.subject} />
                     <DetailField label="Requested by" value={detail.task_requester} />
@@ -322,7 +322,7 @@ export default function Communications({ allFacilitiesMode = false }) {
     );
   };
 
-  const uniquePayers = [...new Set(communications.map((c) => c.payer_code).filter(Boolean))];
+  const uniquePayers = [...new Set(communications.map((c) => c.payer_id).filter(Boolean))];
   const unreadCount = communications.filter((c) => !c.provider_read).length;
   const actionNeededCount = communications.filter((c) => c.pending_tasks?.length > 0).length;
 
@@ -330,11 +330,11 @@ export default function Communications({ allFacilitiesMode = false }) {
     const q = searchQuery.toLowerCase();
     const matchSearch = !q ||
       c.topic_display?.toLowerCase().includes(q) ||
-      c.payer_code?.toLowerCase().includes(q) ||
+      c.payer_id?.toLowerCase().includes(q) ||
       c.claim_reference?.toLowerCase().includes(q) ||
       c.reason_display?.toLowerCase().includes(q) ||
       c.subject?.toLowerCase().includes(q);
-    const matchPayer = !payerFilter || c.payer_code === payerFilter;
+    const matchPayer = !payerFilter || c.payer_id === payerFilter;
     return matchSearch && matchPayer;
   }).sort((a, b) => {
     if (sortBy === "priority") {
@@ -462,7 +462,7 @@ export default function Communications({ allFacilitiesMode = false }) {
 
                     <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", fontSize: "12px", color: "var(--text-muted)" }}>
                       {comm.facility_name && <span><strong style={{ color: "var(--text-main)" }}>Facility:</strong> {comm.facility_name}</span>}
-                      <span><strong style={{ color: "var(--text-main)" }}>Payer:</strong> {comm.payer_code}</span>
+                      <span><strong style={{ color: "var(--text-main)" }}>Payer:</strong> {comm.payer_id}</span>
                       {comm.claim_reference && <span><strong style={{ color: "var(--text-main)" }}>Claim:</strong> {comm.claim_reference}</span>}
                       {comm.subject && <span>{comm.subject}</span>}
                       <span><Clock size={11} style={{ display: "inline", marginRight: "3px" }} />{new Date(comm.sent_at).toLocaleString()}</span>
@@ -512,7 +512,7 @@ export default function Communications({ allFacilitiesMode = false }) {
                         <div style={{ fontWeight: isUnread ? 800 : 600 }}>{comm.topic_display}</div>
                         {hasAction && <div style={{ fontSize: "11px", color: "var(--error)", fontWeight: 700 }}><AlertTriangle size={10} style={{ display: "inline" }}/> Action Required</div>}
                       </td>
-                      <td>{comm.payer_code}</td>
+                      <td>{comm.payer_id}</td>
                       <td>{comm.claim_reference || "-"}</td>
                       <td>{new Date(comm.sent_at).toLocaleString()}</td>
                       <td>
