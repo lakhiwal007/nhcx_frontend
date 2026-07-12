@@ -1,11 +1,20 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Send, AlertCircle } from "lucide-react";
 import { api } from "../../api";
 import { Button, StatusBadge, LoadingBlock } from "../Common";
 
 export default function PreauthEnhancement({ ctx, onClose }) {
+  const navigate = useNavigate();
   const { caseState, updateCaseState } = ctx;
   const { cashless_case_id, claim_id } = caseState;
+
+  // Used both as a modal inside PreauthStatus (onClose provided) and as a routed
+  // screen at /case/:id/enhancement (from the stepper's Enhancement branch and
+  // the "File Enhancement" button on the claim screen). In the routed case there
+  // is no onClose, so Cancel/Close and the post-submit hand-off must navigate
+  // back to the Decision screen rather than being dead no-ops.
+  const close = onClose || (() => navigate("../status"));
 
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState(null);
@@ -54,7 +63,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
       };
       const res = await api.submitPreauthEnhancement(body);
       updateCaseState({ preauthCorrelationId: res.correlation_id });
-      if (onClose) onClose();
+      close();
     } catch (_) {
     } finally {
       setSubmitting(false);
@@ -83,7 +92,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
             <div style={{ fontSize: "13px" }}>{preview.reason || "No new procedures or billing found since the approved preauth."}</div>
           </div>
         </div>
-        <Button variant="outline" onClick={onClose}>Close</Button>
+        <Button variant="outline" onClick={close}>Close</Button>
       </div>
     );
   }
@@ -165,7 +174,7 @@ export default function PreauthEnhancement({ ctx, onClose }) {
       </div>
 
       <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button variant="outline" onClick={close}>Cancel</Button>
         <Button
           variant="primary"
           icon={Send}
