@@ -865,9 +865,11 @@ export default function Settings({
     }
   };
 
+  const needsFallbackPicker = Array.isArray(sessionFacilities) && sessionFacilities.length === 0;
+
   useEffect(() => {
-    if (isAdmin) loadFacilities();
-  }, [isAdmin]);
+    if (isAdmin || needsFallbackPicker) loadFacilities();
+  }, [isAdmin, needsFallbackPicker]);
 
   const openCreate = () => {
     setEditingFacility(null);
@@ -988,10 +990,35 @@ export default function Settings({
           </div>
 
           {sessionFacilities.length === 0 ? (
-            <div className="inline-error-banner" style={{ margin: 0 }}>
-              <AlertCircle size={16} />
-              No cashless-enabled facility is linked to your account. Contact your administrator.
-            </div>
+            facilities.length > 0 ? (
+              <div>
+                <div className="inline-error-banner" style={{ margin: "0 0 var(--space-3)" }}>
+                  <AlertCircle size={16} />
+                  No facility is linked to your session. Pick one below to continue.
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+                  {facilities.map((f) => {
+                    const isActive = !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
+                    return (
+                      <button
+                        key={f.facility_code}
+                        onClick={() => handleSelectSessionFacility(f)}
+                        className={`badge-modern ${isActive ? "badge-success" : "badge-info"}`}
+                        style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px" }}
+                      >
+                        {isActive && <CheckCircle2 size={13} />}
+                        {f.name || f.facility_code}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="inline-error-banner" style={{ margin: 0 }}>
+                <AlertCircle size={16} />
+                No cashless-enabled facility is linked to your account. Contact your administrator.
+              </div>
+            )
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
               {sessionFacilities.map((f) => {
