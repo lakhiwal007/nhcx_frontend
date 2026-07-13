@@ -542,8 +542,8 @@ export default function PreauthStatus({ ctx }) {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600 }}>{d.name}</div>
                         <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                          <code>{d.code}</code>
-                          {d.primary && <span className="badge-modern badge-info" style={{ fontSize: "10px", marginLeft: "6px" }}>Primary</span>}
+                          {d.code && <code>{d.code}</code>}
+                          {d.primary && <span className="badge-modern badge-info" style={{ fontSize: "10px", marginLeft: d.code ? "6px" : "0" }}>Primary</span>}
                           {d.on_admission && <span className="badge-modern badge-success" style={{ fontSize: "10px", marginLeft: "4px" }}>On Admission</span>}
                         </div>
                       </div>
