@@ -19,6 +19,10 @@ import {
   Moon,
   PanelLeft,
   PanelTop,
+  Send,
+  Inbox,
+  Check,
+  XCircle,
 } from "lucide-react";
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
 import { Button, EmptyState, LoadingBlock } from "./Common";
@@ -822,6 +826,143 @@ function FacilityCard({
   );
 }
 
+function RequestAccessForm({ onSubmit }) {
+  const [form, setForm] = useState({ facility_name: "", facility_code: "", notes: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async () => {
+    if (!form.facility_name.trim()) {
+      setError("Facility name is required.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit(form);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="inline-error-banner" style={{ margin: 0, background: "var(--success-light, rgba(34,197,94,0.08))", borderColor: "var(--success)", color: "var(--success)" }}>
+        <CheckCircle2 size={16} />
+        Request sent. An administrator will onboard this facility and it'll appear in your Active Facility list once approved.
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="inline-error-banner" style={{ margin: "0 0 var(--space-3)" }}>
+        <AlertCircle size={16} />
+        No cashless-enabled facility is linked to your account. Request access below, or contact your administrator.
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", alignItems: "flex-end" }}>
+        <div style={{ flex: "1 1 220px" }}>
+          <FormField label="Facility Name" required>
+            <TextInput
+              value={form.facility_name}
+              onChange={(v) => setForm((p) => ({ ...p, facility_name: v }))}
+              placeholder="City General Hospital"
+            />
+          </FormField>
+        </div>
+        <div style={{ flex: "1 1 160px" }}>
+          <FormField label="Facility Code" hint="If you know it">
+            <TextInput
+              value={form.facility_code}
+              onChange={(v) => setForm((p) => ({ ...p, facility_code: v }))}
+              placeholder="HOSP-002"
+              monospace
+            />
+          </FormField>
+        </div>
+        <div style={{ flex: "1 1 260px" }}>
+          <FormField label="Notes">
+            <TextInput
+              value={form.notes}
+              onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
+              placeholder="Optional context for the admin"
+            />
+          </FormField>
+        </div>
+        <Button
+          variant="primary"
+          icon={Send}
+          disabled={submitting}
+          onClick={handleSubmit}
+        >
+          {submitting ? "Sending…" : "Request Access"}
+        </Button>
+      </div>
+      {error && (
+        <div style={{ marginTop: "var(--space-2)", fontSize: "12px", color: "var(--error)", display: "flex", alignItems: "center", gap: "6px" }}>
+          <AlertTriangle size={14} /> {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PendingRequestsPanel({ requests, onResolve }) {
+  if (requests.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        marginBottom: "var(--space-5)",
+        padding: "16px 20px",
+        background: "var(--bg-card)",
+        border: "1px solid var(--border-color)",
+        borderRadius: "var(--radius-lg)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
+        <Inbox size={16} color="var(--primary)" />
+        Pending Facility Requests ({requests.length})
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+        {requests.map((r) => (
+          <div
+            key={r.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-3)",
+              padding: "10px 14px",
+              border: "1px solid var(--border-color)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "13px",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700 }}>{r.facility_name}</div>
+              <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+                {r.requested_by_name || "Unknown user"}
+                {r.facility_code ? ` · ${r.facility_code}` : ""}
+                {r.notes ? ` · ${r.notes}` : ""}
+              </div>
+            </div>
+            <Button size="small" variant="outline" icon={Check} onClick={() => onResolve(r.id, "resolved")}>
+              Mark Resolved
+            </Button>
+            <Button size="small" variant="outline" icon={XCircle} onClick={() => onResolve(r.id, "dismissed")}>
+              Dismiss
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Settings({
   isAdmin = false,
   sessionFacilities = null,
@@ -845,6 +986,29 @@ export default function Settings({
   const [formError, setFormError] = useState(null);
 
   const [keyDrawerFacility, setKeyDrawerFacility] = useState(null);
+
+  const [pendingRequests, setPendingRequests] = useState([]);
+
+  const loadPendingRequests = async () => {
+    try {
+      const res = await api.listFacilityAccessRequests({ status: "pending" });
+      setPendingRequests(res?.requests || []);
+    } catch (_) {
+      setPendingRequests([]);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) loadPendingRequests();
+  }, [isAdmin]);
+
+  const handleSubmitAccessRequest = (formValues) =>
+    api.createFacilityAccessRequest(formValues);
+
+  const handleResolveAccessRequest = async (id, status) => {
+    await api.updateFacilityAccessRequest(id, status);
+    loadPendingRequests();
+  };
 
   // Facility administration (register/edit/upload key) is an admin-only
   // surface gated by X-Admin-Token on the backend — GET /facilities lists
@@ -974,6 +1138,8 @@ export default function Settings({
         </div>
       )}
 
+      {isAdmin && <PendingRequestsPanel requests={pendingRequests} onResolve={handleResolveAccessRequest} />}
+
       {sessionFacilities && (
         <div
           style={{
@@ -1014,10 +1180,7 @@ export default function Settings({
                 </div>
               </div>
             ) : (
-              <div className="inline-error-banner" style={{ margin: 0 }}>
-                <AlertCircle size={16} />
-                No cashless-enabled facility is linked to your account. Contact your administrator.
-              </div>
+              <RequestAccessForm onSubmit={handleSubmitAccessRequest} />
             )
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>

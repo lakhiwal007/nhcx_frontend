@@ -1896,6 +1896,43 @@ const mock = {
     await delay(700);
     return { facility_code, private_key_set: true };
   },
+
+  // ─── Facility Access Requests ──────────────────────────────────────────────
+  listFacilityAccessRequests: async (params = {}) => {
+    await delay(500);
+    const requests = [
+      {
+        id: 1,
+        requested_by_name: "Dr Priya Nair",
+        facility_name: "City General Hospital - Annex Wing",
+        facility_code: "HOSP-003",
+        notes: "New IPD wing opening next month, needs its own NHCX participant",
+        status: "pending",
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+        resolved_at: null,
+      },
+    ];
+    return {
+      requests: params.status ? requests.filter((r) => r.status === params.status) : requests,
+    };
+  },
+  createFacilityAccessRequest: async (data) => {
+    await delay(500);
+    return {
+      id: Math.floor(Math.random() * 10000),
+      requested_by_name: "You",
+      facility_name: data.facility_name,
+      facility_code: data.facility_code || null,
+      notes: data.notes || null,
+      status: "pending",
+      created_at: new Date().toISOString(),
+      resolved_at: null,
+    };
+  },
+  updateFacilityAccessRequest: async (id, status) => {
+    await delay(400);
+    return { id, status, resolved_at: new Date().toISOString() };
+  },
 };
 
 // ─── Real (Network) Implementations ──────────────────────────────────────────
@@ -2037,6 +2074,14 @@ const real = {
     http.put(`/facilities/${facility_code}`, data),
   uploadFacilityKey: (facility_code, data) =>
     http.put(`/facilities/${facility_code}/private_key`, data),
+
+  // ─── Facility Access Requests ──────────────────────────────────────────────
+  listFacilityAccessRequests: (params = {}) =>
+    http.get("/facility_access_requests", params),
+  createFacilityAccessRequest: (data) =>
+    http.post("/facility_access_requests", data),
+  updateFacilityAccessRequest: (id, status) =>
+    http.patch(`/facility_access_requests/${id}`, { status }),
 
   // ─── Escape hatch for Work Queue task actions ────────────────────────────────
   rawPost: (fullPath, body = {}) => http.rawPost(fullPath, body),
