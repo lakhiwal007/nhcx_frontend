@@ -4,7 +4,6 @@ import {
   Building2,
   Plus,
   Key,
-  Star,
   Edit2,
   X,
   CheckCircle2,
@@ -12,7 +11,6 @@ import {
   Globe,
   Mail,
   Phone,
-  RefreshCw,
   Lock,
   Unlock,
   AlertCircle,
@@ -24,8 +22,6 @@ import {
 } from "lucide-react";
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
 import { Button, EmptyState, LoadingBlock } from "./Common";
-
-const DEFAULT_FACILITY_KEY = "nhcx_default_facility";
 
 const ROLE_OPTIONS = [
   { value: "10001", label: "Provider" },
@@ -625,8 +621,6 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
 
 function FacilityCard({
   facility,
-  isDefault,
-  onSetDefault,
   onEdit,
   onUploadKey,
 }) {
@@ -636,12 +630,10 @@ function FacilityCard({
       whileHover={{ y: -2 }}
       style={{
         background: "var(--bg-card)",
-        border: `1.5px solid ${isDefault ? "var(--primary)" : "var(--border-color)"}`,
+        border: "1.5px solid var(--border-color)",
         borderRadius: "var(--radius-lg)",
         padding: "20px 24px",
-        boxShadow: isDefault
-          ? "0 0 0 3px rgba(79,70,229,0.1)"
-          : "var(--shadow)",
+        boxShadow: "var(--shadow)",
         transition: "all 0.2s",
       }}
     >
@@ -675,20 +667,6 @@ function FacilityCard({
             >
               {facility.facility_code}
             </code>
-            {isDefault && (
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-1)",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "var(--primary)",
-                }}
-              >
-                <Star size={12} fill="currentColor" /> Default
-              </span>
-            )}
             <span
               className={`badge-modern badge-${facility.environment === "production" ? "success" : "info"}`}
             >
@@ -838,16 +816,6 @@ function FacilityCard({
           >
             Edit
           </Button>
-          {!isDefault && (
-            <Button
-              size="small"
-              variant="outline"
-              icon={Star}
-              onClick={() => onSetDefault(facility.facility_code)}
-            >
-              Set Default
-            </Button>
-          )}
         </div>
       </div>
     </motion.div>
@@ -866,9 +834,6 @@ export default function Settings({
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [defaultFacility, setDefaultFacility] = useState(
-    () => localStorage.getItem(DEFAULT_FACILITY_KEY) || "",
-  );
   const [adminToken, setAdminToken] = useState(
     () => localStorage.getItem(ADMIN_TOKEN_KEY) || "",
   );
@@ -881,23 +846,18 @@ export default function Settings({
 
   const [keyDrawerFacility, setKeyDrawerFacility] = useState(null);
 
+  // Facility administration (register/edit/upload key) is an admin-only
+  // surface gated by X-Admin-Token on the backend — GET /facilities lists
+  // every facility in the system, not just the user's own, so it is never
+  // loaded or rendered for a non-admin user. Regular users get facility
+  // *selection* only, via the "Active Facility" section below (sourced from
+  // GET /session, which already returns every facility for admins too).
   const loadFacilities = async () => {
     setLoading(true);
     setLoadError(false);
     try {
       const res = await api.listFacilities();
-      const loadedFacilities = res?.facilities || [];
-      setFacilities(loadedFacilities);
-
-      // Auto-sync the provider_id for the current default facility
-      const currentDefault = localStorage.getItem(DEFAULT_FACILITY_KEY);
-      if (currentDefault) {
-        const selected = loadedFacilities.find((f) => f.facility_code === currentDefault);
-        if (selected && selected.hcx_participant_code) {
-          localStorage.setItem("nhcx_default_provider_id", selected.hcx_participant_code);
-          localStorage.setItem("nhcx_default_facility_name", selected.name || "");
-        }
-      }
+      setFacilities(res?.facilities || []);
     } catch (_) {
       setLoadError(true);
     } finally {
@@ -906,8 +866,8 @@ export default function Settings({
   };
 
   useEffect(() => {
-    loadFacilities();
-  }, []);
+    if (isAdmin) loadFacilities();
+  }, [isAdmin]);
 
   const openCreate = () => {
     setEditingFacility(null);
@@ -969,24 +929,6 @@ export default function Settings({
     }
   };
 
-  const handleSetDefault = (code) => {
-    setDefaultFacility(code);
-    localStorage.setItem(DEFAULT_FACILITY_KEY, code);
-
-    const selected = facilities.find((f) => f.facility_code === code);
-    if (selected && selected.hcx_participant_code) {
-      localStorage.setItem(
-        "nhcx_default_provider_id",
-        selected.hcx_participant_code,
-      );
-      localStorage.setItem("nhcx_default_facility_name", selected.name || "");
-    } else {
-      localStorage.removeItem("nhcx_default_provider_id");
-      localStorage.removeItem("nhcx_default_facility_name");
-    }
-    window.dispatchEvent(new CustomEvent("provider-changed"));
-  };
-
   // Act as a specific facility from the session's own facility list (the set
   // this user may actually select, per GET /session - distinct from the
   // admin-gated GET /facilities management list below).
@@ -1013,24 +955,22 @@ export default function Settings({
     else localStorage.removeItem(ADMIN_TOKEN_KEY);
   };
 
-  const defaultFacilityData = facilities.find(
-    (f) => f.facility_code === defaultFacility,
-  );
-
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          marginBottom: "var(--space-4)",
-        }}
-      >
-        <Button variant="primary" icon={Plus} onClick={openCreate}>
-          Register Facility
-        </Button>
-      </div>
+      {isAdmin && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            marginBottom: "var(--space-4)",
+          }}
+        >
+          <Button variant="primary" icon={Plus} onClick={openCreate}>
+            Register Facility
+          </Button>
+        </div>
+      )}
 
       {sessionFacilities && (
         <div
@@ -1176,124 +1116,54 @@ export default function Settings({
         </div>
       )}
 
-      {loadError && (
+      {isAdmin && loadError && (
         <div className="inline-error-banner">
           <AlertCircle size={16} />
           Could not load facilities. Showing the last known results, if any.
         </div>
       )}
 
-      {facilities.length > 0 && (
-        <div
-          style={{
-            marginBottom: "28px",
-            padding: "16px 20px",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "var(--radius-lg)",
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-4)",
-          }}
-        >
-          <div
+      {isAdmin && (
+        loading ? (
+          <LoadingBlock text="Loading facilities…" />
+        ) : facilities.length === 0 ? (
+          <EmptyState
+            icon={Building2}
+            iconSize={52}
+            iconOpacity={0.25}
+            title="No Facilities Registered"
+            description="Register your hospital's HCX facility to enable preauth, claims, and eligibility workflows."
+          >
+            <Button
+              variant="primary"
+              icon={Plus}
+              onClick={openCreate}
+              style={{ marginTop: "var(--space-5)" }}
+            >
+              Register First Facility
+            </Button>
+          </EmptyState>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              fontSize: "13px",
-              fontWeight: 700,
-              color: "var(--text-muted)",
-              whiteSpace: "nowrap",
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(min(100%, 560px), 1fr))",
+              gap: "var(--space-4)",
             }}
           >
-            <Star size={16} color="var(--primary)" fill="var(--primary)" />{" "}
-            Default Facility
-          </div>
-          <select
-            className="input-modern"
-            style={{ maxWidth: "360px", fontWeight: 600 }}
-            value={defaultFacility}
-            onChange={(e) => handleSetDefault(e.target.value)}
-          >
-            <option value="">- Select default facility -</option>
             {facilities.map((f) => (
-              <option key={f.facility_code} value={f.facility_code}>
-                {f.facility_code} - {f.name} ({f.environment})
-              </option>
+              <FacilityCard
+                key={f.facility_code}
+                facility={f}
+                onEdit={openEdit}
+                onUploadKey={setKeyDrawerFacility}
+              />
             ))}
-          </select>
-          {defaultFacilityData && (
-            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-              <code style={{ color: "var(--primary)" }}>
-                {defaultFacilityData.hcx_participant_code}
-              </code>
-              {" · "}
-              {defaultFacilityData.private_key_set ? (
-                <span style={{ color: "var(--success)" }}>Key set ✓</span>
-              ) : (
-                <span style={{ color: "var(--error)" }}>No key ⚠</span>
-              )}
-            </div>
-          )}
-          <button
-            onClick={loadFacilities}
-            title="Refresh"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--text-muted)",
-              display: "flex",
-              marginLeft: "auto",
-            }}
-          >
-            <RefreshCw size={16} />
-          </button>
-        </div>
-      )}
-
-      {loading ? (
-        <LoadingBlock text="Loading facilities…" />
-      ) : facilities.length === 0 ? (
-        <EmptyState
-          icon={Building2}
-          iconSize={52}
-          iconOpacity={0.25}
-          title="No Facilities Registered"
-          description="Register your hospital's HCX facility to enable preauth, claims, and eligibility workflows."
-        >
-          <Button
-            variant="primary"
-            icon={Plus}
-            onClick={openCreate}
-            style={{ marginTop: "var(--space-5)" }}
-          >
-            Register First Facility
-          </Button>
-        </EmptyState>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fill, minmax(min(100%, 560px), 1fr))",
-            gap: "var(--space-4)",
-          }}
-        >
-          {facilities.map((f) => (
-            <FacilityCard
-              key={f.facility_code}
-              facility={f}
-              isDefault={f.facility_code === defaultFacility}
-              onSetDefault={handleSetDefault}
-              onEdit={openEdit}
-              onUploadKey={setKeyDrawerFacility}
-            />
-          ))}
-        </motion.div>
+          </motion.div>
+        )
       )}
 
       <Drawer
