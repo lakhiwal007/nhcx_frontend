@@ -2846,11 +2846,14 @@ paths:
 
 
         None of `registry_id`, `scheme_code`, `state`, `district`,
-        `endpoint_url`, `primary_email`, or `primary_mobile` are enforced as
-        required by the wrapper API itself (only `facility_code` and `name`
-        are) — but the reference frontend's facility form requires all of
-        them, defaulting `scheme_code` to `PMJAY`, since a missing or
-        malformed value routinely causes ABDM to reject the registration.
+        `endpoint_url`, `primary_email`, `primary_mobile`, `roles`, or
+        `linked_registry_codes` are enforced as required by the wrapper API
+        itself (only `facility_code` and `name` are) — but the reference
+        frontend's facility form requires all of them, defaulting
+        `scheme_code` to `PMJAY` and `linked_registry_codes` to `["10001"]`
+        (HFR), since a missing, empty, or malformed value routinely causes
+        ABDM to reject the registration (see the `invalid_mobile` and
+        `empty_linked_registry_codes` examples).
       requestBody:
         required: true
         content:
@@ -2946,6 +2949,15 @@ paths:
                     abdm_registration:
                       success: false
                       error: "{\"error\":{\"code\":\"400\",\"message\":\"primaryMobile size==10\"}}"
+                empty_linked_registry_codes:
+                  summary: linked_registry_codes was omitted or sent as an empty array
+                  value:
+                    error:
+                      code: "WRAPPER-ERROR:4223"
+                      message: "ABDM did not return a participant_code and none was supplied"
+                    abdm_registration:
+                      success: false
+                      error: "{\"error\":{\"code\":\"400\",\"message\":\"linked registry : size > 1\"}}"
 
   /facilities/{facility_code}:
     get:
@@ -3477,6 +3489,8 @@ components:
             10001 = PROVIDER, 10002 = PAYER, 10003 = AGENCY_TPA,
             10004 = AGENCY_REGULATOR, 10005 = RESEARCH,
             10006 = MEMBER_ISNP, 10007 = AGENCY_SPONSOR, 10008 = HIE_HIO_HCX.
+            Nullable at the API level, but ABDM rejects an empty list and the
+            reference frontend's facility form requires at least one.
           example: ["10001"]
         linked_registry_codes:
           type: array
@@ -3487,6 +3501,9 @@ components:
           description: >
             Linked registry codes:
             10001 = HFR, 10002 = NIN, 10003 = ROHINI, 10004 = PAYER.
+            Nullable at the API level, but ABDM rejects an empty list (400
+            "linked registry : size > 1") and the reference frontend's
+            facility form requires at least one, defaulting to HFR.
           example: ["10001"]
         endpoint_url:
           type: string

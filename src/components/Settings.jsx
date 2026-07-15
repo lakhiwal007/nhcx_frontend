@@ -73,7 +73,7 @@ const EMPTY_FORM = {
   primary_mobile: "",
   signing_cert_path: "",
   roles: ["10001"],
-  linked_registry_codes: [],
+  linked_registry_codes: ["10001"],
   active: true,
   private_key_pem: "",
 };
@@ -431,7 +431,7 @@ function FacilityForm({ form, onChange, isEdit }) {
 
       <SectionHeader title="ABDM Registration" />
 
-      <FormField label="Participant Roles">
+      <FormField label="Participant Roles" required>
         <MultiCheckbox
           options={ROLE_OPTIONS}
           value={form.roles || []}
@@ -439,7 +439,7 @@ function FacilityForm({ form, onChange, isEdit }) {
         />
       </FormField>
 
-      <FormField label="Linked Registry Codes">
+      <FormField label="Linked Registry Codes" required hint="At least one - ABDM rejects an empty list">
         <MultiCheckbox
           options={LINKED_REGISTRY_OPTIONS}
           value={form.linked_registry_codes || []}
@@ -1109,6 +1109,14 @@ export default function Settings({
     }
     if (!/^\d{10}$/.test(form.primary_mobile || "")) {
       setFormError("Primary Mobile is required and must be exactly 10 digits - ABDM rejects any other format.");
+      return;
+    }
+    if (!(form.roles || []).length) {
+      setFormError("Select at least one Participant Role.");
+      return;
+    }
+    if (!(form.linked_registry_codes || []).length) {
+      setFormError("Select at least one Linked Registry Code - ABDM rejects an empty list.");
       return;
     }
     setSaving(true);
