@@ -57,6 +57,7 @@ const REQUIRED_TEXT_FIELDS = [
   ["district", "District"],
   ["endpoint_url", "Endpoint / Callback URL"],
   ["primary_email", "Primary Email"],
+  ["encryption_cert", "Encryption Certificate (Base64)"],
 ];
 
 const EMPTY_FORM = {
@@ -72,6 +73,7 @@ const EMPTY_FORM = {
   primary_email: "",
   primary_mobile: "",
   signing_cert_path: "",
+  encryption_cert: "",
   roles: ["10001"],
   linked_registry_codes: ["10001"],
   active: true,
@@ -514,6 +516,25 @@ function FacilityForm({ form, onChange, isEdit }) {
           onChange={(v) => onChange("signing_cert_path", v)}
           placeholder="https://hospital.example/certs/signing.crt"
           type="url"
+        />
+      </FormField>
+
+      <FormField
+        label="Encryption Certificate (Base64)"
+        required
+        hint="Base64-encoded public certificate - ABDM rejects registration without it"
+      >
+        <textarea
+          className="input-modern"
+          style={{
+            fontFamily: "monospace",
+            fontSize: "11px",
+            height: "80px",
+            resize: "vertical",
+          }}
+          placeholder="TUlJQzJqQ0NBY0tnQXdJQkFnSUJBVEFOQmdrcWhraUc5dzBCQVFzRkFEQVlNUll3..."
+          value={form.encryption_cert || ""}
+          onChange={(e) => onChange("encryption_cert", e.target.value)}
         />
       </FormField>
 
@@ -1081,6 +1102,7 @@ export default function Settings({
       primary_email: facility.primary_email || "",
       primary_mobile: facility.primary_mobile || "",
       signing_cert_path: facility.signing_cert_path || "",
+      encryption_cert: facility.encryption_cert || "",
       roles: facility.roles || ["10001"],
       linked_registry_codes: facility.linked_registry_codes || [],
       active: facility.active ?? true,

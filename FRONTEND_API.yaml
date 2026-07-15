@@ -2846,14 +2846,17 @@ paths:
 
 
         None of `registry_id`, `scheme_code`, `state`, `district`,
-        `endpoint_url`, `primary_email`, `primary_mobile`, `roles`, or
-        `linked_registry_codes` are enforced as required by the wrapper API
-        itself (only `facility_code` and `name` are) — but the reference
-        frontend's facility form requires all of them, defaulting
-        `scheme_code` to `PMJAY` and `linked_registry_codes` to `["10001"]`
-        (HFR), since a missing, empty, or malformed value routinely causes
-        ABDM to reject the registration (see the `invalid_mobile` and
-        `empty_linked_registry_codes` examples).
+        `endpoint_url`, `primary_email`, `primary_mobile`, `roles`,
+        `linked_registry_codes`, or `encryption_cert` are enforced as
+        required by the wrapper API itself (only `facility_code` and `name`
+        are) — but the reference frontend's facility form requires all of
+        them, defaulting `scheme_code` to `PMJAY` and `linked_registry_codes`
+        to `["10001"]` (HFR), since a missing, empty, or malformed value
+        routinely causes ABDM to reject the registration (see the
+        `invalid_mobile`, `empty_linked_registry_codes`, and
+        `missing_encryption_cert` examples). `signing_cert_path` is genuinely
+        optional per ABDM's own participant/create spec and is not required
+        by the frontend either.
       requestBody:
         required: true
         content:
@@ -2958,6 +2961,15 @@ paths:
                     abdm_registration:
                       success: false
                       error: "{\"error\":{\"code\":\"400\",\"message\":\"linked registry : size > 1\"}}"
+                missing_encryption_cert:
+                  summary: encryption_cert was omitted
+                  value:
+                    error:
+                      code: "WRAPPER-ERROR:4223"
+                      message: "ABDM did not return a participant_code and none was supplied"
+                    abdm_registration:
+                      success: false
+                      error: "{\"error\":{\"code\":\"400\",\"message\":\"must not be null\"}}"
 
   /facilities/{facility_code}:
     get:
@@ -3408,6 +3420,13 @@ components:
             Primary mobile number (ABDM primaryMobile and phone[]). Must be
             exactly 10 digits, no country code, spaces, or separators - ABDM
             rejects anything else with `primaryMobile size==10`.
+        encryption_cert:
+          type: string
+          nullable: true
+          description: >
+            Base64-encoded public certificate (ABDM encryption_cert),
+            returned as stored. Required by ABDM's participant/create -
+            omitting it fails registration with `must not be null`.
         abdm_registered:
           type: boolean
           description: True when ABDM participant/create or participant/update was last called successfully.
@@ -3532,13 +3551,17 @@ components:
           nullable: true
           description: >
             URL to the signing certificate (ABDM signing_cert_path). Forwarded
-            to ABDM at registration time but NOT stored in the DB.
+            to ABDM at registration time but NOT stored in the DB. Optional
+            per ABDM's participant/create spec.
         encryption_cert:
           type: string
           nullable: true
           description: >
-            Base64-encoded encryption certificate (ABDM encryption_cert).
-            Stored in nhcx_facilities.encryption_cert.
+            Base64-encoded public certificate (ABDM encryption_cert).
+            Stored in nhcx_facilities.encryption_cert and returned on
+            subsequent reads. Required by ABDM's participant/create -
+            omitting it fails registration with `must not be null`. The
+            reference frontend's facility form requires it.
         signing_cert:
           type: string
           nullable: true
