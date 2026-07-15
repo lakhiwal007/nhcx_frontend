@@ -126,6 +126,14 @@ GET /nhcx/api/v1/insurance/session   (Authorization: Bearer <parent token>)
 
 Prefer `/session` over `GET /facilities` for the selector — `/facilities` is an admin-token-gated management endpoint, whereas `/session` returns exactly the facilities *this user* may act as.
 
+> **No Settings/facility-management screen, no persisted "default facility."** The facility selector above is the entire self-service surface for a regular user — it is transient app state re-derived from `/session` on every login, not a setting saved anywhere on the backend. Facility *editing* (name, ABDM registration, RSA key upload) is a separate, admin-only surface gated by `X-Admin-Token` (see **Facility administration** in the endpoint table below) — it is not scoped to "the facility this user is logged into" and is out of scope for the cashless desk UI entirely.
+
+**`facilities: []` — offer "Request Access", not a "Create Facility" button.** A user landing here can't self-serve facility creation (that's the admin-token-gated surface above) — but leaving them at a dead "contact your administrator" message is a bad default too, especially since this is also the permanent state for a `skip_auth` sandbox on first load (see the auth doc in the backend's `HANDOVER.md`). Instead:
+
+- Show a form (facility name, optional code if they happen to know it, optional notes) and `POST /facility_access_requests` — this works even though the user has zero facilities, since the endpoint only requires a valid session, not a resolved facility.
+- It does **not** create or register anything — it queues a request for an admin to review.
+- Admins see pending requests (`GET /facility_access_requests?status=pending`, admin-token gated) and, after actually onboarding the facility via the normal `POST /facilities` flow, mark the request `resolved` (or `dismissed` if it wasn't a real request) via `PATCH /facility_access_requests/{id}`.
+
 ### Cross-facility admin view (read-only)
 
 A polyclinic admin (`is_admin: true`) who sends **no** `X-Provider-Id` sees **all facilities at once**, read-only:
@@ -1889,3 +1897,5 @@ Facility administration (not part of the cashless desk flow — an admin-only su
 | POST | `/facilities` | Register a facility + ABDM onboarding (session token **and** `X-Admin-Token`) |
 | PUT | `/facilities/{code}` | Update facility + ABDM sync (session token **and** `X-Admin-Token`) |
 | PUT | `/facilities/{code}/private_key` | Upload/replace the RSA decryption key (session token **and** `X-Admin-Token`) |
+
+On `POST /facilities`, don't collect `hcx_participant_code` in the create form — ABDM's `participant/create` assigns it, and the wrapper returns it in the response (`hcx_participant_code`, also under `abdm_registration.response.participant_code`). Only pass it in the request body for the rare case of re-linking a participant code that already exists outside this wrapper. If ABDM registration fails on create and no code was supplied, the wrapper returns `422` and no facility record is created — surface the error and let the admin retry rather than treating the facility as partially created.

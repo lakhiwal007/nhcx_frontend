@@ -2814,10 +2814,12 @@ paths:
           AdminTokenAuth: []
       summary: Register a new HCX facility (proxies to ABDM)
       description: >
-        Creates the facility record locally and proxies a participant/create call
-        to the ABDM sandbox (`/pmjay/sbxhcx/participanthcxservice/participant/create`)
-        using the stored ABDM Bearer token. `facility_code`, `hcx_participant_code`,
-        and `name` are required; `facility_code` must be unique.
+        Proxies a participant/create call to the ABDM sandbox
+        (`/pmjay/sbxhcx/participanthcxservice/participant/create`) using the
+        stored ABDM Bearer token, then creates the facility record locally with
+        the `participant_code` ABDM returns. `facility_code` and `name` are
+        required; `facility_code` must be unique. `hcx_participant_code` is
+        normally omitted — see its field description.
 
 
         `signing_cert_path` is a URL accepted at call time and forwarded to ABDM —
@@ -2832,9 +2834,9 @@ paths:
         database — restrict DB access at the infrastructure level.
 
 
-        `abdm_registration.success` in the response indicates whether the ABDM
-        proxy call succeeded. A `false` here means the local record was created
-        but ABDM registration failed — retry via `PUT /facilities/{code}`.
+        If ABDM registration fails and no `hcx_participant_code` was supplied,
+        no local record is created — the response is a `422` with
+        `abdm_registration` showing the failure. Retry the request.
       requestBody:
         required: true
         content:
@@ -2847,7 +2849,6 @@ paths:
                 value:
                   request_id: "550e8400-e29b-41d4-a716-446655440000"
                   facility_code: "HOSP-001"
-                  hcx_participant_code: "1000099999@hcx"
                   name: "City_HealthCare"
                   registry_id: "DEMO_CLIENT"
                   scheme_code: "PMJAY"
@@ -2890,9 +2891,10 @@ paths:
                     abdm_registered: true
                     abdm_registration:
                       success: true
-                      response: {}
+                      response:
+                        participant_code: "1000099999@hcx"
         "422":
-          description: Validation failure (missing/duplicate fields) or invalid PEM
+          description: Validation failure (missing/duplicate fields), invalid PEM, or ABDM registration failure
           content:
             application/json:
               schema:
@@ -2913,6 +2915,14 @@ paths:
                     error:
                       code: "WRAPPER-ERROR:4222"
                       message: "Invalid PEM: Neither PUB key nor PRIV key: nested asn1 error"
+                abdm_registration_failed:
+                  value:
+                    error:
+                      code: "WRAPPER-ERROR:4223"
+                      message: "ABDM did not return a participant_code and none was supplied"
+                    abdm_registration:
+                      success: false
+                      error: "ABDM gateway timeout"
 
   /facilities/{facility_code}:
     get:
@@ -3085,6 +3095,119 @@ paths:
                     error:
                       code: "WRAPPER-ERROR:4222"
                       message: "Invalid PEM: Neither PUB key nor PRIV key: nested asn1 error"
+
+  /facility_access_requests:
+    get:
+      tags: [Facility Management]
+      operationId: listFacilityAccessRequests
+      security:
+        - BearerAuth: []
+          AdminTokenAuth: []
+      summary: List facility access requests (admin)
+      description: >
+        Requests submitted by users whose session resolved zero facilities —
+        see `POST /facility_access_requests`. Defaults to every request;
+        pass `status` to filter to `pending`, `resolved`, or `dismissed`.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, resolved, dismissed]
+      responses:
+        "200":
+          description: Facility access request list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacilityAccessRequestListResponse"
+    post:
+      tags: [Facility Management]
+      operationId: createFacilityAccessRequest
+      summary: Request a new NHCX facility be onboarded
+      description: >
+        For a user whose session resolves zero facilities (a genuinely new
+        hospital/clinic not yet onboarded, or an existing one that's been
+        misconfigured). Does **not** create or register a facility — it only
+        queues a request an admin reviews and actions manually via
+        `POST /facilities` (which still requires `X-Admin-Token`). Available
+        to any authenticated user regardless of facility access, since that's
+        exactly what's missing here.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FacilityAccessRequestCreate"
+            examples:
+              new_clinic:
+                value:
+                  request_id: "550e8400-e29b-41d4-a716-446655440001"
+                  facility_name: "City General Hospital - Annex Wing"
+                  facility_code: "HOSP-002"
+                  notes: "New IPD wing opening 2026-08-01, needs its own NHCX participant"
+      responses:
+        "201":
+          description: Request queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacilityAccessRequest"
+        "422":
+          description: Missing facility_name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /facility_access_requests/{id}:
+    patch:
+      tags: [Facility Management]
+      operationId: updateFacilityAccessRequest
+      security:
+        - BearerAuth: []
+          AdminTokenAuth: []
+      summary: Mark a facility access request resolved or dismissed (admin)
+      description: >
+        Does not itself create a facility — an admin still onboards it
+        separately via `POST /facilities` (or `db:seed` for the first
+        facility in a deployment). This just closes out the request once
+        that's been done, or dismisses one that doesn't need action.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [resolved, dismissed]
+      responses:
+        "200":
+          description: Request updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacilityAccessRequest"
+        "404":
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 security:
   - BearerAuth: []
@@ -3268,7 +3391,6 @@ components:
       required:
         - request_id
         - facility_code
-        - hcx_participant_code
         - name
       properties:
         request_id:
@@ -3279,7 +3401,14 @@ components:
           description: Unique short code for this facility (e.g. HOSP-001).
         hcx_participant_code:
           type: string
-          description: HCX participant address (e.g. 1000099999@hcx). Used as ABDM participant_code.
+          nullable: true
+          description: >
+            HCX participant address (e.g. 1000099999@hcx). Normally omitted on
+            create — ABDM's participant/create assigns this and it comes back
+            in the response's abdm_registration.response.participant_code,
+            which the wrapper stores automatically. Only pass it if you already
+            have a code (e.g. re-linking a participant registered outside this
+            wrapper).
         name:
           type: string
           description: Participant display name (ABDM participant_name).
@@ -3382,6 +3511,59 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Facility"
+
+    FacilityAccessRequestCreate:
+      type: object
+      required: [request_id, facility_name]
+      properties:
+        request_id:
+          type: string
+          description: Mandatory client-generated request id (UUID recommended).
+        facility_name:
+          type: string
+        facility_code:
+          type: string
+          nullable: true
+          description: The requester may not know this yet — the admin assigns/confirms it during onboarding.
+        notes:
+          type: string
+          nullable: true
+
+    FacilityAccessRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        requested_by_name:
+          type: string
+          nullable: true
+        facility_name:
+          type: string
+        facility_code:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, resolved, dismissed]
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    FacilityAccessRequestListResponse:
+      type: object
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/FacilityAccessRequest"
 
     FacilityPrivateKeyRequest:
       type: object
