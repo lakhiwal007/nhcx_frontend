@@ -117,6 +117,17 @@ const authMessage = (status, raw) => {
   return null;
 };
 
+const unwrapNestedJsonMessage = (str) => {
+  const jsonStart = str.indexOf("{");
+  if (jsonStart === -1) return null;
+  try {
+    const inner = JSON.parse(str.slice(jsonStart));
+    return inner?.error?.message || inner?.message || null;
+  } catch (_) {
+    return null;
+  }
+};
+
 /** Extract the most human-readable message from a backend error response body. */
 const extractErrorMessage = async (res) => {
   try {
@@ -124,21 +135,19 @@ const extractErrorMessage = async (res) => {
     let msg = body?.error?.message || body?.message || body?.error;
     const auth = authMessage(res.status, msg);
     if (auth) return auth;
+    const abdmError = body?.abdm_registration?.error;
+    if (typeof abdmError === "string" && abdmError) {
+      const innerMsg = unwrapNestedJsonMessage(abdmError);
+      return enrichPayrMessage(`ABDM rejected the registration: ${innerMsg || abdmError}`);
+    }
     // A 422/gateway error may carry a PAYR code in errors[].code — surface the
     // friendly label + code so the toast isn't an opaque "422".
     const payrFromList = (body?.errors || [])
       .map((e) => describePayrError(e?.code || e?.detail || ""))
       .find(Boolean);
     if (typeof msg === "string") {
-      // Backend sometimes wraps a nested JSON string — unwrap it
-      const jsonStart = msg.indexOf("{");
-      if (jsonStart !== -1) {
-        try {
-          const inner = JSON.parse(msg.slice(jsonStart));
-          const innerMsg = inner?.error?.message || inner?.message;
-          if (innerMsg) return enrichPayrMessage(innerMsg);
-        } catch (_) {}
-      }
+      const innerMsg = unwrapNestedJsonMessage(msg);
+      if (innerMsg) return enrichPayrMessage(innerMsg);
       return enrichPayrMessage(msg);
     }
     if (payrFromList) return `${payrFromList.label} (${payrFromList.code})`;
