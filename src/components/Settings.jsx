@@ -50,12 +50,21 @@ const ENVIRONMENT_OPTIONS = [
   { value: "production", label: "Production" },
 ];
 
+const REQUIRED_TEXT_FIELDS = [
+  ["registry_id", "Registry ID"],
+  ["scheme_code", "Scheme Code"],
+  ["state", "State"],
+  ["district", "District"],
+  ["endpoint_url", "Endpoint / Callback URL"],
+  ["primary_email", "Primary Email"],
+];
+
 const EMPTY_FORM = {
   facility_code: "",
   name: "",
   hcx_participant_code: "",
   registry_id: "",
-  scheme_code: "",
+  scheme_code: "PMJAY",
   environment: "sandbox",
   state: "",
   district: "",
@@ -365,14 +374,14 @@ function FacilityForm({ form, onChange, isEdit }) {
       <div
         className="grid-2-col" style={{ gap: "var(--space-4)" }}
       >
-        <FormField label="Registry ID" hint="ABDM registryid / Client ID">
+        <FormField label="Registry ID" required hint="ABDM registryid / Client ID">
           <TextInput
             value={form.registry_id}
             onChange={(v) => onChange("registry_id", v)}
             placeholder="DEMO_CLIENT or HFR-12345"
           />
         </FormField>
-        <FormField label="Scheme Code" hint="e.g. PMJAY">
+        <FormField label="Scheme Code" required hint="e.g. PMJAY">
           <TextInput
             value={form.scheme_code}
             onChange={(v) => onChange("scheme_code", v)}
@@ -441,14 +450,14 @@ function FacilityForm({ form, onChange, isEdit }) {
       <div
         className="grid-2-col" style={{ gap: "var(--space-4)" }}
       >
-        <FormField label="State">
+        <FormField label="State" required>
           <TextInput
             value={form.state}
             onChange={(v) => onChange("state", v)}
             placeholder="AndhraPradesh"
           />
         </FormField>
-        <FormField label="District">
+        <FormField label="District" required>
           <TextInput
             value={form.district}
             onChange={(v) => onChange("district", v)}
@@ -461,6 +470,7 @@ function FacilityForm({ form, onChange, isEdit }) {
 
       <FormField
         label="Endpoint / Callback URL"
+        required
         hint="Bridge URL for NHCX callbacks"
       >
         <TextInput
@@ -474,7 +484,7 @@ function FacilityForm({ form, onChange, isEdit }) {
       <div
         className="grid-2-col" style={{ gap: "var(--space-4)" }}
       >
-        <FormField label="Primary Email">
+        <FormField label="Primary Email" required>
           <TextInput
             value={form.primary_email}
             onChange={(v) => onChange("primary_email", v)}
@@ -482,10 +492,14 @@ function FacilityForm({ form, onChange, isEdit }) {
             type="email"
           />
         </FormField>
-        <FormField label="Primary Mobile">
+        <FormField
+          label="Primary Mobile"
+          required
+          hint="10 digits, no country code or spaces - ABDM rejects anything else"
+        >
           <TextInput
             value={form.primary_mobile}
-            onChange={(v) => onChange("primary_mobile", v)}
+            onChange={(v) => onChange("primary_mobile", v.replace(/\D/g, "").slice(0, 10))}
             placeholder="9876543210"
           />
         </FormField>
@@ -1053,7 +1067,7 @@ export default function Settings({
       name: facility.name,
       hcx_participant_code: facility.hcx_participant_code,
       registry_id: facility.registry_id || "",
-      scheme_code: facility.scheme_code || "",
+      scheme_code: facility.scheme_code || "PMJAY",
       environment: facility.environment || "sandbox",
       state: facility.state || "",
       district: facility.district || "",
@@ -1080,6 +1094,15 @@ export default function Settings({
           ? "Facility Code, Name, and HCX Participant Code are required."
           : "Facility Code and Name are required.",
       );
+      return;
+    }
+    const missingField = REQUIRED_TEXT_FIELDS.find(([key]) => !form[key]);
+    if (missingField) {
+      setFormError(`${missingField[1]} is required.`);
+      return;
+    }
+    if (!/^\d{10}$/.test(form.primary_mobile || "")) {
+      setFormError("Primary Mobile is required and must be exactly 10 digits - ABDM rejects any other format.");
       return;
     }
     setSaving(true);

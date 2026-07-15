@@ -2837,6 +2837,20 @@ paths:
         If ABDM registration fails and no `hcx_participant_code` was supplied,
         no local record is created — the response is a `422` with
         `abdm_registration` showing the failure. Retry the request.
+
+
+        `primary_mobile` must be exactly 10 digits (no country code, spaces,
+        or separators) — ABDM rejects anything else with `primaryMobile
+        size==10`, surfaced here as a `422` (see the `invalid_mobile` example).
+        Validate this client-side before submitting.
+
+
+        None of `registry_id`, `scheme_code`, `state`, `district`,
+        `endpoint_url`, `primary_email`, or `primary_mobile` are enforced as
+        required by the wrapper API itself (only `facility_code` and `name`
+        are) — but the reference frontend's facility form requires all of
+        them, defaulting `scheme_code` to `PMJAY`, since a missing or
+        malformed value routinely causes ABDM to reject the registration.
       requestBody:
         required: true
         content:
@@ -2923,6 +2937,15 @@ paths:
                     abdm_registration:
                       success: false
                       error: "ABDM gateway timeout"
+                invalid_mobile:
+                  summary: primary_mobile is missing or not exactly 10 digits
+                  value:
+                    error:
+                      code: "WRAPPER-ERROR:4223"
+                      message: "ABDM did not return a participant_code and none was supplied"
+                    abdm_registration:
+                      success: false
+                      error: "{\"error\":{\"code\":\"400\",\"message\":\"primaryMobile size==10\"}}"
 
   /facilities/{facility_code}:
     get:
@@ -3368,7 +3391,11 @@ components:
         primary_mobile:
           type: string
           nullable: true
-          description: Primary mobile number (ABDM primaryMobile and phone[]).
+          pattern: '^\d{10}$'
+          description: >
+            Primary mobile number (ABDM primaryMobile and phone[]). Must be
+            exactly 10 digits, no country code, spaces, or separators - ABDM
+            rejects anything else with `primaryMobile size==10`.
         abdm_registered:
           type: boolean
           description: True when ABDM participant/create or participant/update was last called successfully.
@@ -3415,20 +3442,30 @@ components:
         registry_id:
           type: string
           nullable: true
-          description: ABDM registryid / Client Id (e.g. DEMO_CLIENT).
+          description: >
+            ABDM registryid / Client Id (e.g. DEMO_CLIENT). Nullable at the API
+            level, but the reference frontend's facility form requires it.
         scheme_code:
           type: string
           nullable: true
-          description: ABDM scheme code (e.g. PMJAY).
+          default: PMJAY
+          description: >
+            ABDM scheme code (e.g. PMJAY). Nullable at the API level, but the
+            reference frontend's facility form requires it and defaults new
+            facilities to PMJAY.
           example: PMJAY
         state:
           type: string
           nullable: true
-          description: State of the facility (e.g. AndhraPradesh).
+          description: >
+            State of the facility (e.g. AndhraPradesh). Nullable at the API
+            level, but the reference frontend's facility form requires it.
         district:
           type: string
           nullable: true
-          description: District of the facility (e.g. Krishna).
+          description: >
+            District of the facility (e.g. Krishna). Nullable at the API
+            level, but the reference frontend's facility form requires it.
         roles:
           type: array
           nullable: true
@@ -3454,15 +3491,25 @@ components:
         endpoint_url:
           type: string
           nullable: true
-          description: Bridge/callback URL of the participant.
+          description: >
+            Bridge/callback URL of the participant. Nullable at the API level,
+            but the reference frontend's facility form requires it.
         primary_email:
           type: string
           nullable: true
-          description: Primary contact email (ABDM primaryEmail).
+          description: >
+            Primary contact email (ABDM primaryEmail). Nullable at the API
+            level, but the reference frontend's facility form requires it.
         primary_mobile:
           type: string
           nullable: true
-          description: Primary mobile number (ABDM primaryMobile and phone[]).
+          pattern: '^\d{10}$'
+          description: >
+            Primary mobile number (ABDM primaryMobile and phone[]). Must be
+            exactly 10 digits, no country code, spaces, or separators - ABDM
+            rejects anything else with `primaryMobile size==10`. Not enforced
+            by the wrapper's own validation, but required for ABDM registration
+            to succeed, so the frontend should validate it before submitting.
         signing_cert_path:
           type: string
           nullable: true
