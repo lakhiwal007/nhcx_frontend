@@ -70,3 +70,40 @@ npm run dev
 ```
 
 App serves at `http://localhost:5173/nhcx/service/`.
+
+## 🐳 Running with Docker
+
+The image is a two-stage build (Node build → static Nginx serve) and expects an external network named `nhcx-service_nhcx_network` for reaching the backend.
+
+```bash
+# Create the shared network once, if it doesn't already exist
+docker network create nhcx-service_nhcx_network
+
+# Build and run via Compose (rebuilds on code changes)
+docker compose up --build -d
+
+# Follow logs
+docker compose logs -f app
+
+# Stop and remove the container
+docker compose down
+```
+
+Or without Compose:
+
+```bash
+# Build the image (override build-time env vars as needed)
+docker build \
+  --build-arg VITE_BASE_URL=/nhcx/api/v1/insurance \
+  --build-arg VITE_USE_MOCK=false \
+  -t nhcx-cli .
+
+# Run it, joined to the backend's network
+docker run -d --name nhcx-cli \
+  -p 3000:80 \
+  -e BACKEND_URL=http://app:8082 \
+  --network nhcx-service_nhcx_network \
+  nhcx-cli
+```
+
+App serves at `http://localhost:3000/nhcx/service/`. `BACKEND_URL` is templated into the Nginx config at container start (`nginx.conf` → `envsubst`); `VITE_BASE_URL`/`VITE_USE_MOCK` are baked in at build time since Vite env vars are compiled into the static bundle.
