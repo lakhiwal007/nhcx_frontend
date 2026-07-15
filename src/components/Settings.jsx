@@ -347,13 +347,17 @@ function FacilityForm({ form, onChange, isEdit }) {
 
       <FormField
         label="HCX Participant Code"
-        required
-        hint="ABDM participant_code, e.g. 1000099999@hcx"
+        required={isEdit}
+        hint={
+          isEdit
+            ? "ABDM participant_code, e.g. 1000099999@hcx"
+            : "Leave blank — ABDM's participant/create assigns this on registration. Only set it to re-link a participant code that already exists outside this wrapper."
+        }
       >
         <TextInput
           value={form.hcx_participant_code}
           onChange={(v) => onChange("hcx_participant_code", v)}
-          placeholder="1000099999@hcx"
+          placeholder={isEdit ? "1000099999@hcx" : "Auto-assigned by ABDM"}
           monospace
         />
       </FormField>
@@ -1070,9 +1074,11 @@ export default function Settings({
     setForm((p) => ({ ...p, [key]: value }));
 
   const handleSave = async () => {
-    if (!form.facility_code || !form.name || !form.hcx_participant_code) {
+    if (!form.facility_code || !form.name || (editingFacility && !form.hcx_participant_code)) {
       setFormError(
-        "Facility Code, Name, and HCX Participant Code are required.",
+        editingFacility
+          ? "Facility Code, Name, and HCX Participant Code are required."
+          : "Facility Code and Name are required.",
       );
       return;
     }
@@ -1081,6 +1087,7 @@ export default function Settings({
     try {
       const payload = { ...form };
       if (!payload.private_key_pem) delete payload.private_key_pem;
+      if (!payload.hcx_participant_code) delete payload.hcx_participant_code;
       if (editingFacility) {
         await api.updateFacility(form.facility_code, payload);
       } else {

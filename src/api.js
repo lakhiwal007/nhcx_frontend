@@ -1872,15 +1872,21 @@ const mock = {
   },
   createFacility: async (data) => {
     await delay(900);
+    // ABDM's participant/create assigns the code when none is supplied.
+    const participant_code =
+      data.hcx_participant_code || `${data.facility_code}@hcx`;
     return {
       facility_code: data.facility_code,
       name: data.name,
-      hcx_participant_code: data.hcx_participant_code,
+      hcx_participant_code: participant_code,
       active: data.active ?? true,
       private_key_set: !!data.private_key_pem,
       environment: data.environment || "sandbox",
       registry_id: data.registry_id || null,
-      abdm_registration: { success: true },
+      abdm_registration: {
+        success: true,
+        response: { participant_code },
+      },
     };
   },
   updateFacility: async (facility_code, data) => {
