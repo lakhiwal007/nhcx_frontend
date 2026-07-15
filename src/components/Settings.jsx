@@ -14,18 +14,18 @@ import {
   Lock,
   Unlock,
   AlertCircle,
-  Palette,
   Sun,
   Moon,
   PanelLeft,
   PanelTop,
   Send,
-  Inbox,
   Check,
   XCircle,
+  Search,
+  SearchX,
 } from "lucide-react";
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
-import { Button, EmptyState, LoadingBlock } from "./Common";
+import { Button, Card, EmptyState, Input, LoadingBlock } from "./Common";
 
 const ROLE_OPTIONS = [
   { value: "10001", label: "Provider" },
@@ -933,19 +933,7 @@ function PendingRequestsPanel({ requests, onResolve }) {
   if (requests.length === 0) return null;
 
   return (
-    <div
-      style={{
-        marginBottom: "var(--space-5)",
-        padding: "16px 20px",
-        background: "var(--bg-card)",
-        border: "1px solid var(--border-color)",
-        borderRadius: "var(--radius-lg)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
-        <Inbox size={16} color="var(--primary)" />
-        Pending Facility Requests ({requests.length})
-      </div>
+    <Card title={`Pending Facility Requests (${requests.length})`} className="mb-6">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         {requests.map((r) => (
           <div
@@ -977,7 +965,7 @@ function PendingRequestsPanel({ requests, onResolve }) {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -1006,6 +994,24 @@ export default function Settings({
   const [keyDrawerFacility, setKeyDrawerFacility] = useState(null);
 
   const [pendingRequests, setPendingRequests] = useState([]);
+
+  const [facilitySearch, setFacilitySearch] = useState("");
+  const facilitySearchQuery = facilitySearch.trim().toLowerCase();
+  const filteredFacilities = facilitySearchQuery
+    ? facilities.filter((f) =>
+        [
+          f.name,
+          f.facility_code,
+          f.hcx_participant_code,
+          f.state,
+          f.district,
+          f.registry_id,
+          f.environment,
+        ]
+          .filter(Boolean)
+          .some((field) => field.toLowerCase().includes(facilitySearchQuery)),
+      )
+    : facilities;
 
   const loadPendingRequests = async () => {
     try {
@@ -1153,38 +1159,10 @@ export default function Settings({
 
   return (
     <div>
-      {isAdmin && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            marginBottom: "var(--space-4)",
-          }}
-        >
-          <Button variant="primary" icon={Plus} onClick={openCreate}>
-            Register Facility
-          </Button>
-        </div>
-      )}
-
       {isAdmin && <PendingRequestsPanel requests={pendingRequests} onResolve={handleResolveAccessRequest} />}
 
       {sessionFacilities && (
-        <div
-          style={{
-            marginBottom: "var(--space-5)",
-            padding: "16px 20px",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "var(--radius-lg)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
-            <Building2 size={16} color="var(--primary)" />
-            Active Facility
-          </div>
-
+        <Card title="Active Facility" className="mb-6">
           {sessionFacilities.length === 0 ? (
             facilities.length > 0 ? (
               <div>
@@ -1241,22 +1219,10 @@ export default function Settings({
               )}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
-      <div
-        style={{
-          marginBottom: "var(--space-5)",
-          padding: "16px 20px",
-          background: "var(--bg-card)",
-          border: "1px solid var(--border-color)",
-          borderRadius: "var(--radius-lg)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
-          <Palette size={16} color="var(--primary)" />
-          Appearance
-        </div>
+      <Card title="Appearance" className="mb-6">
         <div style={{ display: "flex", flexWrap: "wrap", gap: "28px" }}>
           <div>
             <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "var(--space-2)" }}>
@@ -1303,87 +1269,122 @@ export default function Settings({
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {isAdmin && (
-        <div
-          style={{
-            marginBottom: "var(--space-5)",
-            padding: "16px 20px",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "var(--radius-lg)",
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-4)",
-          }}
+        <Card
+          title={
+            facilitySearchQuery
+              ? `Facility Management (${filteredFacilities.length} of ${facilities.length})`
+              : `Facility Management${facilities.length ? ` (${facilities.length})` : ""}`
+          }
+          headerAction={
+            <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
+              <div style={{ width: "260px" }}>
+                <Input
+                  icon={Search}
+                  placeholder="Search name, code, participant…"
+                  value={facilitySearch}
+                  onChange={(e) => setFacilitySearch(e.target.value)}
+                />
+              </div>
+              <Button variant="primary" icon={Plus} onClick={openCreate}>
+                Register Facility
+              </Button>
+            </div>
+          }
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-            <Lock size={16} color="var(--primary)" />
-            Admin Token
-          </div>
-          <input
-            type="password"
-            className="input-modern"
-            style={{ maxWidth: "320px" }}
-            placeholder="Deployment admin token (for facility mutations)"
-            value={adminToken}
-            onChange={(e) => handleAdminTokenChange(e.target.value)}
-          />
-          <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
-            Required to register or edit facilities and upload RSA keys.
-          </span>
-        </div>
-      )}
-
-      {isAdmin && loadError && (
-        <div className="inline-error-banner">
-          <AlertCircle size={16} />
-          Could not load facilities. Showing the last known results, if any.
-        </div>
-      )}
-
-      {isAdmin && (
-        loading ? (
-          <LoadingBlock text="Loading facilities…" />
-        ) : facilities.length === 0 ? (
-          <EmptyState
-            icon={Building2}
-            iconSize={52}
-            iconOpacity={0.25}
-            title="No Facilities Registered"
-            description="Register your hospital's HCX facility to enable preauth, claims, and eligibility workflows."
-          >
-            <Button
-              variant="primary"
-              icon={Plus}
-              onClick={openCreate}
-              style={{ marginTop: "var(--space-5)" }}
-            >
-              Register First Facility
-            </Button>
-          </EmptyState>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fill, minmax(min(100%, 560px), 1fr))",
-              gap: "var(--space-4)",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-3)",
+              paddingBottom: "var(--space-4)",
+              marginBottom: "var(--space-4)",
+              borderBottom: "1px solid var(--border-color)",
             }}
           >
-            {facilities.map((f) => (
-              <FacilityCard
-                key={f.facility_code}
-                facility={f}
-                onEdit={openEdit}
-                onUploadKey={setKeyDrawerFacility}
-              />
-            ))}
-          </motion.div>
-        )
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+              <Lock size={16} color="var(--primary)" />
+              Admin Token
+            </div>
+            <input
+              type="password"
+              className="input-modern"
+              style={{ maxWidth: "320px" }}
+              placeholder="Deployment admin token (for facility mutations)"
+              value={adminToken}
+              onChange={(e) => handleAdminTokenChange(e.target.value)}
+            />
+            <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
+              Required to register or edit facilities and upload RSA keys.
+            </span>
+          </div>
+
+          {loadError && (
+            <div className="inline-error-banner">
+              <AlertCircle size={16} />
+              Could not load facilities. Showing the last known results, if any.
+            </div>
+          )}
+
+          {loading ? (
+            <LoadingBlock text="Loading facilities…" />
+          ) : facilities.length === 0 ? (
+            <EmptyState
+              icon={Building2}
+              iconSize={52}
+              iconOpacity={0.25}
+              title="No Facilities Registered"
+              description="Register your hospital's HCX facility to enable preauth, claims, and eligibility workflows."
+            >
+              <Button
+                variant="primary"
+                icon={Plus}
+                onClick={openCreate}
+                style={{ marginTop: "var(--space-5)" }}
+              >
+                Register First Facility
+              </Button>
+            </EmptyState>
+          ) : filteredFacilities.length === 0 ? (
+            <EmptyState
+              icon={SearchX}
+              iconSize={44}
+              iconOpacity={0.25}
+              title="No Matching Facilities"
+              description={`Nothing matches "${facilitySearch.trim()}". Try a different name, code, or participant ID.`}
+            >
+              <Button
+                variant="outline"
+                onClick={() => setFacilitySearch("")}
+                style={{ marginTop: "var(--space-4)" }}
+              >
+                Clear Search
+              </Button>
+            </EmptyState>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fill, minmax(min(100%, 560px), 1fr))",
+                gap: "var(--space-4)",
+              }}
+            >
+              {filteredFacilities.map((f) => (
+                <FacilityCard
+                  key={f.facility_code}
+                  facility={f}
+                  onEdit={openEdit}
+                  onUploadKey={setKeyDrawerFacility}
+                />
+              ))}
+            </motion.div>
+          )}
+        </Card>
       )}
 
       <Drawer
