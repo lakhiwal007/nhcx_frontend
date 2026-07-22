@@ -38,10 +38,12 @@ import Communications from "./components/Communications";
 import Payments from "./components/Payments";
 import SettingsPage from "./components/Settings";
 import CaseWrapper from "./components/wizard/CaseWrapper";
+import { LoadingBlock } from "./components/Common";
 
 const TASK_POLL_MS = 60_000;
 
-function RequireProvider({ hasProvider }) {
+function RequireProvider({ hasProvider, sessionReady }) {
+  if (!sessionReady) return <LoadingBlock text="Loading…" />;
   return hasProvider ? <Outlet /> : <Navigate to="/settings" replace />;
 }
 
@@ -79,6 +81,7 @@ export default function App() {
   const [sessionFacilities, setSessionFacilities] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [clinicAccessError, setClinicAccessError] = useState(null);
+  const [sessionReady, setSessionReady] = useState(false);
   const facilityRecoveryAttempted = useRef(false);
   const taskPollRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
@@ -139,7 +142,9 @@ export default function App() {
         localStorage.setItem("nhcx_default_facility_name", f.name || "");
         window.dispatchEvent(new Event("provider-changed"));
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setSessionReady(true);
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -681,7 +686,7 @@ export default function App() {
                   />
                 }
               />
-              <Route element={<RequireProvider hasProvider={hasProvider} />}>
+              <Route element={<RequireProvider hasProvider={hasProvider} sessionReady={sessionReady} />}>
                 <Route path="/work-queue" element={<WorkQueue allFacilitiesMode={allFacilitiesMode} />} />
                 <Route path="/dashboard" element={<Dashboard allFacilitiesMode={allFacilitiesMode} />} />
                 <Route path="/registry" element={<PatientProfile />} />
