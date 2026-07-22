@@ -947,6 +947,21 @@ Policy fetch request:
 
 `identifier_type` is optional and takes `AbhaNumber`, `MemberId`, or `MobileNo`. Omit it to keep the default behavior: the backend tries ABHA, then Member ID, then Mobile, stopping at the first identifier that returns policies (up to 3 NHCX calls). Set it to restrict the lookup to exactly one identifier (one NHCX call) — surface this as a "Search by" dropdown next to the policy fetch action. If the child has no value on file for the chosen type, or NHCX returns nothing for it, `policies` comes back empty; it does not fall back to the other types.
 
+`member_id` is optional and lets the user type in a member id rather than relying on the one on file for the patient:
+
+```json
+{
+  "child_id": 728,
+  "admission_id": "622",
+  "payer_id": "1518@hcx",
+  "member_id": "MEMB-123456"
+}
+```
+
+Sending it pins the lookup to `MemberId` (one NHCX call, no cascade) and overrides the stored member id — you do **not** also need to send `identifier_type`. Sending it alongside an `identifier_type` other than `MemberId` is a `400`. The value goes to NHCX verbatim, so trim whitespace but do not reformat it. `child_id` is still required: it is what the returned policies get linked to.
+
+In the "Search by" dropdown, this means the `MemberId` option should reveal a text input, pre-filled with the member id on file (`data.identifier_used.value` from a prior fetch) and editable. Leave the field untouched to search on the stored value; edit it to send `member_id`. `AbhaNumber` and `MobileNo` have no equivalent override — they always search on the value on file.
+
 Payer search should be a searchable dropdown/list with `name`, `participant_code`, `scheme_type`, and `status`.
 
 To resolve a single payer's details from a known `payer_id` (e.g. re-displaying the payer name/status for a stored `payer_id` without re-running the dropdown search), use `GET /cashless/payers/{id}` instead — it checks the local payer cache first and only calls the NHCX registry on a miss. Pass `force_refresh=true` to bypass the cache. Returns `404` if the participant code doesn't exist. This is a separate endpoint (path param), not a `payers/search?id=` query.
@@ -985,6 +1000,7 @@ Empty and error states:
 | No payer found | Keep search term visible and allow changing scheme/date filters |
 | Policy fetch pending | Replace policy area with loading rows |
 | No policies returned | Show "No active policies found for this payer" and allow changing payer |
+| No policies for a typed `member_id` | Keep the typed value in the field so the user can correct a typo; say the search was by member id, since there was no cascade fallback |
 | Policy fetch error | Show retry button and keep selected payer |
 | Selected policy `sum_insured` < estimated bill | Amber inline warning on the policy card; do not block proceed |
 

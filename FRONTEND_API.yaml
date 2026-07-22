@@ -557,6 +557,13 @@ paths:
                   payer_id: "1518@hcx"
                   identifier_type: "MobileNo"
                   force_refresh: true
+              member_id:
+                summary: Search by a member id typed in by the user
+                value:
+                  child_id: 728
+                  admission_id: "622"
+                  payer_id: "1518@hcx"
+                  member_id: "MEMB-123456"
       responses:
         "200":
           description: Policies fetched successfully
@@ -4151,6 +4158,16 @@ components:
             an empty `policies` array — it does NOT fall back to the other
             identifier types. Omit this field for the default auto-cascade
             behavior.
+        member_id:
+          type: string
+          nullable: true
+          description: >
+            Optional. Member ID to search NHCX with, when the user types one in
+            instead of relying on the value on file for the child. Supplying it
+            pins the lookup to `MemberId` (no cascade), overrides the stored
+            member id, and is sent to NHCX verbatim. Cannot be combined with an
+            `identifier_type` other than `MemberId`.
+          example: "MEMB-123456"
         force_refresh:
           type: boolean
           default: false
