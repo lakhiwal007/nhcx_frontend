@@ -744,16 +744,16 @@ export default function PatientProfile() {
               ) : (
                 <Card style={{ padding: 0, overflow: "hidden" }}>
                   <div className="table-responsive-wrapper">
-                    <table className="table-modern">
+                    <table className="table-modern" style={{ tableLayout: "fixed" }}>
                       <thead>
                         <tr>
-                          <th>Patient Name</th>
-                          <th>ID</th>
-                          <th>Gender</th>
-                          <th>Age</th>
-                          <th>Mobile</th>
-                          <th>Latest Case</th>
-                          <th>Action</th>
+                          <th style={{ width: "22%" }}>Patient Name</th>
+                          <th style={{ width: "8%" }}>ID</th>
+                          <th style={{ width: "8%" }}>Gender</th>
+                          <th style={{ width: "8%" }}>Age</th>
+                          <th style={{ width: "12%" }}>Mobile</th>
+                          <th style={{ width: "32%" }}>Latest Case</th>
+                          <th style={{ width: "10%" }}>Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -761,17 +761,17 @@ export default function PatientProfile() {
                           const age = calculateAge(child.dob);
                           return (
                             <tr key={child.child_id} onClick={() => handleSelectPatient(child)} style={{ cursor: "pointer" }}>
-                              <td style={{ fontWeight: 700 }}>{child.name}</td>
+                              <td style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{child.name}</td>
                               <td className="mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>#{child.child_id}</td>
                               <td style={{ textTransform: "capitalize" }}>{child.gender}</td>
                               <td>{age !== null ? `${age} yrs` : "-"}</td>
-                              <td>{child.mobile || "-"}</td>
+                              <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{child.mobile || "-"}</td>
                               <td>
                                 {child.latest_claim ? (
-                                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
                                     <CaseStatusChip claim={child.latest_claim} />
                                     {(child.latest_claim.payer_name || child.latest_claim.payer_id) && (
-                                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id}</span>
+                                      <span style={{ fontSize: "11px", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id}</span>
                                     )}
                                   </div>
                                 ) : (
