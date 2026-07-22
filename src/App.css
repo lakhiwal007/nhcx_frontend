@@ -1749,3 +1749,41 @@ code {
     flex: 1 1 0;
     min-width: 140px;
 }
+
+/* Full-page blocking states: session expired / deep-link clinic mismatch.
+   Neither is recoverable from inside the app, so this replaces the whole
+   shell rather than layering a dismissible toast over dead content. */
+.session-block-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-main);
+    padding: var(--space-6);
+}
+
+.session-block-card {
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    text-align: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-8) var(--space-6);
+}
+
+.session-block-card h2 {
+    font-size: var(--text-lg);
+    color: var(--text-main);
+    margin: 0;
+}
+
+.session-block-card p {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    margin: 0;
+}

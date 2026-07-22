@@ -97,23 +97,33 @@ const buildUrl = (path, params = {}) => {
   return url.toString();
 };
 
-const dispatchError = (msg) =>
-  window.dispatchEvent(new CustomEvent("api-error", { detail: msg }));
+const dispatchError = (msg, kind) =>
+  window.dispatchEvent(new CustomEvent("api-error", { detail: { message: msg, kind } }));
+
+// Thrown for any non-2xx wrapper response. `kind` is the classified auth
+// failure (see authMessage) so App.jsx can react structurally — re-bootstrap
+// the session, bounce to the parent HIS — instead of pattern-matching text.
+class ApiError extends Error {
+  constructor(message, kind = null) {
+    super(message);
+    this.kind = kind;
+  }
+}
 
 // Auth failures from the wrapper's session-token check get a plain-language
 // message — the raw "WRAPPER-ERROR:1012" means nothing to a billing user.
 const authMessage = (status, raw) => {
   const code = typeof raw === "string" ? raw : "";
   if (code.includes("WRAPPER-ERROR:1012") || status === 401)
-    return "Your session has expired. Please sign in again from the hospital system.";
+    return { kind: "AUTH_EXPIRED", message: "Your session has expired. Please sign in again from the hospital system." };
   // Check the specific admin-token code before the generic 403 fallback below,
   // which would otherwise misreport it as "no facility linked".
   if (code.includes("WRAPPER-ERROR:1014"))
-    return "Admin token is missing or incorrect. Enter the deployment admin token in Settings to manage facilities.";
+    return { kind: "ADMIN_TOKEN", message: "Admin token is missing or incorrect. Enter the deployment admin token in Settings to manage facilities." };
   if (code.includes("WRAPPER-ERROR:1013") || status === 403)
-    return "No NHCX facility is linked to your account. Contact your administrator.";
+    return { kind: "NO_FACILITY", message: "No NHCX facility is linked to your account. Contact your administrator." };
   if (code.includes("WRAPPER-ERROR:1011"))
-    return "Select a facility to act as before performing this action.";
+    return { kind: "FACILITY_REQUIRED", message: "Select a facility to act as before performing this action." };
   return null;
 };
 
@@ -138,7 +148,7 @@ const extractErrorMessage = async (res) => {
     const abdmError = body?.abdm_registration?.error;
     if (typeof abdmError === "string" && abdmError) {
       const innerMsg = unwrapNestedJsonMessage(abdmError);
-      return enrichPayrMessage(`ABDM rejected the registration: ${innerMsg || abdmError}`);
+      return { kind: null, message: enrichPayrMessage(`ABDM rejected the registration: ${innerMsg || abdmError}`) };
     }
     // A 422/gateway error may carry a PAYR code in errors[].code — surface the
     // friendly label + code so the toast isn't an opaque "422".
@@ -147,12 +157,11 @@ const extractErrorMessage = async (res) => {
       .find(Boolean);
     if (typeof msg === "string") {
       const innerMsg = unwrapNestedJsonMessage(msg);
-      if (innerMsg) return enrichPayrMessage(innerMsg);
-      return enrichPayrMessage(msg);
+      return { kind: null, message: enrichPayrMessage(innerMsg || msg) };
     }
-    if (payrFromList) return `${payrFromList.label} (${payrFromList.code})`;
+    if (payrFromList) return { kind: null, message: `${payrFromList.label} (${payrFromList.code})` };
   } catch (_) {}
-  return authMessage(res.status) || `${res.status} ${res.statusText}`;
+  return authMessage(res.status) || { kind: null, message: `${res.status} ${res.statusText}` };
 };
 
 /** Wrapper around fetch — auto-injects request_id and X-Provider-Id; throws on non-2xx. */
@@ -164,12 +173,15 @@ const http = {
         headers: buildHeaders(path),
         signal: opts.signal,
       });
-      if (!res.ok) throw new Error(await extractErrorMessage(res));
+      if (!res.ok) {
+        const info = await extractErrorMessage(res);
+        throw new ApiError(info.message, info.kind);
+      }
       return await res.json();
     } catch (err) {
       // A cancelled poll (tab hidden / navigation) is not a real error.
       if (err.name === "AbortError") throw err;
-      dispatchError(err.message);
+      dispatchError(err.message, err.kind);
       throw err;
     }
   },
@@ -181,10 +193,13 @@ const http = {
         headers: buildHeaders(path, "POST"),
         body: JSON.stringify(merged),
       });
-      if (!res.ok) throw new Error(await extractErrorMessage(res));
+      if (!res.ok) {
+        const info = await extractErrorMessage(res);
+        throw new ApiError(info.message, info.kind);
+      }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message);
+      dispatchError(err.message, err.kind);
       throw err;
     }
   },
@@ -196,10 +211,13 @@ const http = {
         headers: buildHeaders(path, "PATCH"),
         body: JSON.stringify(merged),
       });
-      if (!res.ok) throw new Error(await extractErrorMessage(res));
+      if (!res.ok) {
+        const info = await extractErrorMessage(res);
+        throw new ApiError(info.message, info.kind);
+      }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message);
+      dispatchError(err.message, err.kind);
       throw err;
     }
   },
@@ -211,10 +229,13 @@ const http = {
         headers: buildHeaders(path, "PUT"),
         body: JSON.stringify(merged),
       });
-      if (!res.ok) throw new Error(await extractErrorMessage(res));
+      if (!res.ok) {
+        const info = await extractErrorMessage(res);
+        throw new ApiError(info.message, info.kind);
+      }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message);
+      dispatchError(err.message, err.kind);
       throw err;
     }
   },
@@ -230,10 +251,13 @@ const http = {
         headers: { "Content-Type": "application/json", ...getProviderHeader(), ...getAuthHeader() },
         body: JSON.stringify(merged),
       });
-      if (!res.ok) throw new Error(await extractErrorMessage(res));
+      if (!res.ok) {
+        const info = await extractErrorMessage(res);
+        throw new ApiError(info.message, info.kind);
+      }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message);
+      dispatchError(err.message, err.kind);
       throw err;
     }
   },
@@ -252,10 +276,13 @@ const http = {
       const res = await fetch(url.toString(), {
         headers: { ...getProviderHeader(), ...getAuthHeader() },
       });
-      if (!res.ok) throw new Error(await extractErrorMessage(res));
+      if (!res.ok) {
+        const info = await extractErrorMessage(res);
+        throw new ApiError(info.message, info.kind);
+      }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message);
+      dispatchError(err.message, err.kind);
       throw err;
     }
   },

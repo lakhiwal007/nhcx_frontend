@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock } from "./Common";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 function calculateAge(dob) {
   if (!dob) return null;
@@ -519,7 +519,8 @@ export default function PatientProfile() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("registry_viewMode") || "grid");
   const [sortBy, setSortBy] = useState("newest");
-  
+  const [searchParams, setSearchParams] = useSearchParams();
+
   useEffect(() => { localStorage.setItem("registry_viewMode", viewMode); }, [viewMode]);
 
   const loadChildren = useCallback(async (query = "", pageNum = 1) => {
@@ -562,6 +563,32 @@ export default function PatientProfile() {
   useEffect(() => {
     loadChildren("", 1);
   }, [loadChildren]);
+
+  const deepLinkChildId = searchParams.get("child_id");
+
+  useEffect(() => {
+    if (!deepLinkChildId || !/^\d+$/.test(deepLinkChildId)) return;
+    let cancelled = false;
+    setLoadingDetail(true);
+    api
+      .searchChildren({ child_id: Number(deepLinkChildId) })
+      .then((res) => {
+        const full = res?.children?.[0];
+        if (!cancelled && full) setSelectedPatient(full);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingDetail(false); });
+    return () => { cancelled = true; };
+  }, [deepLinkChildId]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedPatient(null);
+    if (searchParams.has("child_id")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("child_id");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleSearch = () => {
     setHasSearched(true);
@@ -632,14 +659,14 @@ export default function PatientProfile() {
           </button>
         </div>
         {selectedPatient && (
-          <Button variant="outline" icon={ArrowLeft} onClick={() => setSelectedPatient(null)}>
+          <Button variant="outline" icon={ArrowLeft} onClick={clearSelection}>
             All Patients
           </Button>
         )}
       </div>
 
       {selectedPatient ? (
-        <PatientDetail patient={selectedPatient} onBack={() => setSelectedPatient(null)} />
+        <PatientDetail patient={selectedPatient} onBack={clearSelection} />
       ) : (
         <div>
           {loading || loadingDetail ? (

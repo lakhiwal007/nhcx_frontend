@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import "./App.css";
 import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY } from "./api";
+import { getDeepLinkClinicId } from "./sessionBootstrap";
 
 import WorkQueue from "./components/WorkQueue";
 import Dashboard from "./components/Dashboard";
@@ -76,6 +77,9 @@ export default function App() {
   );
   const [isAdmin, setIsAdmin] = useState(false);
   const [sessionFacilities, setSessionFacilities] = useState(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [clinicAccessError, setClinicAccessError] = useState(null);
+  const facilityRecoveryAttempted = useRef(false);
   const taskPollRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
 
@@ -85,6 +89,9 @@ export default function App() {
       setFacilityName(localStorage.getItem("nhcx_default_facility_name") || "");
       setProviderId(localStorage.getItem("nhcx_default_provider_id") || "");
       setAllFacilitiesMode(localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true");
+      // A facility is now resolved (or the user picked one manually), so the
+      // next 1011 is a fresh problem, not the one we already tried to fix.
+      facilityRecoveryAttempted.current = false;
     };
     window.addEventListener("provider-changed", sync);
     window.addEventListener("storage", sync);
@@ -95,7 +102,11 @@ export default function App() {
   }, []);
 
   // Session bootstrap: learn the user + which facilities they may act as.
-  // A lone facility auto-selects; a polyclinic admin who hasn't chosen
+  // A `clinic_id` carried on the deep link takes priority over everything
+  // else — it's the facility_code the backend itself matches on, so honoring
+  // it can never disagree with what the backend will accept, and a mismatch
+  // is an access error rather than something to silently fall back from. A
+  // lone facility auto-selects; a polyclinic admin who hasn't chosen
   // anything yet is left to pick (or explicitly enter all-facilities view)
   // in Settings, so nothing here forces a default onto them.
   useEffect(() => {
@@ -103,11 +114,27 @@ export default function App() {
     api.getSession().then((res) => {
       if (cancelled) return;
       setIsAdmin(!!res?.is_admin);
-      setSessionFacilities(res?.facilities || []);
+      const facilities = res?.facilities || [];
+      setSessionFacilities(facilities);
       const hasChosen = !!localStorage.getItem("nhcx_default_provider_id");
       const inAllMode = localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true";
-      if (!hasChosen && !inAllMode && res?.facilities?.length === 1) {
-        const f = res.facilities[0];
+      if (hasChosen || inAllMode) return;
+
+      const clinicId = getDeepLinkClinicId();
+      if (clinicId) {
+        const match = facilities.find((f) => String(f.facility_code) === String(clinicId));
+        if (match) {
+          localStorage.setItem("nhcx_default_provider_id", match.hcx_participant_code);
+          localStorage.setItem("nhcx_default_facility_name", match.name || "");
+          window.dispatchEvent(new Event("provider-changed"));
+        } else {
+          setClinicAccessError(clinicId);
+        }
+        return;
+      }
+
+      if (facilities.length === 1) {
+        const f = facilities[0];
         localStorage.setItem("nhcx_default_provider_id", f.hcx_participant_code);
         localStorage.setItem("nhcx_default_facility_name", f.name || "");
         window.dispatchEvent(new Event("provider-changed"));
@@ -147,7 +174,41 @@ export default function App() {
       }, 5000);
     };
     const handleApiError = (e) => {
-      const message = e.detail;
+      const { message, kind } = e.detail || {};
+
+      // No refresh endpoint exists — a token with no exp claim never expires
+      // as far as the wrapper is concerned, so a 401 here means the deep
+      // link itself is bad. Retrying gets nowhere; block instead of toasting.
+      if (kind === "AUTH_EXPIRED") {
+        setSessionExpired(true);
+        return;
+      }
+
+      // A stale/missing X-Provider-Id after a facility was already resolved
+      // (e.g. a race on first load). Re-bootstrap once; if it recurs, the
+      // resolution will fail to find a facility and RequireProvider's
+      // redirect to /settings surfaces the selector, per doc.
+      if (kind === "FACILITY_REQUIRED" && !facilityRecoveryAttempted.current) {
+        facilityRecoveryAttempted.current = true;
+        api.getSession().then((res) => {
+          const facilities = res?.facilities || [];
+          const clinicId = getDeepLinkClinicId();
+          const match = clinicId
+            ? facilities.find((f) => String(f.facility_code) === String(clinicId))
+            : facilities.length === 1
+              ? facilities[0]
+              : null;
+          if (match) {
+            localStorage.setItem("nhcx_default_provider_id", match.hcx_participant_code);
+            localStorage.setItem("nhcx_default_facility_name", match.name || "");
+          } else {
+            localStorage.removeItem("nhcx_default_provider_id");
+            localStorage.removeItem("nhcx_default_facility_name");
+          }
+          window.dispatchEvent(new Event("provider-changed"));
+        }).catch(() => {});
+      }
+
       setApiErrors((prev) => {
         const existing = prev.find((err) => err.message === message);
         if (existing) {
@@ -222,6 +283,33 @@ export default function App() {
   // all-facilities mode there is no single facility - every read spans all
   // of them, and no X-Provider-Id is sent at all.
   const facilityLabel = allFacilitiesMode ? "All Facilities" : facilityName || providerId;
+
+  if (sessionExpired || clinicAccessError) {
+    return (
+      <div data-theme={theme} className="session-block-screen">
+        <div className="session-block-card">
+          <AlertCircle size={28} color="var(--error)" />
+          {sessionExpired ? (
+            <>
+              <h2>Session expired</h2>
+              <p>
+                Your session has ended and this app has no way to refresh it on its own.
+                Please return to the hospital system and open this patient again.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2>No access to this clinic</h2>
+              <p>
+                Your account isn't linked to clinic <strong>{clinicAccessError}</strong>.
+                Contact your administrator, or return to the hospital system and try again.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
