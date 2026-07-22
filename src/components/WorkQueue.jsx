@@ -565,44 +565,47 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             style={{
               position: "relative",
               display: "flex",
-              gap: "6px",
               alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
               marginBottom: "5px",
-              flexWrap: "wrap",
             }}
           >
-            <span
-              className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`}
-              style={{ fontSize: "10px" }}
-            >
-              {task.priority?.toUpperCase()}
-            </span>
-            <span
-              className="badge-modern badge-info"
-              style={{ fontSize: "10px" }}
-            >
-              {task.workflow}
-            </span>
-            {task.facility_name && (
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
               <span
-                className="badge-modern"
-                style={{ fontSize: "10px", background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}
+                className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`}
+                style={{ fontSize: "10px" }}
               >
-                {task.facility_name}
+                {task.priority?.toUpperCase()}
               </span>
-            )}
-            {age && (
               <span
-                style={{ fontSize: "10px", fontWeight: 700, color: age.color }}
+                className="badge-modern badge-info"
+                style={{ fontSize: "10px" }}
               >
-                {age.text}
+                {task.workflow}
               </span>
-            )}
+              {task.facility_name && (
+                <span
+                  className="badge-modern"
+                  style={{ fontSize: "10px", background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}
+                >
+                  {task.facility_name}
+                </span>
+              )}
+              {age && (
+                <span
+                  style={{ fontSize: "10px", fontWeight: 700, color: age.color }}
+                >
+                  {age.text}
+                </span>
+              )}
+            </div>
             <span
               style={{
                 fontSize: "11px",
                 color: "var(--text-muted)",
-                marginLeft: "30px",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
             >
               {task.created_at
