@@ -522,14 +522,30 @@ const mock = {
         },
       };
     }
+    const MOCK_MEMBER_ID_ON_FILE = "MEMB-123456";
+    if (data.member_id && data.member_id !== MOCK_MEMBER_ID_ON_FILE) {
+      return {
+        status: "success",
+        data: {
+          child_id: data.child_id,
+          payer_id: data.payer_id,
+          identifier_used: { type: "MemberId", value: data.member_id },
+          policies: [],
+          fetched_at: "2026-05-04T10:40:00+05:30",
+        },
+      };
+    }
     return {
       status: "success",
       data: {
         child_id: data.child_id,
         payer_id: data.payer_id,
-        identifier_used: data.identifier_type
-          ? { type: data.identifier_type, value: "9123456780" }
-          : { type: "AbhaNumber", value: "91711234567890" },
+        identifier_used:
+          data.member_id || data.identifier_type === "MemberId"
+            ? { type: "MemberId", value: data.member_id || MOCK_MEMBER_ID_ON_FILE }
+            : data.identifier_type
+              ? { type: data.identifier_type, value: "9123456780" }
+              : { type: "AbhaNumber", value: "91711234567890" },
         policies: [
           {
             policy_number: "POL-91711234567890-2026",

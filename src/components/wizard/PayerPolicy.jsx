@@ -29,6 +29,8 @@ export default function PayerPolicy({ ctx }) {
     caseState.policy || null,
   );
   const [identifierType, setIdentifierType] = useState("");
+  const [memberId, setMemberId] = useState("");
+  const [memberIdOnFile, setMemberIdOnFile] = useState("");
 
   const handlePayerSearchClick = async () => {
     setHasSearched(true);
@@ -52,16 +54,20 @@ export default function PayerPolicy({ ctx }) {
     status: "active",
   };
 
-  const fetchPoliciesFor = async (payer, idType) => {
+  const fetchPoliciesFor = async (payer, idType, typedMemberId = "") => {
     setLoadingPolicies(true);
     setPolicyError(null);
     setPolicies([]);
     try {
       const body = { child_id: patient.child_id, payer_id: payer.code, force_refresh: false };
       if (caseState.admission_id) body.admission_id = caseState.admission_id;
-      if (idType) body.identifier_type = idType;
+      const trimmedMemberId = typedMemberId.trim();
+      if (trimmedMemberId) body.member_id = trimmedMemberId;
+      else if (idType) body.identifier_type = idType;
       const res = await api.fetchPolicies(body);
       setPolicies(res?.data?.policies || []);
+      const used = res?.data?.identifier_used;
+      if (used?.type === "MemberId" && used.value) setMemberIdOnFile(used.value);
     } catch (err) {
       setPolicyError(err.message);
     } finally {
@@ -73,6 +79,8 @@ export default function PayerPolicy({ ctx }) {
     setSelectedPayer(payer);
     setSelectedPolicy(null);
     setIdentifierType("");
+    setMemberId("");
+    setMemberIdOnFile("");
     // Changing the payer invalidates any case prepared for a previous
     // payer/policy. Clear the case identifiers so `prep` runs a fresh
     // prepareCashless instead of resuming the stale case via status.
@@ -96,9 +104,17 @@ export default function PayerPolicy({ ctx }) {
   const handleIdentifierTypeChange = (idType) => {
     setIdentifierType(idType);
     setSelectedPolicy(null);
+    const nextMemberId = idType === "MemberId" ? memberId || memberIdOnFile : "";
+    setMemberId(nextMemberId);
     if (selectedPayer && !selectedPayer.is_demo) {
-      fetchPoliciesFor(selectedPayer, idType);
+      fetchPoliciesFor(selectedPayer, idType, nextMemberId);
     }
+  };
+
+  const handleMemberIdSearch = () => {
+    if (!selectedPayer || selectedPayer.is_demo) return;
+    setSelectedPolicy(null);
+    fetchPoliciesFor(selectedPayer, "MemberId", memberId);
   };
 
   const handlePolicySelect = (policy) => {
@@ -224,6 +240,27 @@ export default function PayerPolicy({ ctx }) {
               )
             }
           >
+            {identifierType === "MemberId" && !selectedPayer.is_demo && (
+              <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-4)" }}>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    placeholder={memberIdOnFile ? "Member ID" : "Type a member ID..."}
+                    value={memberId}
+                    onChange={(e) => setMemberId(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleMemberIdSearch();
+                    }}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  disabled={loadingPolicies || !memberId.trim()}
+                  onClick={handleMemberIdSearch}
+                >
+                  Search
+                </Button>
+              </div>
+            )}
             {loadingPolicies ? (
               <div className="flex-center py-10 flex-col">
                 <div className="spinner mb-4" />
@@ -236,7 +273,19 @@ export default function PayerPolicy({ ctx }) {
             ) : policies.length === 0 ? (
               <div className="text-center py-10 text-muted">
                 No policies found for this patient under {selectedPayer.name}
-                {identifierType ? ` via ${IDENTIFIER_TYPE_LABELS[identifierType]}` : ""}.
+                {identifierType === "MemberId" && memberId.trim()
+                  ? ` for member ID ${memberId.trim()}`
+                  : identifierType
+                    ? ` via ${IDENTIFIER_TYPE_LABELS[identifierType]}`
+                    : ""}.
+                {identifierType && (
+                  <div style={{ fontSize: "12px", marginTop: "var(--space-2)" }}>
+                    No other identifiers were tried
+                    {identifierType === "MemberId" && memberId.trim()
+                      ? " — check the member ID above for a typo."
+                      : "."}
+                  </div>
+                )}
                 {identifierType && (
                   <>
                     {" "}
