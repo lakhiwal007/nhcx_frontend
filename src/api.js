@@ -38,18 +38,32 @@ const getProviderHeader = () => {
 //
 // The parent HIS page exposes the token on a JS global — read it from there.
 // `SESSION_TOKEN_GLOBAL` is the property name on `window`; change it here if the
-// parent uses a different one. A localStorage fallback is kept for local dev.
+// parent uses a different one. sessionBootstrap.js also mirrors the deep link's
+// `token` into sessionStorage (SESSION_TOKEN_KEY) so a same-tab refresh survives
+// without sending the user back to the parent HIS — it's still gone the moment
+// the tab closes, and the token is stripped from the URL either way, so this
+// doesn't reopen the bookmark/history leak the stripping guards against. A
+// localStorage fallback under the same key is kept for local dev.
 export const SESSION_TOKEN_GLOBAL = "__NHCX_TOKEN__";
 export const SESSION_TOKEN_KEY = "nhcx_session_token";
 
 const getSessionToken = () =>
   (typeof window !== "undefined" && window[SESSION_TOKEN_GLOBAL]) ||
+  sessionStorage.getItem(SESSION_TOKEN_KEY) ||
   localStorage.getItem(SESSION_TOKEN_KEY) ||
   null;
 
 const getAuthHeader = () => {
   const token = getSessionToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Called once the wrapper has told us the token is dead (401 WRAPPER-ERROR:1012)
+// so a later refresh in the same tab doesn't just resurrect the same rejected
+// token and loop back into another "session expired".
+export const clearSessionToken = () => {
+  if (typeof window !== "undefined") delete window[SESSION_TOKEN_GLOBAL];
+  sessionStorage.removeItem(SESSION_TOKEN_KEY);
 };
 
 // Deployment admin token, required in addition to the bearer token on the

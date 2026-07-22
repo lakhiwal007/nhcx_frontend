@@ -28,7 +28,7 @@ import {
   Globe,
 } from "lucide-react";
 import "./App.css";
-import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY } from "./api";
+import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY, clearSessionToken } from "./api";
 import { getDeepLinkClinicId } from "./sessionBootstrap";
 
 import WorkQueue from "./components/WorkQueue";
@@ -200,6 +200,7 @@ export default function App() {
       // as far as the wrapper is concerned, so a 401 here means the deep
       // link itself is bad. Retrying gets nowhere; block instead of toasting.
       if (kind === "AUTH_EXPIRED") {
+        clearSessionToken();
         setSessionExpired(true);
         return;
       }
