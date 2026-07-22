@@ -79,6 +79,7 @@ export default function App() {
   );
   const [isAdmin, setIsAdmin] = useState(false);
   const [sessionFacilities, setSessionFacilities] = useState(null);
+  const [sessionUserId, setSessionUserId] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [clinicAccessError, setClinicAccessError] = useState(null);
   const [sessionReady, setSessionReady] = useState(false);
@@ -112,44 +113,51 @@ export default function App() {
   // lone facility auto-selects; a polyclinic admin who hasn't chosen
   // anything yet is left to pick (or explicitly enter all-facilities view)
   // in Settings, so nothing here forces a default onto them.
+  // Shared by the initial bootstrap and by a manual re-fetch after a
+  // self-serve facility registration succeeds (see Settings' onSessionRefresh)
+  // - both need the same is_admin/facilities/auto-select handling.
+  const applySessionResult = (res) => {
+    setIsAdmin(!!res?.is_admin);
+    setSessionUserId(res?.user?.id ?? null);
+    const facilities = res?.facilities || [];
+    setSessionFacilities(facilities);
+    const hasChosen = !!localStorage.getItem("nhcx_default_provider_id");
+    const inAllMode = localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true";
+    if (hasChosen || inAllMode) return;
+
+    const clinicId = getDeepLinkClinicId();
+    if (clinicId) {
+      const match = facilities.find((f) => String(f.facility_code) === String(clinicId));
+      if (match) {
+        localStorage.setItem("nhcx_default_provider_id", match.hcx_participant_code);
+        localStorage.setItem("nhcx_default_facility_name", match.name || "");
+        window.dispatchEvent(new Event("provider-changed"));
+      } else if (facilities.length > 0 && !res?.is_admin) {
+        // A real access error only when this user has *some* facilities but
+        // none match - and they have no self-service way to fix it. Two
+        // cases fall through instead of hard-blocking: `facilities: []`
+        // (same underlying problem as the Request Access flow in Settings,
+        // regardless of `clinic_id`), and admins, who need to reach
+        // Settings to onboard the facility or resolve a pending request
+        // rather than being stuck on a dead end.
+        setClinicAccessError(clinicId);
+      }
+      return;
+    }
+
+    if (facilities.length === 1) {
+      const f = facilities[0];
+      localStorage.setItem("nhcx_default_provider_id", f.hcx_participant_code);
+      localStorage.setItem("nhcx_default_facility_name", f.name || "");
+      window.dispatchEvent(new Event("provider-changed"));
+    }
+  };
+
+  const refreshSession = () => api.getSession().then(applySessionResult);
+
   useEffect(() => {
     let cancelled = false;
-    api.getSession().then((res) => {
-      if (cancelled) return;
-      setIsAdmin(!!res?.is_admin);
-      const facilities = res?.facilities || [];
-      setSessionFacilities(facilities);
-      const hasChosen = !!localStorage.getItem("nhcx_default_provider_id");
-      const inAllMode = localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true";
-      if (hasChosen || inAllMode) return;
-
-      const clinicId = getDeepLinkClinicId();
-      if (clinicId) {
-        const match = facilities.find((f) => String(f.facility_code) === String(clinicId));
-        if (match) {
-          localStorage.setItem("nhcx_default_provider_id", match.hcx_participant_code);
-          localStorage.setItem("nhcx_default_facility_name", match.name || "");
-          window.dispatchEvent(new Event("provider-changed"));
-        } else if (facilities.length > 0 && !res?.is_admin) {
-          // A real access error only when this user has *some* facilities but
-          // none match - and they have no self-service way to fix it. Two
-          // cases fall through instead of hard-blocking: `facilities: []`
-          // (same underlying problem as the Request Access flow in Settings,
-          // regardless of `clinic_id`), and admins, who need to reach
-          // Settings to onboard the facility or resolve a pending request
-          // rather than being stuck on a dead end.
-          setClinicAccessError(clinicId);
-        }
-        return;
-      }
-
-      if (facilities.length === 1) {
-        const f = facilities[0];
-        localStorage.setItem("nhcx_default_provider_id", f.hcx_participant_code);
-        localStorage.setItem("nhcx_default_facility_name", f.name || "");
-        window.dispatchEvent(new Event("provider-changed"));
-      }
-    }).catch(() => {}).finally(() => {
+    refreshSession().catch(() => {}).finally(() => {
       if (!cancelled) setSessionReady(true);
     });
     return () => { cancelled = true; };
@@ -685,6 +693,8 @@ export default function App() {
                   <SettingsPage
                     isAdmin={isAdmin}
                     sessionFacilities={sessionFacilities}
+                    sessionUserId={sessionUserId}
+                    onSessionRefresh={refreshSession}
                     allFacilitiesMode={allFacilitiesMode}
                     theme={theme}
                     onToggleTheme={toggleTheme}
