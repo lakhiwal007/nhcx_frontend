@@ -100,6 +100,37 @@ The `Authorization: Bearer` token is the parent HIS session token issued at logi
 
 The facility resolved from the token is used as the `x-hcx-sender_code` on all outbound NHCX requests.
 
+### Entry point: the deep link
+
+The parent HIS hands off to the cashless workspace with a URL like:
+
+```
+https://<host>/nhcx/service/registry
+  ?token=<parent JWT>
+  &auth_token=<parent HIS session token>
+  &child_id=2020829
+  &clinic_id=2
+```
+
+| Param | Use it for |
+|---|---|
+| `token` | **This is the bearer token.** Lift it out of the query string and send it as `Authorization: Bearer <token>` on every nhcx call. |
+| `auth_token` | **Not used by nhcx.** It is the parent HIS's own session token; this service never reads it. Keep it only if the frontend also calls parent-HIS APIs directly. |
+| `clinic_id` | The HIS clinic id — equals `facility_code` in `/session`. Use it to pre-select the facility (below). |
+| `child_id` | The patient to open once the session is bootstrapped. Not part of auth. |
+
+Neither token is read from the query string by the backend — only the `Authorization` header is. Strip both from the URL (e.g. `history.replaceState`) once captured, so they don't leak via bookmarks, referrers, or shared links.
+
+> **Treat the deep-link token as a credential, not an identifier.** The backend does not verify the JWT signature — it decodes the payload and trusts the user id claim (see **Session token** above). Never log it, never put it in a query string on outbound requests, and never render it into the DOM.
+
+Bootstrap sequence:
+
+1. Read `token`, `auth_token`, `child_id`, `clinic_id` from the URL; store `token` in memory (not `localStorage`) and clean the URL.
+2. `GET /session` with `Authorization: Bearer <token>` — the only call that works before a facility is chosen.
+3. Resolve the acting facility from the response (next section) and hold its `hcx_participant_code` in app state.
+4. Send `Authorization` on every call from here, plus `X-Provider-Id` whenever a facility is selected.
+5. Open the patient identified by `child_id`.
+
 ### Login flow (`GET /session`)
 
 The frontend does **not** log in against nhcx directly — it obtains the parent-HIS session token from the parent's own login, then bootstraps the nhcx session:
@@ -120,7 +151,9 @@ GET /nhcx/api/v1/insurance/session   (Authorization: Bearer <parent token>)
 | Response | Frontend behavior |
 |---|---|
 | `is_admin: true` | Offer a **"View all facilities"** (read-only) mode *and* a facility selector. In all-facilities mode, send **no** `X-Provider-Id`. |
-| `facilities.length > 1` (non-admin) | Show a facility selector; store the chosen `hcx_participant_code` and send it as `X-Provider-Id`. |
+| `facilities.length > 1` (non-admin), deep link had `clinic_id` | **Do not prompt.** Match `facilities[].facility_code === String(clinic_id)` and use that entry's `hcx_participant_code`. This is the same `facility_code` the backend matches on when resolving the token, so the pre-selection cannot disagree with what it will accept. |
+| `facilities.length > 1` (non-admin), no `clinic_id` | Show a facility selector; store the chosen `hcx_participant_code` and send it as `X-Provider-Id`. |
+| `facilities.length > 1`, `clinic_id` matches nothing | Surface an error ("you don't have access to this clinic") rather than silently falling back to a selector — the deep link and the user's clinic assignments disagree, and picking another facility would open the wrong one. |
 | `facilities.length == 1` | Auto-select it; send its `hcx_participant_code` as `X-Provider-Id`. |
 | `facilities: []` | User has no cashless-enabled facility — block the workspace with a clear message. |
 
@@ -153,6 +186,15 @@ Required only when the user has access to more than one NHCX facility (an admin 
 | **Prep reads** — `*/prepare`, `policies/fetch`, `payers/search`, `payers/{id}` | Accepted for tracing; not required. |
 
 > **The `provider_id` body field is deprecated.** The acting facility is resolved from the `Authorization` token + optional `X-Provider-Id` header. A `provider_id` field in the JSON body is ignored.
+
+**Recovering mid-session.** Treat these two as "re-bootstrap", not as page-level errors:
+
+| Response | Meaning | Do |
+|---|---|---|
+| `400 WRAPPER-ERROR:1011` | The call needed a single facility and the header was missing or unusable | Re-fetch `/session`, re-resolve the facility, retry once. If it recurs, show the selector. |
+| `401 WRAPPER-ERROR:1012` | Token missing, malformed, or expired | Send the user back to the parent HIS to re-issue a deep link. There is no refresh endpoint here — nhcx does not mint tokens. |
+
+Note that a token with no `exp` claim never expires as far as this service is concerned, so don't build the session UI around a countdown; drive it off `401` responses instead.
 
 ---
 
