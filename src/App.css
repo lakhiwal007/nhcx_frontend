@@ -926,6 +926,15 @@ h3,
     box-shadow: var(--clay-inset), 0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent);
 }
 
+select.input-modern {
+    cursor: pointer;
+}
+
+select.input-modern option {
+    background: var(--bg-card);
+    color: var(--text-main);
+}
+
 .input-group-modern {
     display: flex;
     flex-direction: column;
