@@ -130,7 +130,14 @@ export default function App() {
           localStorage.setItem("nhcx_default_provider_id", match.hcx_participant_code);
           localStorage.setItem("nhcx_default_facility_name", match.name || "");
           window.dispatchEvent(new Event("provider-changed"));
-        } else {
+        } else if (facilities.length > 0 && !res?.is_admin) {
+          // A real access error only when this user has *some* facilities but
+          // none match - and they have no self-service way to fix it. Two
+          // cases fall through instead of hard-blocking: `facilities: []`
+          // (same underlying problem as the Request Access flow in Settings,
+          // regardless of `clinic_id`), and admins, who need to reach
+          // Settings to onboard the facility or resolve a pending request
+          // rather than being stuck on a dead end.
           setClinicAccessError(clinicId);
         }
         return;
