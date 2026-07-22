@@ -121,11 +121,11 @@ https://<host>/nhcx/service/registry
 
 Neither token is read from the query string by the backend — only the `Authorization` header is. Strip both from the URL (e.g. `history.replaceState`) once captured, so they don't leak via bookmarks, referrers, or shared links.
 
-> **Treat the deep-link token as a credential, not an identifier.** The backend does not verify the JWT signature — it decodes the payload and trusts the user id claim (see **Session token** above). Never log it, never put it in a query string on outbound requests, and never render it into the DOM.
+> **Treat the deep-link token as a credential, not an identifier.** The backend does not verify the JWT signature — it decodes the payload and trusts the user id claim (see **Session token** above). Never log it, never put it in a query string on outbound requests, and never render it into the DOM. Holding it in `sessionStorage` rather than a bare in-memory variable doesn't reopen the bookmark/history leak the URL-stripping above guards against — the URL is stripped either way — it only trades "lost on any refresh" for "lost when the tab closes." Clear it (`clearSessionToken()`) the moment the backend declares the session dead (`401 WRAPPER-ERROR:1012`) so a later refresh in the same tab doesn't resurrect a token already known to be rejected.
 
 Bootstrap sequence:
 
-1. Read `token`, `auth_token`, `child_id`, `clinic_id` from the URL; store `token` in memory (not `localStorage`) and clean the URL.
+1. Read `token`, `auth_token`, `child_id`, `clinic_id` from the URL; store `token` in `sessionStorage` (tab-scoped, gone when the tab closes — not `localStorage`) and clean the URL.
 2. `GET /session` with `Authorization: Bearer <token>` — the only call that works before a facility is chosen.
 3. Resolve the acting facility from the response (next section) and hold its `hcx_participant_code` in app state.
 4. Send `Authorization` on every call from here, plus `X-Provider-Id` whenever a facility is selected.
