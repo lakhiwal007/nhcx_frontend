@@ -20,6 +20,7 @@ import {
   PanelTop,
   Search,
   SearchX,
+  Sparkles,
 } from "lucide-react";
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
 import { getDeepLinkClinicId } from "../sessionBootstrap";
@@ -321,6 +322,50 @@ function SectionHeader({ title }) {
   );
 }
 
+function GenerateKeypairButton({ facilityCode, facilityName, onGenerated }) {
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(false);
+
+  const handleClick = async () => {
+    setGenerating(true);
+    setError(null);
+    setDone(false);
+    try {
+      const { generateFacilityKeypair } = await import("../certGeneration");
+      const { privateKeyPem, encryptionCertBase64 } = await generateFacilityKeypair({ facilityCode, facilityName });
+      onGenerated({ private_key_pem: privateKeyPem, encryption_cert: encryptionCertBase64 });
+      setDone(true);
+      setTimeout(() => setDone(false), 2000);
+    } catch (err) {
+      setError(err.message || "Key generation failed.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: "var(--space-3)" }}>
+      <Button
+        variant="outline"
+        icon={done ? CheckCircle2 : Sparkles}
+        disabled={generating}
+        onClick={handleClick}
+      >
+        {generating ? "Generating…" : done ? "Generated" : "Generate a new key + certificate"}
+      </Button>
+      <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+        Creates a 2048-bit RSA key and a self-signed certificate in your browser and fills in both fields below. Nothing leaves this tab except in the form submission itself.
+      </div>
+      {error && (
+        <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--error)", display: "flex", alignItems: "center", gap: "6px" }}>
+          <AlertTriangle size={14} /> {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FacilityForm({ form, onChange, isEdit }) {
   return (
     <>
@@ -539,6 +584,14 @@ function FacilityForm({ form, onChange, isEdit }) {
       {!isEdit && (
         <>
           <SectionHeader title="RSA Private Key (optional at creation)" />
+          <GenerateKeypairButton
+            facilityCode={form.facility_code}
+            facilityName={form.name}
+            onGenerated={({ private_key_pem, encryption_cert }) => {
+              onChange("encryption_cert", encryption_cert);
+              onChange("private_key_pem", private_key_pem);
+            }}
+          />
           <FormField
             label="Private Key PEM"
             hint="Paste the full RSA private key including -----BEGIN ... KEY----- headers. Can also be uploaded separately after creation."
