@@ -1049,6 +1049,29 @@ const mock = {
     };
   },
 
+  searchClaims: async (data) => {
+    await delay(800);
+    return {
+      correlation_id: "9f1b6f2a-9d3e-4b7e-8c2a-2f7e5a1c9d4e",
+      status: "submitted",
+      message: "Search submitted",
+    };
+  },
+  getClaimSearchStatus: async (correlation_id) => {
+    await delay(600);
+    return {
+      correlation_id,
+      status: "complete",
+      result: {
+        raw_response: {
+          note: "Mock result - actual shape depends on the payer's response; no NRCES/ABDM profile documents it.",
+          entry: [{ resourceType: "Task", status: "completed" }],
+        },
+        received_at: new Date().toISOString(),
+      },
+    };
+  },
+
   // ─── Specific Coverage Eligibility APIs ─────────────────────────────────────
   requestInsurancePlan: async (data) => {
     await delay(800);
@@ -2020,6 +2043,10 @@ const real = {
     http.post("/cashless/preauth/query-response", data),
 
   cancelPreauth: (data) => http.post("/cashless/preauth/cancel", data),
+
+  searchClaims: (data) => http.post("/cashless/claims/search", data),
+  getClaimSearchStatus: (correlation_id, signal) =>
+    http.get(`/cashless/claims/search/status/${correlation_id}`, {}, { signal }),
 
   // ─── Specific Coverage Eligibility APIs ─────────────────────────────────────
   requestInsurancePlan: (data) =>

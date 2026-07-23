@@ -3,11 +3,13 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Search, Activity, FileText, CheckCircle,
-  Clock, XCircle, AlertTriangle, Users, Inbox, AlertCircle, LayoutGrid, List, MoreVertical, ChevronDown
+  Clock, XCircle, AlertTriangle, Users, Inbox, AlertCircle, LayoutGrid, List, MoreVertical, ChevronDown,
+  Radio
 } from "lucide-react";
 import { api } from "../api";
 import { Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
 import { useNavigate, useLocation } from "react-router-dom";
+import ClaimSearchModal from "./ClaimSearchModal";
 
 const statsContainerVariants = {
   hidden: {},
@@ -181,7 +183,8 @@ export default function Dashboard({ allFacilitiesMode = false }) {
   const [navigating, setNavigating] = useState({});
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("dash_viewMode") || "table");
   const [sortBy, setSortBy] = useState("newest");
-  
+  const [showSearchModal, setShowSearchModal] = useState(false);
+
   useEffect(() => { localStorage.setItem("dash_viewMode", viewMode); }, [viewMode]);
 
   useEffect(() => {
@@ -480,6 +483,16 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                 <option value="amount">Highest Amount</option>
               </select>
 
+              <Button
+                variant="outline"
+                icon={Radio}
+                disabled={allFacilitiesMode}
+                title={allFacilitiesMode ? "Select a facility in Settings to search the gateway" : undefined}
+                onClick={() => setShowSearchModal(true)}
+              >
+                Search via NHCX Gateway
+              </Button>
+
               <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
                 <button
                   title="Grid View"
@@ -623,6 +636,12 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           </Card>
         </motion.div>
       )}
+
+      <ClaimSearchModal
+        open={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        claims={claims}
+      />
     </div>
   );
 }
