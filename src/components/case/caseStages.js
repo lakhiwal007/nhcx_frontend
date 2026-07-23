@@ -53,10 +53,12 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       if (preauthStarted) return { done: false, note: "Waiting on payer", tone: "wait", live: true };
       return { done: false, note: "" };
     })(),
-    claim: {
-      done: !!claimDecision && /approv|paid|complete/i.test(String(claimDecision)),
-      note: claimDecision ? String(claimDecision).replace(/_/g, " ") : caseState.claimCorrelationId ? "Submitted" : "",
-    },
+    claim: (() => {
+      const label = claimDecision ? String(claimDecision).replace(/_/g, " ") : "";
+      if (claimDecision && /reject|denied|short/i.test(String(claimDecision))) return { done: true, note: label, tone: "urgent" };
+      if (claimDecision && /approv|paid|complete/i.test(String(claimDecision))) return { done: true, note: label, tone: "approve" };
+      return { done: false, note: label || (caseState.claimCorrelationId ? "Submitted" : "") };
+    })(),
     payment: {
       done: paymentDone,
       note: utr ? `UTR ${utr}` : paymentDone ? "Acknowledged" : "",
@@ -95,11 +97,15 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     const isPassed = activeIndex !== -1 && i < activeIndex;
     const clickable = s.branch || s.done || isActive || isPassed;
     
+    // Branch nodes (Enhancement/Reprocess) have no "the user actually acted on
+    // this" signal wired up yet - their own `done` is always false. Falling
+    // through to `isPassed` here would checkmark them purely for sitting
+    // before the current stage in the list, even when never touched.
     let state = "upcoming";
     if (isActive) state = "active";
+    else if (s.branch) state = s.done ? "done" : "available";
     else if (s.done || isPassed) state = "done";
-    else if (s.branch) state = "available";
-    
+
     return { ...s, state, clickable };
   });
 }

@@ -4,7 +4,7 @@ import { Send, AlertCircle } from "lucide-react";
 import { api } from "../../api";
 import { Button, StatusBadge, LoadingBlock } from "../Common";
 
-export default function PreauthEnhancement({ ctx, onClose }) {
+export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const navigate = useNavigate();
   const { caseState, updateCaseState } = ctx;
   const { cashless_case_id, claim_id } = caseState;
@@ -84,7 +84,15 @@ export default function PreauthEnhancement({ ctx, onClose }) {
         ].filter((d) => d.url),
       };
       const res = await api.submitPreauthEnhancement(body);
-      updateCaseState({ preauthCorrelationId: res.correlation_id });
+      // As a modal inside PreauthStatus, onSubmitted is that screen's own
+      // restartPoll - it must be the one to resume polling, since `polling`
+      // is local state there that a plain updateCaseState can't reach (this
+      // instance doesn't remount, so nothing else would ever resume it).
+      // Routed (no onSubmitted), navigating to ../status remounts
+      // PreauthStatus fresh, so clearing preauthDecision here just avoids a
+      // stale flash before that screen's own poll resolves.
+      if (onSubmitted) onSubmitted(res.correlation_id);
+      else updateCaseState({ preauthCorrelationId: res.correlation_id, preauthDecision: null });
       close();
     } catch (_) {
     } finally {

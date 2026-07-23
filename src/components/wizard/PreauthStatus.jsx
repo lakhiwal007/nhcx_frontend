@@ -832,7 +832,7 @@ export default function PreauthStatus({ ctx }) {
               style={{ position: "relative", width: "100%", maxWidth: "640px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
             >
               <h3 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "var(--space-5)" }}>Request Preauth Enhancement</h3>
-              <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} />
+              <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} onSubmitted={restartPoll} />
             </motion.div>
           </div>
         )}
