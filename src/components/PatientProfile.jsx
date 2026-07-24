@@ -5,7 +5,7 @@ import {
   BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle, LayoutGrid, List
 } from "lucide-react";
 import { api } from "../api";
-import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock } from "./Common";
+import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock, formatMoney } from "./Common";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 function calculateAge(dob) {
@@ -359,9 +359,9 @@ function PatientDetail({ patient, onBack }) {
                                     <StatusBadge status={inv.billing_status} />
                                   </div>
                                   <div style={{ display: "flex", gap: "var(--space-5)", color: "var(--text-muted)" }}>
-                                    <span>Billed: <strong style={{ color: "var(--text-main)" }}>₹{inv.amount_billed?.toLocaleString()}</strong></span>
-                                    {inv.final_discount > 0 && <span>Discount: <strong style={{ color: "var(--success)" }}>-₹{inv.final_discount?.toLocaleString()}</strong></span>}
-                                    <span>Final: <strong style={{ color: "var(--primary)" }}>₹{inv.final_amount?.toLocaleString()}</strong></span>
+                                    <span>Billed: <strong style={{ color: "var(--text-main)" }}>{formatMoney(inv.amount_billed)}</strong></span>
+                                    {inv.final_discount > 0 && <span>Discount: <strong style={{ color: "var(--success)" }}>-{formatMoney(inv.final_discount)}</strong></span>}
+                                    <span>Final: <strong style={{ color: "var(--primary)" }}>{formatMoney(inv.final_amount)}</strong></span>
                                   </div>
                                 </div>
                               ))}
@@ -381,12 +381,12 @@ function PatientDetail({ patient, onBack }) {
                               <div style={{ marginBottom: "var(--space-4)" }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--text-muted)", textTransform: "uppercase" }}>
                                   <span>Patient Payments</span>
-                                  <span style={{ color: "var(--text-main)" }}>₹{total.toLocaleString()} collected</span>
+                                  <span style={{ color: "var(--text-main)" }}>{formatMoney(total)} collected</span>
                                 </div>
                                 {rows.map((p, pi) => (
                                   <div key={pi} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", marginBottom: "6px", fontSize: "12px" }}>
                                     <span style={{ color: "var(--text-muted)" }}>{p.kind}{p.mode ? ` · ${p.mode}` : ""}{p.date ? ` · ${p.date}` : ""}</span>
-                                    <strong>₹{Number(p.amount)?.toLocaleString()}</strong>
+                                    <strong>{formatMoney(p.amount)}</strong>
                                   </div>
                                 ))}
                               </div>
@@ -412,7 +412,7 @@ function PatientDetail({ patient, onBack }) {
                                     <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexShrink: 0 }}>
                                       <div style={{ textAlign: "right" }}>
                                         <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Billed</div>
-                                        <div style={{ fontWeight: 700, color: "var(--primary)" }}>₹{claim.total_billed?.toLocaleString()}</div>
+                                        <div style={{ fontWeight: 700, color: "var(--primary)" }}>{formatMoney(claim.total_billed)}</div>
                                       </div>
                                       <Button variant="outline" size="small" onClick={() => resumeCase(claim.cashless_case_id ? claim : null)}>Open</Button>
                                     </div>
@@ -432,6 +432,12 @@ function PatientDetail({ patient, onBack }) {
                                   </div>
                                 </div>
                               ))}
+                            </div>
+                          )}
+
+                          {!visit.invoices?.length && !visit.payments?.length && !visit.advance_payments?.length && !visit.claims?.length && (
+                            <div style={{ padding: "16px", textAlign: "center", color: "var(--text-muted)", fontSize: "13px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border-color)" }}>
+                              No billing information yet.
                             </div>
                           )}
 
@@ -547,18 +553,11 @@ export default function PatientProfile() {
     }
   }, []);
 
-  const handleSelectPatient = useCallback(async (child) => {
-    setLoadingDetail(true);
-    try {
-      const res = await api.searchChildren({ child_id: child.child_id });
-      const full = res?.children?.[0] || child;
-      setSelectedPatient(full);
-    } catch (_) {
-      setSelectedPatient(child);
-    } finally {
-      setLoadingDetail(false);
-    }
-  }, []);
+  const handleSelectPatient = useCallback((child) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("child_id", String(child.child_id));
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     loadChildren("", 1);
@@ -567,7 +566,11 @@ export default function PatientProfile() {
   const deepLinkChildId = searchParams.get("child_id");
 
   useEffect(() => {
-    if (!deepLinkChildId || !/^\d+$/.test(deepLinkChildId)) return;
+    if (!deepLinkChildId) {
+      setSelectedPatient(null);
+      return;
+    }
+    if (!/^\d+$/.test(deepLinkChildId)) return;
     let cancelled = false;
     setLoadingDetail(true);
     api
