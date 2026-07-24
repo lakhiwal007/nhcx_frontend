@@ -12,6 +12,13 @@ import {
   Ban,
 } from "lucide-react";
 
+export const formatMoney = (v, { dash = "—", currency = "₹" } = {}) => {
+  if (v === null || v === undefined || v === "") return dash;
+  const n = Number(v);
+  if (Number.isNaN(n)) return dash;
+  return `${currency}${n.toLocaleString("en-IN")}`;
+};
+
 /**
  * Generic content container with an optional header and header action.
  * The base surface for every panel in the app (dashboards, forms, detail views).
@@ -597,7 +604,7 @@ export const AmountGrid = ({ totals }) => {
             }}
           >
             {v?.currency || "₹"}{" "}
-            {v?.value?.toLocaleString() || v?.toLocaleString() || 0}
+            {formatMoney(v && typeof v === "object" ? v.value : v, { currency: "", dash: "0" })}
           </div>
         </div>
       ))}
