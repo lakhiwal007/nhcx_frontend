@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
-import { Card, Button, DecisionBanner, AmountGrid, StatusBadge, DocumentChecklist } from "../Common";
+import { Card, Button, DecisionBanner, AmountGrid, StatusBadge, DocumentChecklist, formatMoney } from "../Common";
 import PayrErrorList from "../PayrErrorList";
 import PreauthEnhancement from "./PreauthEnhancement";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
@@ -129,7 +129,8 @@ export default function PreauthStatus({ ctx }) {
       const res = await api.getPreauthStatus(correlationId, signal);
       setStatusData(res);
       const stateUpdates = {};
-      if (res.preauth_ref) { stateUpdates.preauthRef = res.preauth_ref; stateUpdates.preauthDecision = res.decision; }
+      if (res.preauth_ref) stateUpdates.preauthRef = res.preauth_ref;
+      if (res.decision) stateUpdates.preauthDecision = res.decision;
       if (res.claim_id && !claim_id) stateUpdates.claim_id = res.claim_id;
       if (res.cashless_case_id && !cashless_case_id) stateUpdates.cashless_case_id = res.cashless_case_id;
       // The authorized amount is the payer's BENEFIT total, not `eligible`
@@ -154,12 +155,12 @@ export default function PreauthStatus({ ctx }) {
 
   useEffect(() => {
     if (correlationId) return;
-    if (!cashless_case_id && !claim_id) { setPolling(false); return; }
+    if (!cashless_case_id) { setPolling(false); return; }
     // Recover the correlation id from the live case so a page refresh doesn't
     // leave users stranded on the "no submission found" dead-end screen.
     const recover = async () => {
       try {
-        const res = await api.getCashlessStatus(cashless_case_id || claim_id);
+        const res = await api.getCashlessStatus(cashless_case_id);
         if (res.preauth?.correlation_id) {
           updateCaseState({ preauthCorrelationId: res.preauth.correlation_id });
         } else {
@@ -451,23 +452,23 @@ export default function PreauthStatus({ ctx }) {
 
           <Card title="Adjudication Summary" className="mb-6">
             <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", marginBottom: statusData?.items?.length > 0 ? "16px" : 0 }}>
-              {[
-                { label: "Eligible Amount", value: statusData?.totals?.eligible?.value, currency: statusData?.totals?.eligible?.currency, color: "var(--success)" },
-                { label: "Benefit", value: statusData?.totals?.benefit?.value, currency: statusData?.totals?.benefit?.currency, color: "var(--primary)" },
-                { label: "Copay", value: statusData?.totals?.copay?.value, currency: statusData?.totals?.copay?.currency, color: "var(--error)" },
-                { label: "Submitted", value: statusData?.totals?.submitted?.value, currency: statusData?.totals?.submitted?.currency, color: "var(--text-main)" },
-              ].filter(t => t.value != null).map((t, i) => (
-                <div key={i} style={{ flex: "1 1 120px", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", textAlign: "center" }}>
-                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: "var(--space-1)" }}>{t.label}</div>
-                  <div style={{ fontSize: "20px", fontWeight: 800, color: t.color }}>
-                    {t.currency === "INR" ? "₹" : (t.currency || "")}{t.value?.toLocaleString()}
+              {(() => {
+                const tiles = [
+                  { label: "Eligible Amount", value: statusData?.totals?.eligible?.value, currency: statusData?.totals?.eligible?.currency, color: "var(--success)" },
+                  { label: "Benefit", value: statusData?.totals?.benefit?.value, currency: statusData?.totals?.benefit?.currency, color: "var(--primary)" },
+                  { label: "Copay", value: statusData?.totals?.copay?.value, currency: statusData?.totals?.copay?.currency, color: "var(--error)" },
+                  { label: "Submitted", value: statusData?.totals?.submitted?.value, currency: statusData?.totals?.submitted?.currency, color: "var(--text-main)" },
+                ].filter((t) => t.value != null);
+                if (tiles.length === 0) return <AmountGrid totals={statusData?.totals} />;
+                return tiles.map((t, i) => (
+                  <div key={i} style={{ flex: "1 1 120px", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", textAlign: "center" }}>
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: "var(--space-1)" }}>{t.label}</div>
+                    <div style={{ fontSize: "20px", fontWeight: 800, color: t.color }}>
+                      {t.currency === "INR" ? "₹" : (t.currency || "")}{formatMoney(t.value, { currency: "" })}
+                    </div>
                   </div>
-                </div>
-              ))}
-              {/* If all totals are null, fallback AmountGrid */}
-              {!statusData?.totals?.eligible?.value && !statusData?.totals?.benefit?.value && (
-                <AmountGrid totals={statusData?.totals} />
-              )}
+                ));
+              })()}
             </div>
 
             {/* Claim Items table */}
@@ -746,7 +747,7 @@ export default function PreauthStatus({ ctx }) {
                             }}
                           />
                         </td>
-                        <td style={{ textAlign: "right" }}>₹{Number(item.net_amount)?.toLocaleString()}</td>
+                        <td style={{ textAlign: "right" }}>{formatMoney(item.net_amount)}</td>
                       </tr>
                     ))}
                   </tbody>
