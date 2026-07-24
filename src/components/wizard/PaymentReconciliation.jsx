@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Home, RefreshCw, AlertCircle, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "../../api";
-import { Card, Button, StatusBadge, EmptyState, LoadingBlock } from "../Common";
+import { Card, Button, StatusBadge, EmptyState, LoadingBlock, formatMoney } from "../Common";
 
 export default function PaymentReconciliation({ ctx }) {
   const navigate = useNavigate();
@@ -141,12 +141,12 @@ export default function PaymentReconciliation({ ctx }) {
                             <StatusBadge status={pay.payment_stage?.replace("PAYMENT_", "").toLowerCase()} />
                           </td>
                           <td style={{ textAlign: "right", color: "var(--text-muted)" }}>
-                            {pay.notice_amount != null ? `₹${pay.notice_amount?.toLocaleString()}` : "-"}
+                            {pay.notice_amount != null ? formatMoney(pay.notice_amount) : "-"}
                           </td>
-                          <td style={{ textAlign: "right" }}>₹{pay.gross_amount?.toLocaleString()}</td>
-                          <td style={{ textAlign: "right", color: "var(--error)" }}>-₹{pay.tds_amount?.toLocaleString()}</td>
+                          <td style={{ textAlign: "right" }}>{formatMoney(pay.gross_amount)}</td>
+                          <td style={{ textAlign: "right", color: "var(--error)" }}>{pay.tds_amount != null ? `-${formatMoney(pay.tds_amount)}` : "—"}</td>
                           <td style={{ textAlign: "right", fontWeight: 800, color: "var(--success)" }}>
-                            ₹{pay.net_payment_amount?.toLocaleString()}
+                            {formatMoney(pay.net_payment_amount)}
                           </td>
                           <td>{pay.utr ? <code style={{ fontSize: "11px" }}>{pay.utr}</code> : <span className="text-muted">-</span>}</td>
                           <td>
