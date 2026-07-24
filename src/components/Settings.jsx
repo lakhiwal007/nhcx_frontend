@@ -79,6 +79,19 @@ const EMPTY_FORM = {
   private_key_pem: "",
 };
 
+const facilityInlineActionStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "30px",
+  height: "30px",
+  border: "none",
+  background: "transparent",
+  color: "var(--text-muted)",
+  cursor: "pointer",
+  borderRadius: "var(--radius-sm)",
+};
+
 function FormField({ label, required, hint, children }) {
   return (
     <div>
@@ -941,6 +954,7 @@ export default function Settings({
   const [formError, setFormError] = useState(null);
 
   const [keyDrawerFacility, setKeyDrawerFacility] = useState(null);
+  const [editLoadingCode, setEditLoadingCode] = useState(null);
 
   const [facilitySearch, setFacilitySearch] = useState("");
   const facilitySearchQuery = facilitySearch.trim().toLowerCase();
@@ -1017,6 +1031,17 @@ export default function Settings({
     });
     setFormError(null);
     setShowFacilityDrawer(true);
+  };
+
+  const openEditByCode = async (facilityCode) => {
+    setEditLoadingCode(facilityCode);
+    try {
+      const full = await api.getFacility(facilityCode);
+      openEdit(full);
+    } catch (_) {
+    } finally {
+      setEditLoadingCode(null);
+    }
   };
 
   const handleFormChange = (key, value) =>
@@ -1140,32 +1165,77 @@ export default function Settings({
               </div>
             )
           ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
-              {sessionFacilities.map((f) => {
-                const isActive = !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
-                return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", alignItems: "center" }}>
+                {sessionFacilities.map((f) => {
+                  const isActive = !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
+                  return (
+                    <div
+                      key={f.facility_code}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "2px",
+                        border: `1px solid ${isActive ? "var(--primary)" : "var(--border-color)"}`,
+                        borderRadius: "var(--radius-pill)",
+                        padding: "2px 4px 2px 2px",
+                        background: "var(--bg-card)",
+                      }}
+                    >
+                      <button
+                        onClick={() => handleSelectSessionFacility(f)}
+                        title={isActive ? "Active facility" : "Switch to this facility"}
+                        className={`badge-modern ${isActive ? "badge-success" : "badge-info"}`}
+                        style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "7px 12px" }}
+                      >
+                        {isActive && <CheckCircle2 size={13} />}
+                        {f.name || f.facility_code}
+                      </button>
+                      <button
+                        onClick={() => openEditByCode(f.facility_code)}
+                        disabled={editLoadingCode === f.facility_code}
+                        title="Edit facility — callback URL, contact, roles, encryption cert"
+                        style={facilityInlineActionStyle}
+                      >
+                        {editLoadingCode === f.facility_code
+                          ? <span className="spinner" style={{ width: "13px", height: "13px" }} />
+                          : <Edit2 size={14} />}
+                      </button>
+                      <button
+                        onClick={() => setKeyDrawerFacility(f)}
+                        title="Upload or rotate the facility's RSA key"
+                        style={facilityInlineActionStyle}
+                      >
+                        <Key size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+                {isAdmin && (
                   <button
-                    key={f.facility_code}
-                    onClick={() => handleSelectSessionFacility(f)}
-                    className={`badge-modern ${isActive ? "badge-success" : "badge-info"}`}
+                    onClick={handleEnableAllFacilities}
+                    className={`badge-modern ${allFacilitiesMode ? "badge-success" : "badge-info"}`}
                     style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px" }}
+                    title="Read-only view spanning every facility - no single facility is acted as"
                   >
-                    {isActive && <CheckCircle2 size={13} />}
-                    {f.name || f.facility_code}
+                    {allFacilitiesMode ? <CheckCircle2 size={13} /> : <Globe size={13} />}
+                    View All Facilities (read-only)
                   </button>
-                );
-              })}
-              {isAdmin && (
-                <button
-                  onClick={handleEnableAllFacilities}
-                  className={`badge-modern ${allFacilitiesMode ? "badge-success" : "badge-info"}`}
-                  style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px" }}
-                  title="Read-only view spanning every facility - no single facility is acted as"
+                )}
+              </div>
+              <div>
+                <Button
+                  variant="outline"
+                  size="small"
+                  icon={Plus}
+                  onClick={() => openCreate()}
                 >
-                  {allFacilitiesMode ? <CheckCircle2 size={13} /> : <Globe size={13} />}
-                  View All Facilities (read-only)
-                </button>
-              )}
+                  Register another facility
+                </Button>
+                <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "6px" }}>
+                  Editing re-syncs the facility to ABDM. To change your NHCX callback URL, edit the facility and update the Endpoint / Callback URL field.
+                </div>
+              </div>
             </div>
           )}
         </Card>
