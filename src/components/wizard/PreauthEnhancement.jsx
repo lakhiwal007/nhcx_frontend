@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, AlertCircle } from "lucide-react";
 import { api } from "../../api";
-import { Button, StatusBadge, LoadingBlock } from "../Common";
+import { Button, StatusBadge, LoadingBlock, formatMoney } from "../Common";
 
 export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const navigate = useNavigate();
@@ -136,17 +136,17 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
         </div>
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Authorized Total</div>
-          <div style={{ fontWeight: 700 }}>₹{preview.authorized?.total_amount?.toLocaleString()}</div>
+          <div style={{ fontWeight: 700 }}>{formatMoney(preview.authorized?.total_amount)}</div>
         </div>
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Revised Total</div>
-          <div style={{ fontWeight: 800, color: "var(--primary)" }}>₹{revisedTotal?.toLocaleString()}</div>
+          <div style={{ fontWeight: 800, color: "var(--primary)" }}>{formatMoney(revisedTotal)}</div>
         </div>
         {revisedDelta != null && (
           <div>
             <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Delta</div>
             <div style={{ fontWeight: 700, color: revisedDelta > 0 ? "var(--success)" : "var(--text-muted)" }}>
-              {revisedDelta > 0 ? "+" : ""}₹{revisedDelta?.toLocaleString()}
+              {revisedDelta > 0 ? "+" : ""}{formatMoney(revisedDelta)}
             </div>
           </div>
         )}
@@ -187,7 +187,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
                 <tr key={i}>
                   <td>{item.service_name}</td>
                   <td>{item.quantity}</td>
-                  <td style={{ textAlign: "right" }}>₹{item.net_amount?.toLocaleString()}</td>
+                  <td style={{ textAlign: "right" }}>{formatMoney(item.net_amount)}</td>
                 </tr>
               ))}
             </tbody>
