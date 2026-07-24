@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
-import { Card, Button, DocumentChecklist, MissingFieldsAlert, LoadingBlock } from "../Common";
+import { Card, Button, DocumentChecklist, MissingFieldsAlert, LoadingBlock, formatMoney } from "../Common";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -136,6 +136,9 @@ export default function PreauthDraft({ ctx }) {
   const [editedCareTeam, setEditedCareTeam] = useState(draftData?.editedCareTeam ?? null);
   const [careTeamEditMode, setCareTeamEditMode] = useState(false);
 
+  const uidRef = useRef(1);
+  const ensureUids = (list) => list.map((d) => (d._uid != null ? d : { ...d, _uid: uidRef.current++ }));
+
   const loadDraft = async () => {
     setLoading(true);
     try {
@@ -181,8 +184,8 @@ export default function PreauthDraft({ ctx }) {
       const val = Number(raw);
       const next = { ...it, [field]: isNaN(val) ? raw : val };
       if (field === "quantity" || field === "unit_price") {
-        const qty = field === "quantity" ? val : it.quantity;
-        const price = field === "unit_price" ? val : it.unit_price;
+        const qty = Number(field === "quantity" ? val : it.quantity) || 0;
+        const price = Number(field === "unit_price" ? val : it.unit_price) || 0;
         next.net_amount = qty * price;
       }
       return next;
@@ -192,15 +195,15 @@ export default function PreauthDraft({ ctx }) {
 
   // ── Diagnosis editing ─────────────────────────────────────────────────────
   const updateDiagnosis = (idx, field, value) => {
-    const base = editedDiagnoses ?? draft?.diagnoses ?? [];
+    const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
     setEditedDiagnoses(base.map((d, i) => (i === idx ? { ...d, [field]: value } : d)));
   };
   const addDiagnosis = () => {
-    const base = editedDiagnoses ?? draft?.diagnoses ?? [];
-    setEditedDiagnoses([...base, { code: "", name: "", primary: false, on_admission: false }]);
+    const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
+    setEditedDiagnoses([...base, { code: "", name: "", primary: false, on_admission: false, _uid: uidRef.current++ }]);
   };
   const removeDiagnosis = (idx) => {
-    const base = editedDiagnoses ?? draft?.diagnoses ?? [];
+    const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
     setEditedDiagnoses(base.filter((_, i) => i !== idx));
   };
 
@@ -235,7 +238,7 @@ export default function PreauthDraft({ ctx }) {
       if (draft.policy_number) body.policy_number = draft.policy_number;
       if (draft.eligibility?.correlation_id)
         body.eligibility_correlation_id = draft.eligibility.correlation_id;
-      if (editedDiagnoses) body.diagnoses = editedDiagnoses;
+      if (editedDiagnoses) body.diagnoses = editedDiagnoses.map(({ _uid, ...d }) => d);
       if (editedItems) {
         body.items = editedItems;
         body.total_amount = computedTotal;
@@ -436,8 +439,8 @@ export default function PreauthDraft({ ctx }) {
               </div>
               <AnimatePresence>
                 {displayDiagnoses.map((diag, i) => (
-                  <motion.div 
-                    key={i} 
+                  <motion.div
+                    key={diag._uid ?? `d-${i}`}
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
@@ -512,7 +515,7 @@ export default function PreauthDraft({ ctx }) {
                             onChange={(e) => updateItem(i, "unit_price", e.target.value)}
                           />
                         </td>
-                        <td style={{ textAlign: "right", fontWeight: 700 }}>₹{Number(item.net_amount)?.toLocaleString()}</td>
+                        <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
                       </tr>
                     ))}
                   </tbody>
