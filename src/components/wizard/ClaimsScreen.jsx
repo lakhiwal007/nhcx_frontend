@@ -4,7 +4,7 @@ import { Send, ArrowRight, AlertCircle, AlertTriangle, X, Edit2, ChevronDown, Ch
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid, MissingFieldsAlert, LoadingBlock } from "../Common";
+import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid, MissingFieldsAlert, LoadingBlock, formatMoney } from "../Common";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
 const POLL_INTERVAL_MS = 7000;
@@ -552,7 +552,7 @@ export default function ClaimsScreen({ ctx }) {
             </div>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Total</div>
-              <div style={{ fontWeight: 700, color: "var(--primary)" }}>₹{claimDraft?.total_amount?.toLocaleString()}</div>
+              <div style={{ fontWeight: 700, color: "var(--primary)" }}>{formatMoney(claimDraft?.total_amount)}</div>
             </div>
           </div>
           {/* Clinical justification chips (read-only, auto-attached) */}
@@ -586,7 +586,7 @@ export default function ClaimsScreen({ ctx }) {
                   <tr key={i}>
                     <td>{item.service_name}</td>
                     <td>{item.quantity}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>₹{item.net_amount?.toLocaleString()}</td>
+                    <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -703,7 +703,7 @@ export default function ClaimsScreen({ ctx }) {
                   <tr key={i}>
                     <td>{item.service_name}</td>
                     <td>{item.quantity}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>₹{item.net_amount?.toLocaleString()}</td>
+                    <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -711,7 +711,7 @@ export default function ClaimsScreen({ ctx }) {
           </div>
           <div style={{ textAlign: "center", marginBottom: "var(--space-4)", padding: "var(--space-5)", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: `1px solid ${overCeiling ? "var(--warning)" : "var(--border-color)"}` }}>
             <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Final Claim Total</div>
-            <div style={{ fontSize: "32px", fontWeight: 800, color: overCeiling ? "var(--warning)" : "var(--primary)" }}>₹{claimDraft?.total_amount?.toLocaleString()}</div>
+            <div style={{ fontSize: "32px", fontWeight: 800, color: overCeiling ? "var(--warning)" : "var(--primary)" }}>{formatMoney(claimDraft?.total_amount)}</div>
             {authorizedCeiling != null && (
               <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "var(--space-2)" }}>
                 Authorized ceiling{moneyLedger?.authorized_ceiling?.cumulative ? " (cumulative)" : ""}: <strong>₹{authorizedCeiling.toLocaleString()}</strong>
@@ -916,7 +916,7 @@ export default function ClaimsScreen({ ctx }) {
                           onChange={(e) => updateResubmitItem(i, "unit_price", e.target.value)}
                         />
                       </td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>₹{Number(item.net_amount)?.toLocaleString()}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -984,7 +984,7 @@ export default function ClaimsScreen({ ctx }) {
                           onChange={(e) => updateResubmitItem(i, "unit_price", e.target.value)}
                         />
                       </td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>₹{Number(item.net_amount)?.toLocaleString()}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
                     </tr>
                   ))}
                 </tbody>
