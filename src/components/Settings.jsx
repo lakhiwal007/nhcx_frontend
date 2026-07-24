@@ -663,7 +663,7 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
     <Drawer
       open={open}
       onClose={onClose}
-      title={`Upload RSA Key - ${facility?.facility_code}`}
+      title={`Upload RSA Key - ${facility?.name || facility?.facility_code}`}
       subtitle="The key is used to decrypt inbound NHCX callbacks. It is stored securely and never returned by the API."
       footer={
         <>
@@ -1411,12 +1411,12 @@ export default function Settings({
         onClose={() => setShowFacilityDrawer(false)}
         title={
           editingFacility
-            ? `Edit - ${editingFacility.facility_code}`
+            ? `Edit ${editingFacility.name || editingFacility.facility_code}`
             : "Register New Facility"
         }
         subtitle={
           editingFacility
-            ? "Update facility details and sync to ABDM."
+            ? `Code ${editingFacility.facility_code} · updates sync to ABDM.`
             : "Creates the facility locally and proxies registration to ABDM."
         }
         footer={
