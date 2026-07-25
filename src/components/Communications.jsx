@@ -169,7 +169,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                   )}
 
                   <div className="grid-2-col" style={{ gap: "14px", padding: "var(--space-4)", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
-                    <DetailField label="Payer" value={detail.payer_id} />
+                    <DetailField label="Payer" value={detail.payer_name || detail.payer_id} />
                     <DetailField label="Claim Reference" value={detail.claim_reference} />
                     <DetailField label="Subject" value={detail.subject} />
                     <DetailField label="Requested by" value={detail.task_requester} />
@@ -323,6 +323,7 @@ export default function Communications({ allFacilitiesMode = false }) {
   };
 
   const uniquePayers = [...new Set(communications.map((c) => c.payer_id).filter(Boolean))];
+  const payerLabel = (code) => communications.find((c) => c.payer_id === code)?.payer_name || code;
   const unreadCount = communications.filter((c) => !c.provider_read).length;
   const actionNeededCount = communications.filter((c) => c.pending_tasks?.length > 0).length;
 
@@ -331,6 +332,7 @@ export default function Communications({ allFacilitiesMode = false }) {
     const matchSearch = !q ||
       c.topic_display?.toLowerCase().includes(q) ||
       c.payer_id?.toLowerCase().includes(q) ||
+      c.payer_name?.toLowerCase().includes(q) ||
       c.claim_reference?.toLowerCase().includes(q) ||
       c.reason_display?.toLowerCase().includes(q) ||
       c.subject?.toLowerCase().includes(q);
@@ -383,7 +385,7 @@ export default function Communications({ allFacilitiesMode = false }) {
         {uniquePayers.length > 0 && (
           <select className="input-modern" style={{ width: "auto", minWidth: "160px" }} value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}>
             <option value="">All Payers</option>
-            {uniquePayers.map((p) => <option key={p} value={p}>{p}</option>)}
+            {uniquePayers.map((p) => <option key={p} value={p}>{payerLabel(p)}</option>)}
           </select>
         )}
         <select
@@ -462,7 +464,7 @@ export default function Communications({ allFacilitiesMode = false }) {
 
                     <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", fontSize: "12px", color: "var(--text-muted)" }}>
                       {comm.facility_name && <span><strong style={{ color: "var(--text-main)" }}>Facility:</strong> {comm.facility_name}</span>}
-                      <span><strong style={{ color: "var(--text-main)" }}>Payer:</strong> {comm.payer_id}</span>
+                      <span><strong style={{ color: "var(--text-main)" }}>Payer:</strong> {comm.payer_name || comm.payer_id}</span>
                       {comm.claim_reference && <span><strong style={{ color: "var(--text-main)" }}>Claim:</strong> {comm.claim_reference}</span>}
                       {comm.subject && <span>{comm.subject}</span>}
                       <span><Clock size={11} style={{ display: "inline", marginRight: "3px" }} />{new Date(comm.sent_at).toLocaleString()}</span>
