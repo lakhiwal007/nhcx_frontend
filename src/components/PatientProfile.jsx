@@ -300,7 +300,17 @@ function PatientDetail({ patient, onBack }) {
             {!patient.visits?.length ? (
               <div className="text-muted text-sm" style={{ padding: "20px 0", textAlign: "center" }}>No visits on record.</div>
             ) : (
-              patient.visits.map((visit, vi) => (
+              patient.visits.map((visit, vi) => {
+                const visitBilled = (visit.invoices || []).reduce(
+                  (s, inv) => s + Math.max(Number(inv.amount_billed) || 0, Number(inv.final_amount) || 0),
+                  0,
+                );
+                const visitPaid = [...(visit.payments || []), ...(visit.advance_payments || [])].reduce(
+                  (s, p) => s + (Number(p.amount) || 0),
+                  0,
+                );
+                const hasBillingActivity = visitBilled > 0 || visitPaid > 0 || visit.claims?.length > 0;
+                return (
                 <div key={vi} style={{ marginBottom: "var(--space-3)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
                   <div
                     onClick={() => setExpandedVisit(expandedVisit === vi ? null : vi)}
@@ -349,7 +359,7 @@ function PatientDetail({ patient, onBack }) {
                             </div>
                           )}
 
-                          {visit.invoices?.length > 0 && (
+                          {visit.invoices?.length > 0 && visitBilled > 0 && (
                             <div style={{ marginBottom: "var(--space-4)" }}>
                               <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--text-muted)", textTransform: "uppercase" }}>Invoices</div>
                               {visit.invoices.map((inv, ii) => (
@@ -435,9 +445,11 @@ function PatientDetail({ patient, onBack }) {
                             </div>
                           )}
 
-                          {!visit.invoices?.length && !visit.payments?.length && !visit.advance_payments?.length && !visit.claims?.length && (
+                          {!hasBillingActivity && (
                             <div style={{ padding: "16px", textAlign: "center", color: "var(--text-muted)", fontSize: "13px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border-color)" }}>
-                              No billing information yet.
+                              {visit.invoices?.length > 0
+                                ? `Invoice ${visit.invoices.map((inv) => inv.invoice_no).filter(Boolean).join(", ")} raised — nothing billed yet.`
+                                : "No billing information yet."}
                             </div>
                           )}
 
@@ -451,7 +463,8 @@ function PatientDetail({ patient, onBack }) {
                     )}
                   </AnimatePresence>
                 </div>
-              ))
+                );
+              })
             )}
           </Card>
         </div>
