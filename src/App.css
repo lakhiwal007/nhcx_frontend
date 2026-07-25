@@ -713,7 +713,7 @@ h3,
 }
 
 .main-view {
-    padding: 16px 20px 24px;
+    padding: 0;
     width: 100%;
 }
 
@@ -831,6 +831,47 @@ h3,
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
+    scrollbar-width: thin;
+}
+
+.table-responsive-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-responsive-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.table-responsive-wrapper::-webkit-scrollbar-thumb {
+    background: var(--border-hover);
+    border-radius: var(--radius-pill);
+}
+
+/* A wide table has to scroll, but the action column is the whole point of the
+   row — pin it to the right edge so the CTA is reachable without scrolling,
+   and shade its left edge so it reads as an overlay rather than a cut-off. */
+.table-modern th:last-child,
+.table-modern td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+}
+
+.table-modern th:last-child {
+    background: var(--bg-main);
+}
+
+.table-modern td:last-child {
+    background: var(--bg-card);
+}
+
+.table-modern tbody tr:hover td:last-child {
+    background: var(--bg-main);
+}
+
+.table-modern th:last-child,
+.table-modern td:last-child {
+    border-left: 1px solid var(--border-color);
 }
 
 /* Buttons — clay puffy surfaces with a pressed groove on :active */
@@ -1723,31 +1764,14 @@ code {
 
 /* ─── Metrics responsive grid ────────────────────────────────────────────── */
 .metrics-grid-responsive {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
     gap: 10px;
     margin-bottom: 16px;
-    padding-bottom: 6px;
-    scrollbar-width: thin;
-}
-
-.metrics-grid-responsive::-webkit-scrollbar {
-    height: 6px;
-}
-
-.metrics-grid-responsive::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.metrics-grid-responsive::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: var(--radius-pill);
 }
 
 .metrics-grid-responsive > * {
-    flex: 1 1 0;
-    min-width: 140px;
+    min-width: 0;
 }
 
 /* Full-page blocking states: session expired / deep-link clinic mismatch.

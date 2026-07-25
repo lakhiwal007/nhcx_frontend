@@ -32,9 +32,8 @@
   --cx-radius-sm: var(--radius-sm);
   --cx-shadow: var(--shadow);
 
-  /* break out of .main-view padding (16px 20px 24px) to claim the full
-     canvas — each side must match that padding or the canvas over-pulls */
-  margin: -16px -20px -24px;
+  /* .main-view is flush now, so there is no padding left to break out of */
+  margin: 0;
   min-height: calc(100vh - 56px);
   padding: 22px 20px 44px;
   background:
@@ -652,7 +651,7 @@
 
 @media (max-width: 768px) {
   .cx-root {
-    margin: -16px -16px -24px;
+    margin: 0;
     padding: 18px 16px 40px;
     min-height: calc(100vh - 36px);
   }
