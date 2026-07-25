@@ -561,9 +561,9 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                         )}
                         <td>
                           <div style={{ fontWeight: 600 }}>{claim.payer_name || claim.payer_id || "-"}</div>
-                          {(claim.payer_name && claim.payer_id) || claim.payer_id ? (
+                          {claim.payer_name && claim.payer_id ? (
                             <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
-                              {claim.payer_id || claim.payer_name}
+                              {claim.payer_id}
                             </div>
                           ) : null}
                         </td>
