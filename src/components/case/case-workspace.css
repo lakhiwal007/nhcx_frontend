@@ -35,7 +35,7 @@
   /* .main-view is flush now, so there is no padding left to break out of */
   margin: 0;
   min-height: calc(100vh - 56px);
-  padding: 22px 20px 44px;
+  padding: 0;
   background:
     radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0) 0 0 / 22px 22px,
     var(--cx-paper);
@@ -652,11 +652,10 @@
 @media (max-width: 768px) {
   .cx-root {
     margin: 0;
-    padding: 18px 16px 40px;
+    padding: 0;
     min-height: calc(100vh - 36px);
   }
   .cx-stage-actions {
-    margin-bottom: -40px;
     padding: 12px 14px;
   }
 }
@@ -693,7 +692,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin: 24px 0 -44px;
+  margin: 24px 0 0;
   padding: 14px 18px;
   background-color: var(--glass);
   background-image: var(--glass-sheen);
