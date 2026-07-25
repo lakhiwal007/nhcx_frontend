@@ -64,8 +64,6 @@
   flex-direction: row;
   align-items: stretch;
   gap: 20px;
-  max-width: 1320px;
-  margin: 0 auto;
 }
 
 /* ── Identity strip — the patient chart condensed to one band ───────────
