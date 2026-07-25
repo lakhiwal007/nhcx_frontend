@@ -712,8 +712,14 @@ h3,
     }
 }
 
+/* Hairline gutter so content reads as a surface sitting on the chrome rather
+   than welded to it. Single knob — .cx-root inherits it by staying flush. */
+:root {
+    --app-gutter: 6px;
+}
+
 .main-view {
-    padding: 0;
+    padding: var(--app-gutter);
     width: 100%;
 }
 
