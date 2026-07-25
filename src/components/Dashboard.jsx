@@ -545,7 +545,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                     <th>Decision</th>
                     <th style={{ textAlign: "right" }}>Approved</th>
                     <th>Payment</th>
-                    <th>UTR</th>
                     <th>Submitted</th>
                     <th>Action</th>
                   </tr>
@@ -582,11 +581,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                         <td>
                           {claim.payment_status
                             ? <StatusBadge status={claim.payment_status.replace("PAYMENT_", "").toLowerCase()} />
-                            : <span className="text-muted">-</span>}
-                        </td>
-                        <td>
-                          {claim.latest_utr
-                            ? <code style={{ fontSize: "11px" }}>{claim.latest_utr}</code>
                             : <span className="text-muted">-</span>}
                         </td>
                         <td className="mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
