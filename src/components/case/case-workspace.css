@@ -57,11 +57,13 @@
   box-sizing: border-box;
 }
 
-/* ── Layout: sticky lifecycle rail beside the content canvas ───────────── */
+/* ── Layout: lifecycle rail beside the content canvas ──────────────────
+   align-items: stretch (the default) so the rail runs the full height of
+   the stage column instead of shrink-wrapping to its steps. */
 .cx-stack {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 20px;
   max-width: 1320px;
   margin: 0 auto;
@@ -275,9 +277,12 @@
    carries over from the earlier spine design for the active node. Sticks
    to the viewport as the stage content scrolls past it (56px accounts for
    the app's top bar, matching .cx-root's own min-height assumption above). */
+/* Runs the full height of the stage column: the card's bottom always lands
+   exactly on the content's bottom edge, so there is no stray gap under the
+   last step and nothing spills past the viewport (the old fixed
+   `height: calc(100vh - 108px)` did both). */
 .cx-rail {
   flex: 0 0 200px;
-  align-self: flex-start;
   display: flex;
   flex-direction: column;
   background: var(--cx-surface);
@@ -285,21 +290,7 @@
   border-radius: var(--cx-radius);
   box-shadow: var(--cx-shadow);
   padding: 14px 12px;
-  position: sticky;
-  top: 56px;
-  /* Sizes to its steps. max-height (not height) so the card never runs past
-     the viewport floor and never stretches empty space under the last step
-     — the rail is a list, not a full-height column. */
-  max-height: calc(100vh - 96px);
-  overflow-y: auto;
   overflow-x: hidden;
-}
-
-/* Direction B pushes the scrollport down by the command bar + breadcrumb
-   strip (~98px), so the rail needs a smaller sticky offset there. */
-.app-container.dir-b .cx-rail {
-  top: 12px;
-  max-height: calc(100vh - 136px);
 }
 
 /* caption kept for the a11y tree, visually hidden */
@@ -318,18 +309,24 @@
 .cx-rail-track {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
-/* Fixed rhythm between steps. Previously each step flex-grew to fill a
-   viewport-tall rail, which spread six steps over ~800px and left the last
-   one stranded at the bottom of the screen; the gap now reads the same
-   whatever the case's stage count or the window height. */
+/* Steps share the rail's height so the strip spans the whole column.
+   flex-basis 0 (not auto) so each step gets an equal share regardless of
+   how tall its label/note is — otherwise steps carrying a note end up with
+   visibly bigger circle-to-circle gaps. 26px is the floor when the column
+   is short. The last step doesn't grow: nothing below it to connect to, and
+   growing it would push the final circle off the card's bottom edge. */
 .cx-vstep {
   position: relative;
   padding-bottom: 26px;
+  flex: 1 1 0;
+  min-height: fit-content;
 }
 .cx-vstep:last-child {
   padding-bottom: 0;
+  flex: 0 0 auto;
 }
 
 /* vertical connector — segment linking this circle to the next one down.
