@@ -973,8 +973,22 @@ h3,
     box-shadow: var(--clay-inset), 0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent);
 }
 
+/* Without appearance:none the browser paints the native control over ours —
+   the radius/inset shadow computed correctly but never showed, and the native
+   metrics forced a taller box than the sibling inputs. */
 select.input-modern {
     cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 38px;
+    background-image: var(--select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 12px 12px;
+}
+
+select.input-modern::-ms-expand {
+    display: none;
 }
 
 select.input-modern option {
