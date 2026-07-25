@@ -658,19 +658,11 @@ export default function PreauthDraft({ ctx }) {
       </div>
 
       {/* Sticky footer: Back · Save Draft · Submit */}
-      <div style={{
-        position: "sticky", bottom: 0, zIndex: 30,
-        backgroundColor: "var(--glass)", backgroundImage: "var(--glass-sheen)",
-        backdropFilter: "blur(var(--glass-blur)) saturate(180%)",
-        WebkitBackdropFilter: "blur(var(--glass-blur)) saturate(180%)",
-        borderTop: "1px solid var(--glass-border)",
-        padding: "14px 24px", margin: "24px -24px -24px -24px",
-        display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)",
-      }}>
+      <div className="cx-stage-actions">
         <Button variant="ghost" icon={ArrowLeft} onClick={() => navigate("../prep")}>
           Back
         </Button>
-        <div style={{ display: "flex", gap: "var(--space-3)" }}>
+        <div className="cx-stage-actions-group">
           <Button variant="secondary" icon={Save} onClick={handleSaveDraft}>
             Save Draft
           </Button>

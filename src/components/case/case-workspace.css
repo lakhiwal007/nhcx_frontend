@@ -32,8 +32,9 @@
   --cx-radius-sm: var(--radius-sm);
   --cx-shadow: var(--shadow);
 
-  /* break out of .main-view padding to claim the full canvas */
-  margin: -24px -20px;
+  /* break out of .main-view padding (16px 20px 24px) to claim the full
+     canvas — each side must match that padding or the canvas over-pulls */
+  margin: -16px -20px -24px;
   min-height: calc(100vh - 56px);
   padding: 22px 20px 44px;
   background:
@@ -275,8 +276,7 @@
    to the viewport as the stage content scrolls past it (56px accounts for
    the app's top bar, matching .cx-root's own min-height assumption above). */
 .cx-rail {
-  /* same width as the app sidebar so the two rails read as siblings */
-  flex: 0 0 216px;
+  flex: 0 0 200px;
   align-self: flex-start;
   display: flex;
   flex-direction: column;
@@ -284,24 +284,22 @@
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-radius);
   box-shadow: var(--cx-shadow);
-  padding: 18px 16px;
+  padding: 14px 12px;
   position: sticky;
   top: 56px;
-  /* Fill the viewport top to bottom without ever spilling past its edge:
-     at rest the rail's top sits ~73px into the viewport (top bar + page
-     padding), so 108px of allowance keeps the bottom inside the screen
-     both at rest and while stuck. Steps distribute across the height. */
-  height: calc(100vh - 108px);
+  /* Sizes to its steps. max-height (not height) so the card never runs past
+     the viewport floor and never stretches empty space under the last step
+     — the rail is a list, not a full-height column. */
+  max-height: calc(100vh - 96px);
   overflow-y: auto;
   overflow-x: hidden;
 }
 
 /* Direction B pushes the scrollport down by the command bar + breadcrumb
-   strip (~98px), so the rail needs a shorter height and a smaller sticky
-   offset to stay inside the viewport there. */
+   strip (~98px), so the rail needs a smaller sticky offset there. */
 .app-container.dir-b .cx-rail {
   top: 12px;
-  height: calc(100vh - 148px);
+  max-height: calc(100vh - 136px);
 }
 
 /* caption kept for the a11y tree, visually hidden */
@@ -320,24 +318,18 @@
 .cx-rail-track {
   display: flex;
   flex-direction: column;
-  flex: 1;
 }
 
-/* Steps flex-grow so the track spans the rail's full height; the connector
-   spans each step's stretched box, keeping the line continuous whatever
-   the gap. flex-basis 0 (not auto) so every step gets an equal share of
-   the height regardless of how tall its label/note content is — otherwise
-   steps with notes end up with visibly bigger circle-to-circle gaps.
-   The last step doesn't grow (nothing below it to connect to). */
+/* Fixed rhythm between steps. Previously each step flex-grew to fill a
+   viewport-tall rail, which spread six steps over ~800px and left the last
+   one stranded at the bottom of the screen; the gap now reads the same
+   whatever the case's stage count or the window height. */
 .cx-vstep {
   position: relative;
-  padding-bottom: 22px;
-  flex: 1 1 0;
-  min-height: fit-content;
+  padding-bottom: 26px;
 }
 .cx-vstep:last-child {
   padding-bottom: 0;
-  flex: 0 0 auto;
 }
 
 /* vertical connector — segment linking this circle to the next one down.
@@ -648,9 +640,13 @@
 
 @media (max-width: 768px) {
   .cx-root {
-    margin: -20px -16px;
+    margin: -16px -16px -24px;
     padding: 18px 16px 40px;
     min-height: calc(100vh - 36px);
+  }
+  .cx-stage-actions {
+    margin-bottom: -40px;
+    padding: 12px 14px;
   }
 }
 
@@ -670,6 +666,35 @@
    ========================================================================== */
 .cx-stage-body {
   font-family: var(--cx-font-body);
+}
+
+/* Sticky action bar at the foot of a stage. Spans the stage column exactly:
+   the earlier inline version bled -24px on each side against parents with no
+   matching padding, so it overhung the rail on the left and overflowed the
+   viewport on the right. The negative bottom margin cancels .cx-root's
+   bottom padding so the bar sits flush with the page end instead of floating
+   above a strip of background. */
+.cx-stage-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 24px 0 -44px;
+  padding: 14px 18px;
+  background-color: var(--glass);
+  background-image: var(--glass-sheen);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-bottom: none;
+  border-radius: var(--cx-radius) var(--cx-radius) 0 0;
+}
+.cx-stage-actions-group {
+  display: flex;
+  gap: var(--space-3);
 }
 .cx-stage-body h1,
 .cx-stage-body h2,
