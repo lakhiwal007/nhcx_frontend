@@ -32,6 +32,19 @@ const DECISION_CONFIG = {
   REJECTED:            { label: "Preauth Rejected",     badgeClass: "badge-error"   },
 };
 
+const CLAIM_DECISION_CONFIG = {
+  APPROVED:            { label: "Claim Approved",           badgeClass: "badge-success" },
+  PARTIALLY_APPROVED:  { label: "Claim Partially Approved", badgeClass: "badge-warning" },
+  QUERIED:             { label: "Claim Query",              badgeClass: "badge-error"   },
+  REJECTED:            { label: "Claim Rejected",           badgeClass: "badge-error"   },
+};
+
+const PAYMENT_CONFIG = {
+  INITIATED: { label: "Payment Initiated", badgeClass: "badge-warning" },
+  PROCESSED: { label: "Payment Processed", badgeClass: "badge-info"    },
+  SETTLED:   { label: "Payment Settled",   badgeClass: "badge-success" },
+};
+
 // NhcxCashlessCase#status — the pre-auth journey's own aggregate status
 // (insurance_plan + coverage_eligibility combined). Drives the badge color
 // once a cashless case exists (current_step is present); the label text
@@ -59,6 +72,16 @@ const CLAIM_STATUS_CONFIG = {
 };
 
 function CaseStatusChip({ claim }) {
+  const paid = claim.payment_status?.replace("PAYMENT_", "").toUpperCase();
+  if (paid && PAYMENT_CONFIG[paid]) {
+    const cfg = PAYMENT_CONFIG[paid];
+    return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
+  }
+  const decision = claim.claim_decision?.toUpperCase();
+  if (decision && CLAIM_DECISION_CONFIG[decision]) {
+    const cfg = CLAIM_DECISION_CONFIG[decision];
+    return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
+  }
   if (claim.preauth_status && DECISION_CONFIG[claim.preauth_status?.toUpperCase()]) {
     const cfg = DECISION_CONFIG[claim.preauth_status.toUpperCase()];
     return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
