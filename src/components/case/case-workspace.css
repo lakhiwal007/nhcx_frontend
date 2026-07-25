@@ -290,7 +290,9 @@
   border-radius: var(--cx-radius);
   box-shadow: var(--cx-shadow);
   padding: 14px 12px;
-  overflow-x: hidden;
+  /* No overflow here: setting overflow-x alone computes overflow-y to auto,
+     which would make this a scroll container and kill the inner track's
+     sticky. Long notes wrap via overflow-wrap on .cx-vstep-note instead. */
 }
 
 /* caption kept for the a11y tree, visually hidden */
@@ -306,10 +308,23 @@
   border: 0;
 }
 
+/* The card spans the whole column; the track floats inside it so the steps
+   stay on screen while the stage scrolls. Sized to the viewport so the strip
+   still spans everything the user can see, capped to 100% so a case shorter
+   than the screen can't push the track past the card's bottom. */
 .cx-rail-track {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 0 1 auto;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 96px);
+  max-height: 100%;
+}
+
+.app-container.dir-b .cx-rail-track {
+  top: 12px;
+  height: calc(100vh - 136px);
 }
 
 /* Steps share the rail's height so the strip spans the whole column.
