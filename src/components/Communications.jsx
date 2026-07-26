@@ -7,6 +7,7 @@ import {
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
 import { Card, Button, Input, EmptyState, LoadingBlock } from "./Common";
+import { formatDateTime, formatRelative } from "../format.js";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import { useNavigate } from "react-router-dom";
 
@@ -173,9 +174,9 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                     <DetailField label="Claim Reference" value={detail.claim_reference} />
                     <DetailField label="Subject" value={detail.subject} />
                     <DetailField label="Requested by" value={detail.task_requester} />
-                    <DetailField label="Sent" value={detail.sent_at ? new Date(detail.sent_at).toLocaleString() : null} />
-                    <DetailField label="Received" value={detail.received_at ? new Date(detail.received_at).toLocaleString() : null} />
-                    {detail.authored_on && <DetailField label="Task Created" value={new Date(detail.authored_on).toLocaleString()} />}
+                    <DetailField label="Sent" value={detail.sent_at ? formatDateTime(detail.sent_at) : null} />
+                    <DetailField label="Received" value={detail.received_at ? formatDateTime(detail.received_at) : null} />
+                    {detail.authored_on && <DetailField label="Task Created" value={formatDateTime(detail.authored_on)} />}
                     {detail.comm_status && <DetailField label="Status" value={detail.comm_status} />}
                     <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-color)", marginTop: "var(--space-1)", flexWrap: "wrap" }}>
                       <span className={`badge-modern badge-${detail.provider_read ? "success" : "warning"}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
@@ -462,15 +463,20 @@ export default function Communications({ allFacilitiesMode = false }) {
                       {hasAction && <span style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "11px", color: "var(--error)", fontWeight: 700 }}><AlertTriangle size={11} /> Action Required</span>}
                     </div>
 
-                    <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", fontSize: "12px", color: "var(--text-muted)" }}>
-                      {comm.facility_name && <span><strong style={{ color: "var(--text-main)" }}>Facility:</strong> {comm.facility_name}</span>}
-                      <span><strong style={{ color: "var(--text-main)" }}>Payer:</strong> {comm.payer_name || comm.payer_id}</span>
-                      {comm.claim_reference && <span><strong style={{ color: "var(--text-main)" }}>Claim:</strong> {comm.claim_reference}</span>}
-                      {comm.subject && <span>{comm.subject}</span>}
-                      <span><Clock size={11} style={{ display: "inline", marginRight: "3px" }} />{new Date(comm.sent_at).toLocaleString()}</span>
+                    {comm.subject && <p className="cm-subject">{comm.subject}</p>}
+
+                    <div className="cm-meta">
+                      <span className="cm-meta-strong">{comm.payer_name || comm.payer_id}</span>
+                      {comm.claim_reference && <span>{comm.claim_reference}</span>}
+                      {comm.facility_name && <span>{comm.facility_name}</span>}
+                    </div>
+                    <div className="cm-meta">
+                      <span title={formatDateTime(comm.sent_at)}>
+                        <Clock size={11} /> {formatRelative(comm.sent_at)}
+                      </span>
                       {comm.provider_read
-                        ? <span style={{ color: "var(--success)", display: "flex", alignItems: "center", gap: "3px" }}><CheckCircle2 size={11} /> Read</span>
-                        : <span style={{ color: "var(--info)", display: "flex", alignItems: "center", gap: "3px" }}><Circle size={11} /> Unread</span>
+                        ? <span style={{ color: "var(--success)" }}><CheckCircle2 size={11} /> Read</span>
+                        : <span style={{ color: "var(--info)", fontWeight: 600 }}><Circle size={11} /> Unread</span>
                       }
                     </div>
 
@@ -514,9 +520,11 @@ export default function Communications({ allFacilitiesMode = false }) {
                         <div style={{ fontWeight: isUnread ? 800 : 600 }}>{comm.topic_display}</div>
                         {hasAction && <div style={{ fontSize: "11px", color: "var(--error)", fontWeight: 700 }}><AlertTriangle size={10} style={{ display: "inline" }}/> Action Required</div>}
                       </td>
-                      <td>{comm.payer_id}</td>
-                      <td>{comm.claim_reference || "-"}</td>
-                      <td>{new Date(comm.sent_at).toLocaleString()}</td>
+                      <td>{comm.payer_name || comm.payer_id}</td>
+                      <td>{comm.claim_reference || "—"}</td>
+                      <td title={formatDateTime(comm.sent_at)} style={{ whiteSpace: "nowrap" }}>
+                        {formatDateTime(comm.sent_at)}
+                      </td>
                       <td>
                         {isUnread ? <span style={{ color: "var(--info)", fontWeight: 600 }}>Unread</span> : <span style={{ color: "var(--success)" }}>Read</span>}
                       </td>
