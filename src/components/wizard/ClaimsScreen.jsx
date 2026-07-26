@@ -714,7 +714,7 @@ export default function ClaimsScreen({ ctx }) {
             <div style={{ fontSize: "32px", fontWeight: 800, color: overCeiling ? "var(--warning)" : "var(--primary)" }}>{formatMoney(claimDraft?.total_amount)}</div>
             {authorizedCeiling != null && (
               <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "var(--space-2)" }}>
-                Authorized ceiling{moneyLedger?.authorized_ceiling?.cumulative ? " (cumulative)" : ""}: <strong>₹{authorizedCeiling.toLocaleString()}</strong>
+                Authorized ceiling{moneyLedger?.authorized_ceiling?.cumulative ? " (cumulative)" : ""}: <strong>{formatMoney(authorizedCeiling)}</strong>
               </div>
             )}
           </div>
@@ -726,10 +726,10 @@ export default function ClaimsScreen({ ctx }) {
                 <AlertTriangle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, color: "var(--warning)", marginBottom: "var(--space-1)" }}>
-                    Bill exceeds the authorized ceiling by ₹{ceilingExcess.toLocaleString()}
+                    Bill exceeds the authorized ceiling by {formatMoney(ceilingExcess)}
                   </div>
                   <div style={{ fontSize: "13px", color: "var(--text-main)" }}>
-                    The final bill of ₹{billedTotal?.toLocaleString()} is above the sanctioned ₹{authorizedCeiling?.toLocaleString()}.
+                    The final bill of {formatMoney(billedTotal)} is above the sanctioned {formatMoney(authorizedCeiling)}.
                     The payer will not cover the excess — it is recovered from the patient, or file an enhancement to raise the ceiling first.
                   </div>
                   <div style={{ marginTop: "var(--space-3)", display: "flex", gap: "var(--space-3)", alignItems: "center", flexWrap: "wrap" }}>
@@ -738,7 +738,7 @@ export default function ClaimsScreen({ ctx }) {
                     </Button>
                     <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
                       <input type="checkbox" checked={ackOverCeiling} onChange={(e) => setAckOverCeiling(e.target.checked)} />
-                      I acknowledge the ₹{ceilingExcess.toLocaleString()} excess and will collect it from the patient.
+                      I acknowledge the {formatMoney(ceilingExcess)} excess and will collect it from the patient.
                     </label>
                   </div>
                 </div>
@@ -924,7 +924,7 @@ export default function ClaimsScreen({ ctx }) {
                   <tr>
                     <td colSpan="3" style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
                     <td style={{ textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>
-                      ₹{resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0).toLocaleString()}
+                      {formatMoney(resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0))}
                     </td>
                   </tr>
                 </tfoot>
@@ -992,7 +992,7 @@ export default function ClaimsScreen({ ctx }) {
                   <tr>
                     <td colSpan="3" style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
                     <td style={{ textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>
-                      ₹{resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0).toLocaleString()}
+                      {formatMoney(resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0))}
                     </td>
                   </tr>
                 </tfoot>

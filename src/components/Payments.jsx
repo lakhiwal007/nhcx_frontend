@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search, CreditCard, CheckCircle, AlertCircle, Clock, Landmark, Wallet, LayoutGrid, List } from "lucide-react";
 import { Card, StatusBadge, Input, SkeletonTable, EmptyState } from "./Common";
+import { formatMoney, formatDate } from "../format.js";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -92,7 +93,7 @@ export default function Payments() {
                     <m.icon size={14} />
                   </div>
                   <div className="dx-stat-value">
-                    {m.format === "currency" ? `₹${Math.round(metrics[m.key]).toLocaleString()}` : metrics[m.key]}
+                    {m.format === "currency" ? formatMoney(Math.round(metrics[m.key])) : metrics[m.key]}
                   </div>
                 </div>
                 <div className="dx-stat-label">{m.label}</div>
@@ -189,7 +190,7 @@ export default function Payments() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--text-muted)" }}>Date:</span>
-                  <span>{pay.payment_date}</span>
+                  <span>{formatDate(pay.payment_date)}</span>
                 </div>
                 {pay.utr && (
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -199,15 +200,15 @@ export default function Payments() {
                 )}
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-1)", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
                   <span style={{ color: "var(--text-muted)" }}>Gross Amount:</span>
-                  <span className="mono-cell">₹{pay.gross_amount?.toLocaleString()}</span>
+                  <span className="num-cell">{formatMoney(pay.gross_amount)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--text-muted)" }}>TDS Deducted:</span>
-                  <span className="mono-cell" style={{ color: "var(--error)" }}>-₹{pay.tds_amount?.toLocaleString()}</span>
+                  <span className="num-cell" style={{ color: "var(--error)" }}>{formatMoney(pay.tds_amount == null ? null : -Math.abs(pay.tds_amount))}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-1)", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
                   <span style={{ fontWeight: 700 }}>Net Payment:</span>
-                  <span className="mono-cell" style={{ fontWeight: 800, color: "var(--success)", fontSize: "14px" }}>₹{pay.net_payment_amount?.toLocaleString()}</span>
+                  <span className="num-cell" style={{ fontWeight: 700, color: "var(--success)", fontSize: "14px" }}>{formatMoney(pay.net_payment_amount)}</span>
                 </div>
               </div>
               <div style={{ marginTop: "auto", paddingTop: "12px" }}>
@@ -234,9 +235,9 @@ export default function Payments() {
                   <th>Claim Ref</th>
                   <th>Date</th>
                   <th>Stage</th>
-                  <th>Gross Amt</th>
-                  <th>TDS</th>
-                  <th>Net Payment</th>
+                  <th className="num-col">Gross Amt</th>
+                  <th className="num-col">TDS</th>
+                  <th className="num-col">Net Payment</th>
                   <th>UTR</th>
                   <th>Ack Status</th>
                 </tr>
@@ -257,24 +258,24 @@ export default function Payments() {
                         {pay.claim_reference}
                       </a>
                     </td>
-                    <td className="mono-cell">{pay.payment_date}</td>
+                    <td>{formatDate(pay.payment_date)}</td>
                     <td>
                       <StatusBadge
                         status={pay.payment_stage?.replace("PAYMENT_", "")}
                       />
                     </td>
-                    <td className="mono-cell">₹{pay.gross_amount?.toLocaleString()}</td>
-                    <td className="mono-cell" style={{ color: "var(--error)" }}>
-                      -₹{pay.tds_amount?.toLocaleString()}
+                    <td className="num-cell">{formatMoney(pay.gross_amount)}</td>
+                    <td className="num-cell" style={{ color: "var(--error)" }}>
+                      {formatMoney(pay.tds_amount == null ? null : -Math.abs(pay.tds_amount))}
                     </td>
-                    <td className="mono-cell" style={{ fontWeight: 800, color: "var(--success)" }}>
-                      ₹{pay.net_payment_amount?.toLocaleString()}
+                    <td className="num-cell" style={{ fontWeight: 700, color: "var(--success)" }}>
+                      {formatMoney(pay.net_payment_amount)}
                     </td>
                     <td>
                       {pay.utr ? (
                         <code>{pay.utr}</code>
                       ) : (
-                        <span className="text-muted">-</span>
+                        <span className="text-muted">—</span>
                       )}
                     </td>
                     <td>
@@ -309,14 +310,14 @@ export default function Payments() {
                     <td colSpan={4} style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
                       {filtered.length} payments
                     </td>
-                    <td className="mono-cell" style={{ fontWeight: 700 }}>
-                      ₹{filtered.reduce((s, p) => s + (p.gross_amount ?? 0), 0).toLocaleString()}
+                    <td className="num-cell" style={{ fontWeight: 700 }}>
+                      {formatMoney(filtered.reduce((s, p) => s + (p.gross_amount ?? 0), 0))}
                     </td>
-                    <td className="mono-cell" style={{ color: "var(--error)", fontWeight: 700 }}>
-                      -₹{filtered.reduce((s, p) => s + (p.tds_amount ?? 0), 0).toLocaleString()}
+                    <td className="num-cell" style={{ color: "var(--error)", fontWeight: 700 }}>
+                      {formatMoney(-filtered.reduce((s, p) => s + Math.abs(p.tds_amount ?? 0), 0))}
                     </td>
-                    <td className="mono-cell" style={{ color: "var(--success)", fontWeight: 800 }}>
-                      ₹{filtered.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0).toLocaleString()}
+                    <td className="num-cell" style={{ color: "var(--success)", fontWeight: 700 }}>
+                      {formatMoney(filtered.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0))}
                     </td>
                     <td colSpan={2} />
                   </tr>

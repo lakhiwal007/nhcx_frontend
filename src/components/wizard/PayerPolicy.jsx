@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, Building2, FileText, ArrowRight, AlertTriangle } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, Input, StatusBadge } from "../Common";
+import { formatMoney, formatDate } from "../../format.js";
 
 const IDENTIFIER_TYPE_LABELS = {
   AbhaNumber: "ABHA Number",
@@ -362,13 +363,12 @@ export default function PayerPolicy({ ctx }) {
                           <span>
                             Sum Insured:{" "}
                             <strong style={{ color: "var(--primary)" }}>
-                              {policy.currency}{" "}
-                              {policy.sum_insured?.toLocaleString()}
+                              {formatMoney(policy.sum_insured, { currency: policy.currency || "₹" })}
                             </strong>
                           </span>
                         ) : (
                           <span style={{ color: "var(--text-muted)", fontSize: "11px" }}>
-                            Fetched: {new Date(policy.fetched_at || Date.now()).toLocaleDateString()}
+                            Fetched: {formatDate(policy.fetched_at || Date.now())}
                           </span>
                         )}
                         {(policy.status || !policy.fetched_at) && <StatusBadge status={policy.status || "active"} />}
@@ -390,7 +390,7 @@ export default function PayerPolicy({ ctx }) {
                         >
                           <AlertTriangle size={14} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
                           <span>
-                            Estimated bill (₹{caseState.estimatedBillAmount.toLocaleString()}) may exceed this policy's sum insured (₹{policy.sum_insured.toLocaleString()}). Consider selecting a different policy.
+                            Estimated bill ({formatMoney(caseState.estimatedBillAmount)}) may exceed this policy's sum insured ({formatMoney(policy.sum_insured)}). Consider selecting a different policy.
                           </span>
                         </div>
                       )}

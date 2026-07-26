@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, LoadingBlock, EmptyState } from "../Common";
+import { formatMoney, formatDateTime } from "../../format.js";
 
 // Fixed actor palette — who drove the event. Hospital (blue), payer (violet),
 // system/auto (grey). Kept distinct so a payer callback never reads as a
@@ -34,7 +35,7 @@ const WORKFLOW_LABELS = {
   communication: "Communication",
 };
 
-const money = (v) => (v == null ? null : `₹${Number(v).toLocaleString()}`);
+const money = (v) => (v == null ? null : formatMoney(v));
 
 function ActorBadge({ actor }) {
   const cfg = ACTOR_CONFIG[actor?.kind] || ACTOR_CONFIG.system;
@@ -124,7 +125,7 @@ function EventRow({ event }) {
           <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
             <ActorBadge actor={event.actor} />
             {DirIcon && <DirIcon size={13} style={{ color: "var(--text-muted)" }} />}
-            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{new Date(event.ts).toLocaleString()}</span>
+            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{formatDateTime(event.ts)}</span>
             {event.nhcx_workflow_id != null && (
               <span style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "monospace" }}>wf {event.nhcx_workflow_id}</span>
             )}

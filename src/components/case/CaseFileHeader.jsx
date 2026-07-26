@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { User, Hash, Building2, AlertTriangle } from "lucide-react";
 import { api } from "../../api";
+import { formatMoney, formatDate, formatAge, humanize } from "../../format.js";
 
-const money = (v) => (v == null ? null : `₹${Number(v).toLocaleString()}`);
+const money = (v) => (v == null ? null : formatMoney(v));
 
 // The persistent money strip — billed → authorized ceiling (cumulative across
 // preauth + enhancements) → approved → collect-from-patient → settled. Anchored
@@ -107,9 +108,13 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
           <div className="cx-id-meta">
             <span>
               <User size={11} style={{ marginRight: 4 }} />
-              {patient.gender || "-"}
+              {humanize(patient.gender, "—")}
             </span>
-            {patient.dob && <span>DOB {patient.dob}</span>}
+            {patient.dob && (
+              <span title={`Born ${formatDate(patient.dob)}`}>
+                {formatAge(patient.dob)} · {formatDate(patient.dob)}
+              </span>
+            )}
             {facility && (
               <span className="cx-id-facility">
                 <Building2 size={11} />
@@ -147,7 +152,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
           <div className="cx-id-fact">
             <span className="cx-file-mono">Approved</span>
             <span className="cx-file-val" style={{ color: "var(--success)", fontWeight: 800 }}>
-              ₹{approvedAmount.toLocaleString()}
+              {formatMoney(approvedAmount)}
             </span>
           </div>
         )}

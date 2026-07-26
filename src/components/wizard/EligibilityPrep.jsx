@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, StatusBadge, LoadingBlock } from "../Common";
+import { formatDate, formatMoney } from "../../format.js";
 import PayrErrorList from "../PayrErrorList";
 
 const POLL_INTERVAL_MS = 7000;
@@ -109,8 +110,8 @@ function InsurancePlanPanel({ plan }) {
           >
             <span>{details.name}</span>
             {plan.pricing?.sum_insured != null && (
-              <span className="mono-cell" style={{ color: "var(--success)", fontSize: "13px" }}>
-                ₹{plan.pricing.sum_insured.toLocaleString("en-IN")}
+              <span className="num-cell" style={{ color: "var(--success)", fontSize: "13px" }}>
+                {formatMoney(plan.pricing.sum_insured)}
               </span>
             )}
           </div>
@@ -126,8 +127,8 @@ function InsurancePlanPanel({ plan }) {
             {details.type?.display && <span>{details.type.display}</span>}
             {details.period?.start && details.period?.end && (
               <span>
-                {new Date(details.period.start).toLocaleDateString()} →{" "}
-                {new Date(details.period.end).toLocaleDateString()}
+                {formatDate(details.period.start)} →{" "}
+                {formatDate(details.period.end)}
               </span>
             )}
             {details.status && (
@@ -567,16 +568,8 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
                       {item.authorization_required ? "Yes" : "No"}
                     </span>
                   </td>
-                  <td style={{ textAlign: "right" }}>
-                    {item.benefit?.[0]?.allowed?.value != null
-                      ? `₹${item.benefit[0].allowed.value.toLocaleString()}`
-                      : "-"}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {item.benefit?.[0]?.used?.value != null
-                      ? `₹${item.benefit[0].used.value.toLocaleString()}`
-                      : "-"}
-                  </td>
+                  <td className="num-cell">{formatMoney(item.benefit?.[0]?.allowed?.value)}</td>
+                  <td className="num-cell">{formatMoney(item.benefit?.[0]?.used?.value)}</td>
                 </tr>
               ))}
             </tbody>
@@ -758,9 +751,9 @@ export default function EligibilityPrep({ ctx }) {
             {sumInsuredError.estimated && sumInsuredError.limit ? (
               <div style={{ fontSize: "14px", marginBottom: "var(--space-3)" }}>
                 Estimated bill{" "}
-                <strong style={{ color: "var(--error)" }}>₹{sumInsuredError.estimated.toLocaleString()}</strong>
+                <strong style={{ color: "var(--error)" }}>{formatMoney(sumInsuredError.estimated)}</strong>
                 {" "}exceeds this policy's sum insured of{" "}
-                <strong>₹{sumInsuredError.limit.toLocaleString()}</strong>.
+                <strong>{formatMoney(sumInsuredError.limit)}</strong>.
               </div>
             ) : (
               <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>

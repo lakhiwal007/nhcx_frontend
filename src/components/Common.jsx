@@ -11,13 +11,9 @@ import {
   ChevronRight,
   Ban,
 } from "lucide-react";
+import { formatMoney, formatDateTime, formatPhone } from "../format.js";
 
-export const formatMoney = (v, { dash = "—", currency = "₹" } = {}) => {
-  if (v === null || v === undefined || v === "") return dash;
-  const n = Number(v);
-  if (Number.isNaN(n)) return dash;
-  return `${currency}${n.toLocaleString("en-IN")}`;
-};
+export { formatMoney };
 
 /**
  * Generic content container with an optional header and header action.
@@ -202,11 +198,11 @@ export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) =
         <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "3px", color: "var(--text-main)" }}>
           {patient.name}
         </div>
-        <div style={{ display: "flex", gap: "10px", fontSize: "12px", color: "var(--text-muted)", flexWrap: "wrap" }}>
-          <span>#{patient.child_id}</span>
+        <div className="patient-card-meta">
+          <span className="mono-cell">#{patient.child_id}</span>
           <span style={{ textTransform: "capitalize" }}>{patient.gender}</span>
           {age != null && <span>{age} yrs</span>}
-          {patient.mobile && <span>{patient.mobile}</span>}
+          {patient.mobile && <span className="mono-cell">{formatPhone(patient.mobile)}</span>}
         </div>
         {statusSlot && (
           <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
@@ -480,7 +476,7 @@ export const DecisionBanner = ({ decision, approvedAmount, message, outcome, pro
           >
             Approved Amount:{" "}
             <strong style={{ color: "var(--success)", fontSize: "16px" }}>
-              ₹{approvedAmount.toLocaleString()}
+              {formatMoney(approvedAmount)}
             </strong>
           </div>
         )}
@@ -647,7 +643,7 @@ export const TaskCard = ({ task, onClick }) => (
           {task.priority?.toUpperCase()}
         </span>
         <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-          {new Date(task.created_at).toLocaleString()}
+          {formatDateTime(task.created_at)}
         </span>
       </div>
       <h4 style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>

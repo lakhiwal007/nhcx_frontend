@@ -522,8 +522,8 @@ export default function PreauthDraft({ ctx }) {
                   <tfoot>
                     <tr>
                       <td colSpan="3" style={{ textAlign: "right", fontWeight: 700 }}>Total Billed</td>
-                      <td style={{ textAlign: "right", fontWeight: 800, color: "var(--primary)", fontSize: "15px" }}>
-                        ₹{effectiveTotal?.toLocaleString()}
+                      <td className="num-cell" style={{ fontWeight: 800, color: "var(--primary)", fontSize: "15px" }}>
+                        {formatMoney(effectiveTotal)}
                       </td>
                     </tr>
                   </tfoot>
@@ -622,7 +622,7 @@ export default function PreauthDraft({ ctx }) {
             <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
               <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Total Request</div>
               <div style={{ fontSize: "32px", fontWeight: 800, color: "var(--primary)" }}>
-                ₹{effectiveTotal?.toLocaleString()}
+                {formatMoney(effectiveTotal)}
               </div>
               {editedItems && (
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "var(--space-1)" }}>Edited · recomputed from line items</div>

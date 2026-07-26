@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock, formatMoney } from "./Common";
+import { formatDate, formatPhone } from "../format.js";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 function calculateAge(dob) {
@@ -259,7 +260,7 @@ function PatientDetail({ patient, onBack }) {
               )}
               {patient.mobile && (
                 <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-                  <Phone size={13} /> {patient.mobile}
+                  <Phone size={13} /> {formatPhone(patient.mobile)}
                 </span>
               )}
               {patient.abha_number
@@ -345,7 +346,7 @@ function PatientDetail({ patient, onBack }) {
                       <StatusBadge status={visit.status} />
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-muted)", fontSize: "13px" }}>
-                      <span>{new Date(visit.started_at).toLocaleDateString()}</span>
+                      <span>{formatDate(visit.started_at)}</span>
                       {expandedVisit === vi ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </div>
                   </div>
@@ -804,7 +805,7 @@ export default function PatientProfile() {
                               <td className="mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>#{child.child_id}</td>
                               <td style={{ textTransform: "capitalize" }}>{child.gender}</td>
                               <td>{age !== null ? `${age} yrs` : "-"}</td>
-                              <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{child.mobile || "-"}</td>
+                              <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatPhone(child.mobile)}</td>
                               <td>
                                 {child.latest_claim ? (
                                   <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>

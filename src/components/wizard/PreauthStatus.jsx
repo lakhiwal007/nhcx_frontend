@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, DecisionBanner, AmountGrid, StatusBadge, DocumentChecklist, formatMoney } from "../Common";
+import { formatDate } from "../../format.js";
 import PayrErrorList from "../PayrErrorList";
 import PreauthEnhancement from "./PreauthEnhancement";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
@@ -500,11 +501,11 @@ export default function PreauthStatus({ ctx }) {
                             {claimItem?.service_code && <code style={{ fontSize: "11px", color: "var(--text-muted)" }}>{claimItem.service_code}</code>}
                           </td>
                           <td>{claimItem?.category ? <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{claimItem.category}</span> : "-"}</td>
-                          <td style={{ textAlign: "right" }}>{claimItem?.quantity ?? "-"}</td>
-                          <td style={{ textAlign: "right" }}>{claimItem?.unit_price != null ? `₹${claimItem.unit_price.toLocaleString()}` : "-"}</td>
-                          <td style={{ textAlign: "right", fontWeight: 600 }}>{claimItem?.net_amount != null ? `₹${claimItem.net_amount.toLocaleString()}` : "-"}</td>
-                          <td style={{ textAlign: "right", color: "var(--success)", fontWeight: 700 }}>
-                            {adj?.eligible?.value != null ? `₹${adj.eligible.value.toLocaleString()}` : "-"}
+                          <td className="num-cell">{claimItem?.quantity ?? "—"}</td>
+                          <td className="num-cell">{formatMoney(claimItem?.unit_price)}</td>
+                          <td className="num-cell" style={{ fontWeight: 600 }}>{formatMoney(claimItem?.net_amount)}</td>
+                          <td className="num-cell" style={{ color: "var(--success)", fontWeight: 700 }}>
+                            {formatMoney(adj?.eligible?.value)}
                           </td>
                           <td>
                             {adj?.eligible?.reason ? (
@@ -529,7 +530,7 @@ export default function PreauthStatus({ ctx }) {
                     <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-color)", fontSize: "13px" }}>
                       <div style={{ fontWeight: 600 }}>{p.name}</div>
                       <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                        {p.date && new Date(p.date).toLocaleDateString()}
+                        {p.date && formatDate(p.date)}
                         {p.code && <> · <code>{p.code}</code></>}
                       </div>
                     </div>
@@ -771,7 +772,7 @@ export default function PreauthStatus({ ctx }) {
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Cancellation is irreversible. The preauth reference <strong>{statusData?.preauth_ref}</strong>
           {(statusData?.totals?.benefit?.value ?? statusData?.totals?.eligible?.value) != null && (
-            <> and its approved amount of <strong style={{ color: "var(--error)" }}>₹{(statusData.totals.benefit?.value ?? statusData.totals.eligible?.value).toLocaleString()}</strong></>
+            <> and its approved amount of <strong style={{ color: "var(--error)" }}>{formatMoney(statusData.totals.benefit?.value ?? statusData.totals.eligible?.value)}</strong></>
           )} will be permanently voided with the payer.
         </p>
         <div style={{ marginBottom: "14px" }}>
