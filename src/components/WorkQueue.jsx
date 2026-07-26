@@ -18,6 +18,7 @@ import {
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
 import { Button, Input, EmptyState, LoadingBlock } from "./Common";
+import { formatRelative, formatRelativePhrase, formatDateTime } from "../format.js";
 import { useNavigate } from "react-router-dom";
 
 const POLL_INTERVAL_MS = 45_000;
@@ -357,9 +358,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                   </div>
                   <div>
                     <span style={{ color: "var(--text-muted)" }}>Created:</span>{" "}
-                    {task.created_at
-                      ? new Date(task.created_at).toLocaleString()
-                      : "-"}
+                    {formatDateTime(task.created_at)}
                   </div>
                 </div>
               </div>
@@ -601,6 +600,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
               )}
             </div>
             <span
+              title={task.created_at ? formatDateTime(task.created_at) : undefined}
               style={{
                 fontSize: "11px",
                 color: "var(--text-muted)",
@@ -608,9 +608,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {task.created_at
-                ? new Date(task.created_at).toLocaleDateString()
-                : ""}
+              {task.created_at ? formatRelative(task.created_at) : ""}
             </span>
           </div>
           <div
@@ -787,7 +785,9 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         </div>
         
         <div style={{ fontSize: "11px", color: "var(--text-muted)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span>{task.created_at ? new Date(task.created_at).toLocaleDateString() : ""}</span>
+          <span title={task.created_at ? formatDateTime(task.created_at) : undefined}>
+            {task.created_at ? `Raised ${formatRelativePhrase(task.created_at)}` : ""}
+          </span>
           {task.facility_name && (
             <span style={{ color: "var(--accent)", fontWeight: 600, background: "color-mix(in srgb, var(--accent) 10%, transparent)", padding: "2px 6px", borderRadius: "4px" }}>
               {task.facility_name}
@@ -839,19 +839,19 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
   const KanbanColumn = ({ title, tasks: sectionTasks, color }) => {
     return (
-      <div style={{ flex: 1, minWidth: "300px", maxWidth: "33%", background: "color-mix(in srgb, var(--bg-main) 60%, transparent)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-        <h3 style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", margin: 0, color: `var(--${color})`, fontSize: "14px", fontWeight: 700 }}>
-          {color === "error" && <AlertTriangle size={16} />}
-          {title} <span style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", color: "var(--text-main)", padding: "2px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "auto" }}>{sectionTasks.length}</span>
+      <div className="wq-lane" style={{ "--wq-lane-accent": `var(--${color})` }}>
+        <h3 className="wq-lane-head">
+          <span className="wq-lane-rule" aria-hidden="true" />
+          {title}
+          <span className="wq-lane-count">{sectionTasks.length}</span>
         </h3>
-        
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)", minHeight: "150px" }}>
+
+        <div className="wq-lane-body">
           <AnimatePresence>
             {sectionTasks.length === 0 ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ padding: "40px 16px", textAlign: "center", color: "var(--text-muted)", background: "var(--bg-card)", borderRadius: "var(--radius-md)", border: "1px dashed var(--border-color)", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <Inbox size={32} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
-                <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-main)" }}>No {title.toLowerCase()}</div>
-                <div style={{ fontSize: "12px", marginTop: "var(--space-1)" }}>All caught up here.</div>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="wq-lane-empty">
+                <Inbox size={26} />
+                <div className="wq-lane-empty-title">Clear</div>
               </motion.div>
             ) : (
               sectionTasks.map((task) => (
@@ -991,16 +991,16 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           {statusFilter === "pending" ? (
             viewMode === "board" ? (
-              <div style={{ display: "flex", gap: "var(--space-6)", overflowX: "auto", paddingBottom: "16px", alignItems: "flex-start" }}>
+              <div className="wq-board">
                 <KanbanColumn title="Urgent" tasks={urgentTasks} color="error" />
-                <KanbanColumn title="High Priority" tasks={highTasks} color="warning" />
-                <KanbanColumn title="Normal Priority" tasks={normalTasks} color="primary" />
+                <KanbanColumn title="High" tasks={highTasks} color="warning" />
+                <KanbanColumn title="Normal" tasks={normalTasks} color="primary" />
               </div>
             ) : (
               <>
                 <TaskSection title="Urgent" tasks={urgentTasks} color="error" />
-                <TaskSection title="High Priority" tasks={highTasks} color="warning" />
-                <TaskSection title="Normal Priority" tasks={normalTasks} color="primary" />
+                <TaskSection title="High" tasks={highTasks} color="warning" />
+                <TaskSection title="Normal" tasks={normalTasks} color="primary" />
               </>
             )
           ) : (

@@ -1813,6 +1813,93 @@ code {
     color: var(--border-hover);
 }
 
+/* ─── Work Queue priority board ──────────────────────────────────────────── */
+.wq-board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+    align-items: stretch;
+    padding-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+    .wq-board {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.wq-lane {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-3) var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--text-main) 5%, var(--bg-main));
+    box-shadow: var(--clay-inset);
+}
+
+.wq-lane-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0 var(--space-1);
+    font-size: var(--text-xs);
+    font-weight: var(--fw-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--wq-lane-accent, var(--text-muted));
+}
+
+.wq-lane-rule {
+    width: 3px;
+    height: 13px;
+    border-radius: var(--radius-pill);
+    background: var(--wq-lane-accent, var(--text-muted));
+    flex-shrink: 0;
+}
+
+.wq-lane-count {
+    margin-left: auto;
+    min-width: 20px;
+    padding: 1px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    font-size: var(--text-2xs);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    letter-spacing: 0;
+}
+
+.wq-lane-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    flex: 1;
+    min-height: 96px;
+}
+
+.wq-lane-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    flex: 1;
+    padding: var(--space-6) var(--space-4);
+    color: var(--text-muted);
+    opacity: 0.65;
+}
+
+.wq-lane-empty-title {
+    font-size: var(--text-xs);
+    font-weight: var(--fw-semibold);
+}
+
 /* ─── Metrics responsive grid ────────────────────────────────────────────── */
 .metrics-grid-responsive {
     display: grid;
