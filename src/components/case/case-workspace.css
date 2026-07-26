@@ -32,6 +32,9 @@
   --cx-radius-sm: var(--radius-sm);
   --cx-shadow: var(--shadow);
 
+  --cx-rail-top: 59px;
+  --cx-rail-h: calc(100vh - 59px);
+
   /* .main-view is flush now, so there is no padding left to break out of */
   margin: 0;
   min-height: calc(100vh - 56px);
@@ -42,6 +45,11 @@
   color: var(--cx-ink);
   font-family: var(--cx-font-body);
   font-feature-settings: "ss01", "cv01", "tnum";
+}
+
+.app-container.dir-b .cx-root {
+  --cx-rail-top: 0px;
+  --cx-rail-h: calc(100vh - 98px);
 }
 
 [data-theme="dark"] .cx-root {
@@ -274,22 +282,29 @@
    carries over from the earlier spine design for the active node. Sticks
    to the viewport as the stage content scrolls past it (56px accounts for
    the app's top bar, matching .cx-root's own min-height assumption above). */
-/* Runs the full height of the stage column: the card's bottom always lands
-   exactly on the content's bottom edge, so there is no stray gap under the
-   last step and nothing spills past the viewport (the old fixed
-   `height: calc(100vh - 108px)` did both). */
 .cx-rail {
   flex: 0 0 200px;
   display: flex;
   flex-direction: column;
+  align-self: flex-start;
+  position: sticky;
+  top: var(--cx-rail-top);
+  height: var(--cx-rail-h);
+  margin: calc(-1 * var(--app-gutter)) 0 calc(-1 * var(--app-gutter))
+    calc(-1 * var(--app-gutter));
+  padding: 18px 12px;
   background: var(--cx-surface);
-  border: 1px solid var(--cx-line);
-  border-radius: var(--cx-radius);
-  box-shadow: var(--cx-shadow);
-  padding: 14px 12px;
-  /* No overflow here: setting overflow-x alone computes overflow-y to auto,
-     which would make this a scroll container and kill the inner track's
-     sticky. Long notes wrap via overflow-wrap on .cx-vstep-note instead. */
+  border: none;
+  border-right: 1px solid var(--cx-line);
+  border-radius: 0;
+  box-shadow: 4px 0 16px rgba(15, 23, 42, 0.06);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+[data-theme="dark"] .cx-rail {
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.4);
 }
 
 /* caption kept for the a11y tree, visually hidden */
@@ -305,40 +320,23 @@
   border: 0;
 }
 
-/* The card spans the whole column; the track floats inside it so the steps
-   stay on screen while the stage scrolls. Sized to the viewport so the strip
-   still spans everything the user can see, capped to 100% so a case shorter
-   than the screen can't push the track past the card's bottom. */
 .cx-rail-track {
   display: flex;
   flex-direction: column;
-  flex: 0 1 auto;
-  position: sticky;
-  top: 56px;
-  height: calc(100vh - 96px);
-  max-height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-.app-container.dir-b .cx-rail-track {
-  top: 12px;
-  height: calc(100vh - 136px);
-}
-
-/* Steps share the rail's height so the strip spans the whole column.
-   flex-basis 0 (not auto) so each step gets an equal share regardless of
-   how tall its label/note is — otherwise steps carrying a note end up with
-   visibly bigger circle-to-circle gaps. 26px is the floor when the column
-   is short. The last step doesn't grow: nothing below it to connect to, and
-   growing it would push the final circle off the card's bottom edge. */
 .cx-vstep {
   position: relative;
-  padding-bottom: 26px;
+  padding-bottom: 22px;
   flex: 1 1 0;
-  min-height: fit-content;
+  min-height: max(44px, fit-content);
 }
 .cx-vstep:last-child {
   padding-bottom: 0;
   flex: 0 0 auto;
+  min-height: 0;
 }
 
 /* vertical connector — segment linking this circle to the next one down.
@@ -486,6 +484,7 @@
   .cx-rail {
     flex-basis: 56px;
     padding: 16px 8px;
+    margin: -14px 0 -24px -16px;
   }
   .cx-rail-title {
     display: none;
