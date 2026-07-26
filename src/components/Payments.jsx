@@ -244,7 +244,7 @@ export default function Payments() {
               </thead>
               <tbody>
                 {filtered.map((pay, i) => (
-                  <tr key={pay.payment_reference || i}>
+                  <tr key={`${pay.payment_reference || "pay"}-${pay.payment_stage || ""}-${i}`}>
                     <td className="mono-cell" style={{ fontWeight: 700 }}>{pay.payment_reference}</td>
                     <td>
                       <a
