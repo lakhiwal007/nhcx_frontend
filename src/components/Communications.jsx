@@ -299,6 +299,7 @@ export default function Communications({ allFacilitiesMode = false }) {
   const [showSendModal, setShowSendModal] = useState(false);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("communications_viewMode") || "grid");
   const [sortBy, setSortBy] = useState("newest");
+  const [quickFilter, setQuickFilter] = useState(null);
   
   useEffect(() => { localStorage.setItem("communications_viewMode", viewMode); }, [viewMode]);
 
@@ -338,7 +339,10 @@ export default function Communications({ allFacilitiesMode = false }) {
       c.reason_display?.toLowerCase().includes(q) ||
       c.subject?.toLowerCase().includes(q);
     const matchPayer = !payerFilter || c.payer_id === payerFilter;
-    return matchSearch && matchPayer;
+    const matchQuick =
+      !quickFilter ||
+      (quickFilter === "unread" ? !c.provider_read : c.pending_tasks?.length > 0);
+    return matchSearch && matchPayer && matchQuick;
   }).sort((a, b) => {
     if (sortBy === "priority") {
       const pA = a.priority === "urgent" || a.priority === "stat" ? 2 : a.priority === "asap" ? 1 : 0;
@@ -360,14 +364,28 @@ export default function Communications({ allFacilitiesMode = false }) {
             </Button>
           )}
           {unreadCount > 0 && (
-            <span style={{ padding: "6px 14px", background: "color-mix(in srgb, var(--info) 12%, transparent)", color: "var(--info)", border: "1px solid var(--info)", borderRadius: "var(--radius-pill)", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}>
+            <button
+              type="button"
+              className={`cm-count${quickFilter === "unread" ? " is-on" : ""}`}
+              style={{ "--cm-count-tone": "var(--info)" }}
+              aria-pressed={quickFilter === "unread"}
+              title={quickFilter === "unread" ? "Show all messages" : "Show only unread messages"}
+              onClick={() => setQuickFilter((f) => (f === "unread" ? null : "unread"))}
+            >
               {unreadCount} unread
-            </span>
+            </button>
           )}
           {actionNeededCount > 0 && (
-            <span style={{ padding: "6px 14px", background: "color-mix(in srgb, var(--error) 12%, transparent)", color: "var(--error)", border: "1px solid var(--error)", borderRadius: "var(--radius-pill)", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}>
+            <button
+              type="button"
+              className={`cm-count${quickFilter === "action" ? " is-on" : ""}`}
+              style={{ "--cm-count-tone": "var(--error)" }}
+              aria-pressed={quickFilter === "action"}
+              title={quickFilter === "action" ? "Show all messages" : "Show only messages with an open task"}
+              onClick={() => setQuickFilter((f) => (f === "action" ? null : "action"))}
+            >
               {actionNeededCount} need action
-            </span>
+            </button>
           )}
         </div>
       </div>
