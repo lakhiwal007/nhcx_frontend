@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
+import { formatMoney, formatDate } from "../format.js";
 import { useNavigate, useLocation } from "react-router-dom";
 import ClaimSearchModal from "./ClaimSearchModal";
 
@@ -71,6 +72,15 @@ function getActionOptions(claim) {
     options.push({ label: "Open Case", route: "" });
   }
   return options;
+}
+
+function needsAttention(claim) {
+  if (claim.pending_tasks?.length) return true;
+  const terminalQuery = /QUERIED|REJECTED/i;
+  return (
+    terminalQuery.test(String(claim.claim_decision || "")) ||
+    terminalQuery.test(String(claim.preauth_status || ""))
+  );
 }
 
 function ActionMenu({ options, onSelect, disabled, size = 32 }) {
@@ -299,19 +309,19 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           )}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "var(--text-muted)" }}>Submitted:</span>
-            <span>{new Date(claim.created_at).toLocaleDateString()}</span>
+            <span>{formatDate(claim.created_at)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "var(--space-1)", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
             <span style={{ color: "var(--text-muted)" }}>Approved:</span>
-            <span className="mono-cell" style={{ fontWeight: 700, color: "var(--success)", fontSize: "14px" }}>
-              {claim.approved_amount != null ? `₹${claim.approved_amount.toLocaleString()}` : "-"}
+            <span className="num-cell" style={{ fontWeight: 700, color: "var(--success)", fontSize: "14px" }}>
+              {formatMoney(claim.approved_amount)}
             </span>
           </div>
         </div>
         
         <div style={{ marginTop: "auto", paddingTop: "12px", display: "flex", gap: "var(--space-2)" }}>
           <Button
-            variant="primary"
+            variant={needsAttention(claim) ? "primary" : "outline"}
             size="small"
             disabled={!!navigating[claim.id]}
             onClick={() => navigateToClaim(claim, primaryAction.route)}
@@ -560,7 +570,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                           <td style={{ fontSize: "12px", color: "var(--text-muted)" }}>{claim.facility_name || "-"}</td>
                         )}
                         <td>
-                          <div style={{ fontWeight: 600 }}>{claim.payer_name || claim.payer_id || "-"}</div>
+                          <div style={{ fontWeight: 600 }}>{claim.payer_name || claim.payer_id || "—"}</div>
                           {claim.payer_name && claim.payer_id ? (
                             <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
                               {claim.payer_id}
@@ -571,25 +581,25 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                         <td>
                           {claim.claim_decision
                             ? <StatusBadge status={claim.claim_decision} />
-                            : <span className="text-muted">-</span>}
+                            : <span className="text-muted">—</span>}
                         </td>
-                        <td className="mono-cell" style={{ textAlign: "right", fontWeight: 700, color: "var(--success)" }}>
+                        <td className="num-cell" style={{ fontWeight: 700, color: "var(--success)" }}>
                           {claim.approved_amount != null
-                            ? `₹${claim.approved_amount.toLocaleString()}`
-                            : <span className="text-muted">-</span>}
+                            ? formatMoney(claim.approved_amount)
+                            : <span className="text-muted">—</span>}
                         </td>
                         <td>
                           {claim.payment_status
                             ? <StatusBadge status={claim.payment_status.replace("PAYMENT_", "").toLowerCase()} />
-                            : <span className="text-muted">-</span>}
+                            : <span className="text-muted">—</span>}
                         </td>
-                        <td className="mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                          {new Date(claim.created_at).toLocaleDateString()}
+                        <td style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                          {formatDate(claim.created_at)}
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: "6px" }}>
                             <Button
-                              variant="primary"
+                              variant={needsAttention(claim) ? "primary" : "outline"}
                               size="small"
                               disabled={!!navigating[claim.id]}
                               onClick={() => navigateToClaim(claim, actionOptions[0].route)}
