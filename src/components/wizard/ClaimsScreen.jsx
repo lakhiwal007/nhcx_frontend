@@ -139,11 +139,13 @@ export default function ClaimsScreen({ ctx }) {
   const [dischargeCorrelationId, setDischargeCorrelationId] = useState(caseState.dischargeCorrelationId || null);
   const [dischargeStatus, setDischargeStatus] = useState(null);
   const [dischargePolling, setDischargePolling] = useState(false);
+  const [dischargeSubmitError, setDischargeSubmitError] = useState(null);
 
   // Final claim flow
   const [finalCorrelationId, setFinalCorrelationId] = useState(caseState.claimCorrelationId || null);
   const [claimStatus, setClaimStatus] = useState(null);
   const [polling, setPolling] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showResubmitDrawer, setShowResubmitDrawer] = useState(false);
@@ -217,7 +219,7 @@ export default function ClaimsScreen({ ctx }) {
       // REJECTED is terminal for the interim discharge submission too — the
       // claim itself reverts to draft, but there is nothing left to poll for
       // until the hospital corrects and resubmits via DC01.
-      if (res.status === "complete" || res.status === "not_found" || res.decision === "REJECTED") {
+      if (res.status === "complete" || res.status === "not_found" || res.status === "failed" || res.decision === "REJECTED") {
         setDischargePolling(false);
         // A terminal claim decision moves the money ledger — refresh the shared
         // timeline so the case header's money strip tracks it (this screen polls
@@ -236,7 +238,7 @@ export default function ClaimsScreen({ ctx }) {
     try {
       const res = await api.getClaimStatus(finalCorrelationId, signal);
       setClaimStatus(res);
-      if (res.status === "complete" || res.status === "not_found") {
+      if (res.status === "complete" || res.status === "not_found" || res.status === "failed") {
         setPolling(false);
         refreshTimeline?.();
       }
@@ -255,11 +257,11 @@ export default function ClaimsScreen({ ctx }) {
     }
   }, [showResubmitDrawer, showDischargeResubmitDrawer]);
 
-  const handleUpload = (doc) => {
+  const handleUpload = (doc, uploaded) => {
     setClaimDraft((prev) => ({
       ...prev,
       supporting_documents: prev.supporting_documents.map((d) =>
-        d.code === doc.code ? { ...d, url: "https://hospital.example/mock/doc.pdf" } : d
+        d.code === doc.code ? { ...d, ...uploaded } : d
       ),
     }));
   };
@@ -282,12 +284,22 @@ export default function ClaimsScreen({ ctx }) {
 
   const handleSubmitDischarge = async () => {
     setSubmitting(true);
+    setDischargeSubmitError(null);
     try {
-      const res = await api.submitDischargeClaim({ claim_id: claimDraft.claim_id });
+      const attachedDocs = claimDraft?.supporting_documents?.filter((d) => d.url) ?? [];
+      const res = await api.submitDischargeClaim({
+        claim_id: claimDraft.claim_id,
+        ...(attachedDocs.length > 0 && { supporting_documents: attachedDocs }),
+      });
+      if (res.status === "failed") {
+        setDischargeSubmitError(res.message || res.error?.message || "Discharge claim submission failed. Please try again.");
+        return;
+      }
       setDischargeCorrelationId(res.correlation_id);
       updateCaseState({ dischargeCorrelationId: res.correlation_id });
       setDischargePolling(true);
-    } catch (_) {
+    } catch (err) {
+      setDischargeSubmitError(err.message || "Discharge claim submission failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -295,13 +307,19 @@ export default function ClaimsScreen({ ctx }) {
 
   const handleSubmitFinal = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const res = await api.submitFinalClaim({ claim_id: claimDraft.claim_id });
+      if (res.status === "failed") {
+        setSubmitError(res.message || res.error?.message || "Final claim submission failed. Please try again.");
+        return;
+      }
       setFinalCorrelationId(res.correlation_id);
       updateCaseState({ claimCorrelationId: res.correlation_id });
       setActiveTab("decision");
       setPolling(true);
-    } catch (_) {
+    } catch (err) {
+      setSubmitError(err.message || "Final claim submission failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -309,6 +327,7 @@ export default function ClaimsScreen({ ctx }) {
 
   const handleQuerySubmit = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const res = await api.respondClaimQuery({
         claim_id: claimDraft?.claim_id || claimId,
@@ -319,12 +338,17 @@ export default function ClaimsScreen({ ctx }) {
           },
         }),
       });
+      if (res.status === "failed") {
+        setSubmitError(res.message || res.error?.message || "Query response submission failed. Please try again.");
+        return;
+      }
       setShowQueryDrawer(false);
       setFinalCorrelationId(res.correlation_id);
       updateCaseState({ claimCorrelationId: res.correlation_id });
       setActiveTab("decision");
       setPolling(true);
-    } catch (_) {
+    } catch (err) {
+      setSubmitError(err.message || "Query response submission failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -332,6 +356,7 @@ export default function ClaimsScreen({ ctx }) {
 
   const handleResubmitClaim = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const body = {
         ...(resolvedClaimId ? { claim_id: resolvedClaimId } : {}),
@@ -344,12 +369,17 @@ export default function ClaimsScreen({ ctx }) {
         body.total_amount = total;
       }
       const res = await api.resubmitClaim(body);
+      if (res.status === "failed") {
+        setSubmitError(res.message || res.error?.message || "Claim resubmission failed. Please try again.");
+        return;
+      }
       setShowResubmitDrawer(false);
       setFinalCorrelationId(res.correlation_id);
       updateCaseState({ claimCorrelationId: res.correlation_id });
       setActiveTab("decision");
       setPolling(true);
-    } catch (_) {
+    } catch (err) {
+      setSubmitError(err.message || "Claim resubmission failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -362,6 +392,7 @@ export default function ClaimsScreen({ ctx }) {
   // successful call clears the stale REJECTED decision server-side.
   const handleResubmitDischargeClaim = async () => {
     setSubmitting(true);
+    setDischargeSubmitError(null);
     try {
       const body = {
         ...(resolvedClaimId ? { claim_id: resolvedClaimId } : {}),
@@ -369,13 +400,20 @@ export default function ClaimsScreen({ ctx }) {
       if (resubmitEditItems?.length > 0) {
         body.items = resubmitEditItems;
       }
+      const attachedDocs = claimDraft?.supporting_documents?.filter((d) => d.url) ?? [];
+      if (attachedDocs.length > 0) body.supporting_documents = attachedDocs;
       const res = await api.resubmitDischargeClaim(body);
+      if (res.status === "failed") {
+        setDischargeSubmitError(res.message || res.error?.message || "Discharge claim resubmission failed. Please try again.");
+        return;
+      }
       setShowDischargeResubmitDrawer(false);
       setDischargeCorrelationId(res.correlation_id);
       updateCaseState({ dischargeCorrelationId: res.correlation_id });
       setDischargeStatus(null);
       setDischargePolling(true);
-    } catch (_) {
+    } catch (err) {
+      setDischargeSubmitError(err.message || "Discharge claim resubmission failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -637,7 +675,16 @@ export default function ClaimsScreen({ ctx }) {
               </div>
             </div>
           )}
-          {dischargeStatus?.decision === "REJECTED" ? (
+          {dischargeStatus?.status === "failed" ? (
+            <div style={{ padding: "12px 14px", background: "rgba(225,29,72,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)" }}>
+              <div style={{ fontWeight: 700, fontSize: "13px", color: "var(--error)", marginBottom: "6px" }}>
+                Discharge claim submission failed
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--text-main)" }}>
+                {dischargeStatus.error_message || "The request could not be delivered to the payer."}
+              </div>
+            </div>
+          ) : dischargeStatus?.decision === "REJECTED" ? (
             <div style={{ padding: "12px 14px", background: "rgba(225,29,72,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)" }}>
               <div style={{ fontWeight: 700, fontSize: "13px", color: "var(--error)", marginBottom: "6px" }}>
                 Discharge claim rejected
@@ -653,6 +700,12 @@ export default function ClaimsScreen({ ctx }) {
           ) : dischargeStatus?.status === "complete" && (
             <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "var(--radius-sm)", fontSize: "12px", marginBottom: "var(--space-4)" }}>
               Discharge claim adjudicated - decision: <strong>{dischargeStatus.decision || "complete"}</strong>
+            </div>
+          )}
+
+          {dischargeSubmitError && (
+            <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+              {dischargeSubmitError}
             </div>
           )}
 
@@ -746,6 +799,12 @@ export default function ClaimsScreen({ ctx }) {
             </div>
           )}
 
+          {submitError && (
+            <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600, textAlign: "center" }}>
+              {submitError}
+            </div>
+          )}
+
           <div style={{ display: "flex", justifyContent: "center" }}>
             <Button
               variant="primary"
@@ -774,6 +833,14 @@ export default function ClaimsScreen({ ctx }) {
                   </div>
                 </div>
               </div>
+            </Card>
+          ) : claimStatus?.status === "failed" ? (
+            <Card className="mb-6">
+              <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "6px" }}>Claim submission failed</div>
+              <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-4)" }}>
+                {claimStatus.error_message || "The request could not be delivered to the payer."}
+              </div>
+              <Button variant="outline" onClick={() => setActiveTab("final")}>Back to Final Claim</Button>
             </Card>
           ) : (
             <>
@@ -866,6 +933,11 @@ export default function ClaimsScreen({ ctx }) {
             onChange={(e) => setQueryAnswer(e.target.value)}
           />
         </div>
+        {submitError && (
+          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+            {submitError}
+          </div>
+        )}
         <Button variant="primary" className="w-full" disabled={!queryAnswer || submitting} onClick={handleQuerySubmit} style={{ justifyContent: "center" }}>
           {submitting ? "Submitting…" : "Submit Response"}
         </Button>
@@ -930,6 +1002,11 @@ export default function ClaimsScreen({ ctx }) {
                 </tfoot>
               </table>
             </div>
+          </div>
+        )}
+        {submitError && (
+          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+            {submitError}
           </div>
         )}
         <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitClaim} style={{ justifyContent: "center" }}>
@@ -998,6 +1075,11 @@ export default function ClaimsScreen({ ctx }) {
                 </tfoot>
               </table>
             </div>
+          </div>
+        )}
+        {dischargeSubmitError && (
+          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+            {dischargeSubmitError}
           </div>
         )}
         <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>

@@ -129,6 +129,7 @@ export default function PreauthDraft({ ctx }) {
   const [draft, setDraft] = useState(null);
   const [missingFields, setMissingFields] = useState([]);
   const [submitting, setSaving2] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   // Editable sections — null means "use server draft unchanged"
   const [editedDiagnoses, setEditedDiagnoses] = useState(draftData?.editedDiagnoses ?? null);
@@ -213,11 +214,11 @@ export default function PreauthDraft({ ctx }) {
     setEditedCareTeam(base.map((d, i) => (i === idx ? { ...d, [field]: value } : d)));
   };
 
-  const handleUpload = (doc) => {
+  const handleUpload = (doc, uploaded) => {
     setDraft((prev) => ({
       ...prev,
       supporting_documents: prev.supporting_documents.map((d) =>
-        d.code === doc.code ? { ...d, url: "https://hospital.example/mock/doc.pdf" } : d
+        d.code === doc.code ? { ...d, ...uploaded } : d
       ),
     }));
   };
@@ -228,6 +229,7 @@ export default function PreauthDraft({ ctx }) {
 
   const handleSubmit = async () => {
     setSaving2(true);
+    setSubmitError(null);
     try {
       const body = {};
       const resolvedCaseId = cashless_case_id || draft.cashless_case_id;
@@ -250,13 +252,18 @@ export default function PreauthDraft({ ctx }) {
       if (attachedDocs.length > 0) body.supporting_documents = attachedDocs;
 
       const res = await api.submitPreauth(body);
+      if (res.status === "failed") {
+        setSubmitError(res.message || res.error?.message || "Preauthorization submission failed. Please try again.");
+        return;
+      }
       updateCaseState({
         preauthCorrelationId: res.correlation_id,
         claim_id: draft.claim_id || claim_id,
         draftData: null,
       });
       navigate("../status");
-    } catch (_) {
+    } catch (err) {
+      setSubmitError(err.message || "Preauthorization submission failed. Please try again.");
     } finally {
       setSaving2(false);
     }
@@ -640,6 +647,13 @@ export default function PreauthDraft({ ctx }) {
               <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
                 <AlertCircle size={14} />
                 Upload all required documents before submitting.
+              </div>
+            )}
+
+            {submitError && (
+              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+                <AlertCircle size={14} />
+                {submitError}
               </div>
             )}
 

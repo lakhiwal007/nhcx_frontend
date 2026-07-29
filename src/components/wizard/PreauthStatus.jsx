@@ -113,9 +113,12 @@ export default function PreauthStatus({ ctx }) {
 
   const [queryAnswer, setQueryAnswer] = useState("");
   const [queryDocs, setQueryDocs] = useState([]);
+  const [queryError, setQueryError] = useState(null);
   const [resubmitItems, setResubmitItems] = useState([]);
+  const [resubmitError, setResubmitError] = useState(null);
   const [cancelReason, setCancelReason] = useState("treatmentplanchanged");
   const [cancelDesc, setCancelDesc] = useState("");
+  const [cancelError, setCancelError] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [recheckingEligibility, setRecheckingEligibility] = useState(false);
@@ -143,7 +146,7 @@ export default function PreauthStatus({ ctx }) {
         if (authorized != null) stateUpdates.approvedAmount = authorized;
       }
       if (Object.keys(stateUpdates).length) updateCaseState(stateUpdates);
-      if (res.status === "complete" || res.status === "not_found") setPolling(false);
+      if (res.status === "complete" || res.status === "not_found" || res.status === "failed") setPolling(false);
     } catch (_) {}
   };
 
@@ -205,6 +208,7 @@ export default function PreauthStatus({ ctx }) {
 
   const handleQuerySubmit = async () => {
     setSubmitting(true);
+    setQueryError(null);
     try {
       const body = {
         ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
@@ -218,11 +222,16 @@ export default function PreauthStatus({ ctx }) {
         }),
       };
       const res = await api.respondPreauthQuery(body);
+      if (res.status === "failed") {
+        setQueryError(res.message || res.error?.message || "Query response submission failed. Please try again.");
+        return;
+      }
       setShowQueryDrawer(false);
       setQueryAnswer("");
       setQueryDocs([]);
       restartPoll(res.correlation_id);
-    } catch (_) {
+    } catch (err) {
+      setQueryError(err.message || "Query response submission failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -230,6 +239,7 @@ export default function PreauthStatus({ ctx }) {
 
   const handleResubmitSubmit = async () => {
     setSubmitting(true);
+    setResubmitError(null);
     try {
       const baseItems = draftData?.editedItems ?? draftData?.items ?? statusData?.claim_items ?? statusData?.items ?? [];
       const editableItems = (resubmitItems.length > 0 ? resubmitItems : baseItems).map((item) => {
@@ -263,9 +273,14 @@ export default function PreauthStatus({ ctx }) {
         ...(draftData?.editedDiagnoses || statusData?.diagnoses?.length ? { diagnoses: draftData?.editedDiagnoses ?? statusData?.diagnoses } : {}),
       };
       const res = await api.resubmitPreauth(body);
+      if (res.status === "failed") {
+        setResubmitError(res.message || res.error?.message || "Preauthorization resubmission failed. Please try again.");
+        return;
+      }
       setShowResubmitDrawer(false);
       restartPoll(res.correlation_id);
-    } catch (_) {
+    } catch (err) {
+      setResubmitError(err.message || "Preauthorization resubmission failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -273,6 +288,7 @@ export default function PreauthStatus({ ctx }) {
 
   const handleCancelSubmit = async () => {
     setSubmitting(true);
+    setCancelError(null);
     try {
       const body = {
         ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
@@ -281,10 +297,15 @@ export default function PreauthStatus({ ctx }) {
         reason: cancelReason,
         description: cancelDesc,
       };
-      await api.cancelPreauth(body);
+      const res = await api.cancelPreauth(body);
+      if (res.status === "failed") {
+        setCancelError(res.message || res.error?.message || "Cancellation failed. Please try again.");
+        return;
+      }
       setShowCancelModal(false);
       navigate("/dashboard");
-    } catch (_) {
+    } catch (err) {
+      setCancelError(err.message || "Cancellation failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -315,6 +336,7 @@ export default function PreauthStatus({ ctx }) {
     }
   };
   const isComplete = statusData?.status === "complete";
+  const isFailed = statusData?.status === "failed";
   const decision = statusData?.decision || caseState.preauthDecision;
   // Latest preauth decision event from the audit trail — carries the payer's
   // raw outcome / reason codes / classified_by / inbound workflow id for the
@@ -386,7 +408,25 @@ export default function PreauthStatus({ ctx }) {
 
   return (
     <div className="wizard-step">
-      {!isComplete && !knownDecision && (
+      {isFailed && (
+        <Card className="mb-6">
+          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
+            <AlertCircle size={22} color="var(--error)" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: "6px", color: "var(--error)" }}>Preauthorization submission failed</div>
+              <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 16px" }}>
+                {statusData?.error_message || "The request could not be delivered to the payer."}
+              </p>
+              <div style={{ display: "flex", gap: "var(--space-3)" }}>
+                <Button variant="outline" size="small" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>Check Again</Button>
+                <Button variant="primary" onClick={() => navigate("../review")}>Back to Preauth Draft</Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {!isComplete && !isFailed && !knownDecision && (
         <Card className="mb-6">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
@@ -417,7 +457,7 @@ export default function PreauthStatus({ ctx }) {
         </Card>
       )}
 
-      {!isComplete && knownDecision && (
+      {!isComplete && !isFailed && knownDecision && (
         <Card className="mb-6">
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
             <div className="spinner" style={{ width: "24px", height: "24px", borderTopColor: "var(--primary)" }} />
@@ -649,7 +689,7 @@ export default function PreauthStatus({ ctx }) {
         </>
       )}
 
-      <Drawer open={showQueryDrawer} onClose={() => setShowQueryDrawer(false)} title="Respond to Payer Query">
+      <Drawer open={showQueryDrawer} onClose={() => { setShowQueryDrawer(false); setQueryError(null); }} title="Respond to Payer Query">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Provide a clinical justification and attach any documents requested by the payer.
         </p>
@@ -678,6 +718,11 @@ export default function PreauthStatus({ ctx }) {
             }
           />
         </div>
+        {queryError && (
+          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+            {queryError}
+          </div>
+        )}
         <Button
           variant="primary"
           className="w-full"
@@ -689,7 +734,7 @@ export default function PreauthStatus({ ctx }) {
         </Button>
       </Drawer>
 
-      <Drawer open={showResubmitDrawer} onClose={() => setShowResubmitDrawer(false)} title="Resubmit Preauth">
+      <Drawer open={showResubmitDrawer} onClose={() => { setShowResubmitDrawer(false); setResubmitError(null); }} title="Resubmit Preauth">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Correct clinical or billing data and resubmit. Only the fields you change here will be sent; everything else is re-derived from the hospital DB.
         </p>
@@ -757,6 +802,11 @@ export default function PreauthStatus({ ctx }) {
             </div>
           ) : null;
         })()}
+        {resubmitError && (
+          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+            {resubmitError}
+          </div>
+        )}
         <Button
           variant="primary"
           className="w-full"
@@ -768,7 +818,7 @@ export default function PreauthStatus({ ctx }) {
         </Button>
       </Drawer>
 
-      <ConfirmModal open={showCancelModal} onClose={() => setShowCancelModal(false)} title="Cancel Preauthorization">
+      <ConfirmModal open={showCancelModal} onClose={() => { setShowCancelModal(false); setCancelError(null); }} title="Cancel Preauthorization">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Cancellation is irreversible. The preauth reference <strong>{statusData?.preauth_ref}</strong>
           {(statusData?.totals?.benefit?.value ?? statusData?.totals?.eligible?.value) != null && (
@@ -797,8 +847,13 @@ export default function PreauthStatus({ ctx }) {
             onChange={(e) => setCancelDesc(e.target.value)}
           />
         </div>
+        {cancelError && (
+          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+            {cancelError}
+          </div>
+        )}
         <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
-          <Button variant="outline" onClick={() => setShowCancelModal(false)}>Keep Preauth</Button>
+          <Button variant="outline" onClick={() => { setShowCancelModal(false); setCancelError(null); }}>Keep Preauth</Button>
           <Button variant="primary" disabled={submitting} onClick={handleCancelSubmit}
             style={{ background: "var(--error)", borderColor: "var(--error)" }}>
             {submitting ? "Cancelling…" : "Confirm Cancellation"}

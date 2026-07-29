@@ -29,6 +29,7 @@ export default function ReprocessScreen({ ctx }) {
     { category: "attachment", name: "Justification / Supporting Document", code: "ATTACHMENT", url: null },
   ]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const [reprocessCorrelationId, setReprocessCorrelationId] = useState(null);
   const [status, setStatus] = useState(null);
   const [polling, setPolling] = useState(false);
@@ -37,7 +38,7 @@ export default function ReprocessScreen({ ctx }) {
     try {
       const res = await api.getReprocessStatus(reprocessCorrelationId, signal);
       setStatus(res);
-      if (res.status === "complete" || res.status === "not_found") setPolling(false);
+      if (res.status === "complete" || res.status === "not_found" || res.status === "failed") setPolling(false);
     } catch (_) {}
   };
   usePoll(pollStatus, {
@@ -47,6 +48,7 @@ export default function ReprocessScreen({ ctx }) {
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const res = await api.submitReprocess({
         claim_id: claimId,
@@ -54,27 +56,53 @@ export default function ReprocessScreen({ ctx }) {
         description,
         supporting_documents: supportingDocs.filter((d) => d.url),
       });
+      if (res.status === "failed") {
+        setSubmitError(res.message || res.error?.message || "Reprocess submission failed. Please try again.");
+        return;
+      }
       setReprocessCorrelationId(res.correlation_id);
       setPolling(true);
-    } catch (_) {
+    } catch (err) {
+      setSubmitError(err.message || "Reprocess submission failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleUpload = (doc) => {
+  const handleRetry = () => {
+    setSubmitError(null);
+    setStatus(null);
+    setPolling(false);
+    setReprocessCorrelationId(null);
+  };
+
+  const handleUpload = (doc, uploaded) => {
     setSupportingDocs((prev) =>
-      prev.map((d) =>
-        d.code === doc.code ? { ...d, url: "https://hospital.example/mock/doc.pdf" } : d
-      )
+      prev.map((d) => (d.code === doc.code ? { ...d, ...uploaded } : d))
     );
   };
 
   if (polling || status) {
     const isComplete = status?.status === "complete";
+    const isFailed = status?.status === "failed";
     return (
       <div className="wizard-step">
-        {!isComplete ? (
+        {isFailed ? (
+          <Card className="mb-6">
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+              <div>
+                <div style={{ fontWeight: 700, color: "var(--error)" }}>Appeal submission failed</div>
+                <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "6px" }}>
+                  {status?.error_message || "The request could not be delivered to the payer."}
+                </div>
+                <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-4)" }}>
+                  <Button variant="outline" onClick={() => navigate("../claim")}>Back to Claim</Button>
+                  <Button variant="primary" onClick={handleRetry}>Try Again</Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        ) : !isComplete ? (
           <Card className="mb-6">
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
               <div className="spinner" style={{ width: "24px", height: "24px" }} />
@@ -161,6 +189,11 @@ export default function ReprocessScreen({ ctx }) {
           </Card>
 
           <Card>
+            {submitError && (
+              <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "13px", color: "var(--error)", fontWeight: 600 }}>
+                {submitError}
+              </div>
+            )}
             <Button
               variant="primary"
               className="w-full"
