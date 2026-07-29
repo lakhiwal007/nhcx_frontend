@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   CheckCircle,
@@ -12,6 +12,7 @@ import {
   Ban,
 } from "lucide-react";
 import { formatMoney, formatDateTime, formatPhone } from "../format.js";
+import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
 export { formatMoney };
 
@@ -283,10 +284,62 @@ export const MissingFieldsAlert = ({ fields, onResolve }) => {
  * @category Domain
  */
 export const DocumentChecklist = ({ documents, onUpload }) => {
+  const fileInputRef = useRef(null);
+  const pendingDocRef = useRef(null);
+  const [uploadError, setUploadError] = useState(null);
+
   if (!documents?.length) return null;
   const missingRequired = documents.filter((d) => !d.optional && !d.url);
+
+  const handlePick = (doc) => {
+    setUploadError(null);
+    pendingDocRef.current = doc;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    const doc = pendingDocRef.current;
+    e.target.value = "";
+    if (!file || !doc) return;
+    if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
+      setUploadError(`${file.name} is larger than ${MAX_ATTACHMENT_MB}MB — please attach a smaller file.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const match = /^data:(.*?);base64,(.*)$/.exec(reader.result || "");
+      if (!match) {
+        setUploadError(`Could not read ${file.name}.`);
+        return;
+      }
+      const [, contentType, data] = match;
+      onUpload?.(doc, {
+        url: reader.result,
+        content_type: contentType || file.type || "application/octet-stream",
+        attachment: {
+          contentType: contentType || file.type || "application/octet-stream",
+          data,
+          title: file.name,
+        },
+      });
+    };
+    reader.onerror = () => setUploadError(`Could not read ${file.name}.`);
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div>
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
+      {uploadError && (
+        <div
+          className="warning-banner tone-error mb-4"
+          style={{ display: "flex", gap: "10px", alignItems: "center" }}
+        >
+          <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0 }} />
+          <span style={{ color: "var(--error)", fontWeight: 600, fontSize: "13px" }}>{uploadError}</span>
+        </div>
+      )}
       {missingRequired.length > 0 && (
         <div
           className="warning-banner tone-error mb-4"
@@ -370,7 +423,7 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
                   <Button
                     variant="outline"
                     size="small"
-                    onClick={() => onUpload && onUpload(doc)}
+                    onClick={() => handlePick(doc)}
                   >
                     {doc.optional ? "Attach" : "Upload"}
                   </Button>
