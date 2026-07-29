@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search } from "lucide-react";
 import { api } from "../api";
-import { Button } from "./Common";
+import { Button, DecisionBanner, AmountGrid } from "./Common";
 import { usePoll } from "../hooks/usePoll";
 
 const POLL_INTERVAL_MS = 7000;
@@ -12,7 +12,6 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
   const [selectedClaimId, setSelectedClaimId] = useState("");
   const [payerId, setPayerId] = useState("");
   const [claimNumber, setClaimNumber] = useState("");
-  const [patientAbha, setPatientAbha] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -27,7 +26,6 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
     setSelectedClaimId("");
     setPayerId("");
     setClaimNumber("");
-    setPatientAbha("");
     setFromDate("");
     setToDate("");
     setSubmitting(false);
@@ -52,7 +50,7 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
 
   const canSubmit = mode === "existing"
     ? !!selectedClaimId && !submitting
-    : payerId.trim() && (claimNumber.trim() || patientAbha.trim() || (fromDate && toDate)) && !submitting;
+    : payerId.trim() && (claimNumber.trim() || (fromDate && toDate)) && !submitting;
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -63,7 +61,6 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
         : {
             payer_id: payerId,
             ...(claimNumber && { claim_number: claimNumber }),
-            ...(patientAbha && { patient_abha: patientAbha }),
             ...(fromDate && { from_date: fromDate }),
             ...(toDate && { to_date: toDate }),
           };
@@ -103,8 +100,7 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
               </button>
             </div>
             <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "0 0 20px" }}>
-              Queries the payer directly through NHCX for the current status of a claim. The response shape isn't
-              standardized by ABDM, so the raw payer reply is shown as returned.
+              Queries the payer directly through NHCX for the current status of a claim.
             </p>
 
             {correlationId ? (
@@ -115,14 +111,25 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
                   </div>
                   <code style={{ fontSize: "11px" }}>{correlationId}</code>
                 </div>
-                {result && (
+                {result && (result.decision || result.outcome) ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <DecisionBanner decision={result.decision} outcome={result.outcome} approvedAmount={result.approved_amount} />
+                    {result.totals && <AmountGrid totals={result.totals} />}
+                    {result.claim_response_ref && (
+                      <div style={{ fontSize: "12px" }}>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Payer Ref: </span>
+                        <code style={{ fontSize: "12px" }}>{result.claim_response_ref}</code>
+                      </div>
+                    )}
+                  </div>
+                ) : result ? (
                   <pre style={{
                     fontSize: "11px", background: "var(--bg-main)", border: "1px solid var(--border-color)",
                     borderRadius: "8px", padding: "12px", maxHeight: "260px", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word",
                   }}>
-                    {JSON.stringify(result, null, 2)}
+                    {JSON.stringify(result.raw_response ?? result, null, 2)}
                   </pre>
-                )}
+                ) : null}
                 <Button variant="outline" onClick={onClose} style={{ justifyContent: "center", marginTop: "6px" }}>
                   Close
                 </Button>
@@ -166,15 +173,9 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
                       <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Payer ID</label>
                       <input className="input-modern" placeholder="1518@hcx" value={payerId} onChange={(e) => setPayerId(e.target.value)} />
                     </div>
-                    <div className="grid-2-col" style={{ gap: "14px" }}>
-                      <div>
-                        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Claim Number</label>
-                        <input className="input-modern" placeholder="CLM-1" value={claimNumber} onChange={(e) => setClaimNumber(e.target.value)} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Patient ABHA</label>
-                        <input className="input-modern" placeholder="1234567890123456" value={patientAbha} onChange={(e) => setPatientAbha(e.target.value)} />
-                      </div>
+                    <div>
+                      <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Claim Number</label>
+                      <input className="input-modern" placeholder="CLM-1" value={claimNumber} onChange={(e) => setClaimNumber(e.target.value)} />
                     </div>
                     <div className="grid-2-col" style={{ gap: "14px" }}>
                       <div>
