@@ -728,7 +728,23 @@ const mock = {
           disposition: "Eligible",
           inforce: true,
           insurance_items: [
-            { coverage: "Coverage/POL-91711234567890-2026", inforce: true, items: [] },
+            {
+              coverage: "Coverage/POL-91711234567890-2026",
+              inforce: true,
+              benefit_period: { start: "2026-01-01T00:00:00+05:30", end: "2026-12-31T23:59:59+05:30" },
+              coverage_details: {
+                status: "active",
+                member_id: "100217",
+                plan: "PX/HR/PX/I-ChirayuEx HR PX",
+                plan_name: "ChirayuEx HR PX",
+                sum_insured: "500000.00",
+                classes: [
+                  { id: "plan", name: "Plan", type: "plan", value: "PX/HR/PX/I-ChirayuEx HR PX" },
+                  { id: "subplan", name: "Sum Insured", type: "subplan", value: "500000.00" },
+                ],
+              },
+              items: [],
+            },
           ],
           errors: [],
         },

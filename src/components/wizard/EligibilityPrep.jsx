@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -462,6 +462,7 @@ function CeVital({ label, state, value, tone, note }) {
 }
 
 function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
+  const [expandedItem, setExpandedItem] = useState(null);
   if (!ce) return null;
   // Real backend returns nested validation/benefits/auth_requirements; flat is legacy mock
   const validation = ce.validation || {};
@@ -475,8 +476,14 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
     ...(benefits.errors || []),
     ...(authReq.errors || []),
   ];
+  // The validation purpose is the one that resolves the FHIR Coverage
+  // resource (member id, plan name, sum insured) — prefer it for the
+  // coverage-details block; fall back to whichever sub-check has it.
+  const insuranceGroups =
+    (validation.insurance_items?.some((ins) => ins.coverage_details) && validation.insurance_items) ||
+    (benefits.insurance_items ?? ce.insurance_items ?? []);
   const allItems = (benefits.insurance_items ?? ce.insurance_items ?? [])
-    .flatMap((ins) => ins.items || []);
+    .flatMap((ins) => (ins.items || []).map((it) => ({ ...it, _coverage: ins.coverage })));
 
   // Resolve each sub-check to a vital state. Falls back to the aggregate
   // ce.status for the legacy flat shape that has no sub-objects.
@@ -535,6 +542,39 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
         />
       </div>
 
+      {insuranceGroups.some((ins) => ins.coverage_details) && (
+        <div style={{ marginBottom: "var(--space-3)" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Coverage Detail</div>
+          {insuranceGroups.filter((ins) => ins.coverage_details).map((ins, i) => {
+            const cd = ins.coverage_details;
+            const bp = ins.benefit_period;
+            return (
+              <div key={i} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-2)", fontSize: "12.5px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
+                  {cd.plan_name && (
+                    <div><span style={{ color: "var(--text-muted)" }}>Plan: </span><strong>{cd.plan_name}</strong></div>
+                  )}
+                  {cd.member_id && (
+                    <div><span style={{ color: "var(--text-muted)" }}>Member ID: </span><span className="mono-cell">{cd.member_id}</span></div>
+                  )}
+                  {cd.sum_insured && (
+                    <div><span style={{ color: "var(--text-muted)" }}>Sum Insured: </span><strong style={{ color: "var(--success)" }}>{formatMoney(Number(cd.sum_insured))}</strong></div>
+                  )}
+                  {cd.status && (
+                    <span className={`badge-modern badge-${cd.status === "active" ? "success" : "warning"}`} style={{ fontSize: "10px" }}>{cd.status.toUpperCase()}</span>
+                  )}
+                </div>
+                {bp?.start && bp?.end && (
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                    Benefit period: {formatDate(bp.start)} → {formatDate(bp.end)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {allItems.length > 0 && (
         <div className="table-responsive-wrapper">
           <table className="table-modern" style={{ fontSize: "12px" }}>
@@ -542,36 +582,90 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
               <tr>
                 <th>Service</th>
                 <th>Auth Req.</th>
+                <th>Excluded</th>
                 <th style={{ textAlign: "right" }}>Allowed</th>
                 <th style={{ textAlign: "right" }}>Used</th>
               </tr>
             </thead>
             <tbody>
-              {allItems.map((item, i) => (
-                <tr key={i}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>
-                      {item.product_or_service?.display ||
-                        item.product_or_service?.code}
-                    </div>
-                    <div
-                      style={{ fontSize: "11px", color: "var(--text-muted)" }}
+              {allItems.map((item, i) => {
+                const isOpen = expandedItem === i;
+                const extraBenefits = (item.benefit || []).slice(1);
+                const docs = item.authorization_supporting || [];
+                const hasDetail = extraBenefits.length > 0 || docs.length > 0;
+                return (
+                  <Fragment key={i}>
+                    <tr
+                      onClick={hasDetail ? () => setExpandedItem(isOpen ? null : i) : undefined}
+                      style={hasDetail ? { cursor: "pointer" } : undefined}
                     >
-                      {item.category?.display}
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      className={`badge-modern badge-${item.authorization_required ? "warning" : "success"}`}
-                      style={{ fontSize: "10px" }}
-                    >
-                      {item.authorization_required ? "Yes" : "No"}
-                    </span>
-                  </td>
-                  <td className="num-cell">{formatMoney(item.benefit?.[0]?.allowed?.value)}</td>
-                  <td className="num-cell">{formatMoney(item.benefit?.[0]?.used?.value)}</td>
-                </tr>
-              ))}
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          {hasDetail && (
+                            <ChevronDown size={12} color="var(--text-muted)" style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
+                          )}
+                          <div>
+                            <div style={{ fontWeight: 600 }}>
+                              {item.product_or_service?.display ||
+                                item.product_or_service?.code}
+                            </div>
+                            <div
+                              style={{ fontSize: "11px", color: "var(--text-muted)" }}
+                            >
+                              {item.category?.display}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge-modern badge-${item.authorization_required ? "warning" : "success"}`}
+                          style={{ fontSize: "10px" }}
+                        >
+                          {item.authorization_required ? "Yes" : "No"}
+                        </span>
+                      </td>
+                      <td>
+                        {item.excluded ? (
+                          <span className="badge-modern badge-error" style={{ fontSize: "10px" }}>Excluded</span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="num-cell">{formatMoney(item.benefit?.[0]?.allowed?.value)}</td>
+                      <td className="num-cell">{formatMoney(item.benefit?.[0]?.used?.value)}</td>
+                    </tr>
+                    {isOpen && hasDetail && (
+                      <tr>
+                        <td colSpan={5} style={{ background: "var(--bg-main)", padding: "8px 10px 10px 30px" }}>
+                          {extraBenefits.length > 0 && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: docs.length > 0 ? "8px" : 0 }}>
+                              {extraBenefits.map((b, bi) => (
+                                <div key={bi} style={{ display: "flex", justifyContent: "space-between", fontSize: "11.5px" }}>
+                                  <span style={{ color: "var(--text-muted)" }}>{b.type?.display || "Benefit"}</span>
+                                  <span>
+                                    Allowed {formatMoney(b.allowed?.value)} · Used {formatMoney(b.used?.value)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {docs.length > 0 && (
+                            <div>
+                              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "4px" }}>Required for preauth</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                {docs.map((d, di) => (
+                                  <span key={di} className="badge-modern badge-info" style={{ fontSize: "10px" }}>{d.display || d.code}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
