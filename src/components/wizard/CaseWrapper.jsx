@@ -37,6 +37,9 @@ export default function CaseWrapper() {
       ? loadWorkflow(resumeCaseId) || loadWorkflow(id)
       : loadWorkflow(id);
 
+  const isNewCase = !!location.state?.newCase || (!!saved && !saved.cashless_case_id);
+  const navAdmissionId = location.state?.admission_id ?? saved?.admission_id ?? null;
+
   const [caseState, setCaseState] = useState({
     payer: null,
     policy: null,
@@ -107,12 +110,43 @@ export default function CaseWrapper() {
         const child = children.find((c) => c.child_id.toString() === id) || children[0];
         if (child) {
           setPatient(child);
-          if (child.latest_claim) {
-            setCashlessCase(child.latest_claim);
+          const prior = child.latest_claim;
+          const priorMatchesTarget =
+            !!prior &&
+            !isNewCase &&
+            (resumeCaseId
+              ? String(prior.cashless_case_id) === String(resumeCaseId)
+              : !navAdmissionId || String(prior.admission_id ?? "") === String(navAdmissionId));
+
+          if (priorMatchesTarget) {
+            setCashlessCase(prior);
             updateCaseState({
-              cashless_case_id: location.state?.cashless_case_id ?? child.latest_claim.cashless_case_id ?? caseState.cashless_case_id,
-              claim_id: location.state?.claim_id ?? child.latest_claim.claim_id ?? caseState.claim_id,
+              cashless_case_id: resumeCaseId ?? prior.cashless_case_id ?? caseState.cashless_case_id,
+              claim_id: location.state?.claim_id ?? prior.claim_id ?? caseState.claim_id,
             });
+          } else if (resumeCaseId) {
+            const full = await api.getCashlessStatus(resumeCaseId);
+            if (full) {
+              setCashlessCase({
+                cashless_case_id: full.cashless_case_id,
+                claim_id: full.claim?.claim_id ?? null,
+                status: full.status,
+                current_step: full.current_step,
+                payer_id: full.payer_id,
+                policy_number: full.policy_number,
+                preauth_status: full.preauth?.decision ?? null,
+                preauth_ref: full.preauth?.preauth_ref ?? null,
+                claim_decision: full.claim?.decision ?? null,
+                claim_status: full.claim?.status ?? null,
+                payment_status: full.claim?.payment_status ?? null,
+                approved_amount: full.claim?.approved_amount ?? full.preauth?.approved_amount ?? null,
+                latest_utr: full.claim?.utr ?? full.claim?.latest_utr ?? null,
+              });
+              updateCaseState({
+                cashless_case_id: full.cashless_case_id,
+                claim_id: location.state?.claim_id ?? full.claim?.claim_id ?? caseState.claim_id,
+              });
+            }
           }
         }
       } catch (_) {
