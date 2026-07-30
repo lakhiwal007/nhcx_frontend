@@ -120,8 +120,10 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
   };
 
   const handleOpenCase = () => {
-    if (detail?.cashless_case_id) {
-      navigate(`/case/${detail.child_id || detail.claim_id}/`);
+    if (detail?.cashless_case_id && detail?.child_id) {
+      navigate(`/case/${detail.child_id}/`, {
+        state: { cashless_case_id: detail.cashless_case_id, claim_id: detail.claim_id ?? null },
+      });
     }
   };
 
@@ -277,7 +279,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                   {completing ? "Completing…" : "Mark as Reviewed ✓"}
                 </Button>
               )}
-              {detail?.cashless_case_id && (
+              {detail?.cashless_case_id && detail?.child_id && (
                 <Button variant="outline" icon={ExternalLink} onClick={handleOpenCase}>Open Case</Button>
               )}
               <Button variant="outline" onClick={onClose}>Close</Button>
