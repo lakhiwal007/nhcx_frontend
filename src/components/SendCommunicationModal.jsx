@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send } from "lucide-react";
+import { X, Send, Paperclip, AlertCircle } from "lucide-react";
 import { api } from "../api";
 import { Button } from "./Common";
+import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
 // Backend docs (2026-07-04 sync) flag the outbound-communication gateway route
 // as pending ABDM confirmation — flip this off to hide all "Message Payer"
@@ -34,8 +35,11 @@ export default function SendCommunicationModal({
   const [message, setMessage] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [attachmentTitle, setAttachmentTitle] = useState("");
+  const [attachmentContentType, setAttachmentContentType] = useState("");
+  const [attachmentError, setAttachmentError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -46,8 +50,34 @@ export default function SendCommunicationModal({
     setMessage("");
     setAttachmentUrl("");
     setAttachmentTitle("");
+    setAttachmentContentType("");
+    setAttachmentError(null);
     setResult(null);
   }, [open, defaultPayerId, defaultClaimReference]);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setAttachmentError(null);
+    if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
+      setAttachmentError(`${file.name} is larger than ${MAX_ATTACHMENT_MB}MB — please attach a smaller file.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const match = /^data:(.*?);base64,/.exec(reader.result || "");
+      if (!match) {
+        setAttachmentError(`Could not read ${file.name}.`);
+        return;
+      }
+      setAttachmentUrl(reader.result);
+      setAttachmentTitle(file.name);
+      setAttachmentContentType(match[1] || file.type || "application/octet-stream");
+    };
+    reader.onerror = () => setAttachmentError(`Could not read ${file.name}.`);
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -58,7 +88,13 @@ export default function SendCommunicationModal({
         reason_code: reasonCode,
         priority,
         ...(message && { message }),
-        ...(attachmentUrl && { attachments: [{ url: attachmentUrl, title: attachmentTitle || "Attachment" }] }),
+        ...(attachmentUrl && {
+          attachments: [{
+            url: attachmentUrl,
+            title: attachmentTitle || "Attachment",
+            ...(attachmentContentType && { content_type: attachmentContentType }),
+          }],
+        }),
         ...(claimId && { claim_id: claimId }),
         ...(cashlessCaseId && { cashless_case_id: cashlessCaseId }),
       });
@@ -148,10 +184,32 @@ export default function SendCommunicationModal({
                   />
                 </div>
 
+                <div>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Attachment (optional)</label>
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
+                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                    <Button variant="outline" icon={Paperclip} onClick={() => fileInputRef.current?.click()}>
+                      Upload File
+                    </Button>
+                    {attachmentUrl && (
+                      <span style={{ fontSize: "12px", color: "var(--text-muted)", display: "flex", alignItems: "center" }}>
+                        {attachmentTitle || "Attachment"} attached
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {attachmentError && (
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0 }} />
+                    <span style={{ color: "var(--error)", fontWeight: 600, fontSize: "13px" }}>{attachmentError}</span>
+                  </div>
+                )}
+
                 <div className="grid-2-col" style={{ gap: "14px" }}>
                   <div>
-                    <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Attachment URL (optional)</label>
-                    <input className="input-modern" placeholder="https://hospital.example/appeal.pdf" value={attachmentUrl} onChange={(e) => setAttachmentUrl(e.target.value)} />
+                    <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Attachment URL (or paste a link instead)</label>
+                    <input className="input-modern" placeholder="https://hospital.example/appeal.pdf" value={attachmentUrl} onChange={(e) => { setAttachmentUrl(e.target.value); setAttachmentContentType(""); }} />
                   </div>
                   <div>
                     <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Attachment Title</label>
