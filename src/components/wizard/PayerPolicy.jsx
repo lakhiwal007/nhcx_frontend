@@ -48,13 +48,6 @@ export default function PayerPolicy({ ctx }) {
     }
   };
 
-  const DUMMY_POLICY = {
-    policy_number: "100217",
-    product_name: "Demo Policy",
-    payer_id: DUMMY_PAYER.code,
-    status: "active",
-  };
-
   const fetchPoliciesFor = async (payer, idType, typedMemberId = "") => {
     setLoadingPolicies(true);
     setPolicyError(null);
@@ -93,12 +86,9 @@ export default function PayerPolicy({ ctx }) {
       eligibility_correlation_id: null,
     });
 
-    if (payer.is_demo) {
-      setPolicies([DUMMY_POLICY]);
-      setPolicyError(null);
-      return;
-    }
-
+    // Policy search runs the same way for every payer, including the pinned
+    // sandbox test payer below — it's a known-good payer_id, not a fixture,
+    // so it should exercise the real fetch/gateway path like any other.
     await fetchPoliciesFor(payer, "");
   };
 
@@ -107,13 +97,13 @@ export default function PayerPolicy({ ctx }) {
     setSelectedPolicy(null);
     const nextMemberId = idType === "MemberId" ? memberId || memberIdOnFile : "";
     setMemberId(nextMemberId);
-    if (selectedPayer && !selectedPayer.is_demo) {
+    if (selectedPayer) {
       fetchPoliciesFor(selectedPayer, idType, nextMemberId);
     }
   };
 
   const handleMemberIdSearch = () => {
-    if (!selectedPayer || selectedPayer.is_demo) return;
+    if (!selectedPayer) return;
     setSelectedPolicy(null);
     fetchPoliciesFor(selectedPayer, "MemberId", memberId);
   };
@@ -224,24 +214,22 @@ export default function PayerPolicy({ ctx }) {
           <Card
             title="Select Policy"
             headerAction={
-              !selectedPayer.is_demo && (
-                <select
-                  className="input-modern"
-                  style={{ width: "auto", minWidth: "170px" }}
-                  value={identifierType}
-                  disabled={loadingPolicies}
-                  onChange={(e) => handleIdentifierTypeChange(e.target.value)}
-                  title="Restrict policy search to a single identifier"
-                >
-                  <option value="">Search by: Auto</option>
-                  <option value="AbhaNumber">Search by: ABHA Number</option>
-                  <option value="MemberId">Search by: Member ID</option>
-                  <option value="MobileNo">Search by: Mobile Number</option>
-                </select>
-              )
+              <select
+                className="input-modern"
+                style={{ width: "auto", minWidth: "170px" }}
+                value={identifierType}
+                disabled={loadingPolicies}
+                onChange={(e) => handleIdentifierTypeChange(e.target.value)}
+                title="Restrict policy search to a single identifier"
+              >
+                <option value="">Search by: Auto</option>
+                <option value="AbhaNumber">Search by: ABHA Number</option>
+                <option value="MemberId">Search by: Member ID</option>
+                <option value="MobileNo">Search by: Mobile Number</option>
+              </select>
             }
           >
-            {identifierType === "MemberId" && !selectedPayer.is_demo && (
+            {identifierType === "MemberId" && (
               <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-4)" }}>
                 <div style={{ flex: 1 }}>
                   <Input
