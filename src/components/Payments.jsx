@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Search, CreditCard, CheckCircle, AlertCircle, Clock, Landmark, Wallet, LayoutGrid, List } from "lucide-react";
-import { Card, StatusBadge, Input, SkeletonTable, EmptyState } from "./Common";
-import { formatMoney, formatDate } from "../format.js";
+import { Search, CreditCard, CheckCircle, AlertCircle, Clock, Landmark, Wallet, LayoutGrid, List, X, User } from "lucide-react";
+import { Card, StatusBadge, Input, SkeletonTable, EmptyState, Button } from "./Common";
+import { formatMoney, formatDate, formatDateTime } from "../format.js";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 const METRICS = [
   { key: "settledThisMonth", label: "Settled This Month", icon: CheckCircle, color: "var(--success)", format: "currency" },
@@ -31,12 +31,14 @@ function computePaymentMetrics(payments) {
 export default function Payments() {
   const navigate = useNavigate();
   const [payments, setPayments] = useState([]);
+  const [claimsById, setClaimsById] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("payments_viewMode") || "table");
   const [sortBy, setSortBy] = useState("newest");
-  
+  const [selectedPayment, setSelectedPayment] = useState(null);
+
   useEffect(() => { localStorage.setItem("payments_viewMode", viewMode); }, [viewMode]);
 
   useEffect(() => {
@@ -44,8 +46,14 @@ export default function Payments() {
       setLoading(true);
       setLoadError(false);
       try {
-        const response = await api.searchPaymentStatus();
-        setPayments(response?.events || []);
+        const [paymentsRes, claimsRes] = await Promise.all([
+          api.searchPaymentStatus(),
+          api.getDashboardClaims({ limit: 200 }).catch(() => null),
+        ]);
+        setPayments(paymentsRes?.events || []);
+        const byId = {};
+        (claimsRes?.claims || []).forEach((c) => { byId[c.id] = c; });
+        setClaimsById(byId);
       } catch (err) {
         console.error(err);
         setLoadError(true);
@@ -56,10 +64,15 @@ export default function Payments() {
     fetchPayments();
   }, []);
 
+  // Patient identity isn't on the payment event itself (schema has no such
+  // field) — join against the dashboard claims list via claim_id.
+  const patientFor = (pay) => claimsById[pay.claim_id];
+
   const filtered = payments.filter(
     (p) =>
       p.claim_reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.payment_reference?.toLowerCase().includes(searchQuery.toLowerCase()),
+      p.payment_reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patientFor(p)?.patient_name?.toLowerCase().includes(searchQuery.toLowerCase()),
   ).sort((a, b) => {
     const dA = Date.parse(a.payment_date) || 0;
     const dB = Date.parse(b.payment_date) || 0;
@@ -108,7 +121,7 @@ export default function Payments() {
           <div style={{ flex: 1, minWidth: "280px", maxWidth: "400px" }}>
             <Input
               icon={Search}
-              placeholder="Search claim ref or payment ref..."
+              placeholder="Search claim ref, payment ref, or patient name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -147,7 +160,7 @@ export default function Payments() {
 
       {loading ? (
         <Card title="Payment Events">
-          <SkeletonTable rows={5} cols={9} />
+          <SkeletonTable rows={5} cols={10} />
         </Card>
       ) : filtered.length === 0 ? (
         <EmptyState
@@ -166,23 +179,34 @@ export default function Payments() {
               animate={{ opacity: 1, scale: 1 }}
               whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
               className="card-modern"
+              onClick={() => setSelectedPayment(pay)}
               style={{
                 padding: "var(--space-4)",
                 display: "flex",
                 flexDirection: "column",
                 gap: "var(--space-3)",
                 transition: "box-shadow 0.2s ease",
+                cursor: "pointer",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)" }}>
                 <div>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Claim Ref</div>
-                  <a href="#" onClick={(e) => { e.preventDefault(); navigate(`/dashboard?q=${encodeURIComponent(pay.claim_reference)}`); }} style={{ fontWeight: 700, fontSize: "15px" }}>
+                  <a href="#" onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/dashboard?q=${encodeURIComponent(pay.claim_reference)}`); }} style={{ fontWeight: 700, fontSize: "15px" }}>
                     {pay.claim_reference}
                   </a>
                 </div>
                 <StatusBadge status={pay.payment_stage?.replace("PAYMENT_", "")} />
               </div>
+              {patientFor(pay) && (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: "var(--text-main)" }}>
+                  <User size={13} color="var(--text-muted)" />
+                  <span style={{ fontWeight: 600 }}>{patientFor(pay).patient_name || patientFor(pay).child_name}</span>
+                  {patientFor(pay).child_id != null && (
+                    <span className="mono-cell" style={{ color: "var(--text-muted)" }}>#{patientFor(pay).child_id}</span>
+                  )}
+                </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--text-muted)" }}>Payment Ref:</span>
@@ -233,6 +257,7 @@ export default function Payments() {
                 <tr>
                   <th>Payment Ref</th>
                   <th>Claim Ref</th>
+                  <th>Patient</th>
                   <th>Date</th>
                   <th>Stage</th>
                   <th className="num-col">Gross Amt</th>
@@ -244,12 +269,17 @@ export default function Payments() {
               </thead>
               <tbody>
                 {filtered.map((pay, i) => (
-                  <tr key={`${pay.payment_reference || "pay"}-${pay.payment_stage || ""}-${i}`}>
+                  <tr
+                    key={`${pay.payment_reference || "pay"}-${pay.payment_stage || ""}-${i}`}
+                    onClick={() => setSelectedPayment(pay)}
+                    style={{ cursor: "pointer" }}
+                  >
                     <td className="mono-cell" style={{ fontWeight: 700 }}>{pay.payment_reference}</td>
                     <td>
                       <a
                         href="#"
                         onClick={(e) => {
+                          e.stopPropagation();
                           e.preventDefault();
                           navigate(`/dashboard?q=${encodeURIComponent(pay.claim_reference)}`);
                         }}
@@ -257,6 +287,18 @@ export default function Payments() {
                       >
                         {pay.claim_reference}
                       </a>
+                    </td>
+                    <td>
+                      {patientFor(pay) ? (
+                        <>
+                          <div style={{ fontWeight: 600 }}>{patientFor(pay).patient_name || patientFor(pay).child_name}</div>
+                          {patientFor(pay).child_id != null && (
+                            <div className="mono-cell" style={{ fontSize: "11px", color: "var(--text-muted)" }}>#{patientFor(pay).child_id}</div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
                     </td>
                     <td>{formatDate(pay.payment_date)}</td>
                     <td>
@@ -307,7 +349,7 @@ export default function Payments() {
               {filtered.length > 1 && (
                 <tfoot>
                   <tr>
-                    <td colSpan={4} style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
+                    <td colSpan={5} style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
                       {filtered.length} payments
                     </td>
                     <td className="num-cell" style={{ fontWeight: 700 }}>
@@ -327,6 +369,138 @@ export default function Payments() {
           </div>
         </Card>
       )}
+
+      <PaymentDetailModal
+        payment={selectedPayment}
+        patient={selectedPayment ? patientFor(selectedPayment) : null}
+        onClose={() => setSelectedPayment(null)}
+        navigate={navigate}
+      />
     </div>
+  );
+}
+
+// Row/card click opens this — the payment event alone doesn't carry every
+// field worth showing (patient identity, notice/recon detail, acknowledgement
+// lifecycle), so the list view only surfaces a summary and this fills in the rest.
+function PaymentDetailModal({ payment, patient, onClose, navigate }) {
+  const row = (label, value) =>
+    value != null && value !== "" && (
+      <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-3)", padding: "6px 0", borderBottom: "1px solid var(--border-color)", fontSize: "12.5px" }}>
+        <span style={{ color: "var(--text-muted)" }}>{label}</span>
+        <span style={{ fontWeight: 600, textAlign: "right", overflowWrap: "anywhere" }}>{value}</span>
+      </div>
+    );
+
+  return (
+    <AnimatePresence>
+      {payment && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="glass-overlay"
+            style={{ position: "absolute", inset: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="glass-panel"
+            style={{ position: "relative", width: "100%", maxWidth: "560px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "var(--space-3)" }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "19px", fontWeight: 800 }}>{payment.payment_reference || "Payment"}</h3>
+                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>{payment.claim_reference}</div>
+              </div>
+              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
+                <X size={22} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
+              <StatusBadge status={payment.payment_stage?.replace("PAYMENT_", "")} />
+              {payment.acknowledgement_status === "submitted" ? (
+                <span className="badge-modern badge-success" style={{ fontSize: "10px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <CheckCircle size={11} /> ACKNOWLEDGED
+                </span>
+              ) : (
+                <span className="badge-modern badge-warning" style={{ fontSize: "10px" }}>PENDING ACK</span>
+              )}
+            </div>
+
+            {patient && (
+              <div style={{ marginBottom: "var(--space-4)" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Patient</div>
+                {row("Name", patient.patient_name || patient.child_name)}
+                {row("Patient ID", patient.child_id)}
+                {row("Facility", patient.facility_name)}
+              </div>
+            )}
+
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Claim &amp; Payer</div>
+              {row("Claim Reference", payment.claim_reference)}
+              {row("Claim ID", payment.claim_id)}
+              {row("Payer ID", payment.payer_id)}
+              {row("Provider ID", payment.provider_id)}
+            </div>
+
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Notice</div>
+              {row("Notice Identifier", payment.notice_identifier)}
+              {row("Notice Status", payment.notice_status)}
+              {row("Notice Amount", payment.notice_amount != null ? formatMoney(payment.notice_amount) : null)}
+              {row("Notice Created", formatDateTime(payment.notice_created_at))}
+            </div>
+
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Reconciliation</div>
+              {row("Recon Identifier", payment.recon_identifier)}
+              {row("Payment Date", formatDate(payment.payment_date))}
+              {row("Gross Amount", formatMoney(payment.gross_amount))}
+              {row("TDS Deducted", payment.tds_amount != null ? formatMoney(-Math.abs(payment.tds_amount)) : null)}
+              {row("Net Payment", formatMoney(payment.net_payment_amount))}
+              {row("UTR", payment.utr)}
+              {row("UTR Type", payment.utr_type)}
+              {row("Currency", payment.currency)}
+            </div>
+
+            {(payment.acknowledgement_status || payment.acknowledgement_error) && (
+              <div style={{ marginBottom: "var(--space-2)" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Acknowledgement</div>
+                {row("Status", payment.acknowledgement_status)}
+                {row("Acknowledged At", formatDateTime(payment.acknowledged_at))}
+                {row("Attempts", payment.acknowledgement_attempts)}
+                {payment.acknowledgement_error && (
+                  <div style={{ marginTop: "6px", padding: "8px 10px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", fontSize: "12px", color: "var(--error)" }}>
+                    {payment.acknowledgement_error}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ marginTop: "var(--space-2)", paddingTop: "12px", borderTop: "1px dashed var(--border-color)" }}>
+              {row("Correlation ID", payment.correlation_id)}
+              {row("Event Key", payment.event_key)}
+              {row("Workflow ID", payment.workflow_id)}
+            </div>
+
+            {payment.claim_reference && (
+              <Button
+                variant="outline"
+                onClick={() => { onClose(); navigate(`/dashboard?q=${encodeURIComponent(payment.claim_reference)}`); }}
+                style={{ justifyContent: "center", marginTop: "var(--space-4)", width: "100%" }}
+              >
+                View Claim in Dashboard
+              </Button>
+            )}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }
