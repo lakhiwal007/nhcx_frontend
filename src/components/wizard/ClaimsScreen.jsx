@@ -266,6 +266,30 @@ export default function ClaimsScreen({ ctx }) {
     }));
   };
 
+  // Lets the hospital attach a document that isn't on the backend's
+  // pre-populated required/optional checklist (e.g. a payer-specific extra).
+  const addDocument = () => {
+    setClaimDraft((prev) => ({
+      ...prev,
+      supporting_documents: [
+        ...(prev.supporting_documents || []),
+        { code: `CUSTOM-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: "", category: "additional", optional: true, custom: true },
+      ],
+    }));
+  };
+  const renameDocument = (idx, name) => {
+    setClaimDraft((prev) => ({
+      ...prev,
+      supporting_documents: prev.supporting_documents.map((d, i) => (i === idx ? { ...d, name } : d)),
+    }));
+  };
+  const removeDocument = (idx) => {
+    setClaimDraft((prev) => ({
+      ...prev,
+      supporting_documents: prev.supporting_documents.filter((_, i) => i !== idx),
+    }));
+  };
+
   const updateResubmitItem = (idx, field, raw) => {
     const val = Number(raw);
     setResubmitEditItems((prev) =>
@@ -663,7 +687,13 @@ export default function ClaimsScreen({ ctx }) {
       {/* ── Discharge Claim ── */}
       {activeTab === "discharge" && (
         <Card title="Discharge Documents">
-          <DocumentChecklist documents={claimDraft?.supporting_documents} onUpload={handleUpload} />
+          <DocumentChecklist
+            documents={claimDraft?.supporting_documents}
+            onUpload={handleUpload}
+            onAddDocument={addDocument}
+            onRenameDocument={renameDocument}
+            onRemoveDocument={removeDocument}
+          />
 
           {/* Discharge polling / status */}
           {dischargePolling && (

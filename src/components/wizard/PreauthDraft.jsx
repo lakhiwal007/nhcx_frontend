@@ -223,6 +223,30 @@ export default function PreauthDraft({ ctx }) {
     }));
   };
 
+  // Lets the hospital attach a document that isn't on the backend's
+  // pre-populated required/optional checklist (e.g. a payer-specific extra).
+  const addDocument = () => {
+    setDraft((prev) => ({
+      ...prev,
+      supporting_documents: [
+        ...(prev.supporting_documents || []),
+        { code: `CUSTOM-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: "", category: "additional", optional: true, custom: true },
+      ],
+    }));
+  };
+  const renameDocument = (idx, name) => {
+    setDraft((prev) => ({
+      ...prev,
+      supporting_documents: prev.supporting_documents.map((d, i) => (i === idx ? { ...d, name } : d)),
+    }));
+  };
+  const removeDocument = (idx) => {
+    setDraft((prev) => ({
+      ...prev,
+      supporting_documents: prev.supporting_documents.filter((_, i) => i !== idx),
+    }));
+  };
+
   const handleSaveDraft = () => {
     updateCaseState({ draftData: { editedDiagnoses, editedItems, editedCareTeam } });
   };
@@ -622,7 +646,13 @@ export default function PreauthDraft({ ctx }) {
         {/* ── Right side ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
           <Card title="Required Documents">
-            <DocumentChecklist documents={draft?.supporting_documents} onUpload={handleUpload} />
+            <DocumentChecklist
+              documents={draft?.supporting_documents}
+              onUpload={handleUpload}
+              onAddDocument={addDocument}
+              onRenameDocument={renameDocument}
+              onRemoveDocument={removeDocument}
+            />
           </Card>
 
           <Card>

@@ -82,6 +82,21 @@ export default function ReprocessScreen({ ctx }) {
     );
   };
 
+  // Lets the hospital attach a document that isn't on the backend's
+  // pre-populated required/optional checklist (e.g. a payer-specific extra).
+  const addDocument = () => {
+    setSupportingDocs((prev) => [
+      ...(prev || []),
+      { code: `CUSTOM-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: "", category: "additional", optional: true, custom: true },
+    ]);
+  };
+  const renameDocument = (idx, name) => {
+    setSupportingDocs((prev) => prev.map((d, i) => (i === idx ? { ...d, name } : d)));
+  };
+  const removeDocument = (idx) => {
+    setSupportingDocs((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   if (polling || status) {
     const isComplete = status?.status === "complete";
     const isFailed = status?.status === "failed";
@@ -185,7 +200,13 @@ export default function ReprocessScreen({ ctx }) {
             <div className="warning-banner mb-4" style={{ color: "var(--warning)" }}>
               Attach any documents referenced in the payer's rejection notes.
             </div>
-            <DocumentChecklist documents={supportingDocs} onUpload={handleUpload} />
+            <DocumentChecklist
+              documents={supportingDocs}
+              onUpload={handleUpload}
+              onAddDocument={addDocument}
+              onRenameDocument={renameDocument}
+              onRemoveDocument={removeDocument}
+            />
           </Card>
 
           <Card>

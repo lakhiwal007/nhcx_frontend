@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   ChevronRight,
   Ban,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { formatMoney, formatDateTime, formatPhone } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
@@ -280,16 +282,18 @@ export const MissingFieldsAlert = ({ fields, onResolve }) => {
 /**
  * Checklist of insurance-claim documents, each row colour-coded by state
  * (attached / required & missing / optional) with an upload action per row
- * and a summary banner when required documents are still missing.
+ * and a summary banner when required documents are still missing. When
+ * `onAddDocument` is supplied, the hospital can also attach documents that
+ * aren't on the pre-populated required/optional list.
  * @category Domain
  */
-export const DocumentChecklist = ({ documents, onUpload }) => {
+export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument }) => {
   const fileInputRef = useRef(null);
   const pendingDocRef = useRef(null);
   const [uploadError, setUploadError] = useState(null);
 
-  if (!documents?.length) return null;
-  const missingRequired = documents.filter((d) => !d.optional && !d.url);
+  if (!documents?.length && !onAddDocument) return null;
+  const missingRequired = (documents || []).filter((d) => !d.optional && !d.url);
 
   const handlePick = (doc) => {
     setUploadError(null);
@@ -358,7 +362,7 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        {documents.map((doc, i) => {
+        {(documents || []).map((doc, i) => {
           const attached = !!doc.url;
           const missing = !doc.optional && !attached;
           // The left rail colour encodes the row's state so blockers are
@@ -388,11 +392,21 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
 
               {/* min-width:0 lets long names wrap instead of overflowing the card */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: "13.5px", lineHeight: 1.35, overflowWrap: "anywhere" }}>
-                  {doc.name || doc.code || "Document"}
-                </div>
+                {doc.custom && onRenameDocument ? (
+                  <input
+                    className="input-modern"
+                    style={{ fontSize: "13px", padding: "4px 8px", fontWeight: 600 }}
+                    placeholder="Document name"
+                    value={doc.name || ""}
+                    onChange={(e) => onRenameDocument(i, e.target.value)}
+                  />
+                ) : (
+                  <div style={{ fontWeight: 600, fontSize: "13.5px", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                    {doc.name || doc.code || "Document"}
+                  </div>
+                )}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", marginTop: "3px", fontSize: "11.5px", color: "var(--text-muted)" }}>
-                  {doc.code && (
+                  {doc.code && !doc.custom && (
                     <span style={{ fontFamily: "var(--cx-font-mono, ui-monospace, monospace)", overflowWrap: "anywhere" }}>
                       {doc.code}
                     </span>
@@ -428,11 +442,29 @@ export const DocumentChecklist = ({ documents, onUpload }) => {
                     {doc.optional ? "Attach" : "Upload"}
                   </Button>
                 )}
+                {doc.custom && onRemoveDocument && (
+                  <button
+                    onClick={() => onRemoveDocument(i)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", padding: "2px", display: "flex", flexShrink: 0, transition: "transform 0.15s ease" }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+      {onAddDocument && (
+        <button
+          onClick={onAddDocument}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "12px", fontWeight: 700, padding: "6px", marginTop: "var(--space-2)" }}
+        >
+          <Plus size={13} /> Add Document
+        </button>
+      )}
     </div>
   );
 };
