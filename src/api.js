@@ -548,6 +548,32 @@ const mock = {
   // ─── Policy Fetch ───────────────────────────────────────────────────────────
   fetchPolicies: async (data) => {
     await delay(1000);
+    const MOCK_POLICIES = [
+      {
+        policy_number: "POL-91711234567890-2026",
+        product_name: "GeneralHealth-2026",
+        payer_id: "1518@hcx",
+        payer_name: "Sample Payer",
+        member_id: "MEMB-123456",
+        status: "active",
+        sum_insured: 500000,
+        currency: "INR",
+        effective_from: "2026-01-01",
+        effective_to: "2026-12-31",
+      },
+      {
+        policy_number: "POL-ALT-2026",
+        product_name: "Family Floater Plus",
+        payer_id: "2044@hcx",
+        payer_name: "Star Health & Allied",
+        member_id: "SHA-778812",
+        status: "active",
+        sum_insured: 300000,
+        currency: "INR",
+        effective_from: "2026-04-01",
+        effective_to: "2027-03-31",
+      },
+    ];
     // A specific, non-ABHA identifier_type simulates the "no fallback" rule:
     // the cascade never runs, so a type this patient has no value for on file
     // comes back with an empty policies array rather than trying the others.
@@ -587,30 +613,9 @@ const mock = {
             : data.identifier_type
               ? { type: data.identifier_type, value: "9123456780" }
               : { type: "AbhaNumber", value: "91711234567890" },
-        policies: [
-          {
-            policy_number: "POL-91711234567890-2026",
-            product_name: "GeneralHealth-2026",
-            payer_id: data.payer_id,
-            payer_name: "Sample Payer",
-            status: "active",
-            sum_insured: 500000,
-            currency: "INR",
-            effective_from: "2026-01-01",
-            effective_to: "2026-12-31",
-          },
-          {
-            policy_number: "POL-ALT-2026",
-            product_name: "Family Floater Plus",
-            payer_id: data.payer_id,
-            payer_name: "Sample Payer",
-            status: "active",
-            sum_insured: 300000,
-            currency: "INR",
-            effective_from: "2026-01-01",
-            effective_to: "2026-12-31",
-          },
-        ],
+        policies: MOCK_POLICIES.filter(
+          (policy) => !data.payer_id || policy.payer_id === data.payer_id,
+        ),
         fetched_at: "2026-05-04T10:40:00+05:30",
       },
     };
