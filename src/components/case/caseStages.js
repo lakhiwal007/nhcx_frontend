@@ -2,7 +2,7 @@
 // Pure data helpers — depends only on data already on caseState / effectiveCase.
 
 const CORE = [
-  { id: "payer", label: "Payer & Policy", path: "payer", hint: "Find the payer and select the patient's active policy." },
+  { id: "payer", label: "Policy", path: "payer", hint: "Select the patient's active policy — its payer comes with it." },
   { id: "prep", label: "Eligibility", path: "prep", hint: "Confirm the plan covers this admission and resolve any missing patient details." },
   { id: "review", label: "Preauth", path: "review", hint: "Review the drafted preauth and submit it to the payer." },
   { id: "status", label: "Decision", path: "status", hint: "Track the payer's decision and respond to any query." },

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Building2, FileText, ArrowRight, AlertTriangle } from "lucide-react";
 import { api } from "../../api";
@@ -11,17 +11,26 @@ const IDENTIFIER_TYPE_LABELS = {
   MobileNo: "Mobile Number",
 };
 
+const field = (policy, snake, camel) => policy?.[snake] ?? policy?.[camel];
+const policyNumberOf = (policy) => field(policy, "policy_number", "policyNumber");
+const sumInsuredOf = (policy) => field(policy, "sum_insured", "sumInsured");
+
+const payerFromPolicy = (policy) => {
+  const code = field(policy, "payer_id", "payerId");
+  if (!code) return null;
+  return { code, name: field(policy, "payer_name", "payerName") || code };
+};
+
 export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
   const { patient, caseState, updateCaseState } = ctx;
-
-  const DUMMY_PAYER = { code: "1000003538@hcx", name: "Demo Payer", is_demo: true };
 
   const [payers, setPayers] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [loadingPayers, setLoadingPayers] = useState(false);
   const [payerSearch, setPayerSearch] = useState("");
-  const [selectedPayer, setSelectedPayer] = useState(caseState.payer || null);
+  const [showPayerLookup, setShowPayerLookup] = useState(false);
+  const [payerFilter, setPayerFilter] = useState(caseState.payer?.code || null);
 
   const [policies, setPolicies] = useState([]);
   const [loadingPolicies, setLoadingPolicies] = useState(false);
@@ -39,21 +48,23 @@ export default function PayerPolicy({ ctx }) {
     try {
       const params = payerSearch.trim() ? { name: payerSearch } : {};
       const res = await api.searchPayers(params);
-      setPayers([...(res || []), DUMMY_PAYER]);
+      setPayers(res || []);
     } catch (err) {
       console.error(err);
-      setPayers([DUMMY_PAYER]);
+      setPayers([]);
     } finally {
       setLoadingPayers(false);
     }
   };
 
-  const fetchPoliciesFor = async (payer, idType, typedMemberId = "") => {
+  const fetchPolicies = async (idType, typedMemberId = "", payerCode = null) => {
+    if (!patient?.child_id) return;
     setLoadingPolicies(true);
     setPolicyError(null);
     setPolicies([]);
     try {
-      const body = { child_id: patient.child_id, payer_id: payer.code, force_refresh: false };
+      const body = { child_id: patient.child_id, force_refresh: false };
+      if (payerCode) body.payer_id = payerCode;
       if (caseState.admission_id) body.admission_id = caseState.admission_id;
       const trimmedMemberId = typedMemberId.trim();
       if (trimmedMemberId) body.member_id = trimmedMemberId;
@@ -69,148 +80,91 @@ export default function PayerPolicy({ ctx }) {
     }
   };
 
-  const handlePayerSelect = async (payer) => {
-    setSelectedPayer(payer);
+  useEffect(() => {
+    if (!patient?.child_id || policies.length || selectedPolicy) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) fetchPolicies("");
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patient?.child_id]);
+
+  const discoveredPayers = [];
+  for (const policy of policies) {
+    const payer = payerFromPolicy(policy);
+    if (payer && !discoveredPayers.some((p) => p.code === payer.code)) {
+      discoveredPayers.push(payer);
+    }
+  }
+
+  const visiblePolicies = payerFilter
+    ? policies.filter((policy) => payerFromPolicy(policy)?.code === payerFilter)
+    : policies;
+
+  const clearSelection = () => {
     setSelectedPolicy(null);
-    setIdentifierType("");
-    setMemberId("");
-    setMemberIdOnFile("");
-    // Changing the payer invalidates any case prepared for a previous
-    // payer/policy. Clear the case identifiers so `prep` runs a fresh
-    // prepareCashless instead of resuming the stale case via status.
     updateCaseState({
-      payer,
       policy: null,
+      payer: null,
       cashless_case_id: null,
       claim_id: null,
       eligibility_correlation_id: null,
     });
+  };
 
-    // Policy search runs the same way for every payer, including the pinned
-    // sandbox test payer below — it's a known-good payer_id, not a fixture,
-    // so it should exercise the real fetch/gateway path like any other.
-    await fetchPoliciesFor(payer, "");
+  const handlePayerFilter = (code) => {
+    setPayerFilter(payerFilter === code ? null : code);
+    clearSelection();
+  };
+
+  const handlePayerLookupSelect = async (payer) => {
+    setPayerFilter(null);
+    clearSelection();
+    setShowPayerLookup(false);
+    await fetchPolicies(identifierType, "", payer.code);
   };
 
   const handleIdentifierTypeChange = (idType) => {
     setIdentifierType(idType);
-    setSelectedPolicy(null);
+    clearSelection();
     const nextMemberId = idType === "MemberId" ? memberId || memberIdOnFile : "";
     setMemberId(nextMemberId);
-    if (selectedPayer) {
-      fetchPoliciesFor(selectedPayer, idType, nextMemberId);
-    }
+    fetchPolicies(idType, nextMemberId);
   };
 
   const handleMemberIdSearch = () => {
-    if (!selectedPayer) return;
-    setSelectedPolicy(null);
-    fetchPoliciesFor(selectedPayer, "MemberId", memberId);
+    clearSelection();
+    fetchPolicies("MemberId", memberId);
   };
 
   const handlePolicySelect = (policy) => {
     setSelectedPolicy(policy);
-    // A different policy under the same payer also invalidates a prior case.
     updateCaseState({
       policy,
+      payer: payerFromPolicy(policy),
       cashless_case_id: null,
       claim_id: null,
       eligibility_correlation_id: null,
     });
   };
 
+  const effectivePayer = payerFromPolicy(selectedPolicy);
+
   const handleNext = () => {
-    if (selectedPayer && selectedPolicy) {
+    if (selectedPolicy && effectivePayer) {
       navigate("../prep");
     }
   };
 
   return (
     <div className="wizard-step">
-      <div className="grid-1-to-2" style={{ gap: "var(--space-6)" }}>
-        {/* Payer Selection */}
-        <Card title="Select Payer">
-          <div style={{ display: "flex", gap: "var(--space-3)" }}>
-            <div style={{ flex: 1 }}>
-              <Input
-                icon={Search}
-                placeholder="Search by payer name..."
-                value={payerSearch}
-                onChange={(e) => setPayerSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handlePayerSearchClick();
-                }}
-              />
-            </div>
-            <Button variant="primary" onClick={handlePayerSearchClick}>
-              Search
-            </Button>
-          </div>
-          <div
-            style={{
-              marginTop: "var(--space-4)",
-              maxHeight: "400px",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-3)",
-            }}
-          >
-            {loadingPayers ? (
-              <div className="spinner" />
-            ) : payers.length === 0 ? (
-              <div className="text-muted text-center py-4">
-                {hasSearched ? "No payers found." : "Search for a payer above."}
-              </div>
-            ) : (
-              payers.map((payer) => (
-                <div
-                  key={payer.code}
-                  onClick={() => handlePayerSelect(payer)}
-                  style={{
-                    padding: "var(--space-4)",
-                    border: `1.5px solid ${selectedPayer?.code === payer.code ? "var(--primary)" : "var(--border-color)"}`,
-                    borderRadius: "var(--radius-md)",
-                    background:
-                      selectedPayer?.code === payer.code
-                        ? "var(--primary-light)"
-                        : "var(--bg-main)",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--space-4)",
-                  }}
-                >
-                  <Building2
-                    size={24}
-                    color={
-                      selectedPayer?.code === payer.code
-                        ? "var(--primary)"
-                        : "var(--text-muted)"
-                    }
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: "15px", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                      {payer.name}
-                      {payer.is_demo && (
-                        <span className="badge-modern badge-warning" style={{ fontSize: "10px" }}>Demo</span>
-                      )}
-                    </div>
-                    <div
-                      style={{ fontSize: "12px", color: "var(--text-muted)" }}
-                    >
-                      {payer.code}{payer.scheme_type ? ` • ${payer.scheme_type}` : ""}
-                    </div>
-                  </div>
-                  {!payer.is_demo && <StatusBadge status={payer.status} />}
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-
+      <div>
         {/* Policy Selection */}
-        {selectedPayer && (
+        {(
           <Card
             title="Select Policy"
             headerAction={
@@ -250,6 +204,83 @@ export default function PayerPolicy({ ctx }) {
                 </Button>
               </div>
             )}
+
+            {!loadingPolicies && (discoveredPayers.length > 1 || showPayerLookup) && (
+              <div className="pp-payerbar">
+                <span className="pp-payerbar-key">Payer</span>
+                <button
+                  type="button"
+                  className={`pp-chip${payerFilter === null ? " is-on" : ""}`}
+                  onClick={() => handlePayerFilter(null)}
+                >
+                  All
+                </button>
+                {discoveredPayers.map((payer) => (
+                  <button
+                    type="button"
+                    key={payer.code}
+                    className={`pp-chip${payerFilter === payer.code ? " is-on" : ""}`}
+                    onClick={() => handlePayerFilter(payer.code)}
+                    title={payer.code}
+                  >
+                    <Building2 size={12} />
+                    {payer.name}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="pp-chip-link"
+                  onClick={() => setShowPayerLookup((open) => !open)}
+                >
+                  {showPayerLookup ? "Close" : "Look up another payer"}
+                </button>
+              </div>
+            )}
+
+            {showPayerLookup && (
+              <div className="pp-lookup">
+                <div style={{ display: "flex", gap: "var(--space-3)" }}>
+                  <div style={{ flex: 1 }}>
+                    <Input
+                      icon={Search}
+                      placeholder="Search by payer name..."
+                      value={payerSearch}
+                      onChange={(e) => setPayerSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handlePayerSearchClick();
+                      }}
+                    />
+                  </div>
+                  <Button variant="outline" onClick={handlePayerSearchClick}>
+                    Search
+                  </Button>
+                </div>
+                {loadingPayers ? (
+                  <div className="spinner" style={{ margin: "var(--space-4) auto" }} />
+                ) : payers.length > 0 ? (
+                  <div className="pp-lookup-results">
+                    {payers.map((payer) => (
+                      <button
+                        type="button"
+                        key={payer.code}
+                        className="pp-lookup-row"
+                        onClick={() => handlePayerLookupSelect(payer)}
+                      >
+                        <Building2 size={16} />
+                        <span className="pp-lookup-name">{payer.name}</span>
+                        <code className="pp-lookup-code">{payer.code}</code>
+                        <StatusBadge status={payer.status} />
+                      </button>
+                    ))}
+                  </div>
+                ) : hasSearched ? (
+                  <div className="text-muted" style={{ marginTop: "var(--space-3)", fontSize: "13px" }}>
+                    No payers found.
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             {loadingPolicies ? (
               <div className="flex-center py-10 flex-col">
                 <div className="spinner mb-4" />
@@ -259,9 +290,9 @@ export default function PayerPolicy({ ctx }) {
               <div className="warning-banner tone-error" style={{ color: "var(--error)", fontSize: "13px" }}>
                 {policyError}
               </div>
-            ) : policies.length === 0 ? (
+            ) : visiblePolicies.length === 0 ? (
               <div className="text-center py-10 text-muted">
-                No policies found for this patient under {selectedPayer.name}
+                No policies found for this patient
                 {identifierType === "MemberId" && memberId.trim()
                   ? ` for member ID ${memberId.trim()}`
                   : identifierType
@@ -295,18 +326,22 @@ export default function PayerPolicy({ ctx }) {
                   gap: "var(--space-3)",
                 }}
               >
-                {policies.map((policy) => (
+                {visiblePolicies.map((policy) => {
+                  const policyNumber = policyNumberOf(policy);
+                  const sumInsured = sumInsuredOf(policy);
+                  const policyPayer = payerFromPolicy(policy);
+                  const effectiveFrom = field(policy, "effective_from", "effectiveFrom");
+                  const effectiveTo = field(policy, "effective_to", "effectiveTo");
+                  const isSelected = policyNumberOf(selectedPolicy) === policyNumber;
+                  return (
                   <div
-                    key={policy.policyNumber || policy.policy_number}
+                    key={policyNumber}
                     onClick={() => handlePolicySelect(policy)}
                     style={{
                       padding: "var(--space-4)",
-                      border: `1.5px solid ${selectedPolicy?.policyNumber === (policy.policyNumber || policy.policy_number) || selectedPolicy?.policy_number === (policy.policyNumber || policy.policy_number) ? "var(--primary)" : "var(--border-color)"}`,
+                      border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border-color)"}`,
                       borderRadius: "var(--radius-md)",
-                      background:
-                        selectedPolicy?.policyNumber === (policy.policyNumber || policy.policy_number) || selectedPolicy?.policy_number === (policy.policyNumber || policy.policy_number)
-                          ? "var(--primary-light)"
-                          : "var(--bg-main)",
+                      background: isSelected ? "var(--primary-light)" : "var(--bg-main)",
                       cursor: "pointer",
                       display: "flex",
                       gap: "var(--space-4)",
@@ -314,54 +349,48 @@ export default function PayerPolicy({ ctx }) {
                   >
                     <FileText
                       size={24}
-                      color={
-                        selectedPolicy?.policyNumber === (policy.policyNumber || policy.policy_number) || selectedPolicy?.policy_number === (policy.policyNumber || policy.policy_number)
-                          ? "var(--primary)"
-                          : "var(--text-muted)"
-                      }
+                      color={isSelected ? "var(--primary)" : "var(--text-muted)"}
                     />
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: "15px",
-                          marginBottom: "var(--space-1)",
-                        }}
-                      >
-                        {policy.productName || policy.product_name}
-                      </div>
-                      <code
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-muted)",
-                          display: "block",
-                          marginBottom: "var(--space-2)",
-                        }}
-                      >
-                        {policy.policyNumber || policy.policy_number}
-                      </code>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          fontSize: "13px",
-                        }}
-                      >
-                        {policy.sum_insured ? (
-                          <span>
-                            Sum Insured:{" "}
-                            <strong style={{ color: "var(--primary)" }}>
-                              {formatMoney(policy.sum_insured, { currency: policy.currency || "₹" })}
-                            </strong>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="pp-policy-row">
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "var(--space-1)" }}>
+                            {field(policy, "product_name", "productName")}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                            <code style={{ fontSize: "11px" }}>{policyNumber}</code>
+                            {policyPayer && (
+                              <span style={{ fontSize: "12px", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                                <Building2 size={13} />
+                                {policyPayer.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="pp-policy-meta">
+                          {(effectiveFrom || effectiveTo) && (
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                              Valid {effectiveFrom ? formatDate(effectiveFrom) : "—"} to {effectiveTo ? formatDate(effectiveTo) : "—"}
+                            </span>
+                          )}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
+                            {sumInsured ? (
+                              <span className="num-cell" style={{ fontSize: "13px" }}>
+                                Sum Insured:{" "}
+                                <strong style={{ color: "var(--primary)" }}>
+                                  {formatMoney(sumInsured)}
+                                </strong>
+                              </span>
+                            ) : (
+                              <span style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                                Fetched: {formatDate(policy.fetched_at || Date.now())}
+                              </span>
+                            )}
+                            {(policy.status || !policy.fetched_at) && <StatusBadge status={policy.status || "active"} />}
                           </span>
-                        ) : (
-                          <span style={{ color: "var(--text-muted)", fontSize: "11px" }}>
-                            Fetched: {formatDate(policy.fetched_at || Date.now())}
-                          </span>
-                        )}
-                        {(policy.status || !policy.fetched_at) && <StatusBadge status={policy.status || "active"} />}
+                        </div>
                       </div>
-                      {caseState.estimatedBillAmount > 0 && policy.sum_insured > 0 && policy.sum_insured < caseState.estimatedBillAmount && (
+                      {caseState.estimatedBillAmount > 0 && sumInsured > 0 && sumInsured < caseState.estimatedBillAmount && (
                         <div
                           style={{
                             marginTop: "var(--space-2)",
@@ -378,13 +407,14 @@ export default function PayerPolicy({ ctx }) {
                         >
                           <AlertTriangle size={14} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
                           <span>
-                            Estimated bill ({formatMoney(caseState.estimatedBillAmount)}) may exceed this policy's sum insured ({formatMoney(policy.sum_insured)}). Consider selecting a different policy.
+                            Estimated bill ({formatMoney(caseState.estimatedBillAmount)}) may exceed this policy's sum insured ({formatMoney(sumInsured)}). Consider selecting a different policy.
                           </span>
                         </div>
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -401,7 +431,7 @@ export default function PayerPolicy({ ctx }) {
       >
         <Button
           variant="primary"
-          disabled={!selectedPayer || !selectedPolicy}
+          disabled={!selectedPolicy || !effectivePayer}
           onClick={handleNext}
         >
           Proceed to Eligibility{" "}

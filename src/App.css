@@ -1300,6 +1300,118 @@ select.input-modern option {
     border: 1px solid color-mix(in srgb, var(--info) 32%, transparent);
 }
 
+/* ─── Payer filter bar (PayerPolicy) ────────────────────────────────────── */
+.pp-payerbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+.pp-payerbar-key {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-right: 2px;
+}
+.pp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-main);
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.pp-chip:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+.pp-chip.is-on {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+.pp-chip-link {
+    margin-left: auto;
+    padding: 5px 2px;
+    font-size: 12.5px;
+    font-family: inherit;
+    color: var(--primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.pp-lookup {
+    padding: 14px;
+    margin-bottom: 16px;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+.pp-lookup-results {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 12px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+.pp-lookup-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    text-align: left;
+    color: var(--text-main);
+    background: var(--bg-card);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.pp-lookup-row:hover {
+    border-color: var(--primary);
+}
+.pp-lookup-name {
+    font-weight: 600;
+}
+.pp-lookup-code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+.pp-policy-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+}
+.pp-policy-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
 /* ─── Warning banner (MissingFieldsAlert, DocumentChecklist, PayerPolicy,
    ReprocessScreen) — base tone is warning-amber; .tone-error swaps to red
    for callers surfacing a blocking/error condition. ────────────────────── */
