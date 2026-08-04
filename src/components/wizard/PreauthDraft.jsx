@@ -402,13 +402,13 @@ export default function PreauthDraft({ ctx }) {
                   </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ color: "var(--text-muted)" }}>Policy in-force</span>
+                  <span style={{ color: "var(--text-muted)" }}>validation</span>
                   <span style={{ fontWeight: 700, color: draft.eligibility.inforce ? "var(--success)" : "var(--error)" }}>
                     {draft.eligibility.inforce === true ? "Yes" : draft.eligibility.inforce === false ? "No" : "-"}
                   </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ color: "var(--text-muted)" }}>Auth required</span>
+                  <span style={{ color: "var(--text-muted)" }}>auth-requirements</span>
                   <span style={{ fontWeight: 700, color: draft.eligibility.auth_required ? "var(--warning)" : "var(--success)" }}>
                     {draft.eligibility.auth_required === true ? "Yes" : draft.eligibility.auth_required === false ? "No" : "-"}
                   </span>

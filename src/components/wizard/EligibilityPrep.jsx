@@ -503,14 +503,14 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
     <Card title="Coverage Eligibility">
       <div className="cx-vitals">
         <CeVital
-          label="Policy in-force"
+          label="validation"
           state={validationState}
           value={inforce == null ? "-" : inforce ? "In-force" : "Not in-force"}
           tone={inforce == null ? undefined : inforce ? "approve" : "urgent"}
           note={validationState === "done" && disposition ? disposition : undefined}
         />
         <CeVital
-          label="Benefit limits"
+          label="benefits"
           state={benefitsState}
           value={
             benefitsTimedOut
@@ -529,7 +529,7 @@ function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
           }
         />
         <CeVital
-          label="Preauth gate"
+          label="auth-requirements"
           state={authState}
           value={
             auth_required == null
