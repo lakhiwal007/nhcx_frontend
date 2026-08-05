@@ -13,17 +13,31 @@ const METRICS = [
   { key: "totalNetSettled",  label: "Total Net Settled",  icon: Wallet,     color: "var(--primary)", format: "currency" },
 ];
 
+// A payment arrives as several stage notices (INITIATED/PROCESSED/SETTLED) that
+// all repeat the same amounts, so money must be counted once per payment rather
+// than once per row. The backend returns them ascending by arrival, so the last
+// notice under a reference is the current state of that payment.
+const paymentKey = (p) =>
+  p.payment_reference || p.notice_identifier || p.claim_reference || `event-${p.id}`;
+
+function distinctPayments(events) {
+  const byKey = new Map();
+  events.forEach((e) => byKey.set(paymentKey(e), e));
+  return [...byKey.values()];
+}
+
 function computePaymentMetrics(payments) {
   const now = new Date();
   const isThisMonth = (d) => {
     const date = d ? new Date(d) : null;
     return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
   };
-  const settled = payments.filter((p) => p.acknowledgement_status === "submitted");
+  const unique = distinctPayments(payments);
+  const settled = unique.filter((p) => p.acknowledgement_status === "submitted");
   return {
     settledThisMonth: settled.filter((p) => isThisMonth(p.payment_date)).reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
-    pendingAck: payments.filter((p) => p.acknowledgement_status !== "submitted").length,
-    totalTds: payments.reduce((s, p) => s + (p.tds_amount ?? 0), 0),
+    pendingAck: unique.filter((p) => p.acknowledgement_status !== "submitted").length,
+    totalTds: unique.reduce((s, p) => s + (p.tds_amount ?? 0), 0),
     totalNetSettled: settled.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
   };
 }
@@ -346,25 +360,30 @@ export default function Payments() {
                   </tr>
                 ))}
               </tbody>
-              {filtered.length > 1 && (
+              {filtered.length > 1 && (() => {
+                // Rows are stage notices; totals are per payment.
+                const totalled = distinctPayments(filtered);
+                return (
                 <tfoot>
                   <tr>
                     <td colSpan={5} style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
-                      {filtered.length} payments
+                      {totalled.length} {totalled.length === 1 ? "payment" : "payments"}
+                      {filtered.length !== totalled.length && ` · ${filtered.length} events`}
                     </td>
                     <td className="num-cell" style={{ fontWeight: 700 }}>
-                      {formatMoney(filtered.reduce((s, p) => s + (p.gross_amount ?? 0), 0))}
+                      {formatMoney(totalled.reduce((s, p) => s + (p.gross_amount ?? 0), 0))}
                     </td>
                     <td className="num-cell" style={{ color: "var(--error)", fontWeight: 700 }}>
-                      {formatMoney(-filtered.reduce((s, p) => s + Math.abs(p.tds_amount ?? 0), 0))}
+                      {formatMoney(-totalled.reduce((s, p) => s + Math.abs(p.tds_amount ?? 0), 0))}
                     </td>
                     <td className="num-cell" style={{ color: "var(--success)", fontWeight: 700 }}>
-                      {formatMoney(filtered.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0))}
+                      {formatMoney(totalled.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0))}
                     </td>
                     <td colSpan={2} />
                   </tr>
                 </tfoot>
-              )}
+                );
+              })()}
             </table>
           </div>
         </Card>
