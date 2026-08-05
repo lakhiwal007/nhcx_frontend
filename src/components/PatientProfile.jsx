@@ -7,6 +7,8 @@ import {
 import { api } from "../api";
 import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock, formatMoney } from "./Common";
 import { formatDate, formatPhone } from "../format.js";
+import { taskStep } from "../taskRoutes";
+import { routeAtOrAfter } from "../workflowStorage";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 function calculateAge(dob) {
@@ -157,10 +159,6 @@ function PatientDetail({ patient, onBack }) {
     try {
       const fullCase = await api.getCashlessStatus(claimSummary.cashless_case_id);
       const pendingTasks = fullCase.pending_tasks || [];
-      if (pendingTasks.length > 0) {
-        navigate(`/work-queue?task_id=${pendingTasks[0].id}`);
-        return;
-      }
 
       const {
         status,
@@ -209,6 +207,15 @@ function PatientDetail({ patient, onBack }) {
         dest = "prep";
       } else if (payer_id) {
         dest = "payer";
+      }
+
+      const actionable = pendingTasks.find((t) => {
+        const step = taskStep(t.task_type);
+        return step ? routeAtOrAfter(step, dest) : true;
+      });
+      if (actionable) {
+        navigate(`/work-queue?task_id=${actionable.id ?? actionable.task_id}`);
+        return;
       }
 
       navigate(`/case/${patient.child_id}/${dest}`, {

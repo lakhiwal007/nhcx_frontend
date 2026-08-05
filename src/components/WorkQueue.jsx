@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
+import { taskScreen } from "../taskRoutes";
 import { Button, Input, EmptyState, LoadingBlock } from "./Common";
 import { formatRelative, formatRelativePhrase, formatDateTime } from "../format.js";
 import { useNavigate } from "react-router-dom";
@@ -54,24 +55,6 @@ const TASK_TYPE_OPTIONS = [
   { value: "review_payment_ack_failure", label: "Payment Ack Failure" },
   { value: "review_communication", label: "Review Communication" },
 ];
-
-const SCREEN_MAP = {
-  review_insurance_plan_documents: (cid) => `/case/${cid}/prep`,
-  attach_eligibility_documents: (cid) => `/case/${cid}/prep`,
-  fix_eligibility_error: (cid) => `/case/${cid}/prep`,
-  submit_preauth: (cid) => `/case/${cid}/review`,
-  respond_preauth_query: (cid) => `/case/${cid}/status`,
-  resubmit_preauth: (cid) => `/case/${cid}/status`,
-  submit_discharge_claim: (cid) => `/case/${cid}/claim`,
-  resubmit_discharge_claim: (cid) => `/case/${cid}/claim`,
-  submit_final_claim: (cid) => `/case/${cid}/claim`,
-  respond_claim_query: (cid) => `/case/${cid}/claim`,
-  resubmit_claim: (cid) => `/case/${cid}/claim`,
-  submit_reprocess: (cid) => `/case/${cid}/reprocess`,
-  acknowledge_payment: (cid) => `/case/${cid}/payment`,
-  review_payment_ack_failure: (cid) => `/case/${cid}/payment`,
-  review_communication: () => `/communications`,
-};
 
 // Doc requirements arrive either as a flat {name}/{display} shape, or as a raw
 // FHIR extension: {url, values: [{url: "category", display}, {url: "code", display}]}.
@@ -478,8 +461,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       setNavigating((p) => ({ ...p, [taskId]: false }));
     }
     if (!cid) return;
-    const fn = SCREEN_MAP[task.task_type];
-    const path = fn ? fn(cid) : `/case/${cid}/`;
+    const path = taskScreen(task.task_type, cid) || `/case/${cid}/`;
     navigate(path, {
       state: {
         claim_id: task.claim_id,

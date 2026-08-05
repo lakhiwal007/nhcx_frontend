@@ -102,3 +102,11 @@ export const routeLabel = (route) => ROUTE_LABELS[route] || route;
 /** Map a saved resumeRoute → display step number (out of 7) */
 const ROUTE_ORDER = ['payer','prep','review','status','claim','reprocess','payment'];
 export const routeStepNumber = (route) => (ROUTE_ORDER.indexOf(route) + 1) || 1;
+
+/** True when `route` sits at or after `reference` in the case lifecycle. */
+export const routeAtOrAfter = (route, reference) => {
+  const a = ROUTE_ORDER.indexOf(route);
+  const b = ROUTE_ORDER.indexOf(reference);
+  if (a === -1 || b === -1) return true;
+  return a >= b;
+};

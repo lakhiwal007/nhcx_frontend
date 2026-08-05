@@ -30,12 +30,13 @@ export default function CaseWrapper() {
   const [loading, setLoading] = useState(true);
 
   // Resume: load by cashless_case_id passed in nav state; new case: skip stale child_id save
-  const resumeCaseId = location.state?.cashless_case_id;
+  const childSaved = loadWorkflow(id);
+  const resumeCaseId = location.state?.cashless_case_id ?? (location.state?.newCase ? null : childSaved?.cashless_case_id) ?? null;
   const saved = location.state?.newCase
     ? null
     : resumeCaseId
-      ? loadWorkflow(resumeCaseId) || loadWorkflow(id)
-      : loadWorkflow(id);
+      ? loadWorkflow(resumeCaseId) || childSaved
+      : childSaved;
 
   const isNewCase = !!location.state?.newCase || (!!saved && !saved.cashless_case_id);
   const navAdmissionId = location.state?.admission_id ?? saved?.admission_id ?? null;
@@ -45,7 +46,7 @@ export default function CaseWrapper() {
     policy: null,
     admission_id: location.state?.admission_id || null,
     estimatedBillAmount: location.state?.estimatedBillAmount || null,
-    cashless_case_id: location.state?.cashless_case_id || null,
+    cashless_case_id: resumeCaseId || null,
     claim_id: location.state?.claim_id || null,
     eligibility_correlation_id: null,
     preauthCorrelationId: null,
@@ -73,6 +74,9 @@ export default function CaseWrapper() {
       // patient don't clobber each other in localStorage.
       const storageKey = next.cashless_case_id ?? id;
       saveWorkflow(storageKey, next);
+      if (next.cashless_case_id && String(storageKey) !== String(id)) {
+        saveWorkflow(id, { cashless_case_id: next.cashless_case_id });
+      }
       return next;
     });
   }, [id]);
