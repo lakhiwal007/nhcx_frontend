@@ -1471,11 +1471,51 @@ const mock = {
     await delay(600);
     const allTasks = [
       {
+        id: "T-204",
+        task_id: "T-204",
+        claim_id: null,
+        cashless_case_id: 18,
+        child_id: 31,
+        patient_name: "Kabir Nair",
+        payer_id: "1518@hcx",
+        payer_name: "Star Health",
+        case_stage: "APPROVED",
+        correlation_id: "53e76ac2-8aea-4296-8f50-4cb4449440b4",
+        workflow: "claim",
+        task_type: "review_callback_failure",
+        title: "Payer response could not be processed",
+        description:
+          "The payer replied but we could not read the response, so this case's outcome is still unknown. Retry once the cause is fixed, or confirm the outcome with the payer directly.",
+        priority: "high",
+        status: params.status || "pending",
+        required_documents: [],
+        action: {
+          label: "Retry payer response",
+          code: "review_callback_failure",
+          method: "POST",
+          endpoint:
+            "/api/v1/insurance/cashless/callbacks/53e76ac2-8aea-4296-8f50-4cb4449440b4/reprocess",
+        },
+        metadata: {
+          error_class: "TypeError",
+          error_message: "no implicit conversion of String into Integer",
+          workflow_id: "20",
+          sender_code: "1518@hcx",
+          retryable: true,
+        },
+        created_at: "2026-06-04T10:59:00+05:30",
+        completed_at: null,
+      },
+      {
         id: "T-201",
         task_id: "T-201",
         claim_id: 101,
         cashless_case_id: 4,
         child_id: 12,
+        patient_name: "Arjun Mehta",
+        payer_id: "1518@hcx",
+        payer_name: "Star Health",
+        case_stage: "QUERIED",
         correlation_id: "5c2a6db0-b4c1-47e2-bf6d-3db2ed6e8f11",
         workflow: "preauth",
         task_type: "respond_preauth_query",
@@ -1516,6 +1556,9 @@ const mock = {
         task_id: "T-202",
         claim_id: 102,
         cashless_case_id: 5,
+        patient_name: "Aisha Kapoor",
+        payer_name: "Star Health",
+        case_stage: "APPROVED",
         child_id: 19,
         correlation_id: "ack-corr-102",
         workflow: "payment",
@@ -1541,6 +1584,9 @@ const mock = {
         task_id: "T-203",
         claim_id: 103,
         cashless_case_id: 6,
+        patient_name: "Riya Sharma",
+        payer_name: "Niva Bupa",
+        case_stage: "APPROVED",
         child_id: 25,
         correlation_id: null,
         workflow: "claim",
@@ -1638,6 +1684,15 @@ const mock = {
       status: "completed",
       note: data.note || "",
       completed_at: new Date().toISOString(),
+    };
+  },
+
+  reprocessCallback: async (correlation_id) => {
+    await delay(900);
+    return {
+      status: "reprocessed",
+      correlation_id,
+      message: "Callback replayed",
     };
   },
 
@@ -2155,6 +2210,9 @@ const real = {
   // swallowed that, so "Mark as Complete" silently did nothing.
   completeTask: (task_id, data = {}) =>
     http.patch(`/cashless/tasks/${task_id}/complete`, data),
+
+  reprocessCallback: (correlation_id) =>
+    http.post(`/cashless/callbacks/${correlation_id}/reprocess`, {}),
 
   listCommunications: (params = {}) =>
     http.get("/cashless/communications", params),

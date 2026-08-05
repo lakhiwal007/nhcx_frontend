@@ -13,7 +13,9 @@ import {
   LayoutGrid,
   List,
   ArrowDownUp,
-  Inbox
+  Inbox,
+  Copy,
+  User
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
@@ -82,10 +84,85 @@ function ageLabel(createdAt) {
   return null;
 }
 
+// The queue is worked patient by patient, so every row has to say whose work it
+// is. A task_type and a case id alone are unreadable at a glance.
+function taskSubject(task) {
+  const ref = task.cashless_case_id
+    ? `Case ${task.cashless_case_id}`
+    : task.claim_id
+      ? `Claim ${task.claim_id}`
+      : null;
+  if (task.patient_name && ref) return `${task.patient_name} · ${ref}`;
+  return task.patient_name || ref || null;
+}
+
+// correlation_id is the handle support and the payer both work from, so it has
+// to be readable and copyable rather than merely present in the payload.
+function CopyRef({ label, value }) {
+  const [copied, setCopied] = useState(false);
+  if (!value) return null;
+
+  return (
+    <button
+      type="button"
+      title={`${label} — ${value}`}
+      aria-label={`${label}: ${value}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard?.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: "4px",
+        background: "none", border: "none", padding: 0, cursor: "pointer",
+        color: "var(--text-main)", font: "inherit",
+      }}
+    >
+      <code style={{ fontSize: "11px" }}>{String(value).slice(0, 8)}…</code>
+      {copied ? (
+        <span style={{ fontSize: "10px", color: "var(--success)" }}>copied</span>
+      ) : (
+        <Copy size={11} color="var(--text-muted)" />
+      )}
+    </button>
+  );
+}
+
+function DetailRow({ label, children }) {
+  if (children === null || children === undefined || children === "") return null;
+  return (
+    <div>
+      <span style={{ color: "var(--text-muted)" }}>{label}:</span> {children}
+    </div>
+  );
+}
+
 function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, onNavigate }) {
   const [completing, setCompleting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState(null);
 
   const taskId = task?.id ?? task?.task_id;
+  const isCallbackFailure = task?.task_type === "review_callback_failure";
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const res = await api.reprocessCallback(task.correlation_id);
+      if (res?.status === "reprocessed" || res?.status === "already_complete") {
+        onActionComplete();
+        onClose();
+      } else {
+        setRetryError(res?.message || "The payer response still could not be read.");
+      }
+    } catch (e) {
+      setRetryError(e?.message || "Retry failed.");
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const handleComplete = async () => {
     setCompleting(true);
@@ -192,6 +269,17 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800 }}>
                   {task.title}
                 </h3>
+                {taskSubject(task) && (
+                  <div
+                    style={{
+                      display: "flex", alignItems: "center", gap: "5px",
+                      marginTop: "3px", fontSize: "12px", color: "var(--text-muted)",
+                    }}
+                  >
+                    <User size={12} />
+                    {taskSubject(task)}
+                  </div>
+                )}
               </div>
               <button
                 onClick={onClose}
@@ -227,6 +315,13 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 >
                   {task.description}
                 </p>
+              )}
+
+              {retryError && (
+                <div className="inline-error-banner" style={{ margin: 0 }}>
+                  <AlertCircle size={16} />
+                  {retryError}
+                </div>
               )}
 
               {task.metadata?.payer_notes && (
@@ -325,26 +420,46 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                     gap: "6px",
                   }}
                 >
-                  <div>
-                    <span style={{ color: "var(--text-muted)" }}>
-                      Claim ID:
-                    </span>{" "}
-                    {task.claim_id || "-"}
-                  </div>
-                  <div>
-                    <span style={{ color: "var(--text-muted)" }}>Case ID:</span>{" "}
-                    {task.cashless_case_id || "-"}
-                  </div>
-                  <div>
-                    <span style={{ color: "var(--text-muted)" }}>Task ID:</span>{" "}
-                    {taskId}
-                  </div>
-                  <div>
-                    <span style={{ color: "var(--text-muted)" }}>Created:</span>{" "}
-                    {formatDateTime(task.created_at)}
-                  </div>
+                  <DetailRow label="Patient">
+                    {task.patient_name || (task.child_id ? `#${task.child_id}` : "—")}
+                  </DetailRow>
+                  <DetailRow label="Payer">
+                    {task.payer_name || task.payer_id || "—"}
+                  </DetailRow>
+                  <DetailRow label="Case ID">{task.cashless_case_id || "—"}</DetailRow>
+                  <DetailRow label="Claim ID">{task.claim_id || "—"}</DetailRow>
+                  <DetailRow label="Stage">{task.case_stage || "—"}</DetailRow>
+                  <DetailRow label="Created">{formatDateTime(task.created_at)}</DetailRow>
+                  <DetailRow label="Reference">
+                    <CopyRef label="Copy correlation id" value={task.correlation_id} />
+                  </DetailRow>
+                  <DetailRow label="Task ID">{taskId}</DetailRow>
                 </div>
               </div>
+
+              {/* The raw exception is for whoever debugs this, not for the person
+                  filing the claim — available, but not in their way. */}
+              {(task.metadata?.error_message || task.metadata?.error_class) && (
+                <details style={{ fontSize: "12px" }}>
+                  <summary style={{ cursor: "pointer", color: "var(--text-muted)", fontWeight: 600 }}>
+                    Technical details
+                  </summary>
+                  <div
+                    style={{
+                      marginTop: "var(--space-2)", padding: "10px 12px",
+                      background: "var(--bg-main)", borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--border-color)", display: "grid", gap: "4px",
+                    }}
+                  >
+                    <DetailRow label="Error">{task.metadata.error_class}</DetailRow>
+                    <DetailRow label="Message">
+                      <code style={{ fontSize: "11px" }}>{task.metadata.error_message}</code>
+                    </DetailRow>
+                    <DetailRow label="Workflow ID">{task.metadata.workflow_id}</DetailRow>
+                    <DetailRow label="Sender">{task.metadata.sender_code}</DetailRow>
+                  </div>
+                </details>
+              )}
 
               {/* Task results (if any) used to be shown here, removed for navigation flow */}
             </div>
@@ -357,16 +472,39 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 gap: "var(--space-3)",
               }}
             >
-              {task.action && (
-                <Button
-                  variant="primary"
-                  disabled={allFacilitiesMode}
-                  title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
-                  onClick={handleNavigate}
-                  style={{ flex: 1, justifyContent: "center" }}
-                >
-                  {task.action.label || "Review Case"} &rarr;
-                </Button>
+              {/* A failed callback is resolved by replaying it, not by opening the
+                  case — so retry leads and the case link plays second. */}
+              {isCallbackFailure ? (
+                <>
+                  <Button
+                    variant="primary"
+                    disabled={retrying || allFacilitiesMode || task.metadata?.retryable === false}
+                    title={
+                      task.metadata?.retryable === false
+                        ? "This failure predates payload capture, so it cannot be replayed. Confirm the outcome with the payer."
+                        : undefined
+                    }
+                    onClick={handleRetry}
+                    style={{ flex: 1, justifyContent: "center" }}
+                  >
+                    {retrying ? "Retrying…" : "Retry payer response"}
+                  </Button>
+                  <Button variant="outline" disabled={allFacilitiesMode} onClick={handleNavigate}>
+                    Review Case &rarr;
+                  </Button>
+                </>
+              ) : (
+                task.action && (
+                  <Button
+                    variant="primary"
+                    disabled={allFacilitiesMode}
+                    title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
+                    onClick={handleNavigate}
+                    style={{ flex: 1, justifyContent: "center" }}
+                  >
+                    {task.action.label || "Review Case"} &rarr;
+                  </Button>
+                )
               )}
               {task.task_type === "acknowledge_payment" && (
                 <Button
@@ -451,6 +589,8 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
   const navigateToCase = async (task) => {
     const taskId = task.id ?? task.task_id;
+    // The list now resolves child_id through the case, so this extra round-trip
+    // only runs for tasks that genuinely have neither.
     let cid = task.child_id;
     if (!cid && task.cashless_case_id) {
       setNavigating((p) => ({ ...p, [taskId]: true }));
@@ -598,6 +738,13 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           >
             {task.title}
           </div>
+          {taskSubject(task) && (
+            <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", marginBottom: "3px" }}>
+              <User size={11} />
+              {taskSubject(task)}
+              {task.payer_name && <span>· {task.payer_name}</span>}
+            </div>
+          )}
           {task.description && (
             <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
               {task.description}
@@ -762,10 +909,21 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           {age && <span style={{ fontSize: "10px", fontWeight: 700, color: age.color, background: "color-mix(in srgb, currentColor 10%, transparent)", padding: "2px 6px", borderRadius: "10px", flexShrink: 0 }}>{age.text}</span>}
         </div>
         
+        {taskSubject(task) && (
+          <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: "var(--text-muted)" }}>
+            <User size={11} />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{taskSubject(task)}</span>
+          </div>
+        )}
+
         <div style={{ fontWeight: 700, fontSize: "14px", lineHeight: "1.3" }}>
           {task.title}
         </div>
-        
+
+        {task.payer_name && (
+          <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{task.payer_name}</div>
+        )}
+
         <div style={{ fontSize: "11px", color: "var(--text-muted)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span title={task.created_at ? formatDateTime(task.created_at) : undefined}>
             {task.created_at ? `Raised ${formatRelativePhrase(task.created_at)}` : ""}
