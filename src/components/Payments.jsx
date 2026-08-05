@@ -13,10 +13,6 @@ const METRICS = [
   { key: "totalNetSettled",  label: "Total Net Settled",  icon: Wallet,     color: "var(--primary)", format: "currency" },
 ];
 
-// A payment arrives as several stage notices (INITIATED/PROCESSED/SETTLED) that
-// all repeat the same amounts, so money must be counted once per payment rather
-// than once per row. The backend returns them ascending by arrival, so the last
-// notice under a reference is the current state of that payment.
 const paymentKey = (p) =>
   p.payment_reference || p.notice_identifier || p.claim_reference || `event-${p.id}`;
 
@@ -361,7 +357,6 @@ export default function Payments() {
                 ))}
               </tbody>
               {filtered.length > 1 && (() => {
-                // Rows are stage notices; totals are per payment.
                 const totalled = distinctPayments(filtered);
                 return (
                 <tfoot>

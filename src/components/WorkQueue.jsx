@@ -84,8 +84,6 @@ function ageLabel(createdAt) {
   return null;
 }
 
-// The queue is worked patient by patient, so every row has to say whose work it
-// is. A task_type and a case id alone are unreadable at a glance.
 function taskSubject(task) {
   const ref = task.cashless_case_id
     ? `Case ${task.cashless_case_id}`
@@ -96,8 +94,6 @@ function taskSubject(task) {
   return task.patient_name || ref || null;
 }
 
-// correlation_id is the handle support and the payer both work from, so it has
-// to be readable and copyable rather than merely present in the payload.
 function CopyRef({ label, value }) {
   const [copied, setCopied] = useState(false);
   if (!value) return null;
@@ -589,8 +585,6 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
   const navigateToCase = async (task) => {
     const taskId = task.id ?? task.task_id;
-    // The list now resolves child_id through the case, so this extra round-trip
-    // only runs for tasks that genuinely have neither.
     let cid = task.child_id;
     if (!cid && task.cashless_case_id) {
       setNavigating((p) => ({ ...p, [taskId]: true }));
