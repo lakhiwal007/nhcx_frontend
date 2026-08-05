@@ -56,6 +56,8 @@ const TASK_TYPE_OPTIONS = [
   { value: "acknowledge_payment", label: "Acknowledge Payment" },
   { value: "review_payment_ack_failure", label: "Payment Ack Failure" },
   { value: "review_communication", label: "Review Communication" },
+  { value: "review_callback_failure", label: "Callback Failure" },
+  { value: "cancel_superseded_preauth", label: "Withdraw Preauth" },
 ];
 
 // Doc requirements arrive either as a flat {name}/{display} shape, or as a raw
@@ -136,27 +138,51 @@ function DetailRow({ label, children }) {
 
 function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, onNavigate }) {
   const [completing, setCompleting] = useState(false);
-  const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
   const taskId = task?.id ?? task?.task_id;
   const isCallbackFailure = task?.task_type === "review_callback_failure";
+  const isSupersededCancel = task?.task_type === "cancel_superseded_preauth";
 
   const handleRetry = async () => {
-    setRetrying(true);
-    setRetryError(null);
+    setRunning(true);
+    setActionError(null);
     try {
       const res = await api.reprocessCallback(task.correlation_id);
       if (res?.status === "reprocessed" || res?.status === "already_complete") {
         onActionComplete();
         onClose();
       } else {
-        setRetryError(res?.message || "The payer response still could not be read.");
+        setActionError(res?.message || "The payer response still could not be read.");
       }
     } catch (e) {
-      setRetryError(e?.message || "Retry failed.");
+      setActionError(e?.message || "Retry failed.");
     } finally {
-      setRetrying(false);
+      setRunning(false);
+    }
+  };
+
+  const handleCancelPreauth = async () => {
+    setRunning(true);
+    setActionError(null);
+    try {
+      const res = await api.cancelPreauth({
+        cashless_case_id: task.cashless_case_id,
+        reason: "payer-changed",
+        description: "Case moved to a different payer.",
+      });
+      if (res?.correlation_id || res?.status === "submitted") {
+        await api.completeTask(taskId, { note: "Withdrawn with the previous payer" });
+        onActionComplete();
+        onClose();
+      } else {
+        setActionError(res?.message || "Could not withdraw the preauthorization.");
+      }
+    } catch (e) {
+      setActionError(e?.message || "Withdrawal failed.");
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -313,10 +339,10 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 </p>
               )}
 
-              {retryError && (
+              {actionError && (
                 <div className="inline-error-banner" style={{ margin: 0 }}>
                   <AlertCircle size={16} />
-                  {retryError}
+                  {actionError}
                 </div>
               )}
 
@@ -474,7 +500,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 <>
                   <Button
                     variant="primary"
-                    disabled={retrying || allFacilitiesMode || task.metadata?.retryable === false}
+                    disabled={running || allFacilitiesMode || task.metadata?.retryable === false}
                     title={
                       task.metadata?.retryable === false
                         ? "This failure predates payload capture, so it cannot be replayed. Confirm the outcome with the payer."
@@ -483,7 +509,21 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                     onClick={handleRetry}
                     style={{ flex: 1, justifyContent: "center" }}
                   >
-                    {retrying ? "Retrying…" : "Retry payer response"}
+                    {running ? "Retrying…" : "Retry payer response"}
+                  </Button>
+                  <Button variant="outline" disabled={allFacilitiesMode} onClick={handleNavigate}>
+                    Review Case &rarr;
+                  </Button>
+                </>
+              ) : isSupersededCancel ? (
+                <>
+                  <Button
+                    variant="primary"
+                    disabled={running || allFacilitiesMode}
+                    onClick={handleCancelPreauth}
+                    style={{ flex: 1, justifyContent: "center" }}
+                  >
+                    {running ? "Withdrawing…" : "Withdraw with previous payer"}
                   </Button>
                   <Button variant="outline" disabled={allFacilitiesMode} onClick={handleNavigate}>
                     Review Case &rarr;
