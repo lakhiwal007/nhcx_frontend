@@ -2151,8 +2151,10 @@ const real = {
 
   getTask: (task_id) => http.get(`/cashless/tasks/${task_id}`),
 
+  // The route is .../complete — patching the bare task path 404s, and the drawer
+  // swallowed that, so "Mark as Complete" silently did nothing.
   completeTask: (task_id, data = {}) =>
-    http.patch(`/cashless/tasks/${task_id}`, data),
+    http.patch(`/cashless/tasks/${task_id}/complete`, data),
 
   listCommunications: (params = {}) =>
     http.get("/cashless/communications", params),
