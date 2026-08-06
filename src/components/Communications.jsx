@@ -21,6 +21,12 @@ const PRIORITY_CONFIG = {
 
 const COMMS_PAGE_SIZE = 20;
 
+const READ_FILTERS = [
+  { key: "unread", label: "Unread" },
+  { key: "read", label: "Read" },
+  { key: "all", label: "All" },
+];
+
 const REASON_CONFIG = {
   tatquery:      { badge: "badge-warning", label: "TAT Dispute",      hint: "Time-sensitive - payer is disputing turnaround. Open the referenced claim and respond fast.", borderColor: "var(--warning)" },
   additionalinfo:{ badge: "badge-error",   label: "Additional Info",  hint: "The payer needs more documents before they can proceed with this claim. Submit the requested documents below to unblock it.", borderColor: "var(--error)" },
@@ -378,8 +384,10 @@ export default function Communications({ allFacilitiesMode = false }) {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("communications_viewMode") || "grid");
   const [sortBy, setSortBy] = useState("newest");
   const [quickFilter, setQuickFilter] = useState(null);
+  const [readFilter, setReadFilter] = useState(() => localStorage.getItem("communications_readFilter") || "unread");
 
   useEffect(() => { localStorage.setItem("communications_viewMode", viewMode); }, [viewMode]);
+  useEffect(() => { localStorage.setItem("communications_readFilter", readFilter); }, [readFilter]);
 
   const fetchComms = async (params = {}) => {
     setLoading(true);
@@ -406,6 +414,11 @@ export default function Communications({ allFacilitiesMode = false }) {
   const payerLabel = (code) => communications.find((c) => c.payer_id === code)?.payer_name || code;
   const unreadCount = communications.filter((c) => !c.provider_read).length;
   const actionNeededCount = communications.filter((c) => c.pending_tasks?.length > 0).length;
+  const readFilterCounts = {
+    unread: unreadCount,
+    read: communications.length - unreadCount,
+    all: communications.length,
+  };
 
   const [commsPage, setCommsPage] = useState(0);
   const filteredComms = communications.filter((c) => {
@@ -418,10 +431,10 @@ export default function Communications({ allFacilitiesMode = false }) {
       c.reason_display?.toLowerCase().includes(q) ||
       c.subject?.toLowerCase().includes(q);
     const matchPayer = !payerFilter || c.payer_id === payerFilter;
-    const matchQuick =
-      !quickFilter ||
-      (quickFilter === "unread" ? !c.provider_read : c.pending_tasks?.length > 0);
-    return matchSearch && matchPayer && matchQuick;
+    const matchRead =
+      readFilter === "all" || (readFilter === "unread" ? !c.provider_read : !!c.provider_read);
+    const matchQuick = !quickFilter || c.pending_tasks?.length > 0;
+    return matchSearch && matchPayer && matchRead && matchQuick;
   }).sort((a, b) => {
     if (sortBy === "priority") {
       const pA = a.priority === "urgent" || a.priority === "stat" ? 2 : a.priority === "asap" ? 1 : 0;
@@ -491,24 +504,25 @@ export default function Communications({ allFacilitiesMode = false }) {
       </div>
 
       <div className="cm-resultbar">
+        <div className="cm-segmented" role="group" aria-label="Filter by read state">
+          {READ_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              aria-pressed={readFilter === f.key}
+              onClick={() => setReadFilter(f.key)}
+            >
+              {f.label}
+              <span className="cm-segmented-count">{readFilterCounts[f.key]}</span>
+            </button>
+          ))}
+        </div>
         <span className="cm-resultbar-count">
           {filteredComms.length}
           <span> {filteredComms.length === 1 ? "message" : "messages"}</span>
           {filteredComms.length !== communications.length && <em> of {communications.length}</em>}
         </span>
         <div className="cm-resultbar-chips">
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              className={`cm-count${quickFilter === "unread" ? " is-on" : ""}`}
-              style={{ "--cm-count-tone": "var(--info)" }}
-              aria-pressed={quickFilter === "unread"}
-              title={quickFilter === "unread" ? "Show all messages" : "Show only unread messages"}
-              onClick={() => setQuickFilter((f) => (f === "unread" ? null : "unread"))}
-            >
-              {unreadCount} unread
-            </button>
-          )}
           {actionNeededCount > 0 && (
             <button
               type="button"
@@ -516,7 +530,10 @@ export default function Communications({ allFacilitiesMode = false }) {
               style={{ "--cm-count-tone": "var(--error)" }}
               aria-pressed={quickFilter === "action"}
               title={quickFilter === "action" ? "Show all messages" : "Show only messages with an open task"}
-              onClick={() => setQuickFilter((f) => (f === "action" ? null : "action"))}
+              onClick={() => {
+                setQuickFilter((f) => (f === "action" ? null : "action"));
+                if (quickFilter !== "action") setReadFilter("all");
+              }}
             >
               {actionNeededCount} need action
             </button>
@@ -527,11 +544,27 @@ export default function Communications({ allFacilitiesMode = false }) {
       {loading ? (
         <LoadingBlock text="Loading communications…" />
       ) : filteredComms.length === 0 ? (
-        <EmptyState
-          icon={MessageSquare}
-          title="No Communications"
-          description="No payer messages match your filters."
-        />
+        readFilter !== "all" && communications.length > 0 && readFilterCounts[readFilter] === 0 ? (
+          <EmptyState
+            icon={readFilter === "unread" ? CheckCircle2 : MessageSquare}
+            title={readFilter === "unread" ? "You are all caught up" : "No read messages"}
+            description={
+              readFilter === "unread"
+                ? `Every one of your ${communications.length} payer message${communications.length === 1 ? "" : "s"} has been read.`
+                : "None of your payer messages have been read yet."
+            }
+          >
+            <Button variant="outline" size="small" onClick={() => setReadFilter("all")}>
+              Show all messages
+            </Button>
+          </EmptyState>
+        ) : (
+          <EmptyState
+            icon={MessageSquare}
+            title="No Communications"
+            description="No payer messages match your filters."
+          />
+        )
       ) : viewMode === "grid" ? (
         <div className="cm-well">
           <motion.div className="cm-grid" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
