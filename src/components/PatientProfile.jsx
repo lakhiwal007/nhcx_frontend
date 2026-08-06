@@ -126,7 +126,7 @@ function PatientDetail({ patient, onBack }) {
   useEffect(() => {
     setLoadingExtra(true);
     Promise.all([
-      api.listTasks({ child_id: patient.child_id }),
+      api.listTasks({ child_id: patient.child_id, status: "pending" }),
       api.listCommunications({ child_id: patient.child_id }),
     ])
       .then(([tasksRes, commsRes]) => {
