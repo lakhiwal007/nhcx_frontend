@@ -18,6 +18,8 @@ const METRICS = [
 const paymentKey = (p) =>
   p.payment_reference || p.notice_identifier || p.claim_reference || `event-${p.id}`;
 
+const claimSearchKey = (p) => p.cashless_case_id ?? p.claim_reference;
+
 function distinctPayments(events) {
   const byKey = new Map();
   events.forEach((e) => byKey.set(paymentKey(e), e));
@@ -88,8 +90,6 @@ export default function Payments() {
     }
     return joined;
   };
-
-  const claimSearchKey = (pay) => pay.cashless_case_id ?? pay.claim_reference;
 
   const filtered = payments.filter(
     (p) =>
@@ -537,7 +537,7 @@ function PaymentDetailModal({ payment, patient, onClose, navigate }) {
             {payment.claim_reference && (
               <Button
                 variant="outline"
-                onClick={() => { onClose(); navigate(`/dashboard?q=${encodeURIComponent(payment.claim_reference)}`); }}
+                onClick={() => { onClose(); navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(payment))}`); }}
                 style={{ justifyContent: "center", marginTop: "var(--space-4)", width: "100%" }}
               >
                 View Claim in Dashboard
