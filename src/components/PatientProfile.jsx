@@ -209,17 +209,15 @@ function PatientDetail({ patient, onBack }) {
         dest = "payer";
       }
 
-      const actionable = pendingTasks.find((t) => {
-        const step = taskStep(t.task_type);
-        return step ? routeAtOrAfter(step, dest) : true;
-      });
-      if (actionable) {
-        navigate(`/work-queue?task_id=${actionable.id ?? actionable.task_id}`);
-        return;
-      }
+      const actionable = pendingTasks.find((t) => taskStep(t.task_type));
+      const taskRoute = actionable ? taskStep(actionable.task_type) : null;
+      const target = taskRoute && routeAtOrAfter(taskRoute, dest) ? taskRoute : dest;
 
-      navigate(`/case/${patient.child_id}/${dest}`, {
-        state: { cashless_case_id: fullCase.cashless_case_id },
+      navigate(`/case/${patient.child_id}/${target}`, {
+        state: {
+          cashless_case_id: fullCase.cashless_case_id,
+          claim_id: claimSummary.claim_id ?? claim?.claim_id ?? null,
+        },
       });
     } catch (err) {
       console.error(err);
