@@ -23,6 +23,13 @@ const CANCEL_REASONS = [
   { value: "other", label: "Other" },
 ];
 
+function netAmountOf(claimItem, adj) {
+  if (claimItem?.net_amount != null) return claimItem.net_amount;
+  const unit = claimItem?.unit_price ?? claimItem?.amount;
+  if (unit != null) return (claimItem?.quantity ?? 1) * unit;
+  return adj?.submitted?.value ?? null;
+}
+
 function Drawer({ open, onClose, title, children }) {
   return (
     <AnimatePresence>
@@ -548,7 +555,7 @@ export default function PreauthStatus({ ctx }) {
                           <td>{claimItem?.category ? <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{claimItem.category}</span> : "-"}</td>
                           <td className="num-cell">{claimItem?.quantity ?? "—"}</td>
                           <td className="num-cell">{formatMoney(claimItem?.unit_price ?? claimItem?.amount)}</td>
-                          <td className="num-cell" style={{ fontWeight: 600 }}>{formatMoney(claimItem?.net_amount ?? ((claimItem?.quantity || 1) * (claimItem?.unit_price || claimItem?.amount || 0)))}</td>
+                          <td className="num-cell" style={{ fontWeight: 600 }}>{formatMoney(netAmountOf(claimItem, adj))}</td>
                           <td className="num-cell" style={{ color: "var(--success)", fontWeight: 700 }}>
                             {formatMoney(adj?.eligible?.value)}
                           </td>
