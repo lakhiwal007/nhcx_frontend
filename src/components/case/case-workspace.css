@@ -33,11 +33,11 @@
   --cx-shadow: var(--shadow);
 
   --cx-rail-top: 59px;
-  --cx-rail-h: calc(100vh - 59px);
+  --cx-shell-offset: calc(59px + (var(--app-gutter, 6px) * 2));
+  --cx-rail-h: calc(100vh - var(--cx-shell-offset));
 
-  /* .main-view is flush now, so there is no padding left to break out of */
   margin: 0;
-  min-height: calc(100vh - 56px);
+  min-height: calc(100vh - var(--cx-shell-offset));
   padding: 0;
   background:
     radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0) 0 0 / 22px 22px,
