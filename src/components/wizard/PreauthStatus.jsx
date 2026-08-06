@@ -303,7 +303,7 @@ export default function PreauthStatus({ ctx }) {
         return;
       }
       setShowCancelModal(false);
-      navigate("/dashboard");
+      restartPoll(res.correlation_id);
     } catch (err) {
       setCancelError(err.message || "Cancellation failed. Please try again.");
     } finally {
@@ -434,7 +434,9 @@ export default function PreauthStatus({ ctx }) {
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
               <div className="spinner" style={{ width: "24px", height: "24px", borderTopColor: "var(--warning)" }} />
               <div>
-                <div style={{ fontWeight: 700 }}>Awaiting payer decision</div>
+                <div style={{ fontWeight: 700 }}>
+                  {statusData?.purpose === "cancel" ? "Awaiting cancellation response" : "Awaiting payer decision"}
+                </div>
                 <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                   {correlationId} · Polling every {POLL_INTERVAL_MS / 1000}s
                 </div>
@@ -534,24 +536,27 @@ export default function PreauthStatus({ ctx }) {
                   <tbody>
                     {(statusData?.claim_items?.length > 0 ? statusData.claim_items : statusData.items).map((item, i) => {
                       const adj = item.adjudication;
-                      const claimItem = statusData?.claim_items?.[i];
+                      const claimItem = statusData?.claim_items?.[i] || draftData?.editedItems?.[i] || draftData?.items?.[i] || item;
+                      const sequence = item.sequence ?? claimItem?.sequence ?? i + 1;
                       return (
                         <tr key={i}>
-                          <td style={{ color: "var(--text-muted)" }}>{item.sequence ?? i + 1}</td>
+                          <td style={{ color: "var(--text-muted)" }}>{sequence}</td>
                           <td>
-                            <div style={{ fontWeight: 600 }}>{claimItem?.service_name || `Seq #${item.sequence}`}</div>
-                            {claimItem?.service_code && <code style={{ fontSize: "11px", color: "var(--text-muted)" }}>{claimItem.service_code}</code>}
+                            <div style={{ fontWeight: 600 }}>{claimItem?.service_name || claimItem?.name || claimItem?.description || `Seq #${sequence}`}</div>
+                            {(claimItem?.service_code || claimItem?.code) && <code style={{ fontSize: "11px", color: "var(--text-muted)" }}>{claimItem.service_code || claimItem.code}</code>}
                           </td>
                           <td>{claimItem?.category ? <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{claimItem.category}</span> : "-"}</td>
                           <td className="num-cell">{claimItem?.quantity ?? "—"}</td>
-                          <td className="num-cell">{formatMoney(claimItem?.unit_price)}</td>
-                          <td className="num-cell" style={{ fontWeight: 600 }}>{formatMoney(claimItem?.net_amount)}</td>
+                          <td className="num-cell">{formatMoney(claimItem?.unit_price ?? claimItem?.amount)}</td>
+                          <td className="num-cell" style={{ fontWeight: 600 }}>{formatMoney(claimItem?.net_amount ?? ((claimItem?.quantity || 1) * (claimItem?.unit_price || claimItem?.amount || 0)))}</td>
                           <td className="num-cell" style={{ color: "var(--success)", fontWeight: 700 }}>
                             {formatMoney(adj?.eligible?.value)}
                           </td>
                           <td>
                             {adj?.eligible?.reason ? (
                               <span className="badge-modern badge-success" style={{ fontSize: "10px" }}>{adj.eligible.reason}</span>
+                            ) : adj?.reason?.raw ? (
+                              <span className="badge-modern badge-success" style={{ fontSize: "10px" }}>{adj.reason.raw}</span>
                             ) : "-"}
                           </td>
                         </tr>
