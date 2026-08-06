@@ -7,6 +7,16 @@
 
 const WORKFLOW_PREFIX = 'nhcx_workflow_';
 const CLAIMS_PREFIX   = 'nhcx_claims_';
+const MIGRATION_KEY   = 'nhcx_workflow_schema';
+const MIGRATION_VERSION = '2';
+
+const SERVER_OWNED_KEYS = ['claim_id', 'preauthRef', 'preauthDecision', 'approvedAmount'];
+
+const stripServerOwned = (state) => {
+  const out = { ...state };
+  SERVER_OWNED_KEYS.forEach((k) => delete out[k]);
+  return out;
+};
 
 // ─── Workflow (App-level) state ───────────────────────────────────────────────
 
@@ -15,10 +25,31 @@ export const saveWorkflow = (childId, state) => {
   try {
     localStorage.setItem(
       WORKFLOW_PREFIX + childId,
-      JSON.stringify({ ...state, savedAt: Date.now() })
+      JSON.stringify({ ...stripServerOwned(state), savedAt: Date.now() })
     );
   } catch (e) {
     console.warn('Could not save workflow:', e);
+  }
+};
+
+export const migrateWorkflows = () => {
+  try {
+    if (localStorage.getItem(MIGRATION_KEY) === MIGRATION_VERSION) return;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(WORKFLOW_PREFIX)) keys.push(key);
+    }
+    keys.forEach((key) => {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!SERVER_OWNED_KEYS.some((k) => k in parsed)) return;
+      localStorage.setItem(key, JSON.stringify(stripServerOwned(parsed)));
+    });
+    localStorage.setItem(MIGRATION_KEY, MIGRATION_VERSION);
+  } catch (e) {
+    console.warn('Could not migrate workflow storage:', e);
   }
 };
 

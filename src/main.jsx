@@ -12,8 +12,10 @@ import './styles/design-system.css'
 import './index.css'
 import App from './App.jsx'
 import { bootstrapSessionFromUrl } from './sessionBootstrap.js'
+import { migrateWorkflows } from './workflowStorage.js'
 
 bootstrapSessionFromUrl()
+migrateWorkflows()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

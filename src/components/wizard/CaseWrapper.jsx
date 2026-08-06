@@ -126,7 +126,7 @@ export default function CaseWrapper() {
             setCashlessCase(prior);
             updateCaseState({
               cashless_case_id: resumeCaseId ?? prior.cashless_case_id ?? caseState.cashless_case_id,
-              claim_id: location.state?.claim_id ?? prior.claim_id ?? caseState.claim_id,
+              claim_id: location.state?.claim_id ?? prior.claim_id ?? null,
             });
           } else if (resumeCaseId) {
             const full = await api.getCashlessStatus(resumeCaseId);
@@ -148,7 +148,7 @@ export default function CaseWrapper() {
               });
               updateCaseState({
                 cashless_case_id: full.cashless_case_id,
-                claim_id: location.state?.claim_id ?? full.claim?.claim_id ?? caseState.claim_id,
+                claim_id: location.state?.claim_id ?? full.claim?.claim_id ?? null,
               });
             }
           }
@@ -187,7 +187,10 @@ export default function CaseWrapper() {
   const effectiveCase = cashlessCase || {};
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
   const preauthDecision = caseState.preauthDecision || effectiveCase.preauth_status;
-  const approvedAmount = caseState.approvedAmount;
+  const approvedAmount = timeline?.money_ledger?.approved?.value
+    ?? effectiveCase.approved_amount
+    ?? caseState.approvedAmount
+    ?? null;
 
   const stages = buildStages({
     caseState,
