@@ -872,6 +872,7 @@ export default function EligibilityPrep({ ctx }) {
   }
 
   if (error) {
+    const notAdmitted = error.toLowerCase().includes("inpatient-only");
     return (
       <Card>
         <div
@@ -885,16 +886,22 @@ export default function EligibilityPrep({ ctx }) {
           <AlertCircle color="var(--error)" size={24} />
           <div>
             <div style={{ fontWeight: 700, color: "var(--error)" }}>
-              Preparation failed
+              {notAdmitted ? "Patient is not admitted" : "Preparation failed"}
             </div>
             <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
               {error}
             </div>
           </div>
         </div>
-        <Button variant="outline" onClick={() => navigate("../payer")}>
-          ← Back to Payer
-        </Button>
+        {notAdmitted ? (
+          <Button variant="outline" onClick={() => navigate("/registry")}>
+            ← Back to Registry
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={() => navigate("../payer")}>
+            ← Back to Payer
+          </Button>
+        )}
       </Card>
     );
   }
