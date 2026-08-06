@@ -29,7 +29,7 @@ function computePaymentMetrics(payments) {
     return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
   };
   const unique = distinctPayments(payments);
-  const settled = unique.filter((p) => p.acknowledgement_status === "submitted");
+  const settled = unique.filter((p) => p.payment_stage === "PAYMENT_SETTLED");
   return {
     settledThisMonth: settled.filter((p) => isThisMonth(p.payment_date)).reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
     pendingAck: unique.filter((p) => p.acknowledgement_status !== "submitted").length,
