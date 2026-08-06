@@ -9,6 +9,7 @@
 // a code this frontend does not yet know (assumed POST in that case).
 export const ACTION_MAP = {
   respond_preauth_query:           { method: "POST", path: "/cashless/preauth/query-response" },
+  resubmit_enhancement:            { method: "POST", path: "/cashless/preauth/enhancement" },
   resubmit_preauth:                { method: "POST", path: "/cashless/preauth/resubmit" },
   submit_preauth:                  { method: "POST", path: "/cashless/preauth/submit" },
   respond_claim_query:             { method: "POST", path: "/cashless/claims/query-response" },

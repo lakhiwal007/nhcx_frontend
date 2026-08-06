@@ -47,6 +47,7 @@ const TASK_TYPE_OPTIONS = [
   { value: "submit_preauth", label: "Submit Preauth" },
   { value: "respond_preauth_query", label: "Respond Preauth Query" },
   { value: "resubmit_preauth", label: "Resubmit Preauth" },
+  { value: "resubmit_enhancement", label: "Resubmit Enhancement" },
   { value: "submit_discharge_claim", label: "Submit Discharge Claim" },
   { value: "resubmit_discharge_claim", label: "Resubmit Discharge Claim" },
   { value: "submit_final_claim", label: "Submit Final Claim" },
@@ -642,6 +643,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         cashless_case_id: task.cashless_case_id,
         openAction:
           task.task_type === "resubmit_preauth" ? "resubmit_preauth" :
+          task.task_type === "resubmit_enhancement" ? "resubmit_enhancement" :
           task.task_type === "respond_preauth_query" ? "respond_preauth_query" :
           task.task_type === "resubmit_claim" ? "resubmit_claim" :
           task.task_type === "respond_claim_query" ? "respond_claim_query" :

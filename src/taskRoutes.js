@@ -5,6 +5,7 @@ export const TASK_STEPS = {
   submit_preauth: 'review',
   respond_preauth_query: 'status',
   resubmit_preauth: 'status',
+  resubmit_enhancement: 'status',
   submit_discharge_claim: 'claim',
   resubmit_discharge_claim: 'claim',
   submit_final_claim: 'claim',

@@ -364,7 +364,7 @@ export default function PreauthStatus({ ctx }) {
   // crashes the render with "Rendered more hooks than during the previous render."
   useEffect(() => {
     const action = location.state?.openAction;
-    if (action !== "resubmit_preauth" && action !== "respond_preauth_query") return;
+    if (action !== "resubmit_preauth" && action !== "respond_preauth_query" && action !== "resubmit_enhancement") return;
     const canResubmit = Boolean(resolvedCashlessCaseId || claim_id || statusData?.claim_id || cashlessCase?.claim_id);
     if (canResubmit && (isQueried || isRejected || isPartial)) {
       if (resolvedCashlessCaseId) {
@@ -374,6 +374,8 @@ export default function PreauthStatus({ ctx }) {
         setShowResubmitDrawer(true);
       } else if (action === "respond_preauth_query") {
         setShowQueryDrawer(true);
+      } else if (action === "resubmit_enhancement") {
+        setShowEnhancement(true);
       }
     }
   }, [location.state?.openAction, resolvedCashlessCaseId, claim_id, statusData?.claim_id, cashlessCase?.claim_id, isQueried, isRejected, isPartial, updateCaseState]);
