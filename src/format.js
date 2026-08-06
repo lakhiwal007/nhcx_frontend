@@ -74,6 +74,14 @@ export const formatMoney = (v, { dash = DASH, currency = "₹", signed = false }
   return `${sign}${currency}${gap}${Math.abs(n).toLocaleString("en-IN")}`;
 };
 
+export const currencySymbol = (code) => (!code || code === "INR" ? "₹" : code);
+
+export const formatPercent = (v, { dash = DASH } = {}) => {
+  if (v === null || v === undefined || v === "") return dash;
+  const n = Number(v);
+  return Number.isNaN(n) ? dash : `${n.toLocaleString("en-IN")}%`;
+};
+
 export const formatNumber = (v, dash = DASH) => {
   if (v === null || v === undefined || v === "") return dash;
   const n = Number(v);

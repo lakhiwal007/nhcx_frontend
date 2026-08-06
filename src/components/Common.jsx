@@ -13,7 +13,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { formatMoney, formatDateTime, formatPhone } from "../format.js";
+import { formatMoney, formatDateTime, formatPhone, formatPercent, currencySymbol } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
 export { formatMoney };
@@ -652,6 +652,16 @@ export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
  * and eligible amounts are tinted green.
  * @category Domain
  */
+const PERCENT_TOTALS = ["elig_percent", "eligpercent"];
+
+const amountValue = (v) => (v && typeof v === "object" ? v.value : v);
+
+const formatTotal = (k, v) => {
+  const raw = amountValue(v);
+  if (PERCENT_TOTALS.includes(k)) return formatPercent(raw);
+  return formatMoney(raw, { currency: currencySymbol(v && typeof v === "object" ? v.currency : null) });
+};
+
 export const AmountGrid = ({ totals }) => {
   if (!totals) return null;
   return (
@@ -677,15 +687,16 @@ export const AmountGrid = ({ totals }) => {
               // pre-share figure (>= benefit) and must not read as the amount the
               // payer will pay — tint it neutral so it isn't mistaken for approved.
               color:
-                k === "approved" || k === "benefit"
-                  ? "var(--success)"
-                  : k === "copay" || k === "deductible"
-                    ? "var(--error)"
-                    : "var(--primary)",
+                amountValue(v) === null || amountValue(v) === undefined
+                  ? "var(--text-muted)"
+                  : k === "approved" || k === "benefit"
+                    ? "var(--success)"
+                    : k === "copay" || k === "deductible"
+                      ? "var(--error)"
+                      : "var(--primary)",
             }}
           >
-            {v?.currency || "₹"}{" "}
-            {formatMoney(v && typeof v === "object" ? v.value : v, { currency: "", dash: "0" })}
+            {formatTotal(k, v)}
           </div>
         </div>
       ))}
