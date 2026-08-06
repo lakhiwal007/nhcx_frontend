@@ -747,3 +747,41 @@ export const TaskCard = ({ task, onClick }) => (
     <ChevronRight size={20} color="var(--text-muted)" />
   </motion.div>
 );
+
+export const TablePagination = ({ page, pageSize, total, onPageChange, label = "rows" }) => {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  if (total <= pageSize) return null;
+
+  const from = total === 0 ? 0 : page * pageSize + 1;
+  const to = Math.min(total, (page + 1) * pageSize);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "var(--space-3)",
+        flexWrap: "wrap",
+        paddingTop: "var(--space-4)",
+        marginTop: "var(--space-2)",
+        borderTop: "1px solid var(--border-color)",
+      }}
+    >
+      <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
+        Showing {from}–{to} of {total} {label}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+        <Button variant="outline" disabled={page === 0} onClick={() => onPageChange(page - 1)}>
+          ‹ Prev
+        </Button>
+        <span style={{ fontSize: "12px", color: "var(--text-muted)", minWidth: "84px", textAlign: "center" }}>
+          Page {page + 1} of {pageCount}
+        </span>
+        <Button variant="outline" disabled={page >= pageCount - 1} onClick={() => onPageChange(page + 1)}>
+          Next ›
+        </Button>
+      </div>
+    </div>
+  );
+};

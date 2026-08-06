@@ -7,7 +7,7 @@ import {
   Radio
 } from "lucide-react";
 import { api } from "../api";
-import { Card, StatusBadge, Button, Input, SkeletonTable } from "./Common";
+import { Card, StatusBadge, Button, Input, SkeletonTable, TablePagination } from "./Common";
 import { formatMoney, formatDate } from "../format.js";
 import { useNavigate, useLocation } from "react-router-dom";
 import ClaimSearchModal from "./ClaimSearchModal";
@@ -20,6 +20,8 @@ const statCardVariants = {
   hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 26 } },
 };
+
+const CLAIMS_PAGE_SIZE = 20;
 
 const METRICS = [
   { key: "total",           label: "Total Claims",         icon: FileText,      color: "var(--primary)",  filterStatus: null },
@@ -187,6 +189,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState(null);
+  const [claimsPage, setClaimsPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState(
     () => new URLSearchParams(location.search).get("q") || ""
   );
@@ -204,7 +207,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       try {
         const [statsData, claimsData] = await Promise.all([
           api.getDashboardStats(),
-          api.getDashboardClaims(),
+          api.getDashboardClaims({ limit: 200 }),
         ]);
         setStats(statsData);
         setClaims(claimsData?.claims || []);
@@ -260,6 +263,10 @@ export default function Dashboard({ allFacilitiesMode = false }) {
     }
     return 0;
   });
+
+  const claimsPageCount = Math.max(1, Math.ceil(filteredClaims.length / CLAIMS_PAGE_SIZE));
+  const safeClaimsPage = Math.min(claimsPage, claimsPageCount - 1);
+  const pagedClaims = filteredClaims.slice(safeClaimsPage * CLAIMS_PAGE_SIZE, (safeClaimsPage + 1) * CLAIMS_PAGE_SIZE);
 
   const ClaimCard = ({ claim }) => {
     const actionOptions = getActionOptions(claim);
@@ -533,10 +540,10 @@ export default function Dashboard({ allFacilitiesMode = false }) {
             <div className="table-responsive-wrapper">
               {viewMode === "grid" ? (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-4)", padding: "var(--space-1)" }}>
-                  {filteredClaims.map(claim => (
+                  {pagedClaims.map(claim => (
                     <ClaimCard key={claim.id} claim={claim} />
                   ))}
-                  {filteredClaims.length === 0 && (
+                  {pagedClaims.length === 0 && (
                     <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px" }}>
                       <Inbox size={32} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
                       <div style={{ fontSize: "14px", fontWeight: 700 }}>No claims match your filters</div>
@@ -560,7 +567,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredClaims.map((claim) => {
+                  {pagedClaims.map((claim) => {
                     const actionOptions = getActionOptions(claim);
                     return (
                       <tr key={claim.id}>
@@ -636,6 +643,13 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                 </tbody>
               </table>
               )}
+              <TablePagination
+                page={safeClaimsPage}
+                pageSize={CLAIMS_PAGE_SIZE}
+                total={filteredClaims.length}
+                onPageChange={setClaimsPage}
+                label="claims"
+              />
             </div>
           </Card>
         </motion.div>

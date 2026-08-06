@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
-import { Card, Button, Input, EmptyState, LoadingBlock } from "./Common";
+import { Card, Button, Input, EmptyState, LoadingBlock, TablePagination } from "./Common";
 import { formatDateTime, formatRelative } from "../format.js";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +17,8 @@ const PRIORITY_CONFIG = {
   stat:   { badge: "badge-error",   label: "STAT"    },
   routine:{ badge: "badge-info",    label: "ROUTINE" },
 };
+
+const COMMS_PAGE_SIZE = 20;
 
 const REASON_CONFIG = {
   tatquery:      { badge: "badge-warning", label: "TAT Dispute",      hint: "Time-sensitive - payer is disputing turnaround. Open the referenced claim and respond fast.", borderColor: "var(--warning)" },
@@ -318,7 +320,7 @@ export default function Communications({ allFacilitiesMode = false }) {
     }
   };
 
-  useEffect(() => { fetchComms(); }, []);
+  useEffect(() => { fetchComms({ limit: 200 }); }, []);
 
   const handleRead = (correlationId) => {
     setCommunications((prev) =>
@@ -331,6 +333,7 @@ export default function Communications({ allFacilitiesMode = false }) {
   const unreadCount = communications.filter((c) => !c.provider_read).length;
   const actionNeededCount = communications.filter((c) => c.pending_tasks?.length > 0).length;
 
+  const [commsPage, setCommsPage] = useState(0);
   const filteredComms = communications.filter((c) => {
     const q = searchQuery.toLowerCase();
     const matchSearch = !q ||
@@ -355,6 +358,10 @@ export default function Communications({ allFacilitiesMode = false }) {
     const tB = Date.parse(b.sent_at) || 0;
     return sortBy === "oldest" ? tA - tB : tB - tA;
   });
+
+  const commsPageCount = Math.max(1, Math.ceil(filteredComms.length / COMMS_PAGE_SIZE));
+  const safeCommsPage = Math.min(commsPage, commsPageCount - 1);
+  const pagedComms = filteredComms.slice(safeCommsPage * COMMS_PAGE_SIZE, (safeCommsPage + 1) * COMMS_PAGE_SIZE);
 
   return (
     <div className="communications-screen">
@@ -447,7 +454,7 @@ export default function Communications({ allFacilitiesMode = false }) {
         />
       ) : viewMode === "grid" ? (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "var(--space-4)" }}>
-          {filteredComms.map((comm) => {
+          {pagedComms.map((comm) => {
             const reasonCfg = REASON_CONFIG[comm.reason_code] ?? {};
             const hasAction = comm.pending_tasks?.length > 0;
             const isUnread = !comm.provider_read;
@@ -515,6 +522,13 @@ export default function Communications({ allFacilitiesMode = false }) {
               </motion.div>
             );
           })}
+          <TablePagination
+            page={safeCommsPage}
+            pageSize={COMMS_PAGE_SIZE}
+            total={filteredComms.length}
+            onPageChange={setCommsPage}
+            label="messages"
+          />
         </motion.div>
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -531,7 +545,7 @@ export default function Communications({ allFacilitiesMode = false }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredComms.map((comm) => {
+                {pagedComms.map((comm) => {
                   const hasAction = comm.pending_tasks?.length > 0;
                   const isUnread = !comm.provider_read;
                   return (
@@ -558,6 +572,13 @@ export default function Communications({ allFacilitiesMode = false }) {
                 })}
               </tbody>
             </table>
+            <TablePagination
+              page={safeCommsPage}
+              pageSize={COMMS_PAGE_SIZE}
+              total={filteredComms.length}
+              onPageChange={setCommsPage}
+              label="messages"
+            />
           </div>
         </Card>
       )}

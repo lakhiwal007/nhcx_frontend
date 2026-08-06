@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Search, CreditCard, CheckCircle, AlertCircle, Clock, Landmark, Wallet, LayoutGrid, List, X, User } from "lucide-react";
-import { Card, StatusBadge, Input, SkeletonTable, EmptyState, Button } from "./Common";
+import { Card, StatusBadge, Input, SkeletonTable, EmptyState, Button, TablePagination } from "./Common";
 import { formatMoney, formatDate, formatDateTime } from "../format.js";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+
+const PAYMENTS_PAGE_SIZE = 20;
 
 const METRICS = [
   { key: "settledThisMonth", label: "Settled This Month", icon: CheckCircle, color: "var(--success)", format: "currency" },
@@ -48,6 +50,7 @@ export default function Payments() {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("payments_viewMode") || "table");
   const [sortBy, setSortBy] = useState("newest");
   const [selectedPayment, setSelectedPayment] = useState(null);
+  const [paymentsPage, setPaymentsPage] = useState(0);
 
   useEffect(() => { localStorage.setItem("payments_viewMode", viewMode); }, [viewMode]);
 
@@ -95,6 +98,10 @@ export default function Payments() {
     if (sortBy === "highest_tds") return tB - tA;
     return dB - dA;
   });
+
+  const paymentsPageCount = Math.max(1, Math.ceil(filtered.length / PAYMENTS_PAGE_SIZE));
+  const safePaymentsPage = Math.min(paymentsPage, paymentsPageCount - 1);
+  const pagedPayments = filtered.slice(safePaymentsPage * PAYMENTS_PAGE_SIZE, (safePaymentsPage + 1) * PAYMENTS_PAGE_SIZE);
 
   return (
     <div className="payments-screen">
@@ -181,7 +188,7 @@ export default function Payments() {
         />
       ) : viewMode === "grid" ? (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "var(--space-4)" }}>
-          {filtered.map((pay, i) => (
+          {pagedPayments.map((pay, i) => (
             <motion.div
               key={pay.payment_reference || i}
               layout
@@ -258,6 +265,13 @@ export default function Payments() {
               </div>
             </motion.div>
           ))}
+          <TablePagination
+            page={safePaymentsPage}
+            pageSize={PAYMENTS_PAGE_SIZE}
+            total={filtered.length}
+            onPageChange={setPaymentsPage}
+            label="events"
+          />
         </motion.div>
       ) : (
         <Card title="Payment Events">
@@ -278,7 +292,7 @@ export default function Payments() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((pay, i) => (
+                {pagedPayments.map((pay, i) => (
                   <tr
                     key={`${pay.payment_reference || "pay"}-${pay.payment_stage || ""}-${i}`}
                     onClick={() => setSelectedPayment(pay)}
@@ -380,6 +394,13 @@ export default function Payments() {
                 );
               })()}
             </table>
+            <TablePagination
+              page={safePaymentsPage}
+              pageSize={PAYMENTS_PAGE_SIZE}
+              total={filtered.length}
+              onPageChange={setPaymentsPage}
+              label="events"
+            />
           </div>
         </Card>
       )}
