@@ -29,7 +29,53 @@ const REASON_CONFIG = {
   walletupdate:  { badge: "badge-info",    label: "Wallet Update",    hint: "Informational - refresh the case eligibility / benefit view.", borderColor: "var(--info)" },
 };
 
+const CATEGORY_LABELS = {
+  alert: "Payer Alert",
+  notification: "Notification",
+  reminder: "Reminder",
+  instruction: "Instruction",
+};
+
 const NON_DOCUMENT_KEYS = new Set(["claimnumber", "claimid", "include", "_include", "payload", "subject"]);
+
+function commHeadline(comm) {
+  if (!comm) return "";
+  if (comm.topic_display) return comm.topic_display;
+  if (comm.reason_display) return comm.reason_display;
+  const reasonCfg = REASON_CONFIG[comm.reason_code];
+  if (reasonCfg) return reasonCfg.label;
+  if (comm.category_display) return comm.category_display;
+  const category = CATEGORY_LABELS[String(comm.category || "").toLowerCase()];
+  if (category) return category;
+  const payer = comm.payer_name || comm.payer_id;
+  return payer ? `Message from ${payer}` : "Payer message";
+}
+
+function commPreview(comm) {
+  if (comm?.subject) return comm.subject;
+  return comm?.payload?.find((p) => p.content_string)?.content_string || "";
+}
+
+function commHasAttachment(comm) {
+  return !!comm?.payload?.some((p) => p.content_attachment);
+}
+
+function commTone(comm) {
+  if (comm?.pending_tasks?.length > 0) return "action";
+  if (!comm?.provider_read) return "unread";
+  return "read";
+}
+
+function payerInitials(comm) {
+  const words = String(comm?.payer_name || "")
+    .replace(/[^A-Za-z0-9 ]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!words.length) return null;
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
 
 function parseDocumentsFromTaskInputs(taskInputs) {
   if (!taskInputs) return [];
@@ -183,7 +229,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
 
               {detail && (
                 <>
-                  {detail.topic_display && <div style={{ fontSize: "18px", fontWeight: 700, lineHeight: 1.3 }}>{detail.topic_display}</div>}
+                  <div style={{ fontSize: "18px", fontWeight: 700, lineHeight: 1.3 }}>{commHeadline(detail)}</div>
 
                   {reasonCfg.hint && (
                     <div style={{ padding: "12px 16px", background: "var(--bg-main)", border: `1px solid ${reasonCfg.borderColor || "var(--border-color)"}`, borderLeft: `4px solid ${reasonCfg.borderColor || "var(--border-color)"}`, borderRadius: "8px", fontSize: "13px", lineHeight: 1.5 }}>
@@ -332,7 +378,7 @@ export default function Communications({ allFacilitiesMode = false }) {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("communications_viewMode") || "grid");
   const [sortBy, setSortBy] = useState("newest");
   const [quickFilter, setQuickFilter] = useState(null);
-  
+
   useEffect(() => { localStorage.setItem("communications_viewMode", viewMode); }, [viewMode]);
 
   const fetchComms = async (params = {}) => {
@@ -393,13 +439,64 @@ export default function Communications({ allFacilitiesMode = false }) {
 
   return (
     <div className="communications-screen">
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "var(--space-4)" }}>
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          {OUTBOUND_COMMUNICATIONS_ENABLED && (
-            <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)}>
-              Message Payer
-            </Button>
-          )}
+      {loadError && (
+        <div className="inline-error-banner">
+          <AlertCircle size={16} />
+          Could not load communications. Showing the last known results, if any.
+        </div>
+      )}
+
+      <div className="cm-toolbar">
+        <div className="cm-toolbar-search">
+          <Input icon={Search} placeholder="Search topic, payer, claim, subject…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        </div>
+        {uniquePayers.length > 0 && (
+          <select className="input-modern cm-toolbar-select" value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}>
+            <option value="">All Payers</option>
+            {uniquePayers.map((p) => <option key={p} value={p}>{payerLabel(p)}</option>)}
+          </select>
+        )}
+        <select
+          className="input-modern cm-toolbar-select"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="priority">Priority First</option>
+        </select>
+        <div className="cm-viewtoggle" role="group" aria-label="View mode">
+          <button
+            type="button"
+            title="Grid View"
+            aria-pressed={viewMode === "grid"}
+            onClick={() => setViewMode("grid")}
+          >
+            <LayoutGrid size={16} />
+          </button>
+          <button
+            type="button"
+            title="Table View"
+            aria-pressed={viewMode === "table"}
+            onClick={() => setViewMode("table")}
+          >
+            <List size={16} />
+          </button>
+        </div>
+        {OUTBOUND_COMMUNICATIONS_ENABLED && (
+          <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)}>
+            Message Payer
+          </Button>
+        )}
+      </div>
+
+      <div className="cm-resultbar">
+        <span className="cm-resultbar-count">
+          {filteredComms.length}
+          <span> {filteredComms.length === 1 ? "message" : "messages"}</span>
+          {filteredComms.length !== communications.length && <em> of {communications.length}</em>}
+        </span>
+        <div className="cm-resultbar-chips">
           {unreadCount > 0 && (
             <button
               type="button"
@@ -427,51 +524,6 @@ export default function Communications({ allFacilitiesMode = false }) {
         </div>
       </div>
 
-      {loadError && (
-        <div className="inline-error-banner">
-          <AlertCircle size={16} />
-          Could not load communications. Showing the last known results, if any.
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-6)", flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 280px" }}>
-          <Input icon={Search} placeholder="Search topic, payer, claim, subject…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-        </div>
-        {uniquePayers.length > 0 && (
-          <select className="input-modern" style={{ width: "auto", minWidth: "160px" }} value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}>
-            <option value="">All Payers</option>
-            {uniquePayers.map((p) => <option key={p} value={p}>{payerLabel(p)}</option>)}
-          </select>
-        )}
-        <select
-          className="input-modern"
-          style={{ width: "auto", minWidth: "140px" }}
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-        >
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="priority">Priority First</option>
-        </select>
-        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
-          <button
-            title="Grid View"
-            onClick={() => setViewMode("grid")}
-            style={{ padding: "6px 12px", background: viewMode === "grid" ? "var(--bg-main)" : "transparent", color: viewMode === "grid" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "grid" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "grid" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-          >
-            <LayoutGrid size={16} />
-          </button>
-          <button
-            title="Table View"
-            onClick={() => setViewMode("table")}
-            style={{ padding: "6px 12px", background: viewMode === "table" ? "var(--bg-main)" : "transparent", color: viewMode === "table" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "table" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "table" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-          >
-            <List size={16} />
-          </button>
-        </div>
-      </div>
-
       {loading ? (
         <LoadingBlock text="Loading communications…" />
       ) : filteredComms.length === 0 ? (
@@ -481,75 +533,72 @@ export default function Communications({ allFacilitiesMode = false }) {
           description="No payer messages match your filters."
         />
       ) : viewMode === "grid" ? (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "var(--space-4)" }}>
-          {pagedComms.map((comm) => {
-            const reasonCfg = REASON_CONFIG[comm.reason_code] ?? {};
-            const hasAction = comm.pending_tasks?.length > 0;
-            const isUnread = !comm.provider_read;
-            return (
-              <motion.div
-                key={comm.correlation_id}
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
-                className="card-modern"
-                style={{
-                  transition: "box-shadow 0.2s ease",
-                  borderLeft: isUnread ? "3px solid var(--info)" : hasAction ? "3px solid var(--error)" : "3px solid transparent",
-                  padding: "var(--space-4)",
-                }}
-              >
-                <div style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
-                  <div style={{ position: "relative", flexShrink: 0 }}>
-                    <div style={{ width: "42px", height: "42px", borderRadius: "var(--radius-md)", background: hasAction ? "color-mix(in srgb, var(--error) 12%, transparent)" : isUnread ? "color-mix(in srgb, var(--info) 12%, transparent)" : "var(--primary-light)", color: hasAction ? "var(--error)" : isUnread ? "var(--info)" : "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <MessageSquare size={20} />
+        <div className="cm-well">
+          <motion.div className="cm-grid" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            {pagedComms.map((comm) => {
+              const reasonCfg = REASON_CONFIG[comm.reason_code] ?? {};
+              const hasAction = comm.pending_tasks?.length > 0;
+              const isUnread = !comm.provider_read;
+              const preview = commPreview(comm);
+              return (
+                <motion.article
+                  key={comm.correlation_id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="cm-card"
+                  data-tone={commTone(comm)}
+                >
+                  <div className="cm-card-top">
+                    <span className="cm-avatar" aria-hidden="true">
+                      {payerInitials(comm) ?? <MessageSquare size={17} />}
+                      {isUnread && <span className="cm-avatar-dot" />}
+                    </span>
+                    <div className="cm-card-headline">
+                      <h3 className="cm-title">{commHeadline(comm)}</h3>
+                      <div className="cm-meta">
+                        <span className="cm-meta-strong">{comm.payer_name || comm.payer_id}</span>
+                        {comm.facility_name && <span>{comm.facility_name}</span>}
+                      </div>
                     </div>
-                    {isUnread && (
-                      <div style={{ position: "absolute", top: "-3px", right: "-3px", width: "10px", height: "10px", borderRadius: "50%", background: "var(--info)", border: "2px solid var(--bg-card)" }} />
-                    )}
+                    {comm.claim_reference && <code className="cm-ref">{comm.claim_reference}</code>}
                   </div>
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginBottom: "5px", flexWrap: "wrap" }}>
-                      <h3 style={{ margin: 0, fontSize: "14px", fontWeight: isUnread ? 800 : 600 }}>{comm.topic_display}</h3>
-                      {comm.priority && priorityBadge(comm.priority)}
-                      {comm.reason_code && <span className={`badge-modern ${reasonCfg.badge || "badge-info"}`}>{reasonCfg.label || comm.reason_display || comm.reason_code}</span>}
-                      {hasAction && <span style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "11px", color: "var(--error)", fontWeight: 700 }}><AlertTriangle size={11} /> Action Required</span>}
-                    </div>
+                  <div className="cm-tags">
+                    {comm.priority && priorityBadge(comm.priority)}
+                    {comm.reason_code && <span className={`badge-modern ${reasonCfg.badge || "badge-info"}`}>{reasonCfg.label || comm.reason_display || comm.reason_code}</span>}
+                    {hasAction && <span className="cm-flag"><AlertTriangle size={11} /> Action Required</span>}
+                    {commHasAttachment(comm) && <span className="cm-chip"><Paperclip size={11} /> Attachment</span>}
+                  </div>
 
-                    {comm.subject && <p className="cm-subject">{comm.subject}</p>}
+                  {preview ? (
+                    <p className="cm-subject">{preview}</p>
+                  ) : (
+                    <p className="cm-subject is-empty">No message body was sent with this notification.</p>
+                  )}
 
-                    <div className="cm-meta">
-                      <span className="cm-meta-strong">{comm.payer_name || comm.payer_id}</span>
-                      {comm.claim_reference && <span>{comm.claim_reference}</span>}
-                      {comm.facility_name && <span>{comm.facility_name}</span>}
+                  {hasAction && (
+                    <div className="cm-tasks">
+                      <strong>{comm.pending_tasks.length} open task{comm.pending_tasks.length > 1 ? "s" : ""}</strong>
+                      <span>{comm.pending_tasks.map((t) => t.title).join(", ")}</span>
                     </div>
+                  )}
+
+                  <div className="cm-card-foot">
                     <div className="cm-meta">
                       <span title={formatDateTime(comm.sent_at)}>
                         <Clock size={11} /> {formatRelative(comm.sent_at)}
                       </span>
-                      {comm.provider_read
-                        ? <span style={{ color: "var(--success)" }}><CheckCircle2 size={11} /> Read</span>
-                        : <span style={{ color: "var(--info)", fontWeight: 600 }}><Circle size={11} /> Unread</span>
-                      }
+                      {isUnread && <span className="cm-state is-unread"><Circle size={11} /> Unread</span>}
                     </div>
-
-                    {hasAction && (
-                      <div style={{ marginTop: "var(--space-2)", padding: "7px 12px", background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,66,0.25)", borderRadius: "8px", fontSize: "12px" }}>
-                        <strong style={{ color: "var(--error)" }}>{comm.pending_tasks.length} task{comm.pending_tasks.length > 1 ? "s" : ""}:</strong>{" "}
-                        {comm.pending_tasks.map((t) => t.title).join(", ")}
-                      </div>
-                    )}
+                    <Button variant={hasAction ? "primary" : "outline"} size="small" onClick={() => setSelectedCorrelationId(comm.correlation_id)}>
+                      {hasAction ? "Review & Act" : "View"}
+                    </Button>
                   </div>
-
-                  <Button variant={hasAction ? "primary" : "outline"} size="small" onClick={() => setSelectedCorrelationId(comm.correlation_id)} style={{ flexShrink: 0 }}>
-                    {hasAction ? "Review & Act" : "View"}
-                  </Button>
-                </div>
-              </motion.div>
-            );
-          })}
+                </motion.article>
+              );
+            })}
+          </motion.div>
           <TablePagination
             page={safeCommsPage}
             pageSize={COMMS_PAGE_SIZE}
@@ -557,7 +606,7 @@ export default function Communications({ allFacilitiesMode = false }) {
             onPageChange={setCommsPage}
             label="messages"
           />
-        </motion.div>
+        </div>
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
           <div className="table-responsive-wrapper">
@@ -576,19 +625,26 @@ export default function Communications({ allFacilitiesMode = false }) {
                 {pagedComms.map((comm) => {
                   const hasAction = comm.pending_tasks?.length > 0;
                   const isUnread = !comm.provider_read;
+                  const preview = commPreview(comm);
                   return (
-                    <tr key={comm.correlation_id} style={{ borderLeft: isUnread ? "3px solid var(--info)" : hasAction ? "3px solid var(--error)" : "3px solid transparent" }}>
+                    <tr key={comm.correlation_id} className="cm-row" data-tone={commTone(comm)}>
                       <td>
-                        <div style={{ fontWeight: isUnread ? 800 : 600 }}>{comm.topic_display}</div>
-                        {hasAction && <div style={{ fontSize: "11px", color: "var(--error)", fontWeight: 700 }}><AlertTriangle size={10} style={{ display: "inline" }}/> Action Required</div>}
+                        <div className="cm-row-title">{commHeadline(comm)}</div>
+                        {preview && <div className="cm-row-preview">{preview}</div>}
+                        {hasAction && <div className="cm-flag"><AlertTriangle size={10} /> Action Required</div>}
                       </td>
-                      <td>{comm.payer_name || comm.payer_id}</td>
-                      <td>{comm.claim_reference || "—"}</td>
+                      <td>
+                        <div className="cm-row-payer">{comm.payer_name || comm.payer_id}</div>
+                        {comm.payer_name && comm.payer_id && <div className="cm-row-sub">{comm.payer_id}</div>}
+                      </td>
+                      <td>{comm.claim_reference ? <code className="cm-ref">{comm.claim_reference}</code> : "—"}</td>
                       <td title={formatDateTime(comm.sent_at)} style={{ whiteSpace: "nowrap" }}>
                         {formatDateTime(comm.sent_at)}
                       </td>
                       <td>
-                        {isUnread ? <span style={{ color: "var(--info)", fontWeight: 600 }}>Unread</span> : <span style={{ color: "var(--success)" }}>Read</span>}
+                        {isUnread
+                          ? <span className="cm-state is-unread"><Circle size={11} /> Unread</span>
+                          : <span className="cm-state"><CheckCircle2 size={11} /> Read</span>}
                       </td>
                       <td>
                         <Button variant={hasAction ? "primary" : "outline"} size="small" onClick={() => setSelectedCorrelationId(comm.correlation_id)}>

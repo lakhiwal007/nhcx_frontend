@@ -1906,12 +1906,365 @@ code {
     animation: page-fade-up 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ─── Communications toolbar ─────────────────────────────────────────────── */
+.cm-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
+}
+
+.cm-toolbar-search {
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.cm-toolbar-select {
+    width: auto;
+    min-width: 148px;
+}
+
+.cm-viewtoggle {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs);
+}
+
+.cm-viewtoggle button {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.cm-viewtoggle button:hover {
+    color: var(--text-main);
+}
+
+.cm-viewtoggle button[aria-pressed="true"] {
+    background: var(--bg-main);
+    border-color: var(--border-color);
+    color: var(--text-main);
+    box-shadow: var(--shadow-xs);
+}
+
+.cm-resultbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cm-resultbar-count {
+    font-size: var(--text-sm);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+}
+
+.cm-resultbar-count span {
+    font-weight: var(--fw-medium);
+    color: var(--text-muted);
+}
+
+.cm-resultbar-count em {
+    font-style: normal;
+    font-weight: var(--fw-medium);
+    color: var(--text-muted);
+}
+
+.cm-resultbar-chips {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+
+/* ─── Communications list ────────────────────────────────────────────────── */
+.cm-well {
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--text-main) 5%, var(--bg-main));
+    box-shadow: var(--clay-inset);
+}
+
+.cm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: var(--space-4);
+    align-items: stretch;
+}
+
+@media (max-width: 620px) {
+    .cm-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.cm-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: var(--space-4);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--cm-tone, transparent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.cm-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cm-card:hover {
+        transform: none;
+    }
+}
+
+.cm-card[data-tone="action"] { --cm-tone: var(--error); }
+.cm-card[data-tone="unread"] { --cm-tone: var(--info); }
+
+.cm-card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.cm-avatar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--cm-tone, var(--primary)) 12%, var(--bg-main));
+    color: var(--cm-tone, var(--primary));
+    font-size: var(--text-sm);
+    font-weight: var(--fw-bold);
+    letter-spacing: 0.02em;
+    box-shadow: var(--shadow-xs);
+}
+
+.cm-avatar-dot {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--info);
+    border: 2px solid var(--bg-card);
+}
+
+.cm-card-headline {
+    flex: 1;
+    min-width: 0;
+}
+
+.cm-card-headline .cm-meta {
+    flex-wrap: nowrap;
+}
+
+.cm-card-headline .cm-meta > span {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cm-card-headline .cm-meta > .cm-meta-strong {
+    flex-shrink: 0;
+}
+
+.cm-title {
+    margin: 0 0 2px;
+    font-size: var(--text-md);
+    font-weight: var(--fw-semibold);
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: var(--text-main);
+    overflow-wrap: anywhere;
+}
+
+.cm-card[data-tone="unread"] .cm-title {
+    font-weight: var(--fw-bold);
+}
+
+.cm-ref {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border-radius: var(--radius-xs);
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.cm-tags {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.cm-tags:empty {
+    display: none;
+}
+
+.cm-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-2xs);
+    font-weight: var(--fw-bold);
+    letter-spacing: 0.02em;
+    color: var(--error);
+}
+
+.cm-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    font-size: var(--text-2xs);
+    font-weight: var(--fw-semibold);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.cm-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-xs);
+    background: color-mix(in srgb, var(--error) 6%, var(--bg-card));
+    border: 1px solid color-mix(in srgb, var(--error) 25%, transparent);
+    font-size: var(--text-xs);
+}
+
+.cm-tasks strong {
+    color: var(--error);
+    font-weight: var(--fw-bold);
+}
+
+.cm-tasks span {
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.cm-card-foot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: auto;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-color);
+}
+
+.cm-card-foot .cm-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.cm-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+}
+
+.cm-state.is-unread {
+    color: var(--info);
+    font-weight: var(--fw-semibold);
+}
+
+/* ─── Communications table rows ──────────────────────────────────────────── */
+.cm-row td:first-child {
+    box-shadow: inset 3px 0 0 var(--cm-tone, transparent);
+}
+
+.cm-row[data-tone="action"] { --cm-tone: var(--error); }
+.cm-row[data-tone="unread"] { --cm-tone: var(--info); }
+
+.cm-row-title {
+    font-weight: var(--fw-semibold);
+    color: var(--text-main);
+}
+
+.cm-row[data-tone="unread"] .cm-row-title {
+    font-weight: var(--fw-bold);
+}
+
+.cm-row-preview,
+.cm-row-sub {
+    margin-top: 2px;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.cm-row-preview {
+    max-width: 46ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cm-row-payer {
+    font-weight: var(--fw-semibold);
+}
+
+.cm-row-sub {
+    font-family: var(--font-mono);
+}
+
 /* ─── Communication card body ────────────────────────────────────────────── */
 .cm-subject {
-    margin: var(--space-1) 0 var(--space-2);
+    margin: 0;
     font-size: var(--text-sm);
-    line-height: 1.45;
+    line-height: 1.5;
     color: var(--text-main);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+
+.cm-subject.is-empty {
+    color: var(--text-muted);
+    font-style: italic;
 }
 
 .cm-meta {
