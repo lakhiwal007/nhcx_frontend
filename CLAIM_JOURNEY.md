@@ -32,15 +32,20 @@ checks, preauth, claim) is filed against this payer + policy.
 
 The system checks with the payer whether this admission is actually covered:
 is the policy active, does it cover this kind of care, and what's the
-benefit limit. Any missing patient details (needed by the payer) get
-flagged and resolved here too. If the payer doesn't respond in time, staff
-can re-run the check.
+benefit limit. The full coverage detail comes back with it — member ID,
+plan name, sum insured, benefit period, which line items are excluded, and
+which ones need extra documents before a preauth will be accepted. Any
+missing patient details (needed by the payer) get flagged and resolved
+here too. If the payer doesn't respond in time, staff can re-run the
+check.
 
 ## 3. Preauth
 
 Staff review the draft pre-authorization request — the treatment, the
 estimated cost — and submit it to the payer for approval before treatment
-proceeds.
+proceeds. Required documents can be uploaded directly (not just linked by
+URL), and staff can attach anything extra the payer asked for that isn't
+on the standard checklist.
 
 ## 4. Decision
 
@@ -49,7 +54,8 @@ The case now waits on the payer. Three things can happen:
 - **Approved / Partially approved** — treatment can go ahead (for the
   approved amount).
 - **Queried** — the payer wants more information before deciding; staff
-  respond to the query and the case waits again.
+  respond to the query — with a file attached, not just a note — and the
+  case waits again.
 - **Rejected** — the request was turned down.
 
 This is a waiting stage — while the payer is deciding, the task shows up in
@@ -70,12 +76,17 @@ corrections, rather than the case being a dead end.
 ## 5. Claim
 
 Once care is complete, staff submit the discharge summary and the final
-itemized bill as the claim for the approved treatment.
+itemized bill as the claim for the approved treatment — same document
+checklist as Preauth, so any extra proof the payer wants can be attached
+here too.
 
 ## 6. Payment
 
 The payer settles the claim. Staff reconcile the payment received (amount,
-UTR reference) against what was billed, and the case is closed.
+UTR reference) against what was billed, and the case is closed. Every
+payment line shows which patient it belongs to, and opening it shows the
+full settlement detail — claim and payer references, notice amount,
+reconciliation and acknowledgement status — in one place.
 
 ---
 
