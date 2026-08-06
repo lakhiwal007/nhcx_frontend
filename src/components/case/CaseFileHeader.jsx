@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { User, Hash, Building2, AlertTriangle } from "lucide-react";
 import { api } from "../../api";
-import { formatMoney, formatDate, formatAge, humanize } from "../../format.js";
+import { formatMoney, formatDate, formatAge, humanize, formatCaseRef } from "../../format.js";
 
 const money = (v) => (v == null ? null : formatMoney(v));
 
@@ -128,7 +128,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
       <div className="cx-id-chips">
         <span className="cx-chip"><Hash size={10} />Child {patient.child_id}</span>
         {caseState.claim_id && <span className="cx-chip">Claim {caseState.claim_id}</span>}
-        {caseState.cashless_case_id && <span className="cx-chip">Case {caseState.cashless_case_id}</span>}
+        {caseState.cashless_case_id && <span className="cx-chip">{formatCaseRef(caseState.cashless_case_id)}</span>}
       </div>
 
       <div className="cx-id-facts">

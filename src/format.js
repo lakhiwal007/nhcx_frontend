@@ -74,6 +74,13 @@ export const formatMoney = (v, { dash = DASH, currency = "₹", signed = false }
   return `${sign}${currency}${gap}${Math.abs(n).toLocaleString("en-IN")}`;
 };
 
+export const CASE_REF_PREFIX = "CASE-";
+
+export const formatCaseRef = (cashlessCaseId, dash = DASH) =>
+  cashlessCaseId === null || cashlessCaseId === undefined || cashlessCaseId === ""
+    ? dash
+    : `${CASE_REF_PREFIX}${cashlessCaseId}`;
+
 export const currencySymbol = (code) => (!code || code === "INR" ? "₹" : code);
 
 export const formatPercent = (v, { dash = DASH } = {}) => {

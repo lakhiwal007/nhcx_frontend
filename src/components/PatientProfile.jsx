@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock, formatMoney } from "./Common";
-import { formatDate, formatPhone } from "../format.js";
+import { formatDate, formatPhone, formatCaseRef } from "../format.js";
 import { taskStep } from "../taskRoutes";
 import { routeAtOrAfter } from "../workflowStorage";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -445,7 +445,7 @@ function PatientDetail({ patient, onBack }) {
                                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
                                     <div>
                                       <div style={{ fontWeight: 700, fontSize: "13px" }}>
-                                        {claim.cashless_case_id ? `Case #${claim.cashless_case_id}` : `Claim #${claim.claim_id}`}
+                                        {claim.cashless_case_id ? formatCaseRef(claim.cashless_case_id) : `Claim #${claim.claim_id}`}
                                       </div>
                                       <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
                                         {claim.payer_name} · {claim.policy_number}

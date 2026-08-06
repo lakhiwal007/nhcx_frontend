@@ -21,7 +21,7 @@ import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
 import { taskScreen } from "../taskRoutes";
 import { Button, Input, EmptyState, LoadingBlock } from "./Common";
-import { formatRelative, formatRelativePhrase, formatDateTime } from "../format.js";
+import { formatRelative, formatRelativePhrase, formatDateTime, formatCaseRef } from "../format.js";
 import { useNavigate } from "react-router-dom";
 
 const POLL_INTERVAL_MS = 45_000;
@@ -89,7 +89,7 @@ function ageLabel(createdAt) {
 
 function taskSubject(task) {
   const ref = task.cashless_case_id
-    ? `Case ${task.cashless_case_id}`
+    ? formatCaseRef(task.cashless_case_id)
     : task.claim_id
       ? `Claim ${task.claim_id}`
       : null;
