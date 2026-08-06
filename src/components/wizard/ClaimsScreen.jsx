@@ -169,11 +169,16 @@ export default function ClaimsScreen({ ctx }) {
   const resolvedClaimId = claimId || caseState.claim_id || null;
   const resolvedCashlessCaseId = caseState.cashless_case_id || location.state?.cashless_case_id || null;
 
+  const draftParams = (id) => {
+    if (id) return { claim_id: id };
+    if (resolvedCashlessCaseId) return { cashless_case_id: resolvedCashlessCaseId };
+    return resolvedClaimId ? { claim_id: resolvedClaimId } : {};
+  };
+
   const loadDraft = async (id, params) => {
     setLoading(true);
     try {
-      const queryParams = params || (id || resolvedClaimId ? { claim_id: id || resolvedClaimId } : {});
-      const res = await api.prepareClaimDraft(queryParams);
+      const res = await api.prepareClaimDraft(params || draftParams(id));
       setClaimDraft(res);
       setMissingFields(res.missing_fields ?? []);
       if (res.claim_id && !resolvedClaimId) {
@@ -182,7 +187,8 @@ export default function ClaimsScreen({ ctx }) {
       if (res.cashless_case_id && !resolvedCashlessCaseId) {
         updateCaseState({ cashless_case_id: res.cashless_case_id });
       }
-    } catch (_) {
+    } catch (e) {
+      setClaimDraft({ _error: e?.message || "Could not load the claim draft." });
     } finally {
       setLoading(false);
     }
@@ -204,11 +210,7 @@ export default function ClaimsScreen({ ctx }) {
       return;
     }
 
-    const params = {};
-    if (resolvedClaimId) params.claim_id = resolvedClaimId;
-    else if (resolvedCashlessCaseId) params.cashless_case_id = resolvedCashlessCaseId;
-
-    loadDraft(null, params);
+    loadDraft(null, draftParams(null));
   }, []);
 
   // Discharge claim polling
