@@ -57,7 +57,7 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
     setError(null);
     try {
       const payload = mode === "existing"
-        ? { claim_id: selectedClaim?.claim_id ?? selectedClaim?.id, cashless_case_id: selectedClaim?.id }
+        ? { claim_id: selectedClaim?.claim_id ?? null, cashless_case_id: selectedClaim?.id }
         : {
             payer_id: payerId,
             ...(claimNumber && { claim_number: claimNumber }),

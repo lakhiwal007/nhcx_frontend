@@ -232,7 +232,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
     }
     if (!cid) return;
     const state = {
-      claim_id: claim.claim_id ?? claim.id ?? null,
+      claim_id: claim.claim_id ?? null,
       cashless_case_id: claim.cashless_case_id ?? claim.id ?? null,
     };
     if (route === "status" && claim.claim_decision === "REJECTED" && !(claim.use_type === "claim" || claim.claim_id)) {
