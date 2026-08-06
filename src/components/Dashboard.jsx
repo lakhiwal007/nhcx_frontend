@@ -7,6 +7,7 @@ import {
   Radio
 } from "lucide-react";
 import { api } from "../api";
+import { resolveCaseStatus } from "../caseStatus.js";
 import { Card, StatusBadge, Button, Input, SkeletonTable, TablePagination } from "./Common";
 import { formatMoney, formatDate } from "../format.js";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -180,6 +181,11 @@ function ActionMenu({ options, onSelect, disabled, size = 32 }) {
   );
 }
 
+function CaseStatusChip({ claim }) {
+  const cfg = resolveCaseStatus(claim);
+  return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
+}
+
 export default function Dashboard({ allFacilitiesMode = false }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -300,7 +306,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
             </div>
             <div className="mono-cell" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "var(--space-1)" }}>#{claim.id}</div>
           </div>
-          <StatusBadge status={claim.current_step || claim.status} />
+          <CaseStatusChip claim={claim} />
         </div>
         
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", marginTop: "var(--space-1)" }}>
@@ -584,7 +590,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                             </div>
                           ) : null}
                         </td>
-                        <td><StatusBadge status={claim.current_step || claim.status} /></td>
+                        <td><CaseStatusChip claim={claim} /></td>
                         <td>
                           {claim.claim_decision
                             ? <StatusBadge status={claim.claim_decision} />

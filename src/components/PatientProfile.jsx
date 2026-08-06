@@ -8,6 +8,7 @@ import { api } from "../api";
 import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock, formatMoney } from "./Common";
 import { formatDate, formatPhone, formatCaseRef } from "../format.js";
 import { taskStep } from "../taskRoutes";
+import { resolveCaseStatus } from "../caseStatus.js";
 import { routeAtOrAfter } from "../workflowStorage";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -17,95 +18,8 @@ function calculateAge(dob) {
   return years;
 }
 
-const STEP_LABELS = {
-  insurance_and_eligibility: "Eligibility Check",
-  preauth_ready: "Ready for Preauth",
-  preauth_submitted: "Preauth Submitted",
-  preauth_decided: "Preauth Decided",
-  claim_submitted: "Claim Submitted",
-  claim_decided: "Claim Decided",
-  payment_pending: "Payment Pending",
-  settled: "Settled",
-};
-
-const DECISION_CONFIG = {
-  APPROVED:            { label: "Preauth Approved",    badgeClass: "badge-success" },
-  PARTIALLY_APPROVED:  { label: "Partially Approved",  badgeClass: "badge-warning" },
-  QUERIED:             { label: "Payer Query",          badgeClass: "badge-error"   },
-  REJECTED:            { label: "Preauth Rejected",     badgeClass: "badge-error"   },
-};
-
-const CLAIM_DECISION_CONFIG = {
-  APPROVED:            { label: "Claim Approved",           badgeClass: "badge-success" },
-  PARTIALLY_APPROVED:  { label: "Claim Partially Approved", badgeClass: "badge-warning" },
-  QUERIED:             { label: "Claim Query",              badgeClass: "badge-error"   },
-  REJECTED:            { label: "Claim Rejected",           badgeClass: "badge-error"   },
-};
-
-const PAYMENT_CONFIG = {
-  INITIATED: { label: "Payment Initiated", badgeClass: "badge-warning" },
-  PROCESSED: { label: "Payment Processed", badgeClass: "badge-info"    },
-  SETTLED:   { label: "Payment Settled",   badgeClass: "badge-success" },
-};
-
-// NhcxCashlessCase#status — the pre-auth journey's own aggregate status
-// (insurance_plan + coverage_eligibility combined). Drives the badge color
-// once a cashless case exists (current_step is present); the label text
-// itself comes from STEP_LABELS via current_step, not from this map.
-const CASHLESS_STATUS_CONFIG = {
-  complete: { badgeClass: "badge-success" },
-  pending:  { badgeClass: "badge-warning" },
-  partial:  { badgeClass: "badge-info"    },
-  failed:   { badgeClass: "badge-error"   },
-};
-
-// Claim#status — the *final claim's* own submission lifecycle (UC4), a
-// completely different vocabulary from CASHLESS_STATUS_CONFIG above (which
-// tracks the pre-auth journey, not the claim). Only reached when there is no
-// cashless case to fall back to (current_step absent). Labeled "Claim ..."
-// throughout so it can never be misread as the preauth's own status — a
-// claim can be "draft" (not yet submitted) while its preauth is already
-// fully APPROVED, since the two lifecycles are tracked independently.
-const CLAIM_STATUS_CONFIG = {
-  draft:      { label: "Claim Draft",      badgeClass: "badge-info"    },
-  submitted:  { label: "Claim Submitted",  badgeClass: "badge-warning" },
-  in_process: { label: "Claim In Process", badgeClass: "badge-warning" },
-  settled:    { label: "Claim Settled",    badgeClass: "badge-success" },
-  complete:   { label: "Claim Complete",   badgeClass: "badge-success" },
-};
-
 function CaseStatusChip({ claim }) {
-  const paid = claim.payment_status?.replace("PAYMENT_", "").toUpperCase();
-  if (paid && PAYMENT_CONFIG[paid]) {
-    const cfg = PAYMENT_CONFIG[paid];
-    return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
-  }
-  const decision = claim.claim_decision?.toUpperCase();
-  if (decision && CLAIM_DECISION_CONFIG[decision]) {
-    const cfg = CLAIM_DECISION_CONFIG[decision];
-    return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
-  }
-  if (claim.preauth_status && DECISION_CONFIG[claim.preauth_status?.toUpperCase()]) {
-    const cfg = DECISION_CONFIG[claim.preauth_status.toUpperCase()];
-    return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
-  }
-  const step = claim.current_step;
-  if (step && STEP_LABELS[step]) {
-    // Visit-level claim rows carry a dedicated cashless_status field
-    // alongside the claim's own status; the dashboard's latest_claim shape
-    // has no such field because its .status *is* the cashless status.
-    const cashlessStatus = claim.cashless_status ?? claim.status;
-    const cfg = CASHLESS_STATUS_CONFIG[cashlessStatus] ?? CASHLESS_STATUS_CONFIG.pending;
-    return (
-      <span className={`badge-modern ${cfg.badgeClass}`}>
-        {STEP_LABELS[step]}
-      </span>
-    );
-  }
-  // No cashless case exists for this claim yet — status here is the claim's
-  // own draft/submitted/in_process/settled/complete lifecycle, not a
-  // preauth-journey stage.
-  const cfg = CLAIM_STATUS_CONFIG[claim.status] ?? CLAIM_STATUS_CONFIG.draft;
+  const cfg = resolveCaseStatus(claim);
   return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
 }
 
