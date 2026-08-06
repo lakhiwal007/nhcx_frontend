@@ -29,12 +29,12 @@ const REASON_CONFIG = {
   walletupdate:  { badge: "badge-info",    label: "Wallet Update",    hint: "Informational - refresh the case eligibility / benefit view.", borderColor: "var(--info)" },
 };
 
-const REFERENCE_KEYS = new Set(["claimNumber", "claimId", "claimnumber", "claimid"]);
+const NON_DOCUMENT_KEYS = new Set(["claimnumber", "claimid", "include", "_include", "payload", "subject"]);
 
 function parseDocumentsFromTaskInputs(taskInputs) {
   if (!taskInputs) return [];
   return Object.entries(taskInputs)
-    .filter(([k]) => !REFERENCE_KEYS.has(k))
+    .filter(([k]) => !NON_DOCUMENT_KEYS.has(String(k).toLowerCase()))
     .map(([code, name]) => ({ code, name: typeof name === "string" ? name : code }));
 }
 
@@ -87,6 +87,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
   const taskId = reviewTask?.id ?? reviewTask?.task_id;
   const reasonCfg = REASON_CONFIG[detail?.reason_code] ?? {};
   const isAdditionalInfo = detail?.reason_code === "additionalinfo";
+  const canRespond = carriesDocuments(reviewTask?.action?.code);
   const taskAction = reviewTask?.action;
   const requiredDocs = reviewTask?.required_documents?.length
     ? reviewTask.required_documents
@@ -203,8 +204,10 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                       <span className={`badge-modern badge-${detail.provider_read ? "success" : "warning"}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
                         {detail.provider_read ? <><CheckCircle2 size={11} /> Read</> : <><Circle size={11} /> Unread</>}
                       </span>
-                      <span className="badge-modern badge-success" style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-                        <CheckCircle2 size={11} /> Auto-acknowledged
+                      <span className={`badge-modern badge-${detail.acknowledged ? "success" : "warning"}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
+                        {detail.acknowledged
+                          ? <><CheckCircle2 size={11} /> Auto-acknowledged</>
+                          : <><Circle size={11} /> Not acknowledged</>}
                       </span>
                       {detail.ack_correlation_id && <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>ACK: {detail.ack_correlation_id}</span>}
                     </div>
@@ -240,7 +243,7 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                     </div>
                   )}
 
-                  {isAdditionalInfo && taskAction && (
+                  {(isAdditionalInfo || canRespond) && taskAction && (
                     <div style={{ padding: "var(--space-4)", background: "rgba(239,68,68,0.04)", border: "1px solid var(--error)", borderRadius: "10px" }}>
                       <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--error)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>Required Action</div>
                       <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
@@ -292,13 +295,13 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
               {taskId && (
                 <Button
                   variant="primary"
-                  disabled={completing || allFacilitiesMode || (isAdditionalInfo && !executeResult?.success)}
+                  disabled={completing || allFacilitiesMode || ((isAdditionalInfo || canRespond) && !executeResult?.success)}
                   onClick={handleMarkReviewed}
                   style={{ flex: 1, justifyContent: "center" }}
                   title={
                     allFacilitiesMode
                       ? "Select a facility in Settings to act on this task"
-                      : isAdditionalInfo && !executeResult?.success
+                      : (isAdditionalInfo || canRespond) && !executeResult?.success
                         ? "Submit the required documents first"
                         : undefined
                   }
