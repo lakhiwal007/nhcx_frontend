@@ -77,9 +77,19 @@ export default function Payments() {
     fetchPayments();
   }, []);
 
-  // Patient identity isn't on the payment event itself (schema has no such
-  // field) — join against the dashboard claims list via claim_id.
-  const patientFor = (pay) => claimsById[pay.claim_id];
+  const patientFor = (pay) => {
+    const joined = claimsById[pay.claim_id];
+    if (pay.patient_name || pay.child_id != null) {
+      return {
+        patient_name: pay.patient_name ?? joined?.patient_name,
+        child_name: joined?.child_name,
+        child_id: pay.child_id ?? joined?.child_id,
+      };
+    }
+    return joined;
+  };
+
+  const claimSearchKey = (pay) => pay.cashless_case_id ?? pay.claim_reference;
 
   const filtered = payments.filter(
     (p) =>
@@ -209,7 +219,7 @@ export default function Payments() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)" }}>
                 <div>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Claim Ref</div>
-                  <a href="#" onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/dashboard?q=${encodeURIComponent(pay.claim_reference)}`); }} style={{ fontWeight: 700, fontSize: "15px" }}>
+                  <a href="#" onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(pay))}`); }} style={{ fontWeight: 700, fontSize: "15px" }}>
                     {pay.claim_reference}
                   </a>
                 </div>
@@ -305,7 +315,7 @@ export default function Payments() {
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          navigate(`/dashboard?q=${encodeURIComponent(pay.claim_reference)}`);
+                          navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(pay))}`);
                         }}
                         title="Find this claim in the dashboard"
                       >
