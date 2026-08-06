@@ -196,7 +196,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
       )}
 
       <div>
-        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Revised Estimate URL (required)</label>
+        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Revised Estimate URL (optional)</label>
         <input
           className="input-modern"
           placeholder="https://hospital.example/records/revised-estimate.pdf"
@@ -210,7 +210,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
         <Button
           variant="primary"
           icon={Send}
-          disabled={!additionalDocUrl || submitting}
+          disabled={submitting}
           onClick={handleSubmit}
         >
           {submitting ? "Submitting…" : "Submit Enhancement"}
