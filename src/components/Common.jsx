@@ -12,6 +12,7 @@ import {
   Ban,
   Plus,
   Trash2,
+  Paperclip,
 } from "lucide-react";
 import { formatMoney, formatDateTime, formatPhone, formatPercent, currencySymbol } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
@@ -794,5 +795,74 @@ export const TablePagination = ({ page, pageSize, total, onPageChange, label = "
         </Button>
       </div>
     </div>
+  );
+};
+
+export const QueryResponseFields = ({ answer, onAnswerChange, document: doc, onDocumentChange, label = "Your Response" }) => {
+  const fileInputRef = useRef(null);
+  const [error, setError] = useState(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError(null);
+    if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
+      setError(`${file.name} is larger than ${MAX_ATTACHMENT_MB}MB — please attach a smaller file.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const match = /^data:(.*?);base64,(.*)$/.exec(reader.result || "");
+      if (!match) {
+        setError(`Could not read ${file.name}.`);
+        return;
+      }
+      onDocumentChange({
+        title: file.name,
+        contentType: match[1] || file.type || "application/octet-stream",
+        data: match[2],
+      });
+    };
+    reader.onerror = () => setError(`Could not read ${file.name}.`);
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <>
+      <div style={{ marginBottom: "var(--space-4)" }}>
+        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>{label}</label>
+        <textarea
+          className="input-modern"
+          rows={4}
+          placeholder="Describe the clinical justification for the requested service…"
+          value={answer}
+          onChange={(e) => onAnswerChange(e.target.value)}
+        />
+      </div>
+      <div style={{ marginBottom: "var(--space-5)" }}>
+        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Supporting Document</label>
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
+          <Button variant="outline" icon={Paperclip} onClick={() => fileInputRef.current?.click()}>
+            {doc ? "Replace file" : "Choose file"}
+          </Button>
+          {doc && (
+            <>
+              <span style={{ fontSize: "12.5px", fontWeight: 600 }}>{doc.title}</span>
+              <button
+                onClick={() => { setError(null); onDocumentChange(null); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}
+              >
+                <Trash2 size={15} />
+              </button>
+            </>
+          )}
+        </div>
+        {error && (
+          <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>{error}</div>
+        )}
+      </div>
+    </>
   );
 };

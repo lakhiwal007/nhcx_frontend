@@ -6,8 +6,9 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
-import { Card, Button, Input, EmptyState, LoadingBlock, TablePagination } from "./Common";
+import { Card, Button, Input, EmptyState, LoadingBlock, TablePagination, QueryResponseFields } from "./Common";
 import { formatDateTime, formatRelative } from "../format.js";
+import { buildQueryResponseBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import { useNavigate } from "react-router-dom";
 
@@ -59,12 +60,16 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
   const [executing, setExecuting] = useState(false);
   const [executeResult, setExecuteResult] = useState(null);
   const [completing, setCompleting] = useState(false);
+  const [responseAnswer, setResponseAnswer] = useState("");
+  const [responseDoc, setResponseDoc] = useState(null);
 
   useEffect(() => {
     if (!open || !correlationId) return;
     setLoading(true);
     setDetail(null);
     setExecuteResult(null);
+    setResponseAnswer("");
+    setResponseDoc(null);
     api.getCommunicationStatus(correlationId)
       .then((res) => {
         setDetail(res);
@@ -95,9 +100,21 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
       // Resolve method+URL via stable action.code (ACTION_MAP); fall back to
       // the DB-stored action.endpoint (assumed POST) only when unknown.
       const { method, url } = resolveAction(taskAction);
+      const hint = taskAction.payload_hint ?? {};
+      const body = carriesDocuments(taskAction.code)
+        ? {
+            ...hint,
+            ...buildQueryResponseBody({
+              claim_id: hint.claim_id ?? detail?.claim_id,
+              cashless_case_id: hint.cashless_case_id ?? detail?.cashless_case_id,
+              answer: responseAnswer,
+              docs: responseDoc ? [documentFromFile(responseDoc)] : [],
+            }),
+          }
+        : hint;
       const res = method === "GET"
-        ? await api.rawGet(url, taskAction.payload_hint ?? {})
-        : await api.rawPost(url, taskAction.payload_hint ?? {});
+        ? await api.rawGet(url, hint)
+        : await api.rawPost(url, body);
       setExecuteResult({ success: true, correlation_id: res?.correlation_id, message: res?.message });
     } catch (err) {
       setExecuteResult({ success: false, message: err.message });
@@ -229,6 +246,14 @@ function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFa
                       <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
                         Submit the documents listed above to the payer to unblock this claim. Once submitted, mark this communication as reviewed to close it from your queue.
                       </div>
+                      {!executeResult && carriesDocuments(taskAction.code) && (
+                        <QueryResponseFields
+                          answer={responseAnswer}
+                          onAnswerChange={setResponseAnswer}
+                          document={responseDoc}
+                          onDocumentChange={setResponseDoc}
+                        />
+                      )}
                       {!executeResult ? (
                         <Button
                           variant="primary"

@@ -4,8 +4,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
-import { Card, Button, DecisionBanner, AmountGrid, StatusBadge, DocumentChecklist, formatMoney } from "../Common";
+import { Card, Button, DecisionBanner, AmountGrid, StatusBadge, DocumentChecklist, QueryResponseFields, formatMoney } from "../Common";
 import { formatDate } from "../../format.js";
+import { buildQueryResponseBody, documentFromFile } from "../../queryResponse.js";
 import PayrErrorList from "../PayrErrorList";
 import PreauthEnhancement from "./PreauthEnhancement";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
@@ -120,6 +121,7 @@ export default function PreauthStatus({ ctx }) {
 
   const [queryAnswer, setQueryAnswer] = useState("");
   const [queryDocs, setQueryDocs] = useState([]);
+  const [queryDoc, setQueryDoc] = useState(null);
   const [queryError, setQueryError] = useState(null);
   const [resubmitItems, setResubmitItems] = useState([]);
   const [resubmitError, setResubmitError] = useState(null);
@@ -217,17 +219,12 @@ export default function PreauthStatus({ ctx }) {
     setSubmitting(true);
     setQueryError(null);
     try {
-      const body = {
-        ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
-        ...(claim_id ? { claim_id } : {}),
-        supporting_documents: queryDocs,
-        ...(queryAnswer && {
-          questionnaire_response: {
-            status: "completed",
-            item: [{ linkId: "query-1", answer: [{ valueString: queryAnswer }] }],
-          },
-        }),
-      };
+      const body = buildQueryResponseBody({
+        cashless_case_id: resolvedCashlessCaseId,
+        claim_id,
+        answer: queryAnswer,
+        docs: queryDocs,
+      });
       const res = await api.respondPreauthQuery(body);
       if (res.status === "failed") {
         setQueryError(res.message || res.error?.message || "Query response submission failed. Please try again.");
@@ -236,6 +233,7 @@ export default function PreauthStatus({ ctx }) {
       setShowQueryDrawer(false);
       setQueryAnswer("");
       setQueryDocs([]);
+      setQueryDoc(null);
       restartPoll(res.correlation_id);
     } catch (err) {
       setQueryError(err.message || "Query response submission failed. Please try again.");
@@ -707,31 +705,13 @@ export default function PreauthStatus({ ctx }) {
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Provide a clinical justification and attach any documents requested by the payer.
         </p>
-        <div style={{ marginBottom: "var(--space-4)" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Clinical Justification</label>
-          <textarea
-            className="input-modern"
-            style={{ height: "100px", resize: "vertical" }}
-            placeholder="Describe the clinical justification for the requested service…"
-            value={queryAnswer}
-            onChange={(e) => setQueryAnswer(e.target.value)}
-          />
-        </div>
-        <div style={{ marginBottom: "var(--space-5)" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Supporting Document URL</label>
-          <input
-            className="input-modern"
-            placeholder="https://hospital.example/records/doc.pdf"
-            value={queryDocs[0]?.url || ""}
-            onChange={(e) =>
-              setQueryDocs(
-                e.target.value
-                  ? [{ category: "attachment", name: "Supporting Document", code: "ATTACHMENT", url: e.target.value }]
-                  : []
-              )
-            }
-          />
-        </div>
+        <QueryResponseFields
+          label="Clinical Justification"
+          answer={queryAnswer}
+          onAnswerChange={setQueryAnswer}
+          document={queryDoc}
+          onDocumentChange={(file) => { setQueryDoc(file); setQueryDocs(file ? [documentFromFile(file)] : []); }}
+        />
         {queryError && (
           <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
             {queryError}
