@@ -176,10 +176,13 @@ function PatientDetail({ patient, onBack }) {
       // GET /cashless/preauth/status/{cid} and /cashless/claims/status/{cid}.
       const pDecision = preauth?.decision || claimSummary.preauth_status;
       const cDecision = claim?.decision || claimSummary.claim_decision;
+      const cancellationPending = preauth?.purpose === "cancel" && preauth?.status === "pending";
 
       let dest = "payer";
 
-      if (claim?.payment_status === "PAYMENT_SETTLED" || claim?.payment_status === "PAYMENT_INITIATED") {
+      if (cancellationPending) {
+        dest = "status";
+      } else if (claim?.payment_status === "PAYMENT_SETTLED" || claim?.payment_status === "PAYMENT_INITIATED") {
         dest = "payment";
       } else if (cDecision === "APPROVED" || cDecision === "PARTIALLY_APPROVED") {
         dest = "payment";
@@ -187,7 +190,7 @@ function PatientDetail({ patient, onBack }) {
         dest = "claim";
       } else if (pDecision === "APPROVED" || pDecision === "PARTIALLY_APPROVED") {
         dest = "claim";
-      } else if (pDecision === "QUERIED" || pDecision === "REJECTED") {
+      } else if (pDecision === "QUERIED" || pDecision === "REJECTED" || pDecision === "CANCELLED") {
         dest = "status";
       } else if (preauth?.correlation_id && (!pDecision || pDecision === "pending")) {
         dest = "status";
@@ -209,7 +212,7 @@ function PatientDetail({ patient, onBack }) {
         dest = "payer";
       }
 
-      const actionable = pendingTasks.find((t) => taskStep(t.task_type));
+      const actionable = cancellationPending ? null : pendingTasks.find((t) => taskStep(t.task_type));
       const taskRoute = actionable ? taskStep(actionable.task_type) : null;
       const target = taskRoute && routeAtOrAfter(taskRoute, dest) ? taskRoute : dest;
 
