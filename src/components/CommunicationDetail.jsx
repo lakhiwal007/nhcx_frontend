@@ -7,7 +7,7 @@ import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
 import { Button, QueryResponseFields } from "./Common";
 import { formatDateTime } from "../format.js";
-import { buildQueryResponseBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
+import { buildActionBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
 import { useNavigate } from "react-router-dom";
 
 export const PRIORITY_CONFIG = {
@@ -136,7 +136,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       const body = carriesDocuments(taskAction.code)
         ? {
             ...hint,
-            ...buildQueryResponseBody({
+            ...buildActionBody(taskAction.code, {
               claim_id: hint.claim_id ?? detail?.claim_id,
               cashless_case_id: hint.cashless_case_id ?? detail?.cashless_case_id,
               answer: responseAnswer,
