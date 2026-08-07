@@ -306,6 +306,108 @@ const http = {
 };
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
+
+// Where each mock case sits on the journey. Keyed by cashless_case_id so mock
+// mode can exercise a case that has moved past eligibility (read-only prep with
+// a re-run), an undecided claim, and a settled payment — not just a fresh case.
+const MOCK_CASE_JOURNEYS = {
+  default: {
+    child_id: 12,
+    claim_id: 101,
+    current_step: "preauth_ready",
+    next_actions: ["prepare_preauth"],
+    preauth: null,
+    claim: null,
+  },
+  4: {
+    child_id: 12,
+    claim_id: 101,
+    current_step: "preauth_ready",
+    next_actions: ["prepare_preauth"],
+    preauth: null,
+    claim: null,
+  },
+  5: {
+    child_id: 19,
+    claim_id: 102,
+    current_step: "settled",
+    next_actions: ["acknowledge_payment"],
+    preauth: {
+      correlation_id: "preauth-corr-102",
+      preauth_ref: "PA-2026-00102",
+      decision: "APPROVED",
+      approved_amount: 40000,
+      status: "complete",
+    },
+    claim: {
+      correlation_id: "claim-corr-102",
+      claim_id: 102,
+      status: "complete",
+      decision: "APPROVED",
+      approved_amount: 40000,
+      payment_status: "settled",
+    },
+    payment: {
+      latest_stage: "PAYMENT_SETTLED",
+      settled: true,
+      utr: "UTR-2026-00102",
+      net: 38000,
+      total_events: 3,
+      acknowledged: true,
+    },
+  },
+  // A payer that has paid but never sent the settlement notice — the state
+  // real case CASE-27 sits in. The Payment stage must stay reachable here.
+  7: {
+    child_id: 25,
+    claim_id: 104,
+    current_step: "payment_pending",
+    next_actions: ["acknowledge_payment"],
+    preauth: {
+      correlation_id: "preauth-corr-104",
+      preauth_ref: "PA-2026-00104",
+      decision: "APPROVED",
+      approved_amount: 6200,
+      status: "complete",
+    },
+    claim: {
+      correlation_id: "claim-corr-104",
+      claim_id: 104,
+      status: "complete",
+      decision: "APPROVED",
+      approved_amount: 6200,
+      payment_status: "initiated",
+    },
+    payment: {
+      latest_stage: "PAYMENT_INITIATED",
+      settled: false,
+      utr: "UTR727X0U1000",
+      net: 5400,
+      total_events: 2,
+      acknowledged: true,
+    },
+  },
+  6: {
+    child_id: 25,
+    claim_id: 103,
+    current_step: "claim_submitted",
+    next_actions: ["refresh"],
+    preauth: {
+      correlation_id: "preauth-corr-103",
+      preauth_ref: "PA-2026-00103",
+      decision: "APPROVED",
+      approved_amount: 22000,
+      status: "complete",
+    },
+    claim: {
+      correlation_id: "claim-corr-103",
+      claim_id: 103,
+      status: "complete",
+      decision: null,
+      payment_status: null,
+    },
+  },
+};
 const mock = {
   // ─── Health ────────────────────────────────────────────────────────────────
   healthCheck: async () => {
@@ -682,15 +784,16 @@ const mock = {
 
   getCashlessStatus: async (cashless_case_id) => {
     await delay(1000);
+    const journey = MOCK_CASE_JOURNEYS[String(cashless_case_id)] || MOCK_CASE_JOURNEYS.default;
     return {
       cashless_case_id,
-      claim_id: 101,
-      child_id: 12,
+      claim_id: journey.claim_id,
+      child_id: journey.child_id,
       payer_id: "1518@hcx",
       policy_number: "POL-91711234567890-2026",
       status: "complete",
-      current_step: "preauth_ready",
-      next_actions: ["prepare_preauth"],
+      current_step: journey.current_step,
+      next_actions: journey.next_actions,
       procedures: {
         source: "claim_db",
         items: [
@@ -821,8 +924,9 @@ const mock = {
       // submitted for this case. Kept here (rather than omitted) so mock mode
       // exercises the same res.preauth?.correlation_id / res.claim?.status
       // paths the real backend response takes.
-      preauth: null,
-      claim: null,
+      preauth: journey.preauth,
+      claim: journey.claim,
+      payment: journey.payment ?? null,
     };
   },
 
@@ -1376,8 +1480,13 @@ const mock = {
   },
 
   // ─── Payment ────────────────────────────────────────────────────────────────
-  searchPaymentStatus: async () => {
+  searchPaymentStatus: async (params = {}) => {
     await delay(700);
+    // Only case 5's claim has been paid. Every other claim gets the backend's
+    // real "no notices yet" shape so the empty state is exercised.
+    if (params.claim_id != null && String(params.claim_id) !== "102") {
+      return { status: "not_found", filters: { claim_id: params.claim_id }, settled: false, total_events: 0, events: [] };
+    }
     return {
       status: "found",
       latest_stage: "PAYMENT_SETTLED",
@@ -1732,11 +1841,42 @@ const mock = {
   // ─── Communications ─────────────────────────────────────────────────────────
   listCommunications: async (params = {}) => {
     await delay(600);
-    return {
-      total_count: 3,
-      limit: params.limit || 20,
-      offset: params.offset || 0,
-      communications: [
+    const all = [
+        {
+          correlation_id: "comm-abc-000",
+          workflow: "communication",
+          status: "complete",
+          payer_id: "1518@hcx",
+          payer_name: "Sample Payer",
+          reason_code: "additionalinfo",
+          reason_display: "Additional Information",
+          topic_display: "Clinical notes required",
+          priority: "urgent",
+          claim_reference: "CASE-4",
+          cashless_case_id: 4,
+          claim_id: 101,
+          child_id: 12,
+          subject: "Case CASE-4 / Arjun Mehta",
+          sent_at: "2026-06-05T08:15:00+05:30",
+          received_at: "2026-06-05T08:15:03+05:30",
+          acknowledged: true,
+          acknowledged_at: "2026-06-05T08:15:04+05:30",
+          provider_read: false,
+          provider_read_at: null,
+          ack_correlation_id: "ack-addinfo-000",
+          comm_status: "in-progress",
+          task_requester: "Sample Payer",
+          authored_on: "2026-06-05T08:15:00+05:30",
+          task_inputs: { claimNumber: "CASE-4", CLINICAL_NOTES: "Clinical Notes" },
+          payload: [
+            {
+              content_string:
+                "Please attach the treating doctor's clinical notes for the current admission before we can proceed with the pre-authorisation.",
+            },
+          ],
+          pending_tasks: [],
+          completed_tasks: [],
+        },
         {
           correlation_id: "comm-abc-001",
           workflow: "communication",
@@ -1887,7 +2027,17 @@ const mock = {
           pending_tasks: [],
           completed_tasks: [],
         },
-      ],
+    ];
+
+    const scoped = params.cashless_case_id != null
+      ? all.filter((c) => String(c.cashless_case_id) === String(params.cashless_case_id))
+      : all;
+
+    return {
+      total_count: scoped.length,
+      limit: params.limit || 20,
+      offset: params.offset || 0,
+      communications: scoped,
     };
   },
 
@@ -1903,6 +2053,41 @@ const mock = {
   getCommunicationStatus: async (correlation_id) => {
     await delay(500);
     const all = {
+      "comm-abc-000": {
+        correlation_id: "comm-abc-000",
+        workflow: "communication",
+        status: "complete",
+        payer_id: "1518@hcx",
+        payer_name: "Sample Payer",
+        reason_code: "additionalinfo",
+        reason_display: "Additional Information",
+        topic_display: "Clinical notes required",
+        priority: "urgent",
+        claim_reference: "CASE-4",
+        cashless_case_id: 4,
+        claim_id: 101,
+        child_id: 12,
+        subject: "Case CASE-4 / Arjun Mehta",
+        sent_at: "2026-06-05T08:15:00+05:30",
+        received_at: "2026-06-05T08:15:03+05:30",
+        acknowledged: true,
+        acknowledged_at: "2026-06-05T08:15:04+05:30",
+        provider_read: false,
+        provider_read_at: null,
+        ack_correlation_id: "ack-addinfo-000",
+        comm_status: "in-progress",
+        task_requester: "Sample Payer",
+        authored_on: "2026-06-05T08:15:00+05:30",
+        task_inputs: { claimNumber: "CASE-4", CLINICAL_NOTES: "Clinical Notes" },
+        payload: [
+          {
+            content_string:
+              "Please attach the treating doctor's clinical notes for the current admission before we can proceed with the pre-authorisation.",
+          },
+        ],
+        pending_tasks: [],
+        completed_tasks: [],
+      },
       "comm-abc-001": {
         correlation_id: "comm-abc-001",
         workflow: "communication",
