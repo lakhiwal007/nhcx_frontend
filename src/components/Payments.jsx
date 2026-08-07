@@ -5,6 +5,7 @@ import { formatMoney, formatDate, formatDateTime } from "../format.js";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { groupPaymentEvents, stageLabel } from "../paymentEvents.js";
 
 const PAYMENTS_PAGE_SIZE = 20;
 
@@ -15,28 +16,18 @@ const METRICS = [
   { key: "totalNetSettled",  label: "Total Net Settled",  icon: Wallet,     color: "var(--primary)", format: "currency" },
 ];
 
-const paymentKey = (p) =>
-  p.payment_reference || p.notice_identifier || p.claim_reference || `event-${p.id}`;
-
 const claimSearchKey = (p) => p.cashless_case_id ?? p.claim_reference;
 
-function distinctPayments(events) {
-  const byKey = new Map();
-  events.forEach((e) => byKey.set(paymentKey(e), e));
-  return [...byKey.values()];
-}
-
-function computePaymentMetrics(payments) {
+function computePaymentMetrics(unique) {
   const now = new Date();
   const isThisMonth = (d) => {
     const date = d ? new Date(d) : null;
     return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
   };
-  const unique = distinctPayments(payments);
-  const settled = unique.filter((p) => p.payment_stage === "PAYMENT_SETTLED");
+  const settled = unique.filter((p) => p.settled);
   return {
     settledThisMonth: settled.filter((p) => isThisMonth(p.payment_date)).reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
-    pendingAck: unique.filter((p) => p.acknowledgement_status !== "submitted").length,
+    pendingAck: unique.filter((p) => p.pending_ack).length,
     totalTds: unique.reduce((s, p) => s + (p.tds_amount ?? 0), 0),
     totalNetSettled: settled.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
   };
@@ -65,7 +56,7 @@ export default function Payments() {
           api.searchPaymentStatus(),
           api.getDashboardClaims({ limit: 200 }).catch(() => null),
         ]);
-        setPayments(paymentsRes?.events || []);
+        setPayments(groupPaymentEvents(paymentsRes?.events || []));
         const byId = {};
         (claimsRes?.claims || []).forEach((c) => { byId[c.id] = c; });
         setClaimsById(byId);
@@ -200,7 +191,7 @@ export default function Payments() {
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "var(--space-4)" }}>
           {pagedPayments.map((pay, i) => (
             <motion.div
-              key={pay.payment_reference || i}
+              key={pay.group_key || i}
               layout
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -223,7 +214,7 @@ export default function Payments() {
                     {pay.claim_reference}
                   </a>
                 </div>
-                <StatusBadge status={pay.payment_stage?.replace("PAYMENT_", "")} />
+                <StatusBadge status={stageLabel(pay.payment_stage)} />
               </div>
               {patientFor(pay) && (
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: "var(--text-main)" }}>
@@ -308,7 +299,14 @@ export default function Payments() {
                     onClick={() => setSelectedPayment(pay)}
                     style={{ cursor: "pointer" }}
                   >
-                    <td className="mono-cell" style={{ fontWeight: 700 }}>{pay.payment_reference}</td>
+                    <td className="mono-cell" style={{ fontWeight: 700 }}>
+                      {pay.payment_reference}
+                      {pay.notice_count > 1 && (
+                        <div style={{ fontSize: "10.5px", fontWeight: 600, color: "var(--text-muted)" }}>
+                          {pay.notice_count} notices
+                        </div>
+                      )}
+                    </td>
                     <td>
                       <a
                         href="#"
@@ -337,7 +335,7 @@ export default function Payments() {
                     <td>{formatDate(pay.payment_date)}</td>
                     <td>
                       <StatusBadge
-                        status={pay.payment_stage?.replace("PAYMENT_", "")}
+                        status={stageLabel(pay.payment_stage)}
                       />
                     </td>
                     <td className="num-cell">{formatMoney(pay.gross_amount)}</td>
@@ -381,22 +379,22 @@ export default function Payments() {
                 ))}
               </tbody>
               {filtered.length > 1 && (() => {
-                const totalled = distinctPayments(filtered);
+                const eventCount = filtered.reduce((s, p) => s + (p.notice_count ?? 1), 0);
                 return (
                 <tfoot>
                   <tr>
                     <td colSpan={5} style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
-                      {totalled.length} {totalled.length === 1 ? "payment" : "payments"}
-                      {filtered.length !== totalled.length && ` · ${filtered.length} events`}
+                      {filtered.length} {filtered.length === 1 ? "payment" : "payments"}
+                      {eventCount !== filtered.length && ` · ${eventCount} events`}
                     </td>
                     <td className="num-cell" style={{ fontWeight: 700 }}>
-                      {formatMoney(totalled.reduce((s, p) => s + (p.gross_amount ?? 0), 0))}
+                      {formatMoney(filtered.reduce((s, p) => s + (p.gross_amount ?? 0), 0))}
                     </td>
                     <td className="num-cell" style={{ color: "var(--error)", fontWeight: 700 }}>
-                      {formatMoney(-totalled.reduce((s, p) => s + Math.abs(p.tds_amount ?? 0), 0))}
+                      {formatMoney(-filtered.reduce((s, p) => s + Math.abs(p.tds_amount ?? 0), 0))}
                     </td>
                     <td className="num-cell" style={{ color: "var(--success)", fontWeight: 700 }}>
-                      {formatMoney(totalled.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0))}
+                      {formatMoney(filtered.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0))}
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -467,7 +465,7 @@ function PaymentDetailModal({ payment, patient, onClose, navigate }) {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-              <StatusBadge status={payment.payment_stage?.replace("PAYMENT_", "")} />
+              <StatusBadge status={stageLabel(payment.payment_stage)} />
               {payment.acknowledgement_status === "submitted" ? (
                 <span className="badge-modern badge-success" style={{ fontSize: "10px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
                   <CheckCircle size={11} /> ACKNOWLEDGED

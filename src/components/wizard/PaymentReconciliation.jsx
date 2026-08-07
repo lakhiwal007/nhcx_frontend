@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Home, RefreshCw, AlertCircle, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, StatusBadge, EmptyState, LoadingBlock, formatMoney } from "../Common";
+import { groupPaymentEvents, stageLabel } from "../../paymentEvents.js";
 
 export default function PaymentReconciliation({ ctx }) {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export default function PaymentReconciliation({ ctx }) {
   // Advanced ack override state keyed by payment_reference
   const [ackOverrides, setAckOverrides] = useState({});
   const [showOverrides, setShowOverrides] = useState({});
+  const [showHistory, setShowHistory] = useState({});
 
   const fetchPayment = async () => {
     if (!claimId && !claimCorrelationId) {
@@ -68,6 +70,7 @@ export default function PaymentReconciliation({ ctx }) {
   }
 
   const isNotFound = !paymentData || paymentData.status === "not_found" || paymentData.total_events === 0;
+  const payments = groupPaymentEvents(paymentData?.events || []);
 
   return (
     <div className="wizard-step">
@@ -82,9 +85,12 @@ export default function PaymentReconciliation({ ctx }) {
                 {paymentData.latest_stage?.replace("PAYMENT_", "")}
               </span>
             )}
-            {paymentData?.total_events != null && (
+            {payments.length > 0 && (
               <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                {paymentData.total_events} event{paymentData.total_events !== 1 ? "s" : ""}
+                {payments.length} payment{payments.length !== 1 ? "s" : ""}
+                {paymentData?.total_events > payments.length && (
+                  <span> · {paymentData.total_events} notices</span>
+                )}
               </span>
             )}
           </div>
@@ -125,20 +131,33 @@ export default function PaymentReconciliation({ ctx }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {paymentData.events?.map((pay, i) => {
+                  {payments.map((pay, i) => {
                     const ref = pay.payment_reference;
                     const ackResult = ackResults[ref];
                     const isAcknowledging = acknowledging[ref];
                     const needsRetry = pay.acknowledgement_status === "failed" && !ackResult?.success;
                     const isOpen = showOverrides[ref];
+                    const historyOpen = showHistory[pay.group_key];
                     return (
-                      <Fragment key={i}>
+                      <Fragment key={pay.group_key}>
                         <tr>
-                          <td style={{ fontWeight: 700 }}>{ref}</td>
+                          <td style={{ fontWeight: 700 }}>
+                            {ref}
+                            {pay.notice_count > 1 && (
+                              <button
+                                onClick={() => setShowHistory((p) => ({ ...p, [pay.group_key]: !p[pay.group_key] }))}
+                                style={{ display: "flex", alignItems: "center", gap: "3px", background: "none", border: "none", padding: "2px 0 0", cursor: "pointer", color: "var(--text-muted)", fontSize: "11px", fontWeight: 600 }}
+                                title="Show every notice the payer sent for this payment"
+                              >
+                                {historyOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                {pay.notice_count} notices
+                              </button>
+                            )}
+                          </td>
                           <td style={{ fontSize: "12px" }}>{pay.claim_reference || <span className="text-muted">-</span>}</td>
                           <td style={{ fontSize: "12px" }}>{pay.payment_date || "-"}</td>
                           <td>
-                            <StatusBadge status={pay.payment_stage?.replace("PAYMENT_", "").toLowerCase()} />
+                            <StatusBadge status={stageLabel(pay.payment_stage)} />
                           </td>
                           <td style={{ textAlign: "right", color: "var(--text-muted)" }}>
                             {pay.notice_amount != null ? formatMoney(pay.notice_amount) : "-"}
@@ -185,6 +204,33 @@ export default function PaymentReconciliation({ ctx }) {
                             )}
                           </td>
                         </tr>
+                        {historyOpen && (
+                          <tr key={`${pay.group_key}-history`} style={{ background: "var(--bg-main)" }}>
+                            <td colSpan="10" style={{ padding: "10px 16px 12px 22px" }}>
+                              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>
+                                Notices received for this payment
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                {pay.history.map((notice, ni) => (
+                                  <div key={notice.correlation_id || ni} style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "11.5px", flexWrap: "wrap" }}>
+                                    <StatusBadge status={stageLabel(notice.payment_stage)} />
+                                    {notice.payment_status && (
+                                      <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{notice.payment_status}</span>
+                                    )}
+                                    <span style={{ color: "var(--text-muted)" }}>
+                                      {notice.received_at ? new Date(notice.received_at).toLocaleString() : notice.payment_date}
+                                    </span>
+                                    <span className="num-cell">{formatMoney(notice.net_payment_amount)}</span>
+                                    <span style={{ marginLeft: "auto", color: notice.acknowledgement_status === "submitted" ? "var(--success)" : "var(--text-muted)" }}>
+                                      {notice.acknowledgement_status === "submitted" ? "Acked" : notice.acknowledgement_status || "not acked"}
+                                    </span>
+                                    <code style={{ fontSize: "10px", color: "var(--text-muted)" }}>{notice.correlation_id}</code>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                         {/* Edit values row */}
                         {isOpen && (
                           <tr key={`${i}-overrides`} style={{ background: "var(--bg-main)" }}>
