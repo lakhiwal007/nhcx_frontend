@@ -798,9 +798,6 @@ export const TablePagination = ({ page, pageSize, total, onPageChange, label = "
   );
 };
 
-// A payer asks for several documents at once ("Documents Requested (N)"), so
-// this collects a list. `documents` is always an array; the caller decides
-// whether the endpoint it posts to takes one or many.
 export const QueryResponseFields = ({
   answer,
   onAnswerChange,

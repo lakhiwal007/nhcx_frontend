@@ -1,9 +1,5 @@
 export const QUERY_RESPONSE_CODES = ["respond_preauth_query", "respond_claim_query"];
 
-// A reprocess/appeal carries supporting documents too, but its endpoint reads a
-// plain `description` where the query endpoints read a questionnaire. Posting
-// the query shape there uploads the file and SILENTLY DROPS the typed
-// justification — reprocess#submit never reads questionnaire_response.
 export const REPROCESS_CODE = "submit_reprocess";
 
 export const DOCUMENT_ACTION_CODES = [...QUERY_RESPONSE_CODES, REPROCESS_CODE];
