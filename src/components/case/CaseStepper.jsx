@@ -35,11 +35,15 @@ export default function CaseStepper({ stages, onNavigate }) {
                 whileTap={s.clickable ? { scale: 0.97 } : {}}
               >
                 <span className="cx-vstep-circle" aria-hidden="true">
-                  {s.state === "done" ? <Check size={14} strokeWidth={3} /> : s.branch ? "+" : s.num}
+                  {/* A completed stage keeps its checkmark while you are viewing it.
+                      Without this, opening a done stage from the rail turns its tick
+                      back into a bare number while later stages stay ticked, which
+                      reads as the case having regressed. */}
+                  {s.state === "done" || s.done ? <Check size={14} strokeWidth={3} /> : s.branch ? "+" : s.num}
                 </span>
                 <span className="cx-vstep-body">
                   <span className="cx-vstep-label">{s.label}</span>
-                  {s.note && s.state !== "active" && (
+                  {s.note && (s.state !== "active" || s.done) && (
                     <span className={`cx-vstep-note${s.tone ? ` tone-${s.tone}` : ""}`}>{s.note}</span>
                   )}
                 </span>
