@@ -118,8 +118,15 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const taskId = reviewTask?.id ?? reviewTask?.task_id;
   const reasonCfg = REASON_CONFIG[detail?.reason_code] ?? {};
   const isAdditionalInfo = detail?.reason_code === "additionalinfo";
-  const canRespond = carriesDocuments(reviewTask?.action?.code);
   const taskAction = reviewTask?.action;
+  // `review_communication` is the backend's read-only fallback: a GET at the
+  // status endpoint, returned whenever it cannot tell WHICH submission a
+  // document request belongs to (unresolved claim, or a claim not sitting in
+  // QUERIED). It is not a permission decision — the query-response endpoints
+  // have no state guard — so the honest move is to say so and send the user
+  // into the case, never to guess a workflow family the payer would misfile.
+  const actionable = !!taskAction && taskAction.code !== "review_communication";
+  const canOpenCase = !!(detail?.cashless_case_id && detail?.child_id);
   const requiredDocs = reviewTask?.required_documents?.length
     ? reviewTask.required_documents
     : parseDocumentsFromTaskInputs(detail?.task_inputs);
@@ -274,7 +281,38 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                     </div>
                   )}
 
-                  {(isAdditionalInfo || canRespond) && taskAction && (
+                  {!actionable && (isAdditionalInfo || requiredDocs.length > 0) && (
+                    <div style={{ padding: "var(--space-4)", background: "rgba(245,158,11,0.05)", border: "1px solid var(--warning)", borderRadius: "10px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--warning)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>
+                        Respond From The Case
+                      </div>
+                      <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: canOpenCase ? "var(--space-3)" : 0 }}>
+                        {canOpenCase ? (
+                          <>
+                            The payer asked for documents, but this message isn’t tied to a preauth or
+                            claim query we can answer from here — so there’s nowhere to attach them
+                            without guessing which submission they belong to. Open the case and reply
+                            from the Preauth Decision or Claim screen, which submit under the right
+                            workflow.
+                          </>
+                        ) : (
+                          <>
+                            The payer asked for documents, but this message isn’t linked to a case yet,
+                            so there is nothing to attach them to. It usually means the reference the
+                            payer sent didn’t match a claim on our side — check the case reference on
+                            this message before replying.
+                          </>
+                        )}
+                      </div>
+                      {canOpenCase && (
+                        <Button variant="primary" icon={ExternalLink} onClick={handleOpenCase} style={{ justifyContent: "center" }}>
+                          Open Case To Respond
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {actionable && (
                     <div style={{ padding: "var(--space-4)", background: "rgba(239,68,68,0.04)", border: "1px solid var(--error)", borderRadius: "10px" }}>
                       <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--error)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>Required Action</div>
                       <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
@@ -326,13 +364,13 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
               {taskId && (
                 <Button
                   variant="primary"
-                  disabled={completing || allFacilitiesMode || ((isAdditionalInfo || canRespond) && !executeResult?.success)}
+                  disabled={completing || allFacilitiesMode || (actionable && !executeResult?.success)}
                   onClick={handleMarkReviewed}
                   style={{ flex: 1, justifyContent: "center" }}
                   title={
                     allFacilitiesMode
                       ? "Select a facility in Settings to act on this task"
-                      : (isAdditionalInfo || canRespond) && !executeResult?.success
+                      : actionable && !executeResult?.success
                         ? "Submit the required documents first"
                         : undefined
                   }
