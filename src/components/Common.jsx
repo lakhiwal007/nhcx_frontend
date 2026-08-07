@@ -798,34 +798,61 @@ export const TablePagination = ({ page, pageSize, total, onPageChange, label = "
   );
 };
 
-export const QueryResponseFields = ({ answer, onAnswerChange, document: doc, onDocumentChange, label = "Your Response" }) => {
+// A payer asks for several documents at once ("Documents Requested (N)"), so
+// this collects a list. `documents` is always an array; the caller decides
+// whether the endpoint it posts to takes one or many.
+export const QueryResponseFields = ({
+  answer,
+  onAnswerChange,
+  documents = [],
+  onDocumentsChange,
+  label = "Your Response",
+  placeholder = "Describe the clinical justification for the requested service…",
+}) => {
   const fileInputRef = useRef(null);
   const [error, setError] = useState(null);
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
+  const readFile = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const match = /^data:(.*?);base64,(.*)$/.exec(reader.result || "");
+        if (!match) return reject(new Error(file.name));
+        resolve({
+          title: file.name,
+          contentType: match[1] || file.type || "application/octet-stream",
+          data: match[2],
+        });
+      };
+      reader.onerror = () => reject(new Error(file.name));
+      reader.readAsDataURL(file);
+    });
+
+  const handleFileChange = async (e) => {
+    const picked = [...(e.target.files || [])];
     e.target.value = "";
-    if (!file) return;
+    if (picked.length === 0) return;
     setError(null);
-    if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
-      setError(`${file.name} is larger than ${MAX_ATTACHMENT_MB}MB — please attach a smaller file.`);
-      return;
+
+    const tooBig = picked.filter((f) => f.size > MAX_ATTACHMENT_MB * 1024 * 1024);
+    if (tooBig.length > 0) {
+      setError(`${tooBig.map((f) => f.name).join(", ")} — larger than ${MAX_ATTACHMENT_MB}MB, please attach smaller files.`);
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const match = /^data:(.*?);base64,(.*)$/.exec(reader.result || "");
-      if (!match) {
-        setError(`Could not read ${file.name}.`);
-        return;
-      }
-      onDocumentChange({
-        title: file.name,
-        contentType: match[1] || file.type || "application/octet-stream",
-        data: match[2],
-      });
-    };
-    reader.onerror = () => setError(`Could not read ${file.name}.`);
-    reader.readAsDataURL(file);
+
+    const usable = picked.filter((f) => f.size <= MAX_ATTACHMENT_MB * 1024 * 1024);
+    if (usable.length === 0) return;
+
+    try {
+      const read = await Promise.all(usable.map(readFile));
+      onDocumentsChange([...documents, ...read]);
+    } catch (err) {
+      setError(`Could not read ${err.message}.`);
+    }
+  };
+
+  const removeAt = (idx) => {
+    setError(null);
+    onDocumentsChange(documents.filter((_, i) => i !== idx));
   };
 
   return (
@@ -835,30 +862,38 @@ export const QueryResponseFields = ({ answer, onAnswerChange, document: doc, onD
         <textarea
           className="input-modern"
           rows={4}
-          placeholder="Describe the clinical justification for the requested service…"
+          placeholder={placeholder}
           value={answer}
           onChange={(e) => onAnswerChange(e.target.value)}
         />
       </div>
       <div style={{ marginBottom: "var(--space-5)" }}>
-        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Supporting Document</label>
-        <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
+        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>
+          Supporting Documents{documents.length > 0 ? ` (${documents.length})` : ""}
+        </label>
+        <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
         <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
           <Button variant="outline" icon={Paperclip} onClick={() => fileInputRef.current?.click()}>
-            {doc ? "Replace file" : "Choose file"}
+            {documents.length > 0 ? "Add more files" : "Choose files"}
           </Button>
-          {doc && (
-            <>
-              <span style={{ fontSize: "12.5px", fontWeight: 600 }}>{doc.title}</span>
-              <button
-                onClick={() => { setError(null); onDocumentChange(null); }}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}
-              >
-                <Trash2 size={15} />
-              </button>
-            </>
-          )}
         </div>
+        {documents.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "8px" }}>
+            {documents.map((d, i) => (
+              <div key={`${d.title}-${i}`} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", padding: "5px 9px", background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "6px" }}>
+                <Paperclip size={12} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
+                <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
+                <button
+                  onClick={() => removeAt(i)}
+                  style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}
+                  title={`Remove ${d.title}`}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {error && (
           <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>{error}</div>
         )}

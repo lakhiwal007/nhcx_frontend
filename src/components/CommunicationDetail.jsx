@@ -92,7 +92,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const [executeResult, setExecuteResult] = useState(null);
   const [completing, setCompleting] = useState(false);
   const [responseAnswer, setResponseAnswer] = useState("");
-  const [responseDoc, setResponseDoc] = useState(null);
+  const [responseDoc, setResponseDoc] = useState([]);
 
   useEffect(() => {
     if (!open || !correlationId) return;
@@ -100,7 +100,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
     setDetail(null);
     setExecuteResult(null);
     setResponseAnswer("");
-    setResponseDoc(null);
+    setResponseDoc([]);
     api.getCommunicationStatus(correlationId)
       .then((res) => {
         setDetail(res);
@@ -147,7 +147,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
               claim_id: hint.claim_id ?? detail?.claim_id,
               cashless_case_id: hint.cashless_case_id ?? detail?.cashless_case_id,
               answer: responseAnswer,
-              docs: responseDoc ? [documentFromFile(responseDoc)] : [],
+              docs: responseDoc.map(documentFromFile),
             }),
           }
         : hint;

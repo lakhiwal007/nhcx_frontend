@@ -121,7 +121,7 @@ export default function PreauthStatus({ ctx }) {
 
   const [queryAnswer, setQueryAnswer] = useState("");
   const [queryDocs, setQueryDocs] = useState([]);
-  const [queryDoc, setQueryDoc] = useState(null);
+  const [queryDoc, setQueryDoc] = useState([]);
   const [queryError, setQueryError] = useState(null);
   const [resubmitItems, setResubmitItems] = useState([]);
   const [resubmitError, setResubmitError] = useState(null);
@@ -709,8 +709,8 @@ export default function PreauthStatus({ ctx }) {
           label="Clinical Justification"
           answer={queryAnswer}
           onAnswerChange={setQueryAnswer}
-          document={queryDoc}
-          onDocumentChange={(file) => { setQueryDoc(file); setQueryDocs(file ? [documentFromFile(file)] : []); }}
+          documents={queryDoc}
+          onDocumentsChange={(files) => { setQueryDoc(files); setQueryDocs(files.map(documentFromFile)); }}
         />
         {queryError && (
           <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
