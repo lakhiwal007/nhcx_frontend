@@ -59,6 +59,7 @@ export default function App() {
   const apiErrorTimers = useRef({});
   const [pendingTaskCount, setPendingTaskCount] = useState(0);
   const [urgentTaskCount, setUrgentTaskCount] = useState(0);
+  const [unreadCommsCount, setUnreadCommsCount] = useState(0);
   const [allFacilitiesMode, setAllFacilitiesMode] = useState(
     () => localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true",
   );
@@ -170,6 +171,11 @@ export default function App() {
       setPendingTaskCount(tasks.length);
       setUrgentTaskCount(tasks.filter((t) => t.priority === "urgent" || t.priority === "high").length);
     } catch (_) {}
+    try {
+      const res = await api.listCommunications({ limit: 100 });
+      const comms = res?.communications ?? [];
+      setUnreadCommsCount(comms.filter((c) => !c.provider_read).length);
+    } catch (_) {}
   };
 
   useEffect(() => {
@@ -177,6 +183,7 @@ export default function App() {
       clearInterval(taskPollRef.current);
       setPendingTaskCount(0);
       setUrgentTaskCount(0);
+      setUnreadCommsCount(0);
       return;
     }
     fetchTaskCounts();
@@ -271,7 +278,7 @@ export default function App() {
     { to: "/work-queue", icon: ListTodo, label: "Work Queue", badge: pendingTaskCount },
     { to: "/dashboard", icon: LayoutDashboard, label: "Cashless Cases" },
     { to: "/registry", icon: Users, label: "Child Registry" },
-    { to: "/communications", icon: MessageSquare, label: "Communications" },
+    { to: "/communications", icon: MessageSquare, label: "Communications", badge: unreadCommsCount, badgeTone: "info" },
     { to: "/payments", icon: CreditCard, label: "Payments" },
   ];
 
@@ -360,7 +367,7 @@ export default function App() {
                 <span className="command-brand-name">NHCX Service</span>
               </div>
               <nav className="command-nav">
-                {navItems.map(({ to, icon: Icon, label, badge }) => (
+                {navItems.map(({ to, icon: Icon, label, badge, badgeTone }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -381,7 +388,7 @@ export default function App() {
                         {badge > 0 && (
                           <span
                             className="command-nav-badge"
-                            style={{ background: urgentTaskCount > 0 ? "var(--error)" : "var(--warning)" }}
+                            style={{ background: badgeTone === "info" ? "var(--info)" : urgentTaskCount > 0 ? "var(--error)" : "var(--warning)" }}
                           >
                             {badge > 99 ? "99+" : badge}
                           </span>
@@ -535,7 +542,7 @@ export default function App() {
 
         {!isSidebarCollapsed && <div className="sidebar-nav-label">Workspace</div>}
         <nav className="sidebar-nav">
-          {navItems.map(({ to, icon: Icon, label, badge }) => (
+          {navItems.map(({ to, icon: Icon, label, badge, badgeTone }) => (
             <NavLink key={to} to={to} title={label} className={({ isActive }) => (isActive ? "active" : "")}>
               {({ isActive }) => (
                 <>
@@ -551,7 +558,7 @@ export default function App() {
                   {badge > 0 && !isSidebarCollapsed && (
                     <span
                       className="nav-badge"
-                      style={{ background: urgentTaskCount > 0 ? "var(--error)" : "var(--warning)" }}
+                      style={{ background: badgeTone === "info" ? "var(--info)" : urgentTaskCount > 0 ? "var(--error)" : "var(--warning)" }}
                     >
                       {badge > 99 ? "99+" : badge}
                     </span>
