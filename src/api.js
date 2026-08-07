@@ -187,6 +187,9 @@ const http = {
         headers: buildHeaders(path),
         signal: opts.signal,
       });
+      if (res.status === 404 && opts.allowNotFound) {
+        return await res.json().catch(() => null);
+      }
       if (!res.ok) {
         const info = await extractErrorMessage(res);
         throw new ApiError(info.message, info.kind);
@@ -2260,10 +2263,10 @@ const real = {
     http.get(`/cashless/reprocess/status/${correlation_id}`, {}, { signal }),
 
   searchPaymentStatus: (params = {}) =>
-    http.get("/cashless/payment/status", params),
+    http.get("/cashless/payment/status", params, { allowNotFound: true }),
 
   getPaymentStatus: (correlation_id) =>
-    http.get(`/cashless/payment/status/${correlation_id}`),
+    http.get(`/cashless/payment/status/${correlation_id}`, {}, { allowNotFound: true }),
 
   acknowledgePayment: (data) =>
     http.post("/cashless/payment/acknowledge", data),
