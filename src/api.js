@@ -2212,6 +2212,18 @@ const mock = {
     };
   },
 
+  respondToCommunication: async (correlation_id, data = {}) => {
+    await delay(800);
+    const count = (data.documents || []).length;
+    return {
+      correlation_id,
+      status: "submitted",
+      message: count > 0
+        ? `Response sent with ${count} document${count === 1 ? "" : "s"}.`
+        : "Response sent to the payer.",
+    };
+  },
+
   // ─── Escape hatch for Work Queue task actions ────────────────────────────────
   rawPost: async (fullPath, body = {}) => {
     await delay(800);
@@ -2476,6 +2488,9 @@ const real = {
     http.patch(`/cashless/communication/${correlation_id}/read`, {}),
 
   sendCommunication: (data) => http.post("/cashless/communications", data),
+
+  respondToCommunication: (correlation_id, data) =>
+    http.post(`/cashless/communication/${correlation_id}/respond`, data),
 
   requestGatewayStatus: (data) => http.post("/cashless/status/request", data),
 

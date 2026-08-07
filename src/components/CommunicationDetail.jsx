@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, CheckCircle2, Paperclip, FileText, ExternalLink, Circle,
+  X, CheckCircle2, Paperclip, FileText, ExternalLink, Circle, Send,
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
@@ -93,6 +93,10 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const [completing, setCompleting] = useState(false);
   const [responseAnswer, setResponseAnswer] = useState("");
   const [responseDoc, setResponseDoc] = useState([]);
+  const [respondMessage, setRespondMessage] = useState("");
+  const [respondDocs, setRespondDocs] = useState([]);
+  const [responding, setResponding] = useState(false);
+  const [respondResult, setRespondResult] = useState(null);
 
   useEffect(() => {
     if (!open || !correlationId) return;
@@ -101,6 +105,9 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
     setExecuteResult(null);
     setResponseAnswer("");
     setResponseDoc([]);
+    setRespondMessage("");
+    setRespondDocs([]);
+    setRespondResult(null);
     api.getCommunicationStatus(correlationId)
       .then((res) => {
         setDetail(res);
@@ -117,16 +124,10 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const reviewTask = detail?.pending_tasks?.find((t) => t.task_type === "review_communication");
   const taskId = reviewTask?.id ?? reviewTask?.task_id;
   const reasonCfg = REASON_CONFIG[detail?.reason_code] ?? {};
-  const isAdditionalInfo = detail?.reason_code === "additionalinfo";
   const taskAction = reviewTask?.action;
-  // `review_communication` is the backend's read-only fallback: a GET at the
-  // status endpoint, returned whenever it cannot tell WHICH submission a
-  // document request belongs to (unresolved claim, or a claim not sitting in
-  // QUERIED). It is not a permission decision — the query-response endpoints
-  // have no state guard — so the honest move is to say so and send the user
-  // into the case, never to guess a workflow family the payer would misfile.
   const actionable = !!taskAction && taskAction.code !== "review_communication";
-  const canOpenCase = !!(detail?.cashless_case_id && detail?.child_id);
+  const respondingDisabled =
+    responding || allFacilitiesMode || (!respondMessage.trim() && respondDocs.length === 0);
   const requiredDocs = reviewTask?.required_documents?.length
     ? reviewTask.required_documents
     : parseDocumentsFromTaskInputs(detail?.task_inputs);
@@ -159,6 +160,26 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       setExecuteResult({ success: false, message: err.message });
     } finally {
       setExecuting(false);
+    }
+  };
+
+  const handleRespond = async () => {
+    setResponding(true);
+    setRespondResult(null);
+    try {
+      const res = await api.respondToCommunication(correlationId, {
+        message: respondMessage || undefined,
+        documents: respondDocs.map((d) => ({
+          title: d.title,
+          content_type: d.contentType,
+          data: d.data,
+        })),
+      });
+      setRespondResult({ success: true, message: res?.message });
+    } catch (err) {
+      setRespondResult({ success: false, message: err.message });
+    } finally {
+      setResponding(false);
     }
   };
 
@@ -281,33 +302,45 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                     </div>
                   )}
 
-                  {!actionable && (isAdditionalInfo || requiredDocs.length > 0) && (
-                    <div style={{ padding: "var(--space-4)", background: "rgba(245,158,11,0.05)", border: "1px solid var(--warning)", borderRadius: "10px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--warning)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>
-                        Respond From The Case
+                  {detail?.direction !== "outbound" && !detail?.acknowledged && (
+                    <div style={{ padding: "var(--space-4)", background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "10px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>
+                        Reply To The Payer
                       </div>
-                      <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: canOpenCase ? "var(--space-3)" : 0 }}>
-                        {canOpenCase ? (
-                          <>
-                            The payer asked for documents, but this message isn’t tied to a preauth or
-                            claim query we can answer from here — so there’s nowhere to attach them
-                            without guessing which submission they belong to. Open the case and reply
-                            from the Preauth Decision or Claim screen, which submit under the right
-                            workflow.
-                          </>
-                        ) : (
-                          <>
-                            The payer asked for documents, but this message isn’t linked to a case yet,
-                            so there is nothing to attach them to. It usually means the reference the
-                            payer sent didn’t match a claim on our side — check the case reference on
-                            this message before replying.
-                          </>
-                        )}
+                      <div style={{ fontSize: "12.5px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
+                        Attach the documents the payer asked for. This answers their request directly,
+                        whether it concerns the preauth or the claim.
                       </div>
-                      {canOpenCase && (
-                        <Button variant="primary" icon={ExternalLink} onClick={handleOpenCase} style={{ justifyContent: "center" }}>
-                          Open Case To Respond
-                        </Button>
+                      {!respondResult ? (
+                        <>
+                          <QueryResponseFields
+                            label="Message To Payer"
+                            placeholder="Add a note for the payer…"
+                            answer={respondMessage}
+                            onAnswerChange={setRespondMessage}
+                            documents={respondDocs}
+                            onDocumentsChange={setRespondDocs}
+                          />
+                          <Button
+                            variant="primary"
+                            icon={Send}
+                            disabled={respondingDisabled}
+                            title={allFacilitiesMode ? "Select a facility in Settings to reply" : undefined}
+                            onClick={handleRespond}
+                            style={{ justifyContent: "center" }}
+                          >
+                            {responding ? "Sending…" : "Send Response"}
+                          </Button>
+                        </>
+                      ) : (
+                        <div style={{ padding: "10px 14px", background: respondResult.success ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${respondResult.success ? "var(--success)" : "var(--error)"}`, borderRadius: "8px", fontSize: "13px" }}>
+                          <div style={{ fontWeight: 700, color: respondResult.success ? "var(--success)" : "var(--error)" }}>
+                            {respondResult.success ? "Response sent" : "Could not send response"}
+                          </div>
+                          {respondResult.message && (
+                            <div style={{ color: "var(--text-muted)", marginTop: "var(--space-1)" }}>{respondResult.message}</div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -322,8 +355,8 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                         <QueryResponseFields
                           answer={responseAnswer}
                           onAnswerChange={setResponseAnswer}
-                          document={responseDoc}
-                          onDocumentChange={setResponseDoc}
+                          documents={responseDoc}
+                          onDocumentsChange={setResponseDoc}
                         />
                       )}
                       {!executeResult ? (
