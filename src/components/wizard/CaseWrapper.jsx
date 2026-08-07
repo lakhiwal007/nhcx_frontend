@@ -9,7 +9,7 @@ import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
 import CaseCommsBar from "../case/CaseCommsBar";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages } from "../case/caseStages";
+import { buildStages, projectCaseStatus } from "../case/caseStages";
 import "../case/case-workspace.css";
 
 import PayerPolicy from "./PayerPolicy";
@@ -159,21 +159,7 @@ export default function CaseWrapper() {
           } else if (resumeCaseId) {
             const full = await api.getCashlessStatus(resumeCaseId);
             if (full) {
-              setCashlessCase({
-                cashless_case_id: full.cashless_case_id,
-                claim_id: full.claim?.claim_id ?? null,
-                status: full.status,
-                current_step: full.current_step,
-                payer_id: full.payer_id,
-                policy_number: full.policy_number,
-                preauth_status: full.preauth?.decision ?? null,
-                preauth_ref: full.preauth?.preauth_ref ?? null,
-                claim_decision: full.claim?.decision ?? null,
-                claim_status: full.claim?.status ?? null,
-                payment_status: full.claim?.payment_status ?? null,
-                approved_amount: full.claim?.approved_amount ?? full.preauth?.approved_amount ?? null,
-                latest_utr: full.claim?.utr ?? full.claim?.latest_utr ?? null,
-              });
+              setCashlessCase(projectCaseStatus(full));
               updateCaseState({
                 cashless_case_id: full.cashless_case_id,
                 claim_id: location.state?.claim_id ?? full.claim?.claim_id ?? null,
@@ -226,6 +212,8 @@ export default function CaseWrapper() {
     preauthRef,
     preauthDecision,
     currentPath: currentStepPath,
+    moneyLedger: timeline?.money_ledger || null,
+    paymentSummary: effectiveCase.payment || null,
   });
   const activeStage = stages.find((s) => s.state === "active");
 

@@ -13,6 +13,14 @@ const CORE = [
 const fmt = (n) =>
   n != null && !Number.isNaN(Number(n)) ? `₹${Number(n).toLocaleString("en-IN")}` : null;
 
+// A payment stage reaches us in several spellings: the claim column
+// ("settled"), the notice stage ("PAYMENT_SETTLED"), or the FHIR paymentStatus
+// code ("cleared"). Normalise before comparing.
+const paymentState = (value) =>
+  String(value || "").trim().toUpperCase().replace(/^PAYMENT[_-]/, "");
+
+const SETTLED_PAYMENT_STATES = new Set(["SETTLED", "CLEARED", "PAID_IN_FULL"]);
+
 // Where a case has already moved on to, keyed by the backend's current_step.
 // Screens earlier in the journey use this to offer "Continue to X" instead of
 // redirecting there, so an earlier stage stays reachable from the spine.
@@ -58,19 +66,38 @@ export function projectCaseStatus(full) {
 }
 
 // Derive the ordered list of visible stages with live status for each.
-export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecision, currentPath }) {
+export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecision, currentPath, moneyLedger, paymentSummary }) {
   const decision = preauthDecision ? String(preauthDecision).toUpperCase() : null;
   const preauthStarted = !!(caseState.preauthCorrelationId || preauthRef);
   const approvedAmount = fmt(
     effectiveCase.approved_amount ?? effectiveCase.preauth_approved_amount ?? caseState.approvedAmount,
   );
-  const claimDecision = effectiveCase.claim_decision || effectiveCase.claim_status;
-  const utr = effectiveCase.utr || effectiveCase.latest_utr;
+  // Only the payer's decision may tone this stage. `claim_status` is the
+  // transaction's own workflow status and reads "complete" the moment a
+  // submission round-trips, so treating it as a decision marks an undecided
+  // claim approved.
+  const claimDecision = effectiveCase.claim_decision;
+  const claimSubmitted = !!(caseState.claimCorrelationId || effectiveCase.claim_status || effectiveCase.claim_id);
+  const settlement = moneyLedger?.settlement || null;
+  const utr = paymentSummary?.utr || settlement?.utr || effectiveCase.utr || effectiveCase.latest_utr;
   // Payment completion must come from payment-specific signals only — the
   // claim's generic `status` can already read "complete" as soon as an earlier
   // step (e.g. preauth) resolves, well before payment happens.
-  const paymentDone =
-    String(effectiveCase.payment_status || "").toUpperCase() === "PAYMENT_SETTLED" || !!utr;
+  //
+  // A UTR alone is NOT settlement: the payer's first notice routinely carries
+  // one while the payment is still only initiated, so it marks the stage as
+  // started (below) rather than done.
+  //
+  // When the case carries a payment summary it is the authority and answers
+  // both ways — an explicit `settled: false` must not be overridden by a
+  // stale ledger settlement. Everything else is a fallback for a case loaded
+  // from a dashboard row, which has no payment block at all.
+  const paymentDone = paymentSummary
+    ? paymentSummary.settled === true ||
+      SETTLED_PAYMENT_STATES.has(paymentState(paymentSummary.latest_stage))
+    : settlement?.settled === true ||
+      SETTLED_PAYMENT_STATES.has(paymentState(effectiveCase.payment_status));
+  const paymentStarted = (paymentSummary?.total_events ?? 0) > 0 || !!utr;
 
   const policyNumber =
     caseState.policy?.policyNumber || caseState.policy?.policy_number || effectiveCase.policy_number;
@@ -94,19 +121,35 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       if (decision === "APPROVED") return { done: true, note: approvedAmount ? `Approved ${approvedAmount}` : "Approved", tone: "approve" };
       if (decision === "PARTIALLY_APPROVED") return { done: true, note: approvedAmount ? `Partial ${approvedAmount}` : "Partially approved", tone: "approve" };
       if (decision === "REJECTED") return { done: true, note: "Rejected", tone: "urgent" };
+      if (decision === "CANCELLED") return { done: true, note: "Cancelled", tone: "urgent" };
       if (preauthStarted) return { done: false, note: "Waiting on payer", tone: "wait", live: true };
       return { done: false, note: "" };
     })(),
     claim: (() => {
       const label = claimDecision ? String(claimDecision).replace(/_/g, " ") : "";
       if (claimDecision && /reject|denied|short/i.test(String(claimDecision))) return { done: true, note: label, tone: "urgent" };
-      if (claimDecision && /approv|paid|complete/i.test(String(claimDecision))) return { done: true, note: label, tone: "approve" };
-      return { done: false, note: label || (caseState.claimCorrelationId ? "Submitted" : "") };
+      if (claimDecision && /approv|paid/i.test(String(claimDecision))) return { done: true, note: label, tone: "approve" };
+      if (claimDecision) return { done: false, note: label, tone: "wait" };
+      return { done: false, note: claimSubmitted ? "Awaiting decision" : "", tone: claimSubmitted ? "wait" : undefined };
     })(),
-    payment: {
-      done: paymentDone,
-      note: utr ? `UTR ${utr}` : paymentDone ? "Acknowledged" : "",
-    },
+    payment: (() => {
+      if (paymentDone) {
+        return { done: true, note: utr ? `Settled · UTR ${utr}` : "Settled", tone: "approve" };
+      }
+      // The payer has paid something but not settled. The stage is not done,
+      // but it must still be reachable — this is exactly the state a case sits
+      // in while waiting on the settlement notice.
+      if (paymentStarted) {
+        const stage = paymentState(paymentSummary?.latest_stage) === "PROCESSED" ? "Processing" : "Initiated";
+        return {
+          done: false,
+          inProgress: true,
+          note: utr ? `${stage} · UTR ${utr}` : stage,
+          tone: "wait",
+        };
+      }
+      return { done: false, note: "" };
+    })(),
   };
 
   // assemble visible list, splicing conditional branches in after Decision
@@ -139,8 +182,8 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
   return visible.map((s, i) => {
     const isActive = i === activeIndex;
     const isPassed = activeIndex !== -1 && i < activeIndex;
-    const clickable = s.branch || s.done || isActive || isPassed;
-    
+    const clickable = s.branch || s.done || s.inProgress || isActive || isPassed;
+
     // Branch nodes (Enhancement/Reprocess) have no "the user actually acted on
     // this" signal wired up yet - their own `done` is always false. Falling
     // through to `isPassed` here would checkmark them purely for sitting
@@ -149,6 +192,7 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     if (isActive) state = "active";
     else if (s.branch) state = s.done ? "done" : "available";
     else if (s.done || isPassed) state = "done";
+    else if (s.inProgress) state = "progress";
 
     return { ...s, state, clickable };
   });

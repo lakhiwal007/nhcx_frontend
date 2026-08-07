@@ -428,6 +428,18 @@
   border-style: dashed;
 }
 
+/* Started but not finished — the payer has paid something without settling.
+   Reachable and clearly underway, but never the green of a closed stage. */
+.cx-vstep.is-progress .cx-vstep-circle {
+  border-color: var(--cx-wait);
+  color: var(--cx-wait);
+  background: color-mix(in srgb, var(--cx-wait) 12%, transparent);
+}
+.cx-vstep.is-progress .cx-vstep-label {
+  color: var(--cx-ink);
+  font-weight: 650;
+}
+
 /* pulse ring on the active node */
 .cx-vstep.is-active .cx-vstep-circle::after {
   content: "";
