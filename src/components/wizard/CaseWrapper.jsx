@@ -7,6 +7,8 @@ import { Button, EmptyState, LoadingBlock } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
 import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
+import CaseCommsBar from "../case/CaseCommsBar";
+import CommunicationDetailDrawer from "../CommunicationDetail";
 import { buildStages } from "../case/caseStages";
 import "../case/case-workspace.css";
 
@@ -19,6 +21,8 @@ import ClaimsScreen from "./ClaimsScreen";
 import ReprocessScreen from "./ReprocessScreen";
 import PaymentReconciliation from "./PaymentReconciliation";
 import CaseTimeline from "./CaseTimeline";
+
+const COMMS_POLL_MS = 60_000;
 
 export default function CaseWrapper() {
   const { id } = useParams();
@@ -95,6 +99,30 @@ export default function CaseWrapper() {
   useEffect(() => {
     refreshTimeline();
   }, [refreshTimeline, caseState.preauthDecision, caseState.approvedAmount, caseState.claimCorrelationId, caseState.dischargeCorrelationId]);
+
+  const [communications, setCommunications] = useState([]);
+  const [openCommId, setOpenCommId] = useState(null);
+
+  const refreshComms = useCallback(async () => {
+    if (!ledgerCaseId) return;
+    try {
+      const res = await api.listCommunications({ cashless_case_id: ledgerCaseId, limit: 50 });
+      setCommunications(res?.communications || []);
+    } catch (_) {}
+  }, [ledgerCaseId]);
+
+  useEffect(() => {
+    refreshComms();
+    if (!ledgerCaseId) return;
+    const timer = setInterval(refreshComms, COMMS_POLL_MS);
+    return () => clearInterval(timer);
+  }, [refreshComms, ledgerCaseId]);
+
+  const markCommRead = useCallback((correlationId) => {
+    setCommunications((prev) =>
+      prev.map((c) => (c.correlation_id === correlationId ? { ...c, provider_read: true } : c)),
+    );
+  }, []);
 
   // Stages are routed views swapped inside the scrollable .content pane;
   // React Router keeps the scroll offset across navigations, so a new stage
@@ -216,6 +244,8 @@ export default function CaseWrapper() {
             moneyLedger={timeline?.money_ledger || null}
           />
 
+          <CaseCommsBar communications={communications} onOpen={setOpenCommId} />
+
           <div className="cx-stage-head">
             <div>
               <div className="cx-eyebrow">
@@ -275,6 +305,17 @@ export default function CaseWrapper() {
           </div>
         </section>
       </div>
+
+      <CommunicationDetailDrawer
+        correlationId={openCommId}
+        open={!!openCommId}
+        onClose={() => {
+          setOpenCommId(null);
+          refreshComms();
+        }}
+        onRead={markCommRead}
+        showOpenCase={false}
+      />
     </div>
   );
 }
