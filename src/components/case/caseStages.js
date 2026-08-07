@@ -13,6 +13,50 @@ const CORE = [
 const fmt = (n) =>
   n != null && !Number.isNaN(Number(n)) ? `₹${Number(n).toLocaleString("en-IN")}` : null;
 
+// Where a case has already moved on to, keyed by the backend's current_step.
+// Screens earlier in the journey use this to offer "Continue to X" instead of
+// redirecting there, so an earlier stage stays reachable from the spine.
+export const STEP_FORWARD_ROUTE = {
+  preauth_submitted: "status",
+  preauth_decided: "status",
+  claim_submitted: "claim",
+  claim_decided: "claim",
+  payment_pending: "payment",
+  settled: "payment",
+};
+
+export const STEP_FORWARD_LABEL = {
+  status: "Preauth Decision",
+  claim: "Claim",
+  payment: "Payment",
+};
+
+// A /cashless/{id} response is nested — preauth, claim and payment each arrive
+// as their own object — while the spine and the case header read a flat shape.
+// Project it in one place: a screen that refetches the case must merge this
+// rather than store the raw response, or every flat key below goes undefined
+// and the downstream stages lose their note, tone and clickability at once.
+export function projectCaseStatus(full) {
+  if (!full) return {};
+
+  return {
+    cashless_case_id: full.cashless_case_id,
+    claim_id: full.claim?.claim_id ?? full.claim_id ?? null,
+    status: full.status,
+    current_step: full.current_step,
+    payer_id: full.payer_id,
+    policy_number: full.policy_number,
+    preauth_status: full.preauth?.decision ?? null,
+    preauth_ref: full.preauth?.preauth_ref ?? null,
+    claim_decision: full.claim?.decision ?? null,
+    claim_status: full.claim?.status ?? null,
+    payment_status: full.claim?.payment_status ?? null,
+    approved_amount: full.claim?.approved_amount ?? full.preauth?.approved_amount ?? null,
+    payment: full.payment ?? null,
+    latest_utr: full.payment?.utr ?? null,
+  };
+}
+
 // Derive the ordered list of visible stages with live status for each.
 export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecision, currentPath }) {
   const decision = preauthDecision ? String(preauthDecision).toUpperCase() : null;

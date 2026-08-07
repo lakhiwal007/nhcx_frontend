@@ -1715,6 +1715,19 @@ select.input-modern option {
     font-weight: var(--fw-medium);
 }
 
+.ep-moved-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-5);
+    background: color-mix(in srgb, var(--success) 8%, var(--bg-card));
+    border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+    border-left: 3px solid var(--success);
+    border-radius: var(--radius-md);
+    flex-wrap: wrap;
+}
+
 /* ─── Payment table summary row ──────────────────────────────────────────── */
 .table-modern tfoot tr td {
     font-weight: 700;

@@ -15,6 +15,7 @@ import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, StatusBadge, LoadingBlock } from "../Common";
 import { formatDate, formatMoney } from "../../format.js";
+import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
 import PayrErrorList from "../PayrErrorList";
 
 const POLL_INTERVAL_MS = 7000;
@@ -29,20 +30,6 @@ const TERMINAL_STATUSES = ["complete", "failed"];
 const shouldStopPolling = (res) =>
   TERMINAL_STATUSES.includes(res?.status) ||
   (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
-
-// Once current_step moves past preauth_ready, this screen has nothing left to
-// do - `next_actions` will never offer `prepare_preauth` again, so staying
-// here dead-ends on a permanent "Preparing…" button. Send the user to
-// wherever the journey actually is instead (covers direct/bookmarked
-// navigation to this screen, not just the Patient Profile "Resume" button).
-const STEP_FORWARD_ROUTE = {
-  preauth_submitted: "status",
-  preauth_decided: "status",
-  claim_submitted: "claim",
-  claim_decided: "claim",
-  payment_pending: "payment",
-  settled: "payment",
-};
 
 // Doc requirements arrive either as a flat {name}/{type:{display}} shape, or as
 // a raw FHIR extension: {url, values: [{url: "category", display}, {url: "code", display}]}.
@@ -691,6 +678,7 @@ export default function EligibilityPrep({ ctx }) {
   const [forceRefreshing, setForceRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
+  const [movedOn, setMovedOn] = useState(null);
 
   const hasInitialized = useRef(false);
 
@@ -722,7 +710,7 @@ export default function EligibilityPrep({ ctx }) {
           });
         }
         setCaseData(res);
-        setCashlessCase(res);
+        setCashlessCase((prev) => ({ ...prev, ...projectCaseStatus(res) }));
         updateCaseState({
           cashless_case_id: res.cashless_case_id,
           claim_id: res.claim_id,
@@ -731,12 +719,10 @@ export default function EligibilityPrep({ ctx }) {
             res.coverage_eligibility?.correlation_id,
         });
 
-        if (STEP_FORWARD_ROUTE[res.current_step]) {
-          navigate(`../${STEP_FORWARD_ROUTE[res.current_step]}`, { replace: true });
-          return;
-        }
+        const ahead = STEP_FORWARD_ROUTE[res.current_step] || null;
+        setMovedOn(ahead);
 
-        if (!shouldStopPolling(res)) {
+        if (!ahead && !shouldStopPolling(res)) {
           setPolling(true);
         }
       } catch (err) {
@@ -767,10 +753,10 @@ export default function EligibilityPrep({ ctx }) {
   const pollStatus = async (signal) => {
     try {
       const res = await api.getCashlessStatus(caseData.cashless_case_id, signal);
-      if (STEP_FORWARD_ROUTE[res.current_step]) {
+      const ahead = STEP_FORWARD_ROUTE[res.current_step] || null;
+      if (ahead) {
         setPolling(false);
-        navigate(`../${STEP_FORWARD_ROUTE[res.current_step]}`, { replace: true });
-        return;
+        setMovedOn(ahead);
       }
       setCaseData(res);
       updateCaseState({
@@ -812,7 +798,7 @@ export default function EligibilityPrep({ ctx }) {
             force_refresh: true,
           });
       setCaseData(res);
-      setCashlessCase(res);
+      setCashlessCase((prev) => ({ ...prev, ...projectCaseStatus(res) }));
       updateCaseState({
         cashless_case_id: res.cashless_case_id,
         claim_id: res.claim_id,
@@ -820,7 +806,9 @@ export default function EligibilityPrep({ ctx }) {
           res.coverage_eligibility?.validation?.correlation_id ??
           res.coverage_eligibility?.correlation_id,
       });
-      if (!shouldStopPolling(res)) {
+      const ahead = STEP_FORWARD_ROUTE[res.current_step] || null;
+      setMovedOn(ahead);
+      if (!ahead && !shouldStopPolling(res)) {
         setPolling(true);
       }
     } catch (_) {
@@ -922,9 +910,39 @@ export default function EligibilityPrep({ ctx }) {
   // down, etc.) and the case is waiting for a re-POST, not a dead end.
   const needsRetry = isFailed && caseData?.next_actions?.includes("retry");
   const canProceed = caseData?.next_actions?.includes("prepare_preauth") && (isComplete || isPartial);
+  const movedOnLabel = movedOn ? STEP_FORWARD_LABEL[movedOn] : null;
 
   return (
     <div className="wizard-step">
+      {movedOn && (
+        <div className="ep-moved-banner">
+          <CheckCircle2 size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: "1px" }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: "13.5px" }}>
+              Eligibility is complete for this case
+            </div>
+            <div style={{ fontSize: "12.5px", color: "var(--text-muted)", marginTop: "2px" }}>
+              The case has already moved on to {movedOnLabel}. Everything below is the eligibility
+              and plan detail as last checked — re-run it if you need a fresh answer from the payer.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+            <Button
+              variant="outline"
+              size="small"
+              icon={RefreshCw}
+              disabled={forceRefreshing}
+              onClick={handleForceRefresh}
+            >
+              {forceRefreshing ? "Re-running…" : "Re-run Eligibility"}
+            </Button>
+            <Button variant="primary" size="small" onClick={() => navigate(`../${movedOn}`)}>
+              Continue to {movedOnLabel}
+              <ArrowRight size={15} style={{ marginLeft: "6px" }} />
+            </Button>
+          </div>
+        </div>
+      )}
       <Card className="mb-6">
         <div
           style={{
@@ -1110,16 +1128,18 @@ export default function EligibilityPrep({ ctx }) {
         </Button>
         <Button
           variant="primary"
-          disabled={!canProceed}
-          onClick={() => navigate("../review")}
+          disabled={!movedOn && !canProceed}
+          onClick={() => navigate(movedOn ? `../${movedOn}` : "../review")}
         >
-          {polling
-            ? "Awaiting Eligibility…"
-            : canProceed
-              ? "Proceed to Preauth Draft"
-              : isComplete
-                ? "Preparing…"
-                : "Eligibility Pending"}
+          {movedOn
+            ? `Continue to ${movedOnLabel}`
+            : polling
+              ? "Awaiting Eligibility…"
+              : canProceed
+                ? "Proceed to Preauth Draft"
+                : isComplete
+                  ? "Preparing…"
+                  : "Eligibility Pending"}
           <ArrowRight size={18} style={{ marginLeft: "8px" }} />
         </Button>
       </div>

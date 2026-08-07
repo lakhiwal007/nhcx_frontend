@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, ArrowRight, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { Card, Button, DocumentChecklist, MissingFieldsAlert, LoadingBlock, formatMoney } from "../Common";
+import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL } from "../case/caseStages";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -112,18 +113,20 @@ export default function PreauthDraft({ ctx }) {
   const { caseState, updateCaseState, cashlessCase } = ctx;
   const { payer, policy, cashless_case_id, claim_id, draftData } = caseState;
 
-  // This screen is a PRE-submission editor. Once a preauth has been submitted or
-  // decided for the case, re-entering it (e.g. clicking the Preauth step in the
-  // lifecycle stepper, which stays clickable as "done") would rebuild the draft
-  // from the live DB and offer to submit an already-decided preauth again. Detect
-  // that and send the user to the Decision screen instead. Corrections after a
-  // decision go through Resubmit/Enhancement on that screen, never a fresh draft.
+  // This screen stays re-enterable after a preauth has been submitted or decided,
+  // so clicking the Preauth step in the lifecycle rail lands here rather than
+  // bouncing to the Decision screen. The draft is rebuilt from the live DB and
+  // submit stays enabled: re-submitting a decided preauth is a deliberate,
+  // user-facing action here, announced by the banner below. Enhancement and
+  // Resubmit on the Decision screen remain the routes for a payer-driven change.
   const preauthAlreadyLive = !!(
     caseState.preauthCorrelationId ||
     caseState.preauthDecision ||
     cashlessCase?.preauth_status ||
     cashlessCase?.preauth?.correlation_id
   );
+  const movedOn = STEP_FORWARD_ROUTE[cashlessCase?.current_step] || null;
+  const movedOnLabel = movedOn ? STEP_FORWARD_LABEL[movedOn] : null;
 
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState(null);
@@ -161,10 +164,6 @@ export default function PreauthDraft({ ctx }) {
   useEffect(() => {
     if (!caseState.cashless_case_id && !caseState.claim_id) {
       navigate("../payer", { replace: true });
-      return;
-    }
-    if (preauthAlreadyLive) {
-      navigate("../status", { replace: true });
       return;
     }
     loadDraft();
@@ -305,6 +304,40 @@ export default function PreauthDraft({ ctx }) {
 
   return (
     <div className="wizard-step">
+      {preauthAlreadyLive && (
+        <div className="ep-moved-banner">
+          <CheckCircle2 size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: "1px" }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: "13.5px" }}>
+              Preauth is already submitted for this case
+            </div>
+            <div style={{ fontSize: "12.5px", color: "var(--text-muted)", marginTop: "2px" }}>
+              {movedOnLabel
+                ? `The case has already moved on to ${movedOnLabel}. `
+                : ""}
+              The draft below is rebuilt from current records — submitting again sends the payer a
+              fresh preauth for this case.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+            <Button
+              variant="outline"
+              size="small"
+              icon={Send}
+              disabled={!canSubmit}
+              onClick={handleSubmit}
+            >
+              {submitting ? "Re-submitting…" : "Re-submit Preauth"}
+            </Button>
+            {movedOn && (
+              <Button variant="primary" size="small" onClick={() => navigate(`../${movedOn}`)}>
+                Continue to {movedOnLabel}
+                <ArrowRight size={15} style={{ marginLeft: "6px" }} />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
       {hisBlockers.length > 0 && (
         <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
           <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
