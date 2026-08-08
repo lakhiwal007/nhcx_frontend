@@ -1027,6 +1027,37 @@ const mock = {
     };
   },
 
+  getCaseBundle: async (cashless_case_id, transaction_type, params = {}) => {
+    await delay(400);
+    const knownCorrelationIds = {
+      preauth: "5c2a6db0-b4c1-47e2-bf6d-3db2ed6e8f11",
+      claim: "b19afd0a-9cca-4e31-948e-ffda91b02e58",
+      payment: "pay-corr-1",
+    };
+    const correlation_id = params.correlation_id || knownCorrelationIds[transaction_type];
+    if (!correlation_id) return null;
+
+    const sampleBundle = (direction) => ({
+      resourceType: "Bundle",
+      type: "collection",
+      id: `${transaction_type}-${direction}-${correlation_id}`,
+      entry: [
+        { resource: { resourceType: "Claim", id: "claim-mock-1", status: "active" } },
+        { resource: { resourceType: "Patient", id: "patient-mock-1", name: [{ text: "Arjun Mehta" }] } },
+      ],
+    });
+
+    return {
+      cashless_case_id: Number(cashless_case_id) || 4,
+      transaction_type,
+      correlation_id,
+      outbound: { bundle: sampleBundle("outbound"), captured_at: "2026-05-01T10:00:00+05:30" },
+      inbound: transaction_type === "communication"
+        ? null
+        : { bundle: sampleBundle("inbound"), captured_at: "2026-05-01T12:00:00+05:30" },
+    };
+  },
+
   // ─── Preauthorization ───────────────────────────────────────────────────────
   preparePreauth: async (params = {}) => {
     await delay(800);
@@ -2388,6 +2419,13 @@ const real = {
   // limit, offset }.
   getCaseTimeline: (cashless_case_id, params = {}, signal) =>
     http.get(`/cashless/${cashless_case_id}/timeline`, params, { signal }),
+
+  // Raw FHIR bundle(s) actually exchanged for one transaction (preauth/claim/
+  // communication/payment). Defaults to the latest of that type; pass
+  // { correlation_id } to pick a specific historical one. 404 -> null (no
+  // transaction of that type recorded yet), not an error.
+  getCaseBundle: (cashless_case_id, transaction_type, params = {}, signal) =>
+    http.get(`/cashless/${cashless_case_id}/bundles/${transaction_type}`, params, { signal, allowNotFound: true }),
 
   preparePreauth: (params = {}) =>
     http.get("/cashless/preauth/prepare", params),

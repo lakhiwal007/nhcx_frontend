@@ -2,11 +2,16 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   RefreshCw, ChevronDown, ChevronRight, AlertTriangle, ArrowUpRight, ArrowDownLeft,
-  Cpu, Building2, Landmark, ShieldAlert,
+  Cpu, Building2, Landmark, ShieldAlert, FileJson,
 } from "lucide-react";
 import { api } from "../../api";
 import { Card, Button, LoadingBlock, EmptyState } from "../Common";
 import { formatMoney, formatDateTime } from "../../format.js";
+import FhirBundleModal from "../FhirBundleModal";
+
+// Transaction types the bundle-inspection endpoint supports — matches
+// transaction_type on GET /cashless/:id/bundles/:transaction_type.
+const BUNDLE_WORKFLOWS = new Set(["preauth", "claim", "communication", "payment"]);
 
 // Fixed actor palette — who drove the event. Hospital (blue), payer (violet),
 // system/auto (grey). Kept distinct so a payer callback never reads as a
@@ -85,8 +90,9 @@ function DecisionDetail({ decision }) {
   );
 }
 
-function EventRow({ event }) {
+function EventRow({ event, cashlessCaseId }) {
   const [open, setOpen] = useState(false);
+  const [showBundle, setShowBundle] = useState(false);
   const isFailure = event.status === "failed" || !!event.error;
   const tint = SEVERITY_COLOR[event.severity] || "var(--border-color)";
   const DirIcon = event.direction === "outbound" ? ArrowUpRight : event.direction === "inbound" ? ArrowDownLeft : null;
@@ -167,8 +173,23 @@ function EventRow({ event }) {
               correlation {event.correlation_id}
             </div>
           )}
+          {BUNDLE_WORKFLOWS.has(event.workflow) && (
+            <div style={{ marginTop: "8px" }}>
+              <Button variant="outline" size="small" icon={FileJson} onClick={() => setShowBundle(true)}>
+                View FHIR bundle
+              </Button>
+            </div>
+          )}
         </div>
       )}
+
+      <FhirBundleModal
+        open={showBundle}
+        onClose={() => setShowBundle(false)}
+        cashlessCaseId={cashlessCaseId}
+        transactionType={event.workflow}
+        correlationId={event.correlation_id}
+      />
     </div>
   );
 }
@@ -306,7 +327,7 @@ export default function CaseTimeline({ ctx }) {
         <EmptyState title="No events" description="No timeline events match the current filters." />
       ) : (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          {events.map((e) => <EventRow key={e.id} event={e} />)}
+          {events.map((e) => <EventRow key={e.id} event={e} cashlessCaseId={cashlessCaseId} />)}
         </motion.div>
       )}
     </div>
