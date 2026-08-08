@@ -20,6 +20,24 @@ export default function CaseCommsBar({ communications = [], onOpen }) {
   )[0];
   const needsAction = actionable.length > 0;
   const preview = commPreview(latest);
+  const unanswered = communications.filter((c) => c.direction !== "outbound" && !c.acknowledged);
+  const settled = unread.length === 0 && actionable.length === 0 && unanswered.length === 0;
+
+  if (settled) {
+    return (
+      <div className="cx-commsbar is-quiet">
+        <span className="cx-commsbar-icon" aria-hidden="true">
+          <MessageSquare size={14} />
+        </span>
+        <span className="cx-commsbar-quiet-label">
+          {communications.length} answered message{communications.length > 1 ? "s" : ""} with the payer
+        </span>
+        <Button variant="outline" size="small" onClick={() => onOpen(latest.correlation_id)}>
+          View thread
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <AnimatePresence>
