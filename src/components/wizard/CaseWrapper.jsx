@@ -9,7 +9,7 @@ import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
 import CaseCommsBar from "../case/CaseCommsBar";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, projectCaseStatus } from "../case/caseStages";
+import { buildStages, projectCaseStatus, landingStage } from "../case/caseStages";
 import "../case/case-workspace.css";
 
 import PayerPolicy from "./PayerPolicy";
@@ -277,7 +277,7 @@ export default function CaseWrapper() {
                     location via context and briefly mounts the next screen a second
                     time, double-firing its init effect (e.g. prepareCashless). */}
                 <Routes location={location}>
-                  <Route path="/" element={<Navigate to="payer" replace />} />
+                  <Route path="/" element={<Navigate to={landingStage(effectiveCase)} replace />} />
                   <Route path="payer" element={<PayerPolicy ctx={contextValue} />} />
                   <Route path="prep" element={<EligibilityPrep ctx={contextValue} />} />
                   <Route path="review" element={<PreauthDraft ctx={contextValue} />} />

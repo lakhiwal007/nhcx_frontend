@@ -39,6 +39,20 @@ export const STEP_FORWARD_LABEL = {
   payment: "Payment",
 };
 
+const STEP_LANDING_ROUTE = {
+  ...STEP_FORWARD_ROUTE,
+  preauth_ready: "review",
+};
+
+export function landingStage(effectiveCase = {}) {
+  const step = effectiveCase.current_step;
+  if (STEP_LANDING_ROUTE[step]) return STEP_LANDING_ROUTE[step];
+  if (step === "insurance_and_eligibility" && (effectiveCase.payer_id || effectiveCase.policy_number)) {
+    return "prep";
+  }
+  return "payer";
+}
+
 // A /cashless/{id} response is nested — preauth, claim and payment each arrive
 // as their own object — while the spine and the case header read a flat shape.
 // Project it in one place: a screen that refetches the case must merge this
