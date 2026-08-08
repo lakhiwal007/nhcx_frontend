@@ -155,7 +155,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       const res = method === "GET"
         ? await api.rawGet(url, hint)
         : await api.rawPost(url, body);
-      setExecuteResult({ success: true, correlation_id: res?.correlation_id, message: res?.message });
+      setExecuteResult({ success: res?.status !== "failed", correlation_id: res?.correlation_id, message: res?.message });
     } catch (err) {
       setExecuteResult({ success: false, message: err.message });
     } finally {
@@ -175,7 +175,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
           data: d.data,
         })),
       });
-      setRespondResult({ success: true, message: res?.message });
+      setRespondResult({ success: res?.status !== "failed", message: res?.message });
     } catch (err) {
       setRespondResult({ success: false, message: err.message });
     } finally {
