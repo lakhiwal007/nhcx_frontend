@@ -265,8 +265,8 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                       </span>
                       <span className={`badge-modern badge-${detail.acknowledged ? "success" : "warning"}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
                         {detail.acknowledged
-                          ? <><CheckCircle2 size={11} /> Auto-acknowledged</>
-                          : <><Circle size={11} /> Not acknowledged</>}
+                          ? <><CheckCircle2 size={11} /> Answered</>
+                          : <><Circle size={11} /> Awaiting reply</>}
                       </span>
                       {detail.ack_correlation_id && <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>ACK: {detail.ack_correlation_id}</span>}
                     </div>
