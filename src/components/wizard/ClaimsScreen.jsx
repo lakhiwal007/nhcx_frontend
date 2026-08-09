@@ -213,6 +213,23 @@ export default function ClaimsScreen({ ctx }) {
     loadDraft(null, draftParams(null));
   }, []);
 
+  useEffect(() => {
+    if (finalCorrelationId) return;
+    if (!resolvedCashlessCaseId) return;
+    const recover = async () => {
+      try {
+        const res = await api.getCashlessStatus(resolvedCashlessCaseId);
+        if (res.claim?.correlation_id) {
+          setFinalCorrelationId(res.claim.correlation_id);
+          updateCaseState({ claimCorrelationId: res.claim.correlation_id });
+          setActiveTab("decision");
+          setPolling(true);
+        }
+      } catch (_) {}
+    };
+    recover();
+  }, []);
+
   // Discharge claim polling
   const pollDischarge = async (signal) => {
     try {
