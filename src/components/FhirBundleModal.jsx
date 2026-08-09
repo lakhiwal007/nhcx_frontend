@@ -7,7 +7,14 @@ import { formatDateTime } from "../format.js";
 
 const TRANSACTION_LABELS = {
   preauth: "Preauth",
+  preauth_cancellation: "Preauth Cancellation",
+  preauth_release: "Preauth Release",
+  preauth_nullification: "Preauth Nullification",
+  coverage_eligibility: "Coverage Eligibility",
+  insurance_plan: "Insurance Plan",
   claim: "Claim",
+  claim_search: "Claim Search",
+  reprocess: "Reprocess",
   communication: "Communication",
   payment: "Payment",
 };

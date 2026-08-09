@@ -9,9 +9,13 @@ import { Card, Button, LoadingBlock, EmptyState } from "../Common";
 import { formatMoney, formatDateTime } from "../../format.js";
 import FhirBundleModal from "../FhirBundleModal";
 
-// Transaction types the bundle-inspection endpoint supports — matches
-// transaction_type on GET /cashless/:id/bundles/:transaction_type.
-const BUNDLE_WORKFLOWS = new Set(["preauth", "claim", "communication", "payment"]);
+const BUNDLE_WORKFLOWS = new Set([
+  "preauth", "preauth_cancellation", "preauth_release", "preauth_nullification",
+  "eligibility", "insurance_plan", "claim", "claim_search", "reprocess",
+  "communication", "payment",
+]);
+
+const BUNDLE_TRANSACTION_TYPE = { eligibility: "coverage_eligibility" };
 
 // Fixed actor palette — who drove the event. Hospital (blue), payer (violet),
 // system/auto (grey). Kept distinct so a payer callback never reads as a
@@ -34,7 +38,11 @@ const WORKFLOW_LABELS = {
   insurance_plan: "Insurance Plan",
   eligibility: "Eligibility",
   preauth: "Preauth",
+  preauth_cancellation: "Preauth Cancellation",
+  preauth_release: "Preauth Release",
+  preauth_nullification: "Preauth Nullification",
   claim: "Claim",
+  claim_search: "Claim Search",
   reprocess: "Reprocess",
   payment: "Payment",
   communication: "Communication",
@@ -187,7 +195,7 @@ function EventRow({ event, cashlessCaseId }) {
         open={showBundle}
         onClose={() => setShowBundle(false)}
         cashlessCaseId={cashlessCaseId}
-        transactionType={event.workflow}
+        transactionType={BUNDLE_TRANSACTION_TYPE[event.workflow] || event.workflow}
         correlationId={event.correlation_id}
       />
     </div>
