@@ -14,7 +14,7 @@ import {
   Trash2,
   Paperclip,
 } from "lucide-react";
-import { formatMoney, formatDateTime, formatPhone, formatPercent, currencySymbol } from "../format.js";
+import { formatMoney, formatDateTime, formatPhone, formatPercent, currencySymbol, safeHref } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
 export { formatMoney };
@@ -365,6 +365,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         {(documents || []).map((doc, i) => {
           const attached = !!doc.url;
+          const viewHref = safeHref(doc.url);
           const missing = !doc.optional && !attached;
           // The left rail colour encodes the row's state so blockers are
           // scannable: green = attached, red = required & missing, grey = optional.
@@ -424,16 +425,24 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
                     REQUIRED
                   </span>
                 )}
-                {attached ? (
+                {attached && viewHref ? (
                   <a
-                    href={doc.url}
+                    href={viewHref}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noreferrer noopener"
                     className="badge-modern badge-success"
                     style={{ fontSize: "10px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "var(--space-1)", whiteSpace: "nowrap" }}
                   >
                     <CheckCircle2 size={11} /> Attached
                   </a>
+                ) : attached ? (
+                  <span
+                    className="badge-modern badge-success"
+                    title="This document's link could not be opened safely."
+                    style={{ fontSize: "10px", display: "inline-flex", alignItems: "center", gap: "var(--space-1)", whiteSpace: "nowrap" }}
+                  >
+                    <CheckCircle2 size={11} /> Attached
+                  </span>
                 ) : (
                   <Button
                     variant="outline"

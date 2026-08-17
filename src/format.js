@@ -119,3 +119,25 @@ export const humanize = (v, dash = DASH) => {
   const s = String(v).replace(/[_-]+/g, " ").trim().toLowerCase();
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
+
+const SAFE_LINK_SCHEMES = ["http:", "https:", "blob:"];
+const UNSAFE_DATA_TYPES = /^(text\/html|image\/svg\+xml|application\/xhtml\+xml|text\/xml|application\/xml)/i;
+
+export const safeHref = (v) => {
+  if (v == null) return null;
+  const raw = String(v).trim();
+  if (!raw) return null;
+
+  const colon = raw.indexOf(":");
+  if (colon === -1) return null;
+  const scheme = raw.slice(0, colon + 1).toLowerCase();
+
+  if (SAFE_LINK_SCHEMES.includes(scheme)) return raw;
+
+  if (scheme === "data:") {
+    const mime = raw.slice(5).split(/[;,]/)[0] || "";
+    return UNSAFE_DATA_TYPES.test(mime) ? null : raw;
+  }
+
+  return null;
+};
