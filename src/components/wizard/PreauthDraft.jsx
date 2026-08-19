@@ -31,6 +31,24 @@ const MISSING_FIELD_MAP = {
 // Fields that cannot be resolved from the UI — must be fixed in the HIS
 const HIS_BLOCKERS = new Set(["diagnoses", "items", "preauth_ref"]);
 
+const ICD_10 = "http://hl7.org/fhir/sid/icd-10";
+const CODE_SYSTEMS = [
+  { value: ICD_10, label: "ICD-10" },
+  { value: "http://snomed.info/sct", label: "SNOMED CT" },
+];
+
+const effectiveSystem = (diag) => diag.code_system || (diag.code ? ICD_10 : "");
+
+const serializeDiagnoses = (list) =>
+  list.map((diag) => {
+    const out = { ...diag };
+    delete out._uid;
+    const system = effectiveSystem(diag);
+    if (system) out.code_system = system;
+    else delete out.code_system;
+    return out;
+  });
+
 function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
@@ -196,11 +214,14 @@ export default function PreauthDraft({ ctx }) {
   // ── Diagnosis editing ─────────────────────────────────────────────────────
   const updateDiagnosis = (idx, field, value) => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
-    setEditedDiagnoses(base.map((d, i) => (i === idx ? { ...d, [field]: value } : d)));
+    setEditedDiagnoses(base.map((d, i) => {
+      if (i !== idx) return d;
+      return field === "code" ? { ...d, code: value, code_system: "" } : { ...d, [field]: value };
+    }));
   };
   const addDiagnosis = () => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
-    setEditedDiagnoses([...base, { code: "", name: "", primary: false, on_admission: false, _uid: uidRef.current++ }]);
+    setEditedDiagnoses([...base, { code: "", name: "", code_system: "", primary: false, on_admission: false, _uid: uidRef.current++ }]);
   };
   const removeDiagnosis = (idx) => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
@@ -263,7 +284,7 @@ export default function PreauthDraft({ ctx }) {
       if (draft.policy_number) body.policy_number = draft.policy_number;
       if (draft.eligibility?.correlation_id)
         body.eligibility_correlation_id = draft.eligibility.correlation_id;
-      if (editedDiagnoses) body.diagnoses = editedDiagnoses.map(({ _uid, ...d }) => d);
+      if (editedDiagnoses) body.diagnoses = serializeDiagnoses(editedDiagnoses);
       if (editedItems) {
         body.items = editedItems;
         body.total_amount = computedTotal;
@@ -514,15 +535,28 @@ export default function PreauthDraft({ ctx }) {
                       <input
                         className="input-modern"
                         style={{ width: "90px", fontSize: "12px", padding: "4px 8px" }}
-                        placeholder="ICD code"
-                        value={diag.code}
+                        placeholder="Code"
+                        value={diag.code ?? ""}
                         onChange={(e) => updateDiagnosis(i, "code", e.target.value)}
                       />
+                      <select
+                        className="input-modern"
+                        style={{ width: "108px", fontSize: "12px", padding: "4px 6px", opacity: diag.code ? 1 : 0.5 }}
+                        disabled={!diag.code}
+                        value={effectiveSystem(diag)}
+                        onChange={(e) => updateDiagnosis(i, "code_system", e.target.value)}
+                        title={diag.code ? "Terminology this code belongs to" : "Enter a code first"}
+                      >
+                        {!diag.code && <option value="">—</option>}
+                        {CODE_SYSTEMS.map((sys) => (
+                          <option key={sys.value} value={sys.value}>{sys.label}</option>
+                        ))}
+                      </select>
                       <input
                         className="input-modern"
                         style={{ flex: 1, fontSize: "12px", padding: "4px 8px" }}
                         placeholder="Diagnosis name"
-                        value={diag.name}
+                        value={diag.name ?? ""}
                         onChange={(e) => updateDiagnosis(i, "name", e.target.value)}
                       />
                       {diag.primary && (
