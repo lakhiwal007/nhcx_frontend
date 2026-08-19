@@ -39,8 +39,13 @@ const CODE_SYSTEMS = [
 
 const effectiveSystem = (diag) => diag.code_system || (diag.code ? ICD_10 : "");
 
+const withPrimary = (list) =>
+  list.length === 0 || list.some((d) => d.primary)
+    ? list
+    : list.map((d, i) => (i === 0 ? { ...d, primary: true } : d));
+
 const serializeDiagnoses = (list) =>
-  list.map((diag) => {
+  withPrimary(list).map((diag) => {
     const out = { ...diag };
     delete out._uid;
     const system = effectiveSystem(diag);
@@ -214,18 +219,22 @@ export default function PreauthDraft({ ctx }) {
   // ── Diagnosis editing ─────────────────────────────────────────────────────
   const updateDiagnosis = (idx, field, value) => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
-    setEditedDiagnoses(base.map((d, i) => {
+    setEditedDiagnoses(withPrimary(base.map((d, i) => {
       if (i !== idx) return d;
       return field === "code" ? { ...d, code: value, code_system: "" } : { ...d, [field]: value };
-    }));
+    })));
+  };
+  const setPrimaryDiagnosis = (idx) => {
+    const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
+    setEditedDiagnoses(base.map((d, i) => ({ ...d, primary: i === idx })));
   };
   const addDiagnosis = () => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
-    setEditedDiagnoses([...base, { code: "", name: "", code_system: "", primary: false, on_admission: false, _uid: uidRef.current++ }]);
+    setEditedDiagnoses(withPrimary([...base, { code: "", name: "", code_system: "", primary: false, on_admission: false, _uid: uidRef.current++ }]));
   };
   const removeDiagnosis = (idx) => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
-    setEditedDiagnoses(base.filter((_, i) => i !== idx));
+    setEditedDiagnoses(withPrimary(base.filter((_, i) => i !== idx)));
   };
 
   // ── Care team editing ─────────────────────────────────────────────────────
@@ -559,9 +568,19 @@ export default function PreauthDraft({ ctx }) {
                         value={diag.name ?? ""}
                         onChange={(e) => updateDiagnosis(i, "name", e.target.value)}
                       />
-                      {diag.primary && (
-                        <span className="badge-modern badge-success" style={{ fontSize: "10px", whiteSpace: "nowrap" }}>PRIMARY</span>
-                      )}
+                      <label
+                        style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: diag.primary ? "var(--success)" : "var(--text-muted)", whiteSpace: "nowrap", cursor: "pointer" }}
+                        title="Principal diagnosis — exactly one per claim"
+                      >
+                        <input
+                          type="radio"
+                          name="primary-diagnosis"
+                          style={{ cursor: "pointer", margin: 0 }}
+                          checked={!!diag.primary}
+                          onChange={() => setPrimaryDiagnosis(i)}
+                        />
+                        PRIMARY
+                      </label>
                       <button
                         onClick={() => removeDiagnosis(i)}
                         style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", padding: "2px", display: "flex", flexShrink: 0, transition: "transform 0.15s ease" }}
