@@ -310,11 +310,11 @@ export default function Communications({ allFacilitiesMode = false }) {
               <thead>
                 <tr>
                   <th>Topic</th>
-                  <th>Payer</th>
-                  <th>Claim Reference</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                  <th className="col-fit">Payer</th>
+                  <th className="col-fit">Claim Reference</th>
+                  <th className="col-fit">Date</th>
+                  <th className="col-fit">Status</th>
+                  <th className="col-fit">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -329,20 +329,20 @@ export default function Communications({ allFacilitiesMode = false }) {
                         {preview && <div className="cm-row-preview">{preview}</div>}
                         {hasAction && <div className="cm-flag"><AlertTriangle size={10} /> Action Required</div>}
                       </td>
-                      <td>
+                      <td className="col-fit">
                         <div className="cm-row-payer">{comm.payer_name || comm.payer_id}</div>
                         {comm.payer_name && comm.payer_id && <div className="cm-row-sub">{comm.payer_id}</div>}
                       </td>
-                      <td>{comm.claim_reference ? <code className="cm-ref">{comm.claim_reference}</code> : "—"}</td>
-                      <td title={formatDateTime(comm.sent_at)} style={{ whiteSpace: "nowrap" }}>
+                      <td className="col-fit">{comm.claim_reference ? <code className="cm-ref">{comm.claim_reference}</code> : "—"}</td>
+                      <td className="col-fit" title={formatDateTime(comm.sent_at)}>
                         {formatDateTime(comm.sent_at)}
                       </td>
-                      <td>
+                      <td className="col-fit">
                         {isUnread
                           ? <span className="cm-state is-unread"><Circle size={11} /> Unread</span>
                           : <span className="cm-state"><CheckCircle2 size={11} /> Read</span>}
                       </td>
-                      <td>
+                      <td className="col-fit">
                         <Button variant={hasAction ? "primary" : "outline"} size="small" onClick={() => setSelectedCorrelationId(comm.correlation_id)}>
                           {hasAction ? "Review & Act" : "View"}
                         </Button>

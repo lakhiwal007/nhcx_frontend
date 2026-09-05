@@ -723,7 +723,6 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
               position: "relative",
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
               gap: "10px",
               marginBottom: "5px",
             }}
@@ -782,7 +781,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             </div>
           )}
           {task.description && (
-            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: "12px", color: "var(--text-muted)", maxWidth: "80ch" }}>
               {task.description}
             </div>
           )}
