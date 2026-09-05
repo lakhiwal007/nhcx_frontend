@@ -719,6 +719,7 @@ export default function App() {
                 <Route path="/payments" element={<Payments />} />
                 <Route path="/case/:id/*" element={<CaseWrapper />} />
               </Route>
+              <Route path="*" element={<Navigate to="/work-queue" replace />} />
             </Routes>
           </AnimatePresence>
         </div>
