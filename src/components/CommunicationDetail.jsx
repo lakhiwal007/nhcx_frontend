@@ -6,7 +6,7 @@ import {
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
 import { Button, QueryResponseFields } from "./Common";
-import { formatDateTime } from "../format.js";
+import { formatDateTime, safeHref } from "../format.js";
 import { buildActionBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
 import { useNavigate } from "react-router-dom";
 
@@ -278,8 +278,8 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                       {detail.payload.map((p, i) => (
                         <div key={i} style={{ padding: "14px 16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "var(--space-2)", fontSize: "13px", lineHeight: 1.6 }}>
                           {p.content_string && <p style={{ margin: 0 }}>{p.content_string}</p>}
-                          {p.content_attachment && (
-                            <a href={p.content_attachment} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--primary)", fontWeight: 600, textDecoration: "none", marginTop: p.content_string ? "8px" : 0 }}>
+                          {safeHref(p.content_attachment) && (
+                            <a href={safeHref(p.content_attachment)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--primary)", fontWeight: 600, textDecoration: "none", marginTop: p.content_string ? "8px" : 0 }}>
                               <Paperclip size={14} /> View Attachment
                             </a>
                           )}
