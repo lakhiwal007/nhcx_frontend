@@ -2509,6 +2509,94 @@ code {
     font-weight: var(--fw-semibold);
 }
 
+/* ─── Dropdown (styled select) ───────────────────────────────────────────── */
+.dd-root {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+}
+
+.dd-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    height: 46px;
+    box-sizing: border-box;
+    text-align: left;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.dd-trigger.dd-compact {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 13px;
+}
+
+.dd-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dd-chevron {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    background: var(--select-chevron) no-repeat center / 12px 12px;
+}
+
+.dd-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 100%;
+    max-height: 340px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.dd-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    font-size: 13px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.dd-option.is-highlighted {
+    background: var(--bg-main);
+}
+
+.dd-option.is-selected {
+    background: var(--primary-light);
+    color: var(--primary);
+    font-weight: var(--fw-semibold);
+}
+
+.dd-check {
+    width: 14px;
+    text-align: right;
+    font-weight: var(--fw-bold);
+}
+
 /* ─── Metrics responsive grid ────────────────────────────────────────────── */
 .metrics-grid-responsive {
     display: grid;
