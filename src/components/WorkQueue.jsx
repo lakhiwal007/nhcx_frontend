@@ -2,45 +2,109 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
-  Search,
-  AlertTriangle,
   X,
   FileText,
-  ChevronRight,
   RefreshCw,
   RotateCcw,
   AlertCircle,
-  LayoutGrid,
-  List,
-  ArrowDownUp,
-  Inbox,
   Copy,
   User
 } from "lucide-react";
 import { api } from "../api";
-import { resolveAction } from "../api/actionMap";
 import { taskScreen } from "../taskRoutes";
-import { Button, Input, EmptyState, LoadingBlock } from "./Common";
-import { formatRelative, formatRelativePhrase, formatDateTime, formatCaseRef } from "../format.js";
+import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
+import Dropdown from "./Dropdown";
+import { formatRelative, formatDateTime, formatCaseRef } from "../format.js";
 import { useNavigate } from "react-router-dom";
 
 const POLL_INTERVAL_MS = 45_000;
 const OVERDUE_HOURS = 24;
 const WARN_HOURS = 2;
+const PAGE_SIZE = 25;
+// The task list endpoint pages at 20 by default; ask for enough that the
+// client-side priority counts, sort and pagination see the whole queue.
+const FETCH_LIMIT = 500;
 
-const WORKFLOW_OPTIONS = [
-  { value: "", label: "All Workflows" },
-  { value: "insurance_plan", label: "Insurance Plan" },
-  { value: "coverage_eligibility", label: "Coverage Eligibility" },
-  { value: "preauth", label: "Preauth" },
-  { value: "claim", label: "Claim" },
-  { value: "reprocess", label: "Reprocess" },
-  { value: "payment", label: "Payment" },
-  { value: "communication", label: "Communication" },
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Open tasks" },
+  { value: "completed", label: "Completed" },
 ];
 
+const SORT_OPTIONS = [
+  { value: "priority", label: "Sort: Priority" },
+  { value: "oldest", label: "Sort: Waiting longest" },
+  { value: "newest", label: "Sort: Newest" },
+];
+
+const PRIORITY_CHIPS = [
+  { key: "all", label: "All", dot: "var(--text-muted)" },
+  { key: "urgent", label: "Urgent", dot: "var(--error)" },
+  { key: "high", label: "High", dot: "var(--warning)" },
+  { key: "normal", label: "Normal", dot: "var(--border-hover)" },
+];
+
+const PRIORITY_RANK = { urgent: 0, high: 1, normal: 2 };
+
+const createdAt = (t) => Date.parse(t.created_at) || 0;
+
+const SORTERS = {
+  // Most pressing first; within a priority, whoever has waited longest.
+  priority: (a, b) =>
+    PRIORITY_RANK[priorityBucket(a)] - PRIORITY_RANK[priorityBucket(b)] || createdAt(a) - createdAt(b),
+  oldest: (a, b) => createdAt(a) - createdAt(b),
+  newest: (a, b) => createdAt(b) - createdAt(a),
+};
+
+// "low" has no chip of its own; it sits with normal.
+function priorityBucket(task) {
+  return task.priority === "urgent" || task.priority === "high" ? task.priority : "normal";
+}
+
+const taskKey = (task) => String(task.id ?? task.task_id);
+
+const TASK_TYPE_SHORT = {
+  review_insurance_plan_documents: "Insurance plan",
+  attach_eligibility_documents: "Eligibility docs",
+  fix_eligibility_error: "Eligibility",
+  submit_preauth: "Pre-auth",
+  respond_preauth_query: "Pre-auth query",
+  resubmit_preauth: "Pre-auth",
+  resubmit_enhancement: "Enhancement",
+  submit_discharge_claim: "Discharge claim",
+  resubmit_discharge_claim: "Discharge claim",
+  submit_final_claim: "Final claim",
+  respond_claim_query: "Claim query",
+  resubmit_claim: "Resubmit",
+  submit_reprocess: "Reprocess",
+  acknowledge_payment: "Payment",
+  review_payment_ack_failure: "Payment",
+  review_communication: "Message",
+  review_callback_failure: "Payer response",
+  cancel_superseded_preauth: "Withdraw",
+};
+
+const shortTaskType = (type) =>
+  TASK_TYPE_SHORT[type] || (type ? type.replace(/_/g, " ") : "Task");
+
+function searchHaystack(task) {
+  return [
+    task.title,
+    task.description,
+    taskKey(task),
+    task.claim_id,
+    task.cashless_case_id && formatCaseRef(task.cashless_case_id),
+    task.cashless_case_id,
+    task.patient_name,
+    task.payer_name,
+    task.facility_name,
+  ]
+    .filter((v) => v !== null && v !== undefined && v !== "")
+    .join(" ")
+    .toLowerCase();
+}
+
 const TASK_TYPE_OPTIONS = [
-  { value: "", label: "All Task Types" },
+  { value: "", label: "All task types" },
   { value: "review_insurance_plan_documents", label: "Review Insurance Plan" },
   { value: "attach_eligibility_documents", label: "Attach Eligibility Docs" },
   { value: "fix_eligibility_error", label: "Fix Eligibility Error" },
@@ -137,7 +201,7 @@ function DetailRow({ label, children }) {
   );
 }
 
-function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, onNavigate }) {
+function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, onNavigate, onRetryAck, retryingAck }) {
   const [completing, setCompleting] = useState(false);
   const [running, setRunning] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -344,6 +408,26 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 <div className="inline-error-banner" style={{ margin: 0 }}>
                   <AlertCircle size={16} />
                   {actionError}
+                </div>
+              )}
+
+              {(task.task_type === "acknowledge_payment" || task.task_type === "review_payment_ack_failure") &&
+                task.action?.payload_hint?.payment_reference && (
+                <div className="inline-error-banner" style={{ margin: 0, justifyContent: "space-between" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                    <AlertCircle size={16} />
+                    Payment acknowledgement failed — retry required
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="small"
+                    icon={RotateCcw}
+                    disabled={retryingAck || allFacilitiesMode}
+                    title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
+                    onClick={() => onRetryAck(task)}
+                  >
+                    {retryingAck ? "Retrying…" : "Retry Ack"}
+                  </Button>
                 </div>
               )}
 
@@ -571,25 +655,21 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("pending");
-  const [workflowFilter, setWorkflowFilter] = useState("");
   const [taskTypeFilter, setTaskTypeFilter] = useState("");
-  const [caseIdFilter, setCaseIdFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("priority");
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState({});
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [retrying, setRetrying] = useState({});
-  const [navigating, setNavigating] = useState({});
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem("wq_viewMode") || "board");
-  const [sortBy, setSortBy] = useState("priority");
-  
-  useEffect(() => { localStorage.setItem("wq_viewMode", viewMode); }, [viewMode]);
-  
+
   const pollRef = useRef(null);
 
   const fetchTasks = useCallback(async () => {
     try {
-      const params = { status: statusFilter };
-      if (workflowFilter) params.workflow = workflowFilter;
+      const params = { status: statusFilter, limit: FETCH_LIMIT };
       if (taskTypeFilter) params.task_type = taskTypeFilter;
-      if (caseIdFilter) params.cashless_case_id = caseIdFilter;
       const response = await api.listTasks(params);
       setTasks(response?.tasks || []);
       setLoadError(false);
@@ -599,7 +679,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, workflowFilter, taskTypeFilter, caseIdFilter]);
+  }, [statusFilter, taskTypeFilter]);
 
   useEffect(() => {
     setLoading(true);
@@ -611,29 +691,32 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     return () => clearInterval(pollRef.current);
   }, [fetchTasks]);
 
+  // Any filter change starts from the first page and drops the selection.
+  const resetView = () => {
+    setPage(0);
+    setSelected({});
+  };
+
   const handleRetryAck = async (task) => {
     const payRef = task.action?.payload_hint?.payment_reference;
     if (!payRef) return;
-    setRetrying((p) => ({ ...p, [task.id ?? task.task_id]: true }));
+    setRetrying((p) => ({ ...p, [taskKey(task)]: true }));
     try {
       await api.acknowledgePayment({ payment_reference: payRef });
       await fetchTasks();
     } catch (_) {
     } finally {
-      setRetrying((p) => ({ ...p, [task.id ?? task.task_id]: false }));
+      setRetrying((p) => ({ ...p, [taskKey(task)]: false }));
     }
   };
 
   const navigateToCase = async (task) => {
-    const taskId = task.id ?? task.task_id;
     let cid = task.child_id;
     if (!cid && task.cashless_case_id) {
-      setNavigating((p) => ({ ...p, [taskId]: true }));
       try {
         const cs = await api.getCashlessStatus(task.cashless_case_id);
         cid = cs.child_id;
       } catch (_) {}
-      setNavigating((p) => ({ ...p, [taskId]: false }));
     }
     if (!cid) return;
     const path = taskScreen(task.task_type, cid) || `/case/${cid}/`;
@@ -658,537 +741,242 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     });
   };
 
-  let filteredTasks = tasks.filter((t) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      t.title?.toLowerCase().includes(q) ||
-      String(t.id ?? t.task_id)
-        .toLowerCase()
-        .includes(q) ||
-      String(t.claim_id ?? "").includes(q)
-    );
-  });
-
-  filteredTasks.sort((a, b) => {
-    if (sortBy === "oldest") {
-      return Date.parse(a.created_at) - Date.parse(b.created_at);
-    } else if (sortBy === "newest") {
-      return Date.parse(b.created_at) - Date.parse(a.created_at);
+  const handleMarkDone = async () => {
+    const ids = Object.keys(selected);
+    setBulkBusy(true);
+    try {
+      await Promise.allSettled(
+        ids.map((id) => api.completeTask(id, { note: "Marked done from Work Queue" })),
+      );
+      setSelected({});
+      await fetchTasks();
+    } finally {
+      setBulkBusy(false);
     }
-    return 0;
-  });
-
-  const urgentTasks = filteredTasks.filter((t) => t.priority === "urgent");
-  const highTasks = filteredTasks.filter((t) => t.priority === "high");
-  const normalTasks = filteredTasks.filter(
-    (t) => t.priority !== "urgent" && t.priority !== "high",
-  );
-
-  const isPaymentAckTask = (t) =>
-    t.task_type === "acknowledge_payment" ||
-    t.task_type === "review_payment_ack_failure";
-
-  const TaskRow = ({ task }) => {
-    const age = ageLabel(task.created_at);
-    const taskId = task.id ?? task.task_id;
-    const isAckTask = isPaymentAckTask(task);
-
-    return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        whileHover={{ y: -2, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
-        className="card-modern"
-        style={{
-          padding: "14px 18px",
-          cursor: "pointer",
-          borderLeft:
-            task.priority === "urgent"
-              ? "3px solid var(--error)"
-              : task.priority === "high"
-                ? "3px solid var(--warning)"
-                : "3px solid var(--primary)",
-          display: "flex",
-          gap: "14px",
-          alignItems: "center",
-          transition: "box-shadow 0.2s ease",
-        }}
-        onClick={() => setSelectedTask(task)}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              marginBottom: "5px",
-            }}
-          >
-            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-              <span
-                className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`}
-                style={{ fontSize: "10px" }}
-              >
-                {task.priority?.toUpperCase()}
-              </span>
-              <span
-                className="badge-modern badge-info"
-                style={{ fontSize: "10px" }}
-              >
-                {task.workflow}
-              </span>
-              {task.facility_name && (
-                <span
-                  className="badge-modern"
-                  style={{ fontSize: "10px", background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}
-                >
-                  {task.facility_name}
-                </span>
-              )}
-              {age && (
-                <span
-                  style={{ fontSize: "10px", fontWeight: 700, color: age.color }}
-                >
-                  {age.text}
-                </span>
-              )}
-            </div>
-            <span
-              title={task.created_at ? formatDateTime(task.created_at) : undefined}
-              style={{
-                fontSize: "11px",
-                color: "var(--text-muted)",
-                flexShrink: 0,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {task.created_at ? formatRelative(task.created_at) : ""}
-            </span>
-          </div>
-          <div
-            style={{ fontWeight: 700, fontSize: "14px", marginBottom: "3px" }}
-          >
-            {task.title}
-          </div>
-          {taskSubject(task) && (
-            <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", marginBottom: "3px" }}>
-              <User size={11} />
-              {taskSubject(task)}
-              {task.payer_name && <span>· {task.payer_name}</span>}
-            </div>
-          )}
-          {task.description && (
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", maxWidth: "80ch" }}>
-              {task.description}
-            </div>
-          )}
-          {task.required_documents?.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: "6px",
-                marginTop: "var(--space-2)",
-              }}
-            >
-              <FileText size={11} color="var(--text-muted)" />
-              {task.required_documents.map((doc, idx) => {
-                const docLabel = typeof doc === 'string' ? doc : (doc.display || doc.code || "Document");
-                return (
-                  <span
-                    key={idx}
-                    style={{
-                      fontSize: "10px",
-                      padding: "2px 6px",
-                      background: "var(--bg-main)",
-                      border: "1px solid var(--border-color)",
-                      borderRadius: "4px",
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {docLabel}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-          {isAckTask && (
-            <div
-              style={{
-                marginTop: "var(--space-2)",
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-2)",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "var(--error)",
-                }}
-              >
-                Payment acknowledgement failed - retry required
-              </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRetryAck(task);
-                }}
-                disabled={!!retrying[taskId] || allFacilitiesMode}
-                title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-1)",
-                  padding: "3px 10px",
-                  background: "var(--error)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-xs)",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  opacity: (retrying[taskId] || allFacilitiesMode) ? 0.6 : 1,
-                }}
-              >
-                <RotateCcw size={11} />
-                {retrying[taskId] ? "Retrying…" : "Retry Ack"}
-              </button>
-            </div>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: "var(--space-2)", flexShrink: 0 }}>
-          <Button
-            variant={task.action ? "primary" : "outline"}
-            size="small"
-            disabled={!!navigating[taskId]}
-            onClick={(e) => {
-              e.stopPropagation();
-              navigateToCase(task);
-            }}
-          >
-            {navigating[taskId] ? "Loading…" : (task.action?.label || "Open Case")}
-          </Button>
-          <ChevronRight size={20} color="var(--text-muted)" />
-        </div>
-      </motion.div>
-    );
   };
 
-  const TaskSection = ({ title, tasks: sectionTasks, color }) => {
-    if (sectionTasks.length === 0) return null;
-    return (
-      <div className="mb-8">
-        <h3
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-2)",
-            marginBottom: "14px",
-            color: `var(--${color})`,
-            fontSize: "14px",
-            fontWeight: 700,
-          }}
-        >
-          {color === "error" && <AlertTriangle size={16} />}
-          {title} ({sectionTasks.length})
-        </h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          <AnimatePresence>
-            {sectionTasks.map((task) => (
-              <TaskRow key={task.id ?? task.task_id} task={task} />
-            ))}
-          </AnimatePresence>
-        </div>
-      </div>
-    );
-  };
+  // Priority chip counts follow the search, but not the priority filter itself.
+  const q = searchQuery.trim().toLowerCase();
+  const searched = tasks.filter((t) => !q || searchHaystack(t).includes(q));
+  const chipCounts = { all: searched.length, urgent: 0, high: 0, normal: 0 };
+  searched.forEach((t) => chipCounts[priorityBucket(t)]++);
 
-  const KanbanCard = ({ task }) => {
-    const age = ageLabel(task.created_at);
-    const taskId = task.id ?? task.task_id;
-    
-    return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
-        onClick={() => setSelectedTask(task)}
-        className="card-modern"
-        style={{
-          padding: "var(--space-4)",
-          borderTop: task.priority === "urgent" ? "3px solid var(--error)" : task.priority === "high" ? "3px solid var(--warning)" : "3px solid var(--primary)",
-          cursor: "pointer",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-          transition: "box-shadow 0.2s ease"
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)" }}>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            <span className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>
-              {task.priority?.toUpperCase()}
-            </span>
-            <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>
-              {task.workflow}
-            </span>
-          </div>
-          {age && <span style={{ fontSize: "10px", fontWeight: 700, color: age.color, background: "color-mix(in srgb, currentColor 10%, transparent)", padding: "2px 6px", borderRadius: "10px", flexShrink: 0 }}>{age.text}</span>}
-        </div>
-        
-        {taskSubject(task) && (
-          <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: "var(--text-muted)" }}>
-            <User size={11} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{taskSubject(task)}</span>
-          </div>
-        )}
+  const visible = searched
+    .filter((t) => priorityFilter === "all" || priorityBucket(t) === priorityFilter)
+    .sort(SORTERS[sortBy]);
 
-        <div style={{ fontWeight: 700, fontSize: "14px", lineHeight: "1.3" }}>
-          {task.title}
-        </div>
+  const maxPage = Math.max(0, Math.ceil(visible.length / PAGE_SIZE) - 1);
+  const currentPage = Math.min(page, maxPage);
+  const pageRows = visible.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
-        {task.payer_name && (
-          <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{task.payer_name}</div>
-        )}
+  const overdueCount = tasks.filter((t) => ageLabel(t.created_at)?.text === "Overdue").length;
+  const selectable = statusFilter === "pending";
+  const selCount = Object.keys(selected).length;
+  const allChecked = pageRows.length > 0 && pageRows.every((t) => selected[taskKey(t)]);
+  const filtersActive = q || priorityFilter !== "all" || taskTypeFilter;
 
-        <div style={{ fontSize: "11px", color: "var(--text-muted)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span title={task.created_at ? formatDateTime(task.created_at) : undefined}>
-            {task.created_at ? `Raised ${formatRelativePhrase(task.created_at)}` : ""}
-          </span>
-          {task.facility_name && (
-            <span style={{ color: "var(--accent)", fontWeight: 600, background: "color-mix(in srgb, var(--accent) 10%, transparent)", padding: "2px 6px", borderRadius: "4px" }}>
-              {task.facility_name}
-            </span>
-          )}
-        </div>
-        
-        {task.required_documents?.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-1)", marginTop: "var(--space-1)" }}>
-            <FileText size={11} color="var(--text-muted)" />
-            {task.required_documents.map((doc, idx) => {
-              const docLabel = typeof doc === 'string' ? doc : (doc.display || doc.code || "Document");
-              return (
-                <span
-                  key={idx}
-                  style={{
-                    fontSize: "10px",
-                    padding: "2px 6px",
-                    background: "var(--bg-main)",
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "4px",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  {docLabel}
-                </span>
-              );
-            })}
-          </div>
-        )}
-        
-        <div style={{ marginTop: "6px" }}>
-          <Button
-            variant={task.action ? "primary" : "outline"}
-            size="small"
-            disabled={!!navigating[taskId]}
-            onClick={(e) => {
-              e.stopPropagation();
-              navigateToCase(task);
-            }}
-            style={{ width: "100%", justifyContent: "center" }}
-          >
-            {navigating[taskId] ? "Loading…" : (task.action?.label || "Open Case")}
-          </Button>
-        </div>
-      </motion.div>
-    );
-  };
+  const toggleOne = (task) =>
+    setSelected((s) => {
+      const next = { ...s };
+      const key = taskKey(task);
+      if (next[key]) delete next[key];
+      else next[key] = true;
+      return next;
+    });
 
-  const KanbanColumn = ({ title, tasks: sectionTasks, color }) => {
-    return (
-      <div className="wq-lane" style={{ "--wq-lane-accent": `var(--${color})` }}>
-        <h3 className="wq-lane-head">
-          <span className="wq-lane-rule" aria-hidden="true" />
-          {title}
-          <span className="wq-lane-count">{sectionTasks.length}</span>
-        </h3>
+  const toggleAll = () =>
+    setSelected((s) => {
+      const next = { ...s };
+      pageRows.forEach((t) => {
+        if (allChecked) delete next[taskKey(t)];
+        else next[taskKey(t)] = true;
+      });
+      return next;
+    });
 
-        <div className="wq-lane-body">
-          <AnimatePresence>
-            {sectionTasks.length === 0 ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="wq-lane-empty">
-                <Inbox size={26} />
-                <div className="wq-lane-empty-title">Clear</div>
-              </motion.div>
-            ) : (
-              sectionTasks.map((task) => (
-                <KanbanCard key={task.id ?? task.task_id} task={task} />
-              ))
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-    );
+  const clearFilters = () => {
+    setSearchQuery("");
+    setPriorityFilter("all");
+    setTaskTypeFilter("");
+    resetView();
   };
 
   return (
-    <div className="work-queue-screen">
+    <div className="wq-screen">
+      <div className="wq-header">
+        <div>
+          <h1 className="wq-title">Work Queue</h1>
+          <div className="wq-counts">
+            <span>{tasks.length} {statusFilter === "pending" ? "open" : "completed"} tasks</span>
+            {statusFilter === "pending" && overdueCount > 0 && (
+              <span className="is-overdue">{overdueCount} overdue</span>
+            )}
+          </div>
+        </div>
+        <Button variant="outline" size="small" icon={RefreshCw} onClick={fetchTasks}>
+          Refresh
+        </Button>
+      </div>
+
       {loadError && (
-        <div className="inline-error-banner">
+        <div className="inline-error-banner" style={{ margin: 0 }}>
           <AlertCircle size={16} />
           Could not refresh the task list. Showing the last known results, if any.
         </div>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          marginBottom: "var(--space-5)",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ flex: "1 1 200px" }}>
-          <Input
-            icon={Search}
-            placeholder="Search tasks, claim IDs…"
+      <div className="wq-panel">
+        <div className="wq-toolbar">
+          <input
+            className="input-modern wq-search"
+            placeholder="Search task, case, claim, patient, payer…"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              resetView();
+            }}
           />
-        </div>
-        <div style={{ display: "flex", gap: "var(--space-2)" }}>
-          {["pending", "completed"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "var(--radius-pill)",
-                border: `1px solid ${statusFilter === s ? "var(--primary)" : "var(--border-color)"}`,
-                background:
-                  statusFilter === s ? "var(--primary)" : "transparent",
-                color: statusFilter === s ? "white" : "var(--text-muted)",
-                fontWeight: 600,
-                cursor: "pointer",
-                fontSize: "13px",
-                textTransform: "capitalize",
+          <div className="wq-chips">
+            {PRIORITY_CHIPS.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                className={`wq-chip${priorityFilter === c.key ? " is-on" : ""}`}
+                onClick={() => {
+                  setPriorityFilter(c.key);
+                  resetView();
+                }}
+              >
+                <span className="wq-chip-dot" style={{ "--wq-dot": c.dot }} />
+                {c.label}
+                <span className="wq-chip-count">{chipCounts[c.key]}</span>
+              </button>
+            ))}
+          </div>
+          <div className="wq-toolbar-spacer" />
+          <div style={{ width: "140px" }}>
+            <Dropdown
+              compact
+              ariaLabel="Task status"
+              value={statusFilter}
+              options={STATUS_OPTIONS}
+              onChange={(v) => {
+                setStatusFilter(v);
+                resetView();
               }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-        <select
-          className="input-modern"
-          style={{ width: "auto", minWidth: "150px" }}
-          value={workflowFilter}
-          onChange={(e) => setWorkflowFilter(e.target.value)}
-        >
-          {WORKFLOW_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="input-modern"
-          style={{ width: "auto", minWidth: "170px" }}
-          value={taskTypeFilter}
-          onChange={(e) => setTaskTypeFilter(e.target.value)}
-        >
-          {TASK_TYPE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <input
-          className="input-modern"
-          style={{ width: "130px" }}
-          placeholder="Case ID…"
-          value={caseIdFilter}
-          onChange={(e) => setCaseIdFilter(e.target.value)}
-        />
-        
-        <select
-          className="input-modern"
-          style={{ width: "auto", minWidth: "140px" }}
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-        >
-          <option value="priority">Sort by Priority</option>
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-        </select>
-        
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginLeft: "auto" }}>
-          <Button variant="outline" size="small" icon={RefreshCw} onClick={fetchTasks}>
-            Refresh
-          </Button>
-          <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
-            <button
-              title="Board View"
-              onClick={() => setViewMode("board")}
-              style={{ padding: "6px 12px", background: viewMode === "board" ? "var(--bg-main)" : "transparent", color: viewMode === "board" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "board" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "board" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-            >
-              <LayoutGrid size={16} />
-            </button>
-            <button
-              title="List View"
-              onClick={() => setViewMode("list")}
-              style={{ padding: "6px 12px", background: viewMode === "list" ? "var(--bg-main)" : "transparent", color: viewMode === "list" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "list" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "list" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-            >
-              <List size={16} />
-            </button>
+            />
+          </div>
+          <div style={{ width: "200px" }}>
+            <Dropdown
+              compact
+              ariaLabel="Task type"
+              value={taskTypeFilter}
+              options={TASK_TYPE_OPTIONS}
+              onChange={(v) => {
+                setTaskTypeFilter(v);
+                resetView();
+              }}
+            />
+          </div>
+          <div style={{ width: "170px" }}>
+            <Dropdown
+              compact
+              ariaLabel="Sort"
+              value={sortBy}
+              options={SORT_OPTIONS}
+              onChange={(v) => {
+                setSortBy(v);
+                setPage(0);
+              }}
+            />
           </div>
         </div>
-      </div>
 
-      {loading ? (
-        <LoadingBlock text="Loading tasks…" />
-      ) : filteredTasks.length === 0 ? (
-        <EmptyState
-          icon={CheckCircle2}
-          iconOpacity={0.4}
-          iconColor="var(--success)"
-          title="All Caught Up!"
-          description={`No ${statusFilter} tasks match your filters.`}
-        />
-      ) : (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          {statusFilter === "pending" ? (
-            viewMode === "board" ? (
-              <div className="wq-board">
-                <KanbanColumn title="Urgent" tasks={urgentTasks} color="error" />
-                <KanbanColumn title="High" tasks={highTasks} color="warning" />
-                <KanbanColumn title="Normal" tasks={normalTasks} color="primary" />
-              </div>
-            ) : (
-              <>
-                <TaskSection title="Urgent" tasks={urgentTasks} color="error" />
-                <TaskSection title="High" tasks={highTasks} color="warning" />
-                <TaskSection title="Normal" tasks={normalTasks} color="primary" />
-              </>
-            )
-          ) : (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}
+        {selectable && selCount > 0 && (
+          <div className="wq-bulkbar">
+            <strong>{selCount} selected</strong>
+            <button
+              type="button"
+              className="wq-bulk-btn"
+              disabled={bulkBusy || allFacilitiesMode}
+              title={allFacilitiesMode ? "Select a facility in Settings to act on tasks" : undefined}
+              onClick={handleMarkDone}
             >
-              {filteredTasks.map((task) => (
-                <TaskRow key={task.id ?? task.task_id} task={task} />
-              ))}
+              {bulkBusy ? "Marking done…" : "Mark done"}
+            </button>
+            <button type="button" className="wq-bulk-btn is-plain" onClick={() => setSelected({})}>
+              Clear
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <SkeletonTable rows={8} cols={5} />
+        ) : tasks.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle2}
+            iconOpacity={0.4}
+            iconColor="var(--success)"
+            title={statusFilter === "pending" ? "All Caught Up!" : "No completed tasks"}
+            description={`No ${statusFilter} tasks${taskTypeFilter ? " of this type" : ""}.`}
+          />
+        ) : visible.length === 0 ? (
+          <div className="wq-empty">
+            <div className="wq-empty-title">No tasks match these filters</div>
+            {filtersActive && (
+              <Button variant="outline" size="small" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="wq-table-scroll">
+              <table className="wq-table">
+                <thead>
+                  <tr>
+                    <th className="wq-check">
+                      {selectable && (
+                        <input
+                          type="checkbox"
+                          aria-label="Select all on this page"
+                          checked={allChecked}
+                          onChange={toggleAll}
+                        />
+                      )}
+                    </th>
+                    <th>Task</th>
+                    <th>Case</th>
+                    <th>Patient · Payer</th>
+                    <th>Raised</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((task) => (
+                    <TaskTableRow
+                      key={taskKey(task)}
+                      task={task}
+                      selectable={selectable}
+                      checked={!!selected[taskKey(task)]}
+                      onToggle={() => toggleOne(task)}
+                      onOpen={() => setSelectedTask(task)}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </motion.div>
-      )}
+            <div className="wq-pagination">
+              <TablePagination
+                page={currentPage}
+                pageSize={PAGE_SIZE}
+                total={visible.length}
+                onPageChange={setPage}
+                label="tasks"
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       <TaskDrawer
         task={selectedTask}
@@ -1200,7 +988,60 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         }}
         allFacilitiesMode={allFacilitiesMode}
         onNavigate={navigateToCase}
+        onRetryAck={handleRetryAck}
+        retryingAck={selectedTask ? !!retrying[taskKey(selectedTask)] : false}
       />
     </div>
+  );
+}
+
+function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
+  const bucket = priorityBucket(task);
+  const age = ageLabel(task.created_at);
+  const text = task.description || task.title;
+  const tooltip = task.description && task.title ? `${task.title}\n${task.description}` : text;
+  const ref = task.cashless_case_id
+    ? formatCaseRef(task.cashless_case_id)
+    : task.claim_id
+      ? `Claim ${task.claim_id}`
+      : "—";
+  const payerLine = [task.payer_name || task.payer_id, task.facility_name].filter(Boolean).join(" · ");
+
+  return (
+    <tr className={checked ? "is-selected" : undefined} onClick={onOpen}>
+      <td
+        className="wq-check"
+        title={`${bucket[0].toUpperCase()}${bucket.slice(1)} priority`}
+        onClick={(e) => {
+          if (!selectable) return;
+          e.stopPropagation();
+          onToggle();
+        }}
+      >
+        {bucket !== "normal" && <span className={`wq-edge is-${bucket}`} />}
+        {selectable && (
+          <input type="checkbox" aria-label={`Select ${task.title}`} checked={checked} readOnly />
+        )}
+      </td>
+      <td>
+        <div className="wq-task">
+          <span className="wq-type-tag">{shortTaskType(task.task_type)}</span>
+          <span className={`wq-task-text${bucket === "urgent" ? " is-urgent" : ""}`} title={tooltip}>
+            {text}
+          </span>
+        </div>
+      </td>
+      <td className="wq-mono wq-ref">{ref}</td>
+      <td style={{ whiteSpace: "nowrap" }}>
+        <div>{task.patient_name || (task.child_id ? `#${task.child_id}` : "—")}</div>
+        {payerLine && <div className="wq-sub">{payerLine}</div>}
+      </td>
+      <td
+        className={`wq-mono wq-age${age ? (age.text === "Overdue" ? " is-overdue" : " is-waiting") : ""}`}
+        title={task.created_at ? `Created ${formatDateTime(task.created_at)}` : undefined}
+      >
+        {task.created_at ? formatRelative(task.created_at) : "—"}
+      </td>
+    </tr>
   );
 }
