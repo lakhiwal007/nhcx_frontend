@@ -656,12 +656,6 @@ export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
   </div>
 );
 
-/**
- * Grid of labeled currency totals (e.g. billed / approved / eligible amounts
- * from a claim adjudication). Each entry's key becomes the label; approved
- * and eligible amounts are tinted green.
- * @category Domain
- */
 const PERCENT_TOTALS = ["elig_percent", "eligpercent"];
 
 const amountValue = (v) => (v && typeof v === "object" ? v.value : v);
@@ -672,6 +666,12 @@ const formatTotal = (k, v) => {
   return formatMoney(raw, { currency: currencySymbol(v && typeof v === "object" ? v.currency : null) });
 };
 
+/**
+ * Grid of labeled currency totals (e.g. billed / approved / eligible amounts
+ * from a claim adjudication). Each entry's key becomes the label; approved
+ * and eligible amounts are tinted green.
+ * @category Domain
+ */
 export const AmountGrid = ({ totals }) => {
   if (!totals) return null;
   return (
@@ -769,6 +769,12 @@ export const TaskCard = ({ task, onClick }) => (
   </motion.div>
 );
 
+/**
+ * Footer pager for a client-side paginated table: "Showing X–Y of N" plus
+ * Prev/Next buttons. `page` is zero-based. Renders nothing when `total` fits
+ * on one page.
+ * @category Navigation
+ */
 export const TablePagination = ({ page, pageSize, total, onPageChange, label = "rows" }) => {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   if (total <= pageSize) return null;
@@ -807,6 +813,12 @@ export const TablePagination = ({ page, pageSize, total, onPageChange, label = "
   );
 };
 
+/**
+ * Controlled form fields for answering a payer query: a response textarea
+ * plus a supporting-documents file picker. Parent owns `answer` and
+ * `documents` (each `{title, contentType, data}` with base64 `data`).
+ * @category Forms
+ */
 export const QueryResponseFields = ({
   answer,
   onAnswerChange,
