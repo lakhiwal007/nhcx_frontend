@@ -965,6 +965,32 @@ h3,
     flex-shrink: 0;
 }
 
+/* Current screen's actions, portalled in by <PageActions> (PageActions.jsx). */
+.page-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 8px;
+}
+
+.page-actions:empty {
+    display: none;
+}
+
+.breadcrumb-strip .page-actions {
+    margin: 0 0 0 auto;
+}
+
+/* Phones: icon-only actions so the top bar doesn't overflow. */
+@media (max-width: 640px) {
+    /* !important to beat the Button size utilities (px-3, text-xs). */
+    .page-actions .btn-modern {
+        gap: 0;
+        padding: 0 8px !important;
+        font-size: 0 !important;
+    }
+}
+
 /* Facility pill in the top bar. Redundant with the sidebar's switcher while
    the full sidebar is showing, so it only appears when the sidebar can't
    show the facility name (collapsed rail, tablet, mobile, top-bar layout). */
@@ -3742,18 +3768,6 @@ code {
     letter-spacing: -0.01em;
 }
 
-.wq-counts {
-    display: flex;
-    gap: 12px;
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-}
-
-.wq-counts .is-overdue {
-    color: var(--error);
-    font-weight: var(--fw-semibold);
-}
-
 .wq-panel {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -4008,12 +4022,6 @@ code {
     display: flex;
     flex-direction: column;
     gap: 16px;
-}
-
-.cc-header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
 }
 
 .cc-info-banner {
@@ -4452,9 +4460,6 @@ code {
 }
 
 @media (max-width: 768px) {
-    .cc-header-actions > * {
-        white-space: nowrap;
-    }
     /* KPIs become a swipeable strip instead of a tall grid */
     .cc-kpis {
         display: flex;

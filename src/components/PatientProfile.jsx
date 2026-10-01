@@ -634,13 +634,6 @@ export default function PatientProfile() {
 
   return (
     <div className="cc-screen">
-      <div className="wq-header">
-        <div>
-          <div className="wq-counts">
-            <span>{loading ? "Loading patients…" : `${totalCount} patient${totalCount === 1 ? "" : "s"}`}</span>
-          </div>
-        </div>
-      </div>
 
       {loadError && (
         <div className="inline-error-banner" style={{ margin: 0 }}>

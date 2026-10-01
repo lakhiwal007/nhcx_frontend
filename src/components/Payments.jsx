@@ -128,16 +128,6 @@ export default function Payments() {
 
   return (
     <div className="cc-screen payments-screen">
-      <div className="wq-header">
-        <div>
-          <div className="wq-counts">
-            <span>{loading ? "Loading payments…" : `${payments.length} payment${payments.length === 1 ? "" : "s"}`}</span>
-            {!loading && metrics.pendingAck > 0 && (
-              <span className="is-overdue">{metrics.pendingAck} awaiting acknowledgement</span>
-            )}
-          </div>
-        </div>
-      </div>
 
       {loadError && (
         <div className="inline-error-banner" style={{ margin: 0 }}>

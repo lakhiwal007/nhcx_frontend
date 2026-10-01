@@ -7,6 +7,7 @@ import {
 import { api } from "../api";
 import { resolveCaseStatus } from "../caseStatus.js";
 import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
+import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { formatMoney, formatDate, formatRelative } from "../format.js";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -463,7 +464,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
   const safeClaimsPage = Math.min(claimsPage, claimsPageCount - 1);
   const pagedClaims = filteredClaims.slice(safeClaimsPage * CLAIMS_PAGE_SIZE, (safeClaimsPage + 1) * CLAIMS_PAGE_SIZE);
 
-  const attentionCount = claims.filter(needsAttention).length;
   const filtersActive = !!q || statusTab !== "all";
   const clearFilters = () => {
     setSearchQuery("");
@@ -475,38 +475,28 @@ export default function Dashboard({ allFacilitiesMode = false }) {
 
   return (
     <div className="dashboard-screen cc-screen">
-      <div className="wq-header">
-        <div>
-          <div className="wq-counts">
-            <span>{loading ? "Loading cases…" : `${claims.length} ${claims.length === 1 ? "case" : "cases"}`}</span>
-            {!loading && attentionCount > 0 && (
-              <span className="is-overdue">{attentionCount} need action</span>
-            )}
-          </div>
-        </div>
-        <div className="cc-header-actions">
-          <Button
-            variant="outline"
-            size="small"
-            icon={Radio}
-            disabled={allFacilitiesMode}
-            title={allFacilitiesMode ? "Select a facility in Settings to search the gateway" : "Look up a claim on the NHCX gateway"}
-            onClick={() => setShowSearchModal(true)}
-          >
-            Search NHCX Gateway
-          </Button>
-          <Button
-            variant="primary"
-            size="small"
-            icon={Plus}
-            disabled={allFacilitiesMode}
-            title={allFacilitiesMode ? "Select a facility in Settings to start a new case" : undefined}
-            onClick={() => navigate("/registry")}
-          >
-            New Cashless Case
-          </Button>
-        </div>
-      </div>
+      <PageActions>
+        <Button
+          variant="outline"
+          size="small"
+          icon={Radio}
+          disabled={allFacilitiesMode}
+          title={allFacilitiesMode ? "Select a facility in Settings to search the gateway" : "Look up a claim on the NHCX gateway"}
+          onClick={() => setShowSearchModal(true)}
+        >
+          Search NHCX Gateway
+        </Button>
+        <Button
+          variant="primary"
+          size="small"
+          icon={Plus}
+          disabled={allFacilitiesMode}
+          title={allFacilitiesMode ? "Select a facility in Settings to start a new case" : "New Cashless Case"}
+          onClick={() => navigate("/registry")}
+        >
+          New Cashless Case
+        </Button>
+      </PageActions>
 
       {allFacilitiesMode && (
         <div className="inline-error-banner cc-info-banner">

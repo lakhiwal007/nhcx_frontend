@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Paperclip, AlertCircle, Send } from "lucide-react";
 import { api } from "../api";
 import { Button, SkeletonTable, TablePagination } from "./Common";
+import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { formatDateTime, formatRelative } from "../format.js";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
@@ -57,8 +58,6 @@ export default function Communications({ allFacilitiesMode = false }) {
 
   const uniquePayers = [...new Set(communications.map((c) => c.payer_id).filter(Boolean))];
   const payerLabel = (code) => communications.find((c) => c.payer_id === code)?.payer_name || code;
-  const unreadCount = communications.filter((c) => !c.provider_read).length;
-  const actionNeededCount = communications.filter((c) => c.pending_tasks?.length > 0).length;
 
   const [commsPage, setCommsPage] = useState(0);
   const isAction = (c) => c.pending_tasks?.length > 0;
@@ -99,22 +98,13 @@ export default function Communications({ allFacilitiesMode = false }) {
 
   return (
     <div className="cc-screen communications-screen">
-      <div className="wq-header">
-        <div>
-          <div className="wq-counts">
-            <span>{loading ? "Loading messages…" : `${communications.length} message${communications.length === 1 ? "" : "s"}`}</span>
-            {!loading && unreadCount > 0 && <span>{unreadCount} unread</span>}
-            {!loading && actionNeededCount > 0 && <span className="is-overdue">{actionNeededCount} need action</span>}
-          </div>
-        </div>
-        {OUTBOUND_COMMUNICATIONS_ENABLED && (
-          <div className="cc-header-actions">
-            <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)}>
-              Message payer
-            </Button>
-          </div>
-        )}
-      </div>
+      {OUTBOUND_COMMUNICATIONS_ENABLED && (
+        <PageActions>
+          <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)} title="Message payer">
+            Message payer
+          </Button>
+        </PageActions>
+      )}
 
       {loadError && (
         <div className="inline-error-banner" style={{ margin: 0 }}>

@@ -43,6 +43,7 @@ import SettingsPage from "./components/Settings";
 import CaseWrapper from "./components/wizard/CaseWrapper";
 import { LoadingBlock } from "./components/Common";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { PageActionsSlot } from "./components/PageActions";
 
 const TASK_POLL_MS = 60_000;
 
@@ -72,6 +73,7 @@ export default function App() {
   // Which nav paradigm to render: "A" (dark rail sidebar, default) or "B"
   // (dark top command-bar + breadcrumb strip). A pure presentation choice,
   // toggled from Settings > Appearance.
+  const [pageActionsEl, setPageActionsEl] = useState(null);
   const [layoutDirection, setLayoutDirection] = useState(
     () => localStorage.getItem(LAYOUT_DIRECTION_KEY) || "A",
   );
@@ -512,6 +514,7 @@ export default function App() {
                 );
               })}
             </div>
+            <div className="page-actions" ref={setPageActionsEl} />
           </div>
         </>
       )}
@@ -637,6 +640,7 @@ export default function App() {
           </div>
 
           <div className="top-actions">
+            {layoutDirection !== "B" && <div className="page-actions" ref={setPageActionsEl} />}
             {!hasProvider ? (
               <button onClick={() => navigate("/settings")} className="topbar-facility is-missing">
                 <Building2 size={13} />
@@ -694,6 +698,7 @@ export default function App() {
 
         <div className="main-view">
           {/* A crash on one screen stays on that screen; changing route clears it. */}
+          <PageActionsSlot.Provider value={pageActionsEl}>
           <ErrorBoundary key={location.pathname}>
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname.split("/")[1]}>
@@ -726,6 +731,7 @@ export default function App() {
             </Routes>
           </AnimatePresence>
           </ErrorBoundary>
+          </PageActionsSlot.Provider>
         </div>
       </main>
       </div>

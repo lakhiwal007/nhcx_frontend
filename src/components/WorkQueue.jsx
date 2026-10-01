@@ -10,6 +10,7 @@ import {
 import { api } from "../api";
 import { taskScreen } from "../taskRoutes";
 import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
+import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { Drawer } from "./Overlay";
 import { formatRelative, formatDateTime, formatCaseRef } from "../format.js";
@@ -652,7 +653,6 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const currentPage = Math.min(page, maxPage);
   const pageRows = visible.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
-  const overdueCount = tasks.filter((t) => ageLabel(t.created_at)?.text === "Overdue").length;
   const selectable = statusFilter === "pending";
   const selCount = Object.keys(selected).length;
   const allChecked = pageRows.length > 0 && pageRows.every((t) => selected[taskKey(t)]);
@@ -686,19 +686,11 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
   return (
     <div className="wq-screen">
-      <div className="wq-header">
-        <div>
-          <div className="wq-counts">
-            <span>{tasks.length} {statusFilter === "pending" ? "open" : "completed"} tasks</span>
-            {statusFilter === "pending" && overdueCount > 0 && (
-              <span className="is-overdue">{overdueCount} overdue</span>
-            )}
-          </div>
-        </div>
-        <Button variant="outline" size="small" icon={RefreshCw} onClick={fetchTasks}>
+      <PageActions>
+        <Button variant="outline" size="small" icon={RefreshCw} onClick={fetchTasks} title="Refresh tasks">
           Refresh
         </Button>
-      </div>
+      </PageActions>
 
       {loadError && (
         <div className="inline-error-banner" style={{ margin: 0 }}>
