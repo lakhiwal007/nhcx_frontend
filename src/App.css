@@ -3730,7 +3730,7 @@ code {
 .wq-header {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
 }
@@ -3745,7 +3745,6 @@ code {
 .wq-counts {
     display: flex;
     gap: 12px;
-    margin-top: 4px;
     font-size: var(--text-sm);
     color: var(--text-muted);
 }

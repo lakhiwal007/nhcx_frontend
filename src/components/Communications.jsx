@@ -101,7 +101,6 @@ export default function Communications({ allFacilitiesMode = false }) {
     <div className="cc-screen communications-screen">
       <div className="wq-header">
         <div>
-          <h1 className="wq-title">Communications</h1>
           <div className="wq-counts">
             <span>{loading ? "Loading messages…" : `${communications.length} message${communications.length === 1 ? "" : "s"}`}</span>
             {!loading && unreadCount > 0 && <span>{unreadCount} unread</span>}

@@ -130,7 +130,6 @@ export default function Payments() {
     <div className="cc-screen payments-screen">
       <div className="wq-header">
         <div>
-          <h1 className="wq-title">Payments</h1>
           <div className="wq-counts">
             <span>{loading ? "Loading payments…" : `${payments.length} payment${payments.length === 1 ? "" : "s"}`}</span>
             {!loading && metrics.pendingAck > 0 && (

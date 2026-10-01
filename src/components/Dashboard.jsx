@@ -477,7 +477,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
     <div className="dashboard-screen cc-screen">
       <div className="wq-header">
         <div>
-          <h1 className="wq-title">Cashless Cases</h1>
           <div className="wq-counts">
             <span>{loading ? "Loading cases…" : `${claims.length} ${claims.length === 1 ? "case" : "cases"}`}</span>
             {!loading && attentionCount > 0 && (

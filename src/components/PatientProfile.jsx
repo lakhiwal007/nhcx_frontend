@@ -636,7 +636,6 @@ export default function PatientProfile() {
     <div className="cc-screen">
       <div className="wq-header">
         <div>
-          <h1 className="wq-title">Child Registry</h1>
           <div className="wq-counts">
             <span>{loading ? "Loading patients…" : `${totalCount} patient${totalCount === 1 ? "" : "s"}`}</span>
           </div>

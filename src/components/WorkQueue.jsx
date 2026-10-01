@@ -688,7 +688,6 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     <div className="wq-screen">
       <div className="wq-header">
         <div>
-          <h1 className="wq-title">Work Queue</h1>
           <div className="wq-counts">
             <span>{tasks.length} {statusFilter === "pending" ? "open" : "completed"} tasks</span>
             {statusFilter === "pending" && overdueCount > 0 && (
