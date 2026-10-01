@@ -54,6 +54,7 @@ export const Button = ({
   className = "",
   icon: Icon,
   size = "medium",
+  title,
 }) => {
   const sizeClasses = {
     small: "py-1 px-3 text-xs",
@@ -68,6 +69,7 @@ export const Button = ({
       className={`btn-modern btn-${variant}-modern ${sizeClasses[size]} ${className}`}
       onClick={onClick}
       disabled={disabled}
+      title={title}
     >
       {Icon && <Icon size={size === "small" ? 14 : 18} />}
       {children}
