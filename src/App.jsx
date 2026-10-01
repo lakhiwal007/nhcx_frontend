@@ -42,6 +42,7 @@ import Payments from "./components/Payments";
 import SettingsPage from "./components/Settings";
 import CaseWrapper from "./components/wizard/CaseWrapper";
 import { LoadingBlock } from "./components/Common";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const TASK_POLL_MS = 60_000;
 
@@ -692,6 +693,8 @@ export default function App() {
         </header>
 
         <div className="main-view">
+          {/* A crash on one screen stays on that screen; changing route clears it. */}
+          <ErrorBoundary key={location.pathname}>
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname.split("/")[1]}>
               <Route path="/" element={<Navigate to="/work-queue" replace />} />
@@ -722,6 +725,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/work-queue" replace />} />
             </Routes>
           </AnimatePresence>
+          </ErrorBoundary>
         </div>
       </main>
       </div>
