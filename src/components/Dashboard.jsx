@@ -231,7 +231,11 @@ function ActionMenu({ options, onSelect, disabled, size = 32 }) {
 
 function CaseStatusChip({ claim }) {
   const cfg = resolveCaseStatus({ ...claim, current_step: caseStep(claim) });
-  return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
+  return (
+    <span className={`badge-modern cc-status-chip ${cfg.badgeClass}`} title={cfg.label}>
+      {cfg.label}
+    </span>
+  );
 }
 
 // Four-segment journey tracker: done stages filled, the current one tinted by
@@ -295,17 +299,21 @@ function RowActions({ claim, busy, onNavigate }) {
         type="button"
         className={`cc-act${attention ? " is-primary" : ""}`}
         disabled={busy}
+        title={primary.label}
         onClick={() => onNavigate(claim, primary.route)}
       >
         {busy ? "Opening…" : primary.label}
       </button>
-      {actionOptions.length > 1 && (
+      {actionOptions.length > 1 ? (
         <ActionMenu
           options={actionOptions.slice(1)}
           disabled={busy}
           onSelect={(route) => onNavigate(claim, route)}
           size={30}
         />
+      ) : (
+        // Holds the menu's slot so every row's button sits in the same column.
+        <span className="cc-menu-slot" aria-hidden="true" />
       )}
     </div>
   );

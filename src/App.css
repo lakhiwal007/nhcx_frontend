@@ -3167,6 +3167,34 @@ code {
     cursor: wait;
 }
 
+.cc-menu-slot {
+    display: none;
+    width: 30px;
+    flex-shrink: 0;
+}
+
+/* In the table, chips and action buttons share one width per column so their
+   edges line up row to row. Sized to the longest labels ("Claim Partially
+   Approved", "Retry Acknowledgement"); anything longer truncates, with the
+   full text in the title tooltip. */
+.cc-table .cc-status-chip {
+    display: inline-block;
+    width: 176px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cc-table .cc-act {
+    width: 168px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cc-table .cc-menu-slot {
+    display: block;
+}
+
 /* Card view */
 .cc-grid {
     display: grid;
