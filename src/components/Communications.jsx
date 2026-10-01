@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import {
-  Search, MessageSquare, AlertTriangle, CheckCircle2,
-  Paperclip, Clock, Circle, AlertCircle, Send, LayoutGrid, List
-} from "lucide-react";
+import { Paperclip, AlertCircle, Send } from "lucide-react";
 import { api } from "../api";
-import { Card, Button, Input, EmptyState, LoadingBlock, TablePagination } from "./Common";
+import { Button, SkeletonTable, TablePagination } from "./Common";
+import Dropdown from "./Dropdown";
 import { formatDateTime, formatRelative } from "../format.js";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import CommunicationDetailDrawer, {
@@ -13,28 +10,15 @@ import CommunicationDetailDrawer, {
   commHeadline,
   commPreview,
   commHasAttachment,
-  commTone,
-  priorityBadge,
 } from "./CommunicationDetail";
 
 const COMMS_PAGE_SIZE = 20;
 
-const READ_FILTERS = [
-  { key: "unread", label: "Unread" },
-  { key: "read", label: "Read" },
-  { key: "all", label: "All" },
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "priority", label: "Priority first" },
 ];
-
-function payerInitials(comm) {
-  const words = String(comm?.payer_name || "")
-    .replace(/[^A-Za-z0-9 ]+/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!words.length) return null;
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
 
 export default function Communications({ allFacilitiesMode = false }) {
   const [communications, setCommunications] = useState([]);
@@ -44,12 +28,10 @@ export default function Communications({ allFacilitiesMode = false }) {
   const [payerFilter, setPayerFilter] = useState("");
   const [selectedCorrelationId, setSelectedCorrelationId] = useState(null);
   const [showSendModal, setShowSendModal] = useState(false);
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem("communications_viewMode") || "grid");
   const [sortBy, setSortBy] = useState("newest");
-  const [quickFilter, setQuickFilter] = useState(null);
+  // One view filter: unread / action / read / all (persisted per browser).
   const [readFilter, setReadFilter] = useState(() => localStorage.getItem("communications_readFilter") || "unread");
 
-  useEffect(() => { localStorage.setItem("communications_viewMode", viewMode); }, [viewMode]);
   useEffect(() => { localStorage.setItem("communications_readFilter", readFilter); }, [readFilter]);
 
   const fetchComms = async (params = {}) => {
@@ -77,15 +59,19 @@ export default function Communications({ allFacilitiesMode = false }) {
   const payerLabel = (code) => communications.find((c) => c.payer_id === code)?.payer_name || code;
   const unreadCount = communications.filter((c) => !c.provider_read).length;
   const actionNeededCount = communications.filter((c) => c.pending_tasks?.length > 0).length;
-  const readFilterCounts = {
-    unread: unreadCount,
-    read: communications.length - unreadCount,
-    all: communications.length,
-  };
 
   const [commsPage, setCommsPage] = useState(0);
-  const filteredComms = communications.filter((c) => {
-    const q = searchQuery.toLowerCase();
+  const isAction = (c) => c.pending_tasks?.length > 0;
+  const VIEWS = [
+    { key: "unread", label: "Unread", match: (c) => !c.provider_read, dot: "var(--info)" },
+    { key: "action", label: "Needs action", match: isAction, dot: "var(--warning)" },
+    { key: "read", label: "Read", match: (c) => !!c.provider_read },
+    { key: "all", label: "All", match: () => true },
+  ];
+  const view = VIEWS.find((v) => v.key === readFilter) || VIEWS[0];
+
+  const q = searchQuery.trim().toLowerCase();
+  const searched = communications.filter((c) => {
     const matchSearch = !q ||
       c.topic_display?.toLowerCase().includes(q) ||
       c.payer_id?.toLowerCase().includes(q) ||
@@ -93,17 +79,13 @@ export default function Communications({ allFacilitiesMode = false }) {
       c.claim_reference?.toLowerCase().includes(q) ||
       c.reason_display?.toLowerCase().includes(q) ||
       c.subject?.toLowerCase().includes(q);
-    const matchPayer = !payerFilter || c.payer_id === payerFilter;
-    const matchRead =
-      readFilter === "all" || (readFilter === "unread" ? !c.provider_read : !!c.provider_read);
-    const matchQuick = !quickFilter || c.pending_tasks?.length > 0;
-    return matchSearch && matchPayer && matchRead && matchQuick;
-  }).sort((a, b) => {
-    if (sortBy === "priority") {
-      const pA = a.priority === "urgent" || a.priority === "stat" ? 2 : a.priority === "asap" ? 1 : 0;
-      const pB = b.priority === "urgent" || b.priority === "stat" ? 2 : b.priority === "asap" ? 1 : 0;
-      if (pA !== pB) return pB - pA;
-    }
+    return matchSearch && (!payerFilter || c.payer_id === payerFilter);
+  });
+  const viewCounts = Object.fromEntries(VIEWS.map((v) => [v.key, searched.filter(v.match).length]));
+
+  const priorityRank = (c) => (c.priority === "urgent" || c.priority === "stat" ? 2 : c.priority === "asap" ? 1 : 0);
+  const filteredComms = searched.filter(view.match).sort((a, b) => {
+    if (sortBy === "priority" && priorityRank(a) !== priorityRank(b)) return priorityRank(b) - priorityRank(a);
     const tA = Date.parse(a.sent_at) || 0;
     const tB = Date.parse(b.sent_at) || 0;
     return sortBy === "oldest" ? tA - tB : tB - tA;
@@ -113,255 +95,159 @@ export default function Communications({ allFacilitiesMode = false }) {
   const safeCommsPage = Math.min(commsPage, commsPageCount - 1);
   const pagedComms = filteredComms.slice(safeCommsPage * COMMS_PAGE_SIZE, (safeCommsPage + 1) * COMMS_PAGE_SIZE);
 
+  const payerOptions = [{ value: "", label: "All payers" }, ...uniquePayers.map((p) => ({ value: p, label: payerLabel(p) }))];
+
   return (
-    <div className="communications-screen">
+    <div className="cc-screen communications-screen">
+      <div className="wq-header">
+        <div>
+          <h1 className="wq-title">Communications</h1>
+          <div className="wq-counts">
+            <span>{loading ? "Loading messages…" : `${communications.length} message${communications.length === 1 ? "" : "s"}`}</span>
+            {!loading && unreadCount > 0 && <span>{unreadCount} unread</span>}
+            {!loading && actionNeededCount > 0 && <span className="is-overdue">{actionNeededCount} need action</span>}
+          </div>
+        </div>
+        {OUTBOUND_COMMUNICATIONS_ENABLED && (
+          <div className="cc-header-actions">
+            <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)}>
+              Message payer
+            </Button>
+          </div>
+        )}
+      </div>
+
       {loadError && (
-        <div className="inline-error-banner">
+        <div className="inline-error-banner" style={{ margin: 0 }}>
           <AlertCircle size={16} />
           Could not load communications. Showing the last known results, if any.
         </div>
       )}
 
-      <div className="cm-toolbar">
-        <div className="cm-toolbar-search">
-          <Input icon={Search} placeholder="Search topic, payer, claim, subject…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-        </div>
-        {uniquePayers.length > 0 && (
-          <select className="input-modern cm-toolbar-select" value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}>
-            <option value="">All Payers</option>
-            {uniquePayers.map((p) => <option key={p} value={p}>{payerLabel(p)}</option>)}
-          </select>
-        )}
-        <select
-          className="input-modern cm-toolbar-select"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-        >
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="priority">Priority First</option>
-        </select>
-        <div className="cm-viewtoggle" role="group" aria-label="View mode">
-          <button
-            type="button"
-            title="Grid View"
-            aria-pressed={viewMode === "grid"}
-            onClick={() => setViewMode("grid")}
-          >
-            <LayoutGrid size={16} />
-          </button>
-          <button
-            type="button"
-            title="Table View"
-            aria-pressed={viewMode === "table"}
-            onClick={() => setViewMode("table")}
-          >
-            <List size={16} />
-          </button>
-        </div>
-        {OUTBOUND_COMMUNICATIONS_ENABLED && (
-          <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)}>
-            Message Payer
-          </Button>
-        )}
-      </div>
-
-      <div className="cm-resultbar">
-        <div className="cm-segmented" role="group" aria-label="Filter by read state">
-          {READ_FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              aria-pressed={readFilter === f.key}
-              onClick={() => setReadFilter(f.key)}
-            >
-              {f.label}
-              <span className="cm-segmented-count">{readFilterCounts[f.key]}</span>
-            </button>
-          ))}
-        </div>
-        <span className="cm-resultbar-count">
-          {filteredComms.length}
-          <span> {filteredComms.length === 1 ? "message" : "messages"}</span>
-          {filteredComms.length !== communications.length && <em> of {communications.length}</em>}
-        </span>
-        <div className="cm-resultbar-chips">
-          {actionNeededCount > 0 && (
-            <button
-              type="button"
-              className={`cm-count${quickFilter === "action" ? " is-on" : ""}`}
-              style={{ "--cm-count-tone": "var(--error)" }}
-              aria-pressed={quickFilter === "action"}
-              title={quickFilter === "action" ? "Show all messages" : "Show only messages with an open task"}
-              onClick={() => {
-                setQuickFilter((f) => (f === "action" ? null : "action"));
-                if (quickFilter !== "action") setReadFilter("all");
-              }}
-            >
-              {actionNeededCount} need action
-            </button>
-          )}
-        </div>
-      </div>
-
-      {loading ? (
-        <LoadingBlock text="Loading communications…" />
-      ) : filteredComms.length === 0 ? (
-        readFilter !== "all" && communications.length > 0 && readFilterCounts[readFilter] === 0 ? (
-          <EmptyState
-            icon={readFilter === "unread" ? CheckCircle2 : MessageSquare}
-            title={readFilter === "unread" ? "You are all caught up" : "No read messages"}
-            description={
-              readFilter === "unread"
-                ? `Every one of your ${communications.length} payer message${communications.length === 1 ? "" : "s"} has been read.`
-                : "None of your payer messages have been read yet."
-            }
-          >
-            <Button variant="outline" size="small" onClick={() => setReadFilter("all")}>
-              Show all messages
-            </Button>
-          </EmptyState>
-        ) : (
-          <EmptyState
-            icon={MessageSquare}
-            title="No Communications"
-            description="No payer messages match your filters."
+      <div className="wq-panel">
+        <div className="wq-toolbar">
+          <input
+            className="input-modern wq-search"
+            placeholder="Search topic, payer, claim, subject…"
+            aria-label="Search messages"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCommsPage(0);
+            }}
           />
-        )
-      ) : viewMode === "grid" ? (
-        <div className="cm-well">
-          <motion.div className="cm-grid" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            {pagedComms.map((comm) => {
-              const reasonCfg = REASON_CONFIG[comm.reason_code] ?? {};
-              const hasAction = comm.pending_tasks?.length > 0;
-              const isUnread = !comm.provider_read;
-              const preview = commPreview(comm);
-              return (
-                <motion.article
-                  key={comm.correlation_id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.97 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="cm-card"
-                  data-tone={commTone(comm)}
-                >
-                  <div className="cm-card-top">
-                    <span className="cm-avatar" aria-hidden="true">
-                      {payerInitials(comm) ?? <MessageSquare size={17} />}
-                      {isUnread && <span className="cm-avatar-dot" />}
-                    </span>
-                    <div className="cm-card-headline">
-                      <h3 className="cm-title">{commHeadline(comm)}</h3>
-                      <div className="cm-meta">
-                        <span className="cm-meta-strong">{comm.payer_name || comm.payer_id}</span>
-                        {comm.facility_name && <span>{comm.facility_name}</span>}
-                      </div>
-                    </div>
-                    {comm.claim_reference && <code className="cm-ref">{comm.claim_reference}</code>}
-                  </div>
-
-                  <div className="cm-tags">
-                    {comm.priority && priorityBadge(comm.priority)}
-                    {comm.reason_code && <span className={`badge-modern ${reasonCfg.badge || "badge-info"}`}>{reasonCfg.label || comm.reason_display || comm.reason_code}</span>}
-                    {hasAction && <span className="cm-flag"><AlertTriangle size={11} /> Action Required</span>}
-                    {commHasAttachment(comm) && <span className="cm-chip"><Paperclip size={11} /> Attachment</span>}
-                  </div>
-
-                  {preview ? (
-                    <p className="cm-subject">{preview}</p>
-                  ) : (
-                    <p className="cm-subject is-empty">No message body was sent with this notification.</p>
-                  )}
-
-                  {hasAction && (
-                    <div className="cm-tasks">
-                      <strong>{comm.pending_tasks.length} open task{comm.pending_tasks.length > 1 ? "s" : ""}</strong>
-                      <span>{comm.pending_tasks.map((t) => t.title).join(", ")}</span>
-                    </div>
-                  )}
-
-                  <div className="cm-card-foot">
-                    <div className="cm-meta">
-                      <span title={formatDateTime(comm.sent_at)}>
-                        <Clock size={11} /> {formatRelative(comm.sent_at)}
-                      </span>
-                      {isUnread && <span className="cm-state is-unread"><Circle size={11} /> Unread</span>}
-                    </div>
-                    <Button variant={hasAction ? "primary" : "outline"} size="small" onClick={() => setSelectedCorrelationId(comm.correlation_id)}>
-                      {hasAction ? "Review & Act" : "View"}
-                    </Button>
-                  </div>
-                </motion.article>
-              );
-            })}
-          </motion.div>
-          <TablePagination
-            page={safeCommsPage}
-            pageSize={COMMS_PAGE_SIZE}
-            total={filteredComms.length}
-            onPageChange={setCommsPage}
-            label="messages"
-          />
-        </div>
-      ) : (
-        <Card style={{ padding: 0, overflow: "hidden" }}>
-          <div className="table-responsive-wrapper">
-            <table className="table-modern">
-              <thead>
-                <tr>
-                  <th>Topic</th>
-                  <th className="col-fit">Payer</th>
-                  <th className="col-fit">Claim Reference</th>
-                  <th className="col-fit">Date</th>
-                  <th className="col-fit">Status</th>
-                  <th className="col-fit">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedComms.map((comm) => {
-                  const hasAction = comm.pending_tasks?.length > 0;
-                  const isUnread = !comm.provider_read;
-                  const preview = commPreview(comm);
-                  return (
-                    <tr key={comm.correlation_id} className="cm-row" data-tone={commTone(comm)}>
-                      <td>
-                        <div className="cm-row-title">{commHeadline(comm)}</div>
-                        {preview && <div className="cm-row-preview">{preview}</div>}
-                        {hasAction && <div className="cm-flag"><AlertTriangle size={10} /> Action Required</div>}
-                      </td>
-                      <td className="col-fit">
-                        <div className="cm-row-payer">{comm.payer_name || comm.payer_id}</div>
-                        {comm.payer_name && comm.payer_id && <div className="cm-row-sub">{comm.payer_id}</div>}
-                      </td>
-                      <td className="col-fit">{comm.claim_reference ? <code className="cm-ref">{comm.claim_reference}</code> : "—"}</td>
-                      <td className="col-fit" title={formatDateTime(comm.sent_at)}>
-                        {formatDateTime(comm.sent_at)}
-                      </td>
-                      <td className="col-fit">
-                        {isUnread
-                          ? <span className="cm-state is-unread"><Circle size={11} /> Unread</span>
-                          : <span className="cm-state"><CheckCircle2 size={11} /> Read</span>}
-                      </td>
-                      <td className="col-fit">
-                        <Button variant={hasAction ? "primary" : "outline"} size="small" onClick={() => setSelectedCorrelationId(comm.correlation_id)}>
-                          {hasAction ? "Review & Act" : "View"}
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <TablePagination
-              page={safeCommsPage}
-              pageSize={COMMS_PAGE_SIZE}
-              total={filteredComms.length}
-              onPageChange={setCommsPage}
-              label="messages"
-            />
+          <div className="wq-chips" role="tablist" aria-label="Message view">
+            {VIEWS.map((v) => (
+              <button
+                key={v.key}
+                type="button"
+                role="tab"
+                aria-selected={view.key === v.key}
+                className={`wq-chip${view.key === v.key ? " is-on" : ""}`}
+                onClick={() => {
+                  setReadFilter(v.key);
+                  setCommsPage(0);
+                }}
+              >
+                {v.dot && <span className="wq-chip-dot" style={{ "--wq-dot": v.dot }} />}
+                {v.label}
+                <span className="wq-chip-count">{loading ? "–" : viewCounts[v.key]}</span>
+              </button>
+            ))}
           </div>
-        </Card>
-      )}
+          <div className="wq-toolbar-spacer" />
+          {uniquePayers.length > 1 && (
+            <div style={{ width: "180px" }}>
+              <Dropdown compact ariaLabel="Payer" value={payerFilter} options={payerOptions} onChange={(v) => { setPayerFilter(v); setCommsPage(0); }} />
+            </div>
+          )}
+          <div style={{ width: "160px" }}>
+            <Dropdown compact ariaLabel="Sort" value={sortBy} options={SORT_OPTIONS} onChange={(v) => { setSortBy(v); setCommsPage(0); }} />
+          </div>
+        </div>
+
+        {loading ? (
+          <SkeletonTable rows={5} cols={4} />
+        ) : filteredComms.length === 0 ? (
+          <div className="wq-empty">
+            <div className="wq-empty-title">
+              {view.key === "unread" && communications.length > 0 && !q && !payerFilter
+                ? "You're all caught up"
+                : communications.length === 0
+                  ? "No payer messages yet"
+                  : "No messages match these filters"}
+            </div>
+            {communications.length > 0 && (
+              <div className="cc-empty-hint">
+                {view.key === "unread" && !q && !payerFilter
+                  ? `All ${communications.length} payer message${communications.length === 1 ? " has" : "s have"} been read.`
+                  : "Try a different search, payer or view."}
+              </div>
+            )}
+            {communications.length > 0 && view.key !== "all" && (
+              <Button variant="outline" size="small" onClick={() => setReadFilter("all")}>
+                Show all messages
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            <ul className="cm-inbox">
+              {pagedComms.map((comm) => {
+                const hasAction = isAction(comm);
+                const isUnread = !comm.provider_read;
+                const preview = commPreview(comm);
+                const reasonLabel = REASON_CONFIG[comm.reason_code]?.label || comm.reason_display || comm.reason_code;
+                const urgent = /urgent|stat/i.test(comm.priority || "");
+                return (
+                  <li key={comm.correlation_id}>
+                    <button
+                      type="button"
+                      className={`cm-item${isUnread ? " is-unread" : ""}${hasAction ? " is-action" : ""}`}
+                      onClick={() => setSelectedCorrelationId(comm.correlation_id)}
+                    >
+                      <span className="cm-item-dot" aria-label={isUnread ? "Unread" : undefined} />
+                      <span className="cm-item-main">
+                        <span className="cm-item-title">
+                          {commHeadline(comm)}
+                          {commHasAttachment(comm) && <Paperclip size={13} className="cm-item-icon" aria-label="Has attachment" />}
+                        </span>
+                        <span className="cm-item-preview">{preview || "No message body was sent with this notification."}</span>
+                        <span className="cm-item-tags">
+                          {comm.priority && <span className={urgent ? "is-bad" : undefined}>{String(comm.priority).toUpperCase()}</span>}
+                          {reasonLabel && <span>{reasonLabel}</span>}
+                          {hasAction && (
+                            <span className="cm-item-task">
+                              {comm.pending_tasks.length} open task{comm.pending_tasks.length > 1 ? "s" : ""}: {comm.pending_tasks.map((t) => t.title).join(", ")}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="cm-item-side">
+                        <span className="cm-item-payer">{comm.payer_name || comm.payer_id}</span>
+                        {comm.claim_reference && <span className="wq-mono cm-item-ref">{comm.claim_reference}</span>}
+                        {comm.facility_name && <span className="cm-item-ref">{comm.facility_name}</span>}
+                      </span>
+                      <span className="cm-item-time" title={formatDateTime(comm.sent_at)}>
+                        {formatRelative(comm.sent_at)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="wq-pagination">
+              <TablePagination
+                page={safeCommsPage}
+                pageSize={COMMS_PAGE_SIZE}
+                total={filteredComms.length}
+                onPageChange={setCommsPage}
+                label="messages"
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       <CommunicationDetailDrawer
         correlationId={selectedCorrelationId}
