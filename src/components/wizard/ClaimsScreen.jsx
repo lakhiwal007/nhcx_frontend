@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Send, ArrowRight, AlertCircle, AlertTriangle, X, Edit2, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, ArrowRight, AlertCircle, CheckCircle2, X, ChevronDown, Edit2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Card, Button, DocumentChecklist, DecisionBanner, AmountGrid, MissingFieldsAlert, LoadingBlock, formatMoney } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
+import { formatDate, formatDateTime } from "../../format.js";
+import { Section, Fields } from "../case/CaseFile";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
 const POLL_INTERVAL_MS = 7000;
@@ -45,7 +47,7 @@ function Drawer({ open, onClose, title, children }) {
             style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(520px, 95vw)", zIndex: 91, display: "flex", flexDirection: "column" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--border-color)" }}>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>{title}</h3>
+              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>{title}</h3>
               <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
                 <X size={22} />
               </button>
@@ -462,13 +464,6 @@ export default function ClaimsScreen({ ctx }) {
     }
   };
 
-  const tabs = [
-    { id: "draft", label: "Claim Draft" },
-    { id: "discharge", label: "Discharge Claim" },
-    { id: "final", label: "Final Claim" },
-    { id: "decision", label: "Claim Decision" },
-  ];
-
   const hasMissingFields = missingFields.length > 0;
   // Split missing_fields: patient-context fields are resolvable inline via the
   // patient-context PATCH; HIS blockers (diagnoses/items) must be fixed in the
@@ -549,423 +544,454 @@ export default function ClaimsScreen({ ctx }) {
 
   if (claimDraft?._error) {
     return (
-      <Card>
-        <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", padding: "8px 0" }}>
-          <AlertCircle size={22} color="var(--error)" />
-          <div>
-            <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "var(--space-1)" }}>Cannot load claim</div>
-            <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>{claimDraft._error}</div>
+      <div className="wizard-step pd-screen">
+        <Section id="cl-error" title="Cannot load the claim">
+          <p className="ds-empty">{claimDraft._error}</p>
+          <div className="ds-empty-actions">
+            <Button variant="outline" size="small" onClick={() => navigate("../status")}>
+              Back to preauth decision
+            </Button>
           </div>
-        </div>
-        <div style={{ marginTop: "var(--space-4)" }}>
-          <Button variant="outline" onClick={() => navigate("../status")}>← Back to Preauth Status</Button>
-        </div>
-      </Card>
+        </Section>
+      </div>
     );
   }
 
+  const docs = claimDraft?.supporting_documents || [];
+  const attachedDocs = docs.filter((d) => d.url).length;
+  const dischargeRejected = dischargeStatus?.decision === "REJECTED";
+  const dischargeFailed = dischargeStatus?.status === "failed";
+  const dischargeDone = !!dischargeCorrelationId && !dischargeRejected && !dischargeFailed;
+  const claimDecided = claimStatus?.status === "complete" && !!claimDecision;
+  const claimTotals = claimStatus?.totals || {};
+  const claimApproved = claimStatus?.approved_amount ?? claimTotals.benefit?.value ?? claimTotals.approved?.value ?? null;
+  const claimRequested = claimTotals.submitted?.value ?? claimDraft?.total_amount ?? null;
+  const justification = [
+    ["Chief complaints", claimDraft?.chief_complaints],
+    ["Clinical findings", claimDraft?.clinical_findings],
+    ["Investigations", claimDraft?.investigations],
+    ["Medications", claimDraft?.medications],
+  ].filter(([, codes]) => codes?.length > 0);
+
+  // The four parts of the claim, each with where it stands.
+  const steps = [
+    { id: "draft", label: "Review claim", done: hasPreauthRef && !hasMissingFields },
+    { id: "discharge", label: "Discharge documents", done: dischargeDone, bad: dischargeRejected || dischargeFailed },
+    { id: "final", label: "Final claim", done: !!finalCorrelationId },
+    { id: "decision", label: "Decision", done: claimDecided, bad: claimStatus?.status === "failed" || isClaimRejected },
+  ];
+
+  const readiness = [
+    { label: "Approved preauth", ok: hasPreauthRef, note: claimDraft?.preauth_ref || "missing" },
+    { label: "Patient details", ok: patientContextMissing.length === 0, note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null },
+    { label: "Clinical & billing records", ok: hisBlockers.length === 0 },
+    { label: "Discharge documents", ok: !hasMissingDocs, note: docs.length ? `${attachedDocs} of ${docs.length}` : null },
+    { label: "Discharge claim sent", ok: dischargeDone, bad: dischargeRejected || dischargeFailed, note: dischargeRejected ? "rejected" : dischargeFailed ? "failed" : dischargePolling ? "awaiting payer" : null },
+    { label: "Final claim sent", ok: !!finalCorrelationId },
+  ];
+
+  // One primary action for the part being viewed.
+  let primary = null;
+  if (activeTab === "draft") {
+    primary = { label: "Continue to discharge documents", onClick: () => setActiveTab("discharge"), disabled: !hasPreauthRef || hasMissingFields, icon: ArrowRight };
+  } else if (activeTab === "discharge") {
+    primary = dischargeRejected
+      ? { label: "Resubmit discharge claim", onClick: () => setShowDischargeResubmitDrawer(true) }
+      : dischargeCorrelationId
+        ? { label: "Continue to final claim", onClick: () => setActiveTab("final"), disabled: dischargeFailed, icon: ArrowRight }
+        : { label: submitting ? "Submitting…" : "Submit discharge claim", onClick: handleSubmitDischarge, disabled: !canSubmit, icon: Send };
+  } else if (activeTab === "final") {
+    primary = finalCorrelationId
+      ? { label: "View decision", onClick: () => setActiveTab("decision"), icon: ArrowRight }
+      : { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: !canSubmitFinal || submitting, icon: Send };
+  } else if (claimDecided) {
+    primary = isClaimApproved || isPartialApproval
+      ? { label: "View payment status", onClick: () => navigate("../payment"), icon: ArrowRight }
+      : isClaimQueried
+        ? { label: "Respond to query", onClick: () => setShowQueryDrawer(true) }
+        : isClaimRejected
+          ? { label: "Resubmit claim", onClick: () => setShowResubmitDrawer(true) }
+          : null;
+  }
+
+  const secondary = [];
+  if (activeTab === "final" && overCeiling) secondary.push({ label: "File an enhancement", onClick: () => navigate("../enhancement") });
+  if (activeTab === "decision" && claimDecided) {
+    if (isClaimQueried || isPartialApproval) secondary.push({ label: "Resubmit claim", onClick: () => setShowResubmitDrawer(true) });
+    if (isClaimRejected || isPartialApproval) secondary.push({ label: "Appeal / reprocess", onClick: () => navigate("../reprocess") });
+    if ((isClaimQueried || isClaimRejected || isPartialApproval) && OUTBOUND_COMMUNICATIONS_ENABLED)
+      secondary.push({ label: "Message payer", icon: Send, onClick: () => setShowSendModal(true) });
+  }
+
+  const billTable = (
+    <div className="ep-table-wrap">
+      <table className="ep-table ds-lines-table">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th className="ep-num">Qty</th>
+            <th className="ep-num">Unit price</th>
+            <th className="ep-num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(claimDraft?.items || []).map((item, i) => (
+            <tr key={i}>
+              <td className="ep-col-name">
+                <div className="ep-strong">{item.service_name}</div>
+                <div className="ep-muted">{[item.service_code, item.category].filter(Boolean).join(" · ")}</div>
+              </td>
+              <td className="ep-num ep-mono">{item.quantity}</td>
+              <td className="ep-num ep-mono">{formatMoney(item.unit_price)}</td>
+              <td className="ep-num ep-mono">{formatMoney(item.net_amount)}</td>
+            </tr>
+          ))}
+          {!claimDraft?.items?.length && (
+            <tr>
+              <td colSpan={4} className="ep-muted">No billable items on the final bill.</td>
+            </tr>
+          )}
+        </tbody>
+        <tfoot>
+          <tr className="pd-total-row">
+            <td colSpan={3}>Final bill</td>
+            <td className="ep-num ep-mono">{formatMoney(claimDraft?.total_amount)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+
+  const waitingSection = (title, correlationId) => (
+    <Section id="cl-waiting" title={title}>
+      <Fields
+        cols={2}
+        rows={[
+          { label: "Status", value: "Waiting for the payer's decision" },
+          { label: "Checking every", value: `${POLL_INTERVAL_MS / 1000} seconds` },
+          { label: "Request ID", value: correlationId, mono: true },
+        ]}
+      />
+    </Section>
+  );
+
   return (
-    <div className="wizard-step">
-      <div style={{ display: "flex", gap: "var(--space-2)", borderBottom: "1px solid var(--border-color)", paddingBottom: "16px", marginBottom: "var(--space-6)", overflowX: "auto" }}>
-        {tabs.map((tab) => (
+    <div className="wizard-step pd-screen">
+      <nav className="cl-steps" aria-label="Claim steps">
+        {steps.map((st, i) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "10px 20px",
-              background: activeTab === tab.id ? "var(--primary)" : "transparent",
-              color: activeTab === tab.id ? "white" : "var(--text-muted)",
-              border: `1px solid ${activeTab === tab.id ? "var(--primary)" : "var(--border-color)"}`,
-              borderRadius: "var(--radius-pill)",
-              cursor: "pointer",
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              whiteSpace: "nowrap",
-              transition: "all 0.2s",
-            }}
+            key={st.id}
+            type="button"
+            className={`cl-step${activeTab === st.id ? " is-on" : ""}${st.done ? " is-done" : ""}${st.bad ? " is-bad" : ""}`}
+            aria-current={activeTab === st.id ? "step" : undefined}
+            onClick={() => setActiveTab(st.id)}
           >
-            {tab.label}
+            <span className="cl-step-num" aria-hidden="true">
+              {st.done ? <CheckCircle2 size={14} /> : i + 1}
+            </span>
+            {st.label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      {/* ── Claim Draft ── */}
-      {activeTab === "draft" && (
-        <Card title="Claim Draft">
-          {hisBlockers.length > 0 && (
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
-              <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
-              <div>
-                <strong style={{ color: "var(--error)" }}>Clinical / billing data is incomplete.</strong>
-                {" "}Diagnosis codes and billing items are missing. Please complete clinical and billing records in the HIS before submitting this claim.
-                <div style={{ marginTop: "6px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {hisBlockers.map((f, i) => (
-                    <span key={i} className="badge-modern badge-error" style={{ fontSize: "11px" }}>{f}</span>
-                  ))}
+      <div className="pd-layout">
+        <div className="pd-main">
+          {activeTab === "draft" && (
+            <>
+              {hisBlockers.length > 0 && (
+                <div className="ep-notice is-bad">
+                  <strong>Clinical or billing records are incomplete</strong> ({hisBlockers.join(", ")}). Complete them in
+                  the HIS before submitting this claim.
                 </div>
-              </div>
-            </div>
-          )}
-          {patientContextMissing.length > 0 && (
-            <div style={{ marginBottom: "var(--space-4)" }}>
-              <MissingFieldsAlert fields={patientContextMissing} onResolve={() => setShowContextDrawer(true)} />
-            </div>
-          )}
-          {!hasPreauthRef && (
-            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--error)", fontWeight: 600 }}>
-              <AlertCircle size={14} />
-              No approved preauth reference on this claim. Submit and await preauth before proceeding.
-            </div>
-          )}
-          <div style={{ display: "flex", gap: "var(--space-6)", marginBottom: "var(--space-5)", fontSize: "13px" }}>
-            <div>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Admission</div>
-              <div style={{ fontWeight: 600 }}>{claimDraft?.admission_date || "-"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Discharge</div>
-              <div style={{ fontWeight: 600 }}>{claimDraft?.discharge_date || "-"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Preauth Ref</div>
-              <div style={{ fontWeight: 600, color: hasPreauthRef ? "var(--primary)" : "var(--error)" }}>
-                {claimDraft?.preauth_ref || "Missing"}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Total</div>
-              <div style={{ fontWeight: 700, color: "var(--primary)" }}>{formatMoney(claimDraft?.total_amount)}</div>
-            </div>
-          </div>
-          {/* Clinical justification chips (read-only, auto-attached) */}
-          {[
-            ["Chief Complaints", claimDraft?.chief_complaints],
-            ["Clinical Findings", claimDraft?.clinical_findings],
-            ["Medications", claimDraft?.medications],
-            ["Investigations", claimDraft?.investigations],
-          ].map(([label, codes]) => codes?.length > 0 && (
-            <div key={label} style={{ marginBottom: "var(--space-4)" }}>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "var(--space-2)", textTransform: "uppercase" }}>{label}</div>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {codes.map((c, i) => (
-                  <span key={i} className="badge-modern badge-info" style={{ fontSize: "11px" }}>{c.name || c.code}</span>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <div className="table-responsive-wrapper" style={{ marginBottom: "var(--space-5)" }}>
-            <table className="table-modern" style={{ fontSize: "13px" }}>
-              <thead>
-                <tr>
-                  <th>Final Bill Items</th>
-                  <th>Qty</th>
-                  <th style={{ textAlign: "right" }}>Net Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {claimDraft?.items?.map((item, i) => (
-                  <tr key={i}>
-                    <td>{item.service_name}</td>
-                    <td>{item.quantity}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Discharge Summary — only present once the patient has been discharged */}
-          {claimDraft?.discharge_summary && (
-            <div style={{ marginBottom: "var(--space-5)" }}>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "var(--space-2)", textTransform: "uppercase" }}>Discharge Summary</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", fontSize: "13px" }}>
-                {claimDraft.discharge_summary.condition && (
-                  <div><span style={{ color: "var(--text-muted)" }}>Condition: </span><strong>{claimDraft.discharge_summary.condition}</strong></div>
-                )}
-                {claimDraft.discharge_summary.advice && (
-                  <div><span style={{ color: "var(--text-muted)" }}>Advice: </span>{claimDraft.discharge_summary.advice}</div>
-                )}
-                {claimDraft.discharge_summary.followup_on && (
-                  <div><span style={{ color: "var(--text-muted)" }}>Follow-up: </span>{claimDraft.discharge_summary.followup_on}</div>
-                )}
-                {claimDraft.discharge_summary.summary_html && (
-                  <div style={{ whiteSpace: "pre-wrap" }}>{claimDraft.discharge_summary.summary_html.replace(/<[^>]*>/g, "")}</div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button variant="primary" disabled={!hasPreauthRef || hasMissingFields} onClick={() => setActiveTab("discharge")}>
-              Proceed to Discharge Docs <ArrowRight size={16} style={{ marginLeft: "8px" }} />
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* ── Discharge Claim ── */}
-      {activeTab === "discharge" && (
-        <Card title="Discharge Documents">
-          <DocumentChecklist
-            documents={claimDraft?.supporting_documents}
-            onUpload={handleUpload}
-            onAddDocument={addDocument}
-            onRenameDocument={renameDocument}
-            onRemoveDocument={removeDocument}
-          />
-
-          {/* Discharge polling / status */}
-          {dischargePolling && (
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "12px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", marginBottom: "var(--space-4)" }}>
-              <div className="spinner" style={{ width: "20px", height: "20px" }} />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: "13px" }}>Discharge claim submitted - awaiting payer decision</div>
-                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{dischargeCorrelationId} · polling every {POLL_INTERVAL_MS / 1000}s</div>
-              </div>
-            </div>
-          )}
-          {dischargeStatus?.status === "failed" ? (
-            <div style={{ padding: "12px 14px", background: "rgba(225,29,72,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)" }}>
-              <div style={{ fontWeight: 700, fontSize: "13px", color: "var(--error)", marginBottom: "6px" }}>
-                Discharge claim submission failed
-              </div>
-              <div style={{ fontSize: "12px", color: "var(--text-main)" }}>
-                {dischargeStatus.error_message || "The request could not be delivered to the payer."}
-              </div>
-            </div>
-          ) : dischargeStatus?.decision === "REJECTED" ? (
-            <div style={{ padding: "12px 14px", background: "rgba(225,29,72,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)" }}>
-              <div style={{ fontWeight: 700, fontSize: "13px", color: "var(--error)", marginBottom: "6px" }}>
-                Discharge claim rejected
-              </div>
-              <div style={{ fontSize: "12px", color: "var(--text-main)", marginBottom: "10px" }}>
-                No final claim has been submitted yet, so there's nothing to appeal — correct and
-                resend the discharge intimation instead.
-              </div>
-              <Button variant="outline" onClick={() => setShowDischargeResubmitDrawer(true)}>
-                Resubmit Discharge Claim
-              </Button>
-            </div>
-          ) : dischargeStatus?.status === "complete" && (
-            <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)", border: "1px solid var(--success)", borderRadius: "var(--radius-sm)", fontSize: "12px", marginBottom: "var(--space-4)" }}>
-              Discharge claim adjudicated - decision: <strong>{dischargeStatus.decision || "complete"}</strong>
-            </div>
-          )}
-
-          {dischargeSubmitError && (
-            <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-              {dischargeSubmitError}
-            </div>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
-            <Button variant="text" onClick={() => setActiveTab("draft")}>Back</Button>
-            <div style={{ display: "flex", gap: "var(--space-3)" }}>
-              <Button
-                variant="primary"
-                disabled={!canSubmit || !!dischargeCorrelationId}
-                onClick={handleSubmitDischarge}
-              >
-                {submitting ? "Submitting…" : dischargeCorrelationId ? "Discharge Submitted ✓" : "Submit Discharge Claim"}
-              </Button>
-              {(dischargeStatus?.status === "complete" || dischargeCorrelationId) && dischargeStatus?.decision !== "REJECTED" && (
-                <Button variant="primary" onClick={() => setActiveTab("final")}>
-                  Proceed to Final Claim <ArrowRight size={16} style={{ marginLeft: "8px" }} />
-                </Button>
               )}
-            </div>
-          </div>
-        </Card>
-      )}
+              {patientContextMissing.length > 0 && (
+                <div className="ep-notice is-bad">
+                  {patientContextMissing.length} patient detail{patientContextMissing.length === 1 ? " is" : "s are"} missing
+                  ({patientContextMissing.join(", ")}).
+                  <button type="button" className="pd-inline-link" onClick={() => setShowContextDrawer(true)}>
+                    Add them →
+                  </button>
+                </div>
+              )}
+              {!hasPreauthRef && (
+                <div className="ep-notice is-bad">
+                  This claim has no approved preauth reference. Submit the preauth and wait for its approval first.
+                </div>
+              )}
+              <Section id="cl-stay" title="Stay">
+                <Fields
+                  cols={3}
+                  rows={[
+                    { label: "Admission", value: claimDraft?.admission_date ? formatDate(claimDraft.admission_date) : null },
+                    { label: "Discharge", value: claimDraft?.discharge_date ? formatDate(claimDraft.discharge_date) : "Not discharged" },
+                    { label: "Preauth reference", value: claimDraft?.preauth_ref || "Missing", mono: !!claimDraft?.preauth_ref, tone: claimDraft?.preauth_ref ? undefined : "bad" },
+                  ]}
+                />
+              </Section>
+              <Section id="cl-bill" title="Final bill">
+                {billTable}
+              </Section>
+              <Section id="cl-justification" title="Clinical justification" meta="Coded from the clinical notes; sent with the claim">
+                {justification.length ? (
+                  <Fields cols={1} rows={justification.map(([label, codes]) => ({ label, value: codes.map((c) => c.name || c.code).join(", ") }))} />
+                ) : (
+                  <div className="ep-muted ep-pad">No coded complaints, findings, investigations or medications on the clinical note.</div>
+                )}
+              </Section>
+              {claimDraft?.discharge_summary && (
+                <Section id="cl-discharge-summary" title="Discharge summary">
+                  <Fields
+                    cols={1}
+                    rows={[
+                      { label: "Condition", value: claimDraft.discharge_summary.condition },
+                      { label: "Advice", value: claimDraft.discharge_summary.advice },
+                      { label: "Follow-up", value: claimDraft.discharge_summary.followup_on ? formatDate(claimDraft.discharge_summary.followup_on) : null },
+                      { label: "Summary", value: claimDraft.discharge_summary.summary_html?.replace(/<[^>]*>/g, "") },
+                    ]}
+                  />
+                </Section>
+              )}
+            </>
+          )}
 
-      {/* ── Final Claim ── */}
-      {activeTab === "final" && (
-        <Card title="Final Claim">
-          <div style={{ display: "flex", gap: "var(--space-6)", marginBottom: "var(--space-5)", fontSize: "13px" }}>
-            <div>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Discharge</div>
-              <div style={{ fontWeight: 600 }}>{claimDraft?.discharge_date || "-"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Preauth Ref</div>
-              <div style={{ fontWeight: 600 }}>{claimDraft?.preauth_ref || "-"}</div>
-            </div>
-          </div>
-          <div className="table-responsive-wrapper" style={{ marginBottom: "var(--space-6)" }}>
-            <table className="table-modern" style={{ fontSize: "13px" }}>
-              <thead>
-                <tr>
-                  <th>Final Bill Items</th>
-                  <th>Qty</th>
-                  <th style={{ textAlign: "right" }}>Net Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {claimDraft?.items?.map((item, i) => (
-                  <tr key={i}>
-                    <td>{item.service_name}</td>
-                    <td>{item.quantity}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ textAlign: "center", marginBottom: "var(--space-4)", padding: "var(--space-5)", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: `1px solid ${overCeiling ? "var(--warning)" : "var(--border-color)"}` }}>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Final Claim Total</div>
-            <div style={{ fontSize: "32px", fontWeight: 800, color: overCeiling ? "var(--warning)" : "var(--primary)" }}>{formatMoney(claimDraft?.total_amount)}</div>
-            {authorizedCeiling != null && (
-              <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "var(--space-2)" }}>
-                Authorized ceiling{moneyLedger?.authorized_ceiling?.cumulative ? " (cumulative)" : ""}: <strong>{formatMoney(authorizedCeiling)}</strong>
-              </div>
-            )}
-          </div>
+          {activeTab === "discharge" && (
+            <>
+              {dischargeFailed && (
+                <div className="ep-notice is-bad">
+                  <strong>The discharge claim could not be delivered.</strong>{" "}
+                  {dischargeStatus.error_message || "The request did not reach the payer."}
+                </div>
+              )}
+              {dischargeRejected && (
+                <div className="ep-notice is-bad">
+                  <strong>The payer rejected the discharge claim.</strong> No final claim exists yet, so there is nothing to
+                  appeal; correct and resend the discharge intimation instead.
+                </div>
+              )}
+              <Section
+                id="cl-docs"
+                title="Discharge documents"
+                meta={docs.length ? `${attachedDocs} of ${docs.length} attached` : null}
+              >
+                <div className="pd-docs">
+                  <DocumentChecklist
+                    documents={claimDraft?.supporting_documents}
+                    onUpload={handleUpload}
+                    onAddDocument={addDocument}
+                    onRenameDocument={renameDocument}
+                    onRemoveDocument={removeDocument}
+                    hideSummary
+                  />
+                </div>
+              </Section>
+              {dischargePolling && waitingSection("Discharge claim sent", dischargeCorrelationId)}
+              {dischargeStatus?.status === "complete" && !dischargeRejected && (
+                <Section id="cl-discharge-result" title="Discharge claim">
+                  <Fields
+                    cols={2}
+                    rows={[
+                      { label: "Decision", value: dischargeStatus.decision ? String(dischargeStatus.decision).replace(/_/g, " ").toLowerCase() : "Received" },
+                      { label: "Request ID", value: dischargeCorrelationId, mono: true },
+                    ]}
+                  />
+                </Section>
+              )}
+            </>
+          )}
 
-          {/* J2 — over-ceiling guard: warn + require acknowledgement before submit */}
-          {overCeiling && (
-            <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-5)" }}>
-              <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                <AlertTriangle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: "var(--warning)", marginBottom: "var(--space-1)" }}>
-                    Bill exceeds the authorized ceiling by {formatMoney(ceilingExcess)}
+          {activeTab === "final" && (
+            <>
+              <Section id="cl-final-bill" title="Final bill">
+                {billTable}
+              </Section>
+              <Section id="cl-ceiling" title="Against the authorized amount">
+                <dl className="ds-statement">
+                  <div>
+                    <dt>Final bill</dt>
+                    <dd className="ep-mono">{formatMoney(billedTotal)}</dd>
                   </div>
-                  <div style={{ fontSize: "13px", color: "var(--text-main)" }}>
-                    The final bill of {formatMoney(billedTotal)} is above the sanctioned {formatMoney(authorizedCeiling)}.
-                    The payer will not cover the excess — it is recovered from the patient, or file an enhancement to raise the ceiling first.
-                  </div>
-                  <div style={{ marginTop: "var(--space-3)", display: "flex", gap: "var(--space-3)", alignItems: "center", flexWrap: "wrap" }}>
-                    <Button variant="outline" size="small" onClick={() => navigate("../enhancement")}>
-                      File Enhancement
-                    </Button>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                  {authorizedCeiling != null && (
+                    <div>
+                      <dt>
+                        Authorized ceiling
+                        {moneyLedger?.authorized_ceiling?.cumulative && <span className="ep-muted"> · preauth + enhancements</span>}
+                      </dt>
+                      <dd className="ep-mono">{formatMoney(authorizedCeiling)}</dd>
+                    </div>
+                  )}
+                  {authorizedCeiling != null && (
+                    <div className="is-total">
+                      <dt className={overCeiling ? "is-bad" : undefined}>{overCeiling ? "Above the ceiling" : "Within the ceiling"}</dt>
+                      <dd className={`ep-mono${overCeiling ? " is-bad" : ""}`}>{overCeiling ? formatMoney(ceilingExcess) : "—"}</dd>
+                    </div>
+                  )}
+                </dl>
+                {overCeiling && (
+                  <div className="cl-ack">
+                    <p>
+                      The payer will not cover the {formatMoney(ceilingExcess)} above the sanctioned amount. Collect it from
+                      the patient, or file an enhancement to raise the ceiling first.
+                    </p>
+                    <label>
                       <input type="checkbox" checked={ackOverCeiling} onChange={(e) => setAckOverCeiling(e.target.checked)} />
                       I acknowledge the {formatMoney(ceilingExcess)} excess and will collect it from the patient.
                     </label>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {submitError && (
-            <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600, textAlign: "center" }}>
-              {submitError}
-            </div>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <Button
-              variant="primary"
-              size="large"
-              icon={Send}
-              disabled={!canSubmitFinal || submitting}
-              onClick={handleSubmitFinal}
-            >
-              {submitting ? "Submitting…" : "Submit Final Claim"}
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* ── Claim Decision ── */}
-      {activeTab === "decision" && (
-        <div>
-          {(!claimStatus || polling) ? (
-            <Card className="mb-6">
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                <div className="spinner" style={{ width: "24px", height: "24px" }} />
-                <div>
-                  <div style={{ fontWeight: 700 }}>Claim Adjudication in Progress</div>
-                  <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                    {finalCorrelationId} · polling every {POLL_INTERVAL_MS / 1000}s
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ) : claimStatus?.status === "failed" ? (
-            <Card className="mb-6">
-              <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "6px" }}>Claim submission failed</div>
-              <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-4)" }}>
-                {claimStatus.error_message || "The request could not be delivered to the payer."}
-              </div>
-              <Button variant="outline" onClick={() => setActiveTab("final")}>Back to Final Claim</Button>
-            </Card>
-          ) : (
-            <>
-              <DecisionBanner decision={claimDecision} outcome={claimStatus?.outcome} approvedAmount={claimStatus?.approved_amount} provenance={claimProvenance} />
-
-              {/* Claim reference + payment status strip */}
-              {(claimStatus?.claim_response_ref || claimStatus?.payment_status) && (
-                <div style={{ display: "flex", gap: "var(--space-4)", marginBottom: "var(--space-4)", padding: "10px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", fontSize: "13px", flexWrap: "wrap" }}>
-                  {claimStatus.claim_response_ref && (
-                    <div>
-                      <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Payer Ref: </span>
-                      <code style={{ fontSize: "12px" }}>{claimStatus.claim_response_ref}</code>
-                    </div>
-                  )}
-                  {claimStatus.payment_status && (
-                    <div>
-                      <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Payment: </span>
-                      <span className="badge-modern badge-info" style={{ fontSize: "11px" }}>{claimStatus.payment_status}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <Card title="Adjudication Summary" className="mb-6">
-                <AmountGrid totals={claimStatus?.totals} />
-
-                {/* Payer notes */}
-                {claimStatus?.process_notes?.length > 0 && (
-                  <div style={{ marginTop: "var(--space-4)" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Payer Notes</div>
-                    {claimStatus.process_notes.map((note, i) => (
-                      <div key={i} style={{ fontSize: "13px", padding: "8px 12px", background: "rgba(245,158,11,0.06)", borderRadius: "var(--radius-sm)", borderLeft: "3px solid var(--warning)", marginBottom: "6px" }}>
-                        {note.text}
-                      </div>
-                    ))}
-                  </div>
                 )}
-              </Card>
+              </Section>
+            </>
+          )}
 
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
-                <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-                  {isClaimQueried && (
-                    <>
-                      <Button variant="outline" onClick={() => setShowQueryDrawer(true)}>Respond to Query</Button>
-                      <Button variant="outline" onClick={() => setShowResubmitDrawer(true)}>Resubmit Claim</Button>
-                    </>
-                  )}
-                  {isClaimRejected && (
-                    <>
-                      <Button variant="outline" onClick={() => setShowResubmitDrawer(true)}>Resubmit Claim</Button>
-                      <Button variant="outline" onClick={() => navigate("../reprocess")}>Appeal / Reprocess</Button>
-                    </>
-                  )}
-                  {isPartialApproval && (
-                    <>
-                      <Button variant="outline" onClick={() => setShowResubmitDrawer(true)}>Resubmit Claim</Button>
-                      <Button variant="outline" onClick={() => navigate("../reprocess")}>Appeal / Reprocess</Button>
-                    </>
-                  )}
-                  {(isClaimApproved || isPartialApproval) && (
-                    <Button variant="primary" onClick={() => navigate("../payment")}>
-                      View Payment Status <ArrowRight size={18} style={{ marginLeft: "8px" }} />
+          {activeTab === "decision" && (
+            <>
+              {!finalCorrelationId ? (
+                <Section id="cl-no-final" title="No final claim yet">
+                  <p className="ds-empty">Submit the final claim to receive the payer's decision here.</p>
+                  <div className="ds-empty-actions">
+                    <Button variant="outline" size="small" onClick={() => setActiveTab("final")}>
+                      Go to final claim
                     </Button>
-                  )}
-                  {(isClaimQueried || isClaimRejected || isPartialApproval) && OUTBOUND_COMMUNICATIONS_ENABLED && (
-                    <Button variant="outline" icon={Send} onClick={() => setShowSendModal(true)}>
-                      Message Payer
-                    </Button>
-                  )}
+                  </div>
+                </Section>
+              ) : !claimStatus || polling ? (
+                waitingSection("Final claim sent", finalCorrelationId)
+              ) : claimStatus.status === "failed" ? (
+                <div className="ep-notice is-bad">
+                  <strong>The final claim could not be delivered.</strong>{" "}
+                  {claimStatus.error_message || "The request did not reach the payer."}
+                  <button type="button" className="pd-inline-link" onClick={() => setActiveTab("final")}>
+                    Back to final claim →
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <Section id="cl-amounts" title="Amount breakdown">
+                    <dl className="ds-statement">
+                      <div>
+                        <dt>Claimed</dt>
+                        <dd className="ep-mono">{formatMoney(claimRequested)}</dd>
+                      </div>
+                      {claimTotals.eligible?.value != null && claimRequested != null && claimRequested > claimTotals.eligible.value && (
+                        <div>
+                          <dt>Not eligible</dt>
+                          <dd className="ep-mono">− {formatMoney(claimRequested - claimTotals.eligible.value)}</dd>
+                        </div>
+                      )}
+                      {claimTotals.copay?.value > 0 && (
+                        <div>
+                          <dt>Co-payment</dt>
+                          <dd className="ep-mono">− {formatMoney(claimTotals.copay.value)}</dd>
+                        </div>
+                      )}
+                      {claimTotals.deductible?.value > 0 && (
+                        <div>
+                          <dt>Deductible</dt>
+                          <dd className="ep-mono">− {formatMoney(claimTotals.deductible.value)}</dd>
+                        </div>
+                      )}
+                      <div className="is-total">
+                        <dt>Approved</dt>
+                        <dd className="ep-mono">{formatMoney(claimApproved)}</dd>
+                      </div>
+                    </dl>
+                  </Section>
+                  {claimStatus.process_notes?.length > 0 && (
+                    <Section id="cl-notes" title="Payer notes">
+                      <ol className="ds-notes">
+                        {claimStatus.process_notes.map((n, i) => (
+                          <li key={n.number ?? i}>
+                            <span className="ep-mono ep-muted">{n.number ?? i + 1}</span>
+                            <span>{n.text}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </Section>
+                  )}
+                  <Section id="cl-response" title="Payer response" meta="As received over NHCX">
+                    <Fields
+                      cols={3}
+                      rows={[
+                        { label: "Classified decision", value: claimDecision ? String(claimDecision).replace(/_/g, " ").toLowerCase() : null },
+                        { label: "Raw outcome", value: claimProvenance?.raw_outcome ?? claimStatus.outcome, mono: true },
+                        { label: "Reason codes", value: claimProvenance?.reason_codes?.join(", "), mono: true },
+                        { label: "Payer claim reference", value: claimStatus.claim_response_ref, mono: true },
+                        { label: "Payment status", value: claimStatus.payment_status ? String(claimStatus.payment_status).replace(/^PAYMENT_/, "").toLowerCase() : null },
+                        { label: "Sent", value: claimStatus.submitted_at ? formatDateTime(claimStatus.submitted_at) : null },
+                        { label: "Request ID", value: finalCorrelationId, mono: true },
+                      ]}
+                    />
+                  </Section>
+                </>
+              )}
             </>
           )}
         </div>
-      )}
+
+        <aside className="pd-side">
+          <section className="ep-section pd-request">
+            <header className="ep-section-head">
+              <h3 className="ep-section-title">Claim</h3>
+            </header>
+            {activeTab === "decision" && claimDecided ? (
+              <>
+                <div className={`ds-verdict is-${isClaimApproved ? "ok" : isClaimRejected ? "bad" : "warn"}`}>
+                  <span className="ep-dot" aria-hidden="true" />
+                  <span className="ds-verdict-label ep-cap">{String(claimDecision).replace(/_/g, " ").toLowerCase()}</span>
+                </div>
+                {claimApproved != null && (
+                  <div className="pd-amount">
+                    <div className="ep-muted">Approved</div>
+                    <div className="pd-amount-value ep-mono">{formatMoney(claimApproved)}</div>
+                    {claimRequested != null && <div className="ep-muted">of {formatMoney(claimRequested)} claimed</div>}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="pd-amount">
+                <div className="ep-muted">Final bill</div>
+                <div className="pd-amount-value ep-mono">{formatMoney(claimDraft?.total_amount)}</div>
+                {authorizedCeiling != null && (
+                  <div className={overCeiling ? "is-bad" : "ep-muted"}>
+                    {overCeiling ? `${formatMoney(ceilingExcess)} above` : "Within"} the {formatMoney(authorizedCeiling)} authorized
+                  </div>
+                )}
+              </div>
+            )}
+
+            <ul className="pd-ready" aria-label="Claim readiness">
+              {readiness.map((r) => (
+                <li key={r.label} className={r.ok ? "is-ok" : r.bad ? "is-todo" : "is-soft"}>
+                  {r.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                  <span>{r.label}</span>
+                  {r.note && <span className="pd-ready-note">{r.note}</span>}
+                </li>
+              ))}
+            </ul>
+
+            <div className="pd-submit">
+              {(activeTab === "final" || activeTab === "decision") && submitError && <div className="ep-notice is-bad">{submitError}</div>}
+              {activeTab === "discharge" && dischargeSubmitError && <div className="ep-notice is-bad">{dischargeSubmitError}</div>}
+              {primary && (
+                <Button variant="primary" icon={primary.icon} disabled={primary.disabled} onClick={primary.onClick} className="pd-submit-btn">
+                  {primary.label}
+                </Button>
+              )}
+              {secondary.length > 0 && (
+                <ul className="ds-actions">
+                  {secondary.map((a) => (
+                    <li key={a.label}>
+                      <button type="button" onClick={a.onClick}>
+                        {a.icon && <a.icon size={14} />}
+                        {a.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        </aside>
+      </div>
 
       {/* ── Query Drawer ── */}
       <Drawer open={showQueryDrawer} onClose={() => setShowQueryDrawer(false)} title="Respond to Claim Query">
