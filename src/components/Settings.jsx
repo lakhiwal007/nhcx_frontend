@@ -1271,7 +1271,7 @@ export default function Settings({
             <div style={{ display: "flex", gap: "var(--space-2)" }}>
               <button
                 onClick={() => layoutDirection !== "A" && onToggleLayoutDirection?.()}
-                title="Dark rail sidebar on the left"
+                title="Sidebar navigation on the left"
                 className={`badge-modern ${layoutDirection === "A" ? "badge-success" : "badge-info"}`}
                 style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
               >

@@ -26,6 +26,9 @@ export const LAYOUT_DIRECTION_KEY = "nhcx_layout_direction";
 // Light/dark theme preference, persisted across reloads.
 export const THEME_KEY = "nhcx_theme";
 
+// Whether the desktop sidebar is collapsed to its icon rail, persisted.
+export const SIDEBAR_COLLAPSED_KEY = "nhcx_sidebar_collapsed";
+
 const getProviderHeader = () => {
   if (localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true") return {};
   const code = localStorage.getItem("nhcx_default_provider_id");

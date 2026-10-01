@@ -26,9 +26,12 @@ import {
   AlertCircle,
   Building2,
   Globe,
+  ChevronsUpDown,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import "./App.css";
-import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY, clearSessionToken } from "./api";
+import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY, SIDEBAR_COLLAPSED_KEY, clearSessionToken } from "./api";
 import { getDeepLinkClinicId } from "./sessionBootstrap";
 
 import WorkQueue from "./components/WorkQueue";
@@ -50,7 +53,9 @@ function RequireProvider({ hasProvider, sessionReady }) {
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true",
+  );
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [theme, setTheme] = useState(
     () => localStorage.getItem(THEME_KEY) || "light",
@@ -264,6 +269,12 @@ export default function App() {
     setTheme(newTheme);
   };
 
+  const toggleSidebar = () => {
+    const next = !isSidebarCollapsed;
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+    setIsSidebarCollapsed(next);
+  };
+
   const toggleLayoutDirection = () => {
     const next = layoutDirection === "B" ? "A" : "B";
     localStorage.setItem(LAYOUT_DIRECTION_KEY, next);
@@ -280,6 +291,13 @@ export default function App() {
     { to: "/registry", icon: Users, label: "Child Registry" },
     { to: "/communications", icon: MessageSquare, label: "Communications", badge: unreadCommsCount, badgeTone: "info" },
     { to: "/payments", icon: CreditCard, label: "Payments" },
+  ];
+
+  // The sidebar shows the same destinations in labelled groups: day-to-day
+  // claim work first, then reference records.
+  const navGroups = [
+    { label: "Claims", items: navItems.filter((i) => i.to !== "/registry") },
+    { label: "Records", items: navItems.filter((i) => i.to === "/registry") },
   ];
 
   const bottomNavItems = [
@@ -498,94 +516,98 @@ export default function App() {
       )}
 
       <div className="app-body">
-      <aside className={`sidebar ${isSidebarCollapsed ? "collapsed" : ""} ${isMobileMenuOpen ? "mobile-show" : ""}`}>
-        <div className="sidebar-header-wrapper">
-          <div className="sidebar-brand">
-            <button
-              className="sidebar-toggle"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              <Menu size={18} />
-            </button>
-            <div className="brand-logo">
-              <ShieldCheck color="white" size={22} />
-            </div>
-            {!isSidebarCollapsed && <h2 className="brand-name">NHCX Service</h2>}
-            <button className="mobile-close-btn" onClick={() => setIsMobileMenuOpen(false)}>
-              <X size={24} />
-            </button>
+      <aside
+        className={`sidebar ${isSidebarCollapsed ? "collapsed" : ""} ${isMobileMenuOpen ? "mobile-show" : ""}`}
+        aria-label="Main navigation"
+      >
+        <div className="sidebar-brand">
+          <div className="brand-logo">
+            <ShieldCheck color="white" size={18} />
           </div>
+          <div className="brand-text">
+            <span className="brand-name">NHCX Service</span>
+            <span className="brand-sub">Cashless claims</span>
+          </div>
+          <button className="mobile-close-btn" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close menu">
+            <X size={20} />
+          </button>
         </div>
 
         {hasProvider && (
           <button
             onClick={() => navigate("/settings")}
             title={allFacilitiesMode ? "Viewing all facilities (read-only) - click to select one" : `Active facility: ${facilityLabel} - click to switch`}
-            className="sidebar-facility"
-            style={{
-              padding: isSidebarCollapsed ? "9px 0" : "9px 11px",
-              justifyContent: isSidebarCollapsed ? "center" : "flex-start",
-            }}
+            className={`sidebar-facility${allFacilitiesMode ? " is-all" : ""}`}
           >
-            {allFacilitiesMode
-              ? <Globe size={16} style={{ flexShrink: 0, color: "var(--info)" }} />
-              : <Building2 size={16} style={{ flexShrink: 0, color: "var(--primary)" }} />}
-            {!isSidebarCollapsed && (
-              <span className="sidebar-facility-text">
-                <span className="sidebar-facility-label">{allFacilitiesMode ? "Viewing" : "Active facility"}</span>
-                <span className="sidebar-facility-name">{facilityLabel}</span>
-              </span>
-            )}
+            <span className="sidebar-facility-icon">
+              {allFacilitiesMode ? <Globe size={15} /> : <Building2 size={15} />}
+            </span>
+            <span className="sidebar-facility-text">
+              <span className="sidebar-facility-label">{allFacilitiesMode ? "Viewing" : "Facility"}</span>
+              <span className="sidebar-facility-name">{facilityLabel}</span>
+            </span>
+            <ChevronsUpDown size={14} className="sidebar-facility-chevron" />
           </button>
         )}
 
-        {!isSidebarCollapsed && <div className="sidebar-nav-label">Workspace</div>}
         <nav className="sidebar-nav">
-          {navItems.map(({ to, icon: Icon, label, badge, badgeTone }) => (
-            <NavLink key={to} to={to} title={label} className={({ isActive }) => (isActive ? "active" : "")}>
-              {({ isActive }) => (
-                <>
-                  {isActive && (
-                    <motion.span
-                      className="nav-active-pill"
-                      layoutId={prefersReducedMotion ? undefined : "sidebar-active-pill"}
-                      transition={{ type: "spring", stiffness: 500, damping: 42 }}
-                    />
+          {navGroups.map((group) => (
+            <div key={group.label} className="sidebar-nav-group">
+              <div className="sidebar-nav-label">{group.label}</div>
+              {group.items.map(({ to, icon: Icon, label, badge, badgeTone }) => (
+                <NavLink key={to} to={to} title={label} className={({ isActive }) => (isActive ? "active" : "")}>
+                  {({ isActive }) => (
+                    <>
+                      {isActive && (
+                        <motion.span
+                          className="nav-active-pill"
+                          layoutId={prefersReducedMotion ? undefined : "sidebar-active-pill"}
+                          transition={{ type: "spring", stiffness: 500, damping: 42 }}
+                        />
+                      )}
+                      <Icon className="nav-icon" size={18} strokeWidth={1.9} />
+                      <span className="nav-label">{label}</span>
+                      {badge > 0 && (
+                        <span
+                          className={`nav-badge nav-badge--${badgeTone === "info" ? "info" : urgentTaskCount > 0 ? "urgent" : "warning"}`}
+                        >
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      )}
+                    </>
                   )}
-                  <Icon className="nav-icon" size={20} />
-                  <span className="nav-label">{label}</span>
-                  {badge > 0 && !isSidebarCollapsed && (
-                    <span
-                      className="nav-badge"
-                      style={{ background: badgeTone === "info" ? "var(--info)" : urgentTaskCount > 0 ? "var(--error)" : "var(--warning)" }}
-                    >
-                      {badge > 99 ? "99+" : badge}
-                    </span>
-                  )}
-                </>
-              )}
-            </NavLink>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
         <div className="sidebar-footer">
-          <nav className="sidebar-nav" style={{ flex: "unset" }}>
-            {bottomNavItems.map(({ to, icon: Icon, label }) => (
-              <NavLink key={to} to={to} title={label} className="">
-                <Icon className="nav-icon" size={20} />
-                <span className="nav-label">{label}</span>
-              </NavLink>
-            ))}
-          </nav>
+          {bottomNavItems.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} title={label} className={({ isActive }) => `sidebar-footer-link${isActive ? " active" : ""}`}>
+              <Icon className="nav-icon" size={18} strokeWidth={1.9} />
+              <span className="nav-label">{label}</span>
+            </NavLink>
+          ))}
+          <button
+            className="sidebar-footer-link sidebar-collapse-btn"
+            onClick={toggleSidebar}
+            title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isSidebarCollapsed
+              ? <PanelLeftOpen className="nav-icon" size={18} strokeWidth={1.9} />
+              : <PanelLeftClose className="nav-icon" size={18} strokeWidth={1.9} />}
+            <span className="nav-label">Collapse</span>
+          </button>
         </div>
       </aside>
 
       <main className="content">
         <header className="top-bar">
           <div className="top-bar-left">
-            <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)}>
-              <Menu size={24} />
+            <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)} aria-label="Open menu">
+              <Menu size={20} />
             </button>
             <div className="breadcrumb-modern">
               <span
@@ -614,45 +636,22 @@ export default function App() {
           </div>
 
           <div className="top-actions">
-            {!hasProvider && (
-              <button
-                onClick={() => navigate("/settings")}
-                style={{
-                  display: "flex", alignItems: "center", gap: "6px",
-                  fontSize: "12px", fontWeight: 600, padding: "5px 12px",
-                  borderRadius: "var(--radius-pill)", cursor: "pointer",
-                  background: "color-mix(in srgb, var(--error) 12%, transparent)",
-                  color: "var(--error)",
-                  border: "1px solid color-mix(in srgb, var(--error) 30%, transparent)",
-                }}
-              >
+            {!hasProvider ? (
+              <button onClick={() => navigate("/settings")} className="topbar-facility is-missing">
                 <Building2 size={13} />
                 No facility selected
               </button>
-            )}
-            {hasProvider && (
+            ) : (
               <button
                 onClick={() => navigate("/settings")}
                 title={allFacilitiesMode ? "Viewing all facilities (read-only) - click to select one" : `Active facility: ${facilityLabel}${facilityName && providerId ? ` · ${providerId}` : ""} - click to switch`}
-                style={{
-                  display: "flex", alignItems: "center", gap: "7px",
-                  maxWidth: "260px",
-                  fontSize: "12px", fontWeight: 600, padding: "5px 12px",
-                  borderRadius: "var(--radius-pill)", cursor: "pointer",
-                  background: allFacilitiesMode ? "color-mix(in srgb, var(--info) 12%, transparent)" : "var(--primary-light)",
-                  color: allFacilitiesMode ? "var(--info)" : "var(--primary)",
-                  border: allFacilitiesMode ? "1px solid color-mix(in srgb, var(--info) 30%, transparent)" : "1px solid var(--primary-light)",
-                }}
+                className={`topbar-facility${allFacilitiesMode ? " is-all" : ""}`}
               >
-                {allFacilitiesMode
-                  ? <Globe size={13} style={{ flexShrink: 0 }} />
-                  : <Building2 size={13} style={{ flexShrink: 0 }} />}
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {facilityLabel}
-                </span>
+                {allFacilitiesMode ? <Globe size={13} /> : <Building2 size={13} />}
+                <span className="topbar-facility-name">{facilityLabel}</span>
               </button>
             )}
-            <button onClick={toggleTheme} className="theme-toggle" style={{ overflow: "hidden" }}>
+            <button onClick={toggleTheme} className="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={theme}
@@ -662,16 +661,17 @@ export default function App() {
                   exit={prefersReducedMotion ? { opacity: 0 } : { rotate: 90, opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
+                  {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
                 </motion.span>
               </AnimatePresence>
             </button>
-            <div
-              style={{ position: "relative", cursor: "pointer", display: "flex", alignItems: "center" }}
+            <button
+              className="theme-toggle topbar-bell"
               onClick={() => navigate("/work-queue")}
               title={pendingTaskCount > 0 ? `${pendingTaskCount} pending tasks` : "No pending tasks"}
+              aria-label={pendingTaskCount > 0 ? `${pendingTaskCount} pending tasks` : "No pending tasks"}
             >
-              <Bell size={20} className="text-muted" />
+              <Bell size={18} />
               <AnimatePresence>
                 {pendingTaskCount > 0 && (
                   <motion.span
@@ -687,7 +687,7 @@ export default function App() {
                   </motion.span>
                 )}
               </AnimatePresence>
-            </div>
+            </button>
           </div>
         </header>
 

@@ -32,8 +32,10 @@
   --cx-radius-sm: var(--radius-sm);
   --cx-shadow: var(--shadow);
 
-  --cx-rail-top: 59px;
-  --cx-shell-offset: calc(59px + (var(--app-gutter, 6px) * 2));
+  /* Top bar height plus the panel's inset and border, so the sticky rail
+     fills exactly the visible part of the content panel. */
+  --cx-rail-top: var(--topbar-h, 59px);
+  --cx-shell-offset: calc(var(--topbar-h, 59px) + (var(--app-gutter, 6px) * 2) + (var(--shell-inset, 0px) * 2) + 2px);
   --cx-rail-h: calc(100vh - var(--cx-shell-offset));
 
   margin: 0;
