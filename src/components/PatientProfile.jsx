@@ -1,11 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  User, Calendar, Phone, ChevronDown, ChevronRight,
-  BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle
-} from "lucide-react";
+import { User, Plus, ArrowLeft, AlertCircle } from "lucide-react";
 import { api } from "../api";
-import { Card, StatusBadge, Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney } from "./Common";
+import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney } from "./Common";
+import { Section, Fields } from "./case/CaseFile";
 import { formatDate, formatPhone, formatCaseRef } from "../format.js";
 import { taskStep } from "../taskRoutes";
 import { resolveCaseStatus } from "../caseStatus.js";
@@ -28,8 +25,6 @@ function PatientDetail({ patient }) {
   const [tasks, setTasks] = useState([]);
   const [communications, setCommunications] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(false);
-  const [expandedVisit, setExpandedVisit] = useState(0);
-  const [headerPhotoError, setHeaderPhotoError] = useState(false);
 
   const age = calculateAge(patient.dob);
 
@@ -142,331 +137,392 @@ function PatientDetail({ patient }) {
     }
   };
 
+  const statusTone = (claim) => {
+    const cls = resolveCaseStatus(claim).badgeClass;
+    return cls === "badge-success" ? "ok" : cls === "badge-error" ? "bad" : cls === "badge-warning" ? "warn" : "info";
+  };
+
+  const latest = patient.latest_claim;
+  const visits = patient.visits || [];
+  // A visit's claim row has no journey step, so the latest-case summary wins for that case's status.
+  const visitCases = visits.flatMap((v) =>
+    (v.claims || []).map((c) => ({
+      ...c,
+      ...(latest && c.cashless_case_id === latest.cashless_case_id ? latest : {}),
+      admission_no: v.admission_no,
+    })),
+  );
+  const cases = visitCases.length ? visitCases : latest ? [latest] : [];
+  const caseCount = Math.max(patient.cashless_cases_count || 0, cases.length);
+  const gender = patient.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1);
+  const openCase = (c) => resumeCase(c.cashless_case_id ? c : null);
+
   return (
-    <motion.div
-      key={patient.child_id}
-      initial={{ opacity: 0, x: 16 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 16 }}
-      transition={{ duration: 0.2 }}
-      style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}
-    >
-      <div className="patient-detail-header" style={{
-        background: "var(--bg-card)", border: "1px solid var(--border-color)",
-        borderRadius: "var(--radius-lg)", padding: "20px 24px",
-        display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-4)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
-          <div style={{
-            width: "56px", height: "56px", borderRadius: "50%",
-            background: "var(--primary)", color: "white",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: 800, fontSize: "24px", flexShrink: 0, overflow: "hidden",
-          }}>
-            {patient.profile_photo && !headerPhotoError
-              ? <img src={patient.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setHeaderPhotoError(true)} />
-              : patient.name?.[0]?.toUpperCase()
-            }
-          </div>
-          <div>
-            <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "6px" }}>{patient.name}</h2>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", fontSize: "13px", color: "var(--text-muted)" }}>
-              <span className="badge-modern badge-info">#{patient.child_id}</span>
-              <span style={{ textTransform: "capitalize", display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-                <User size={13} /> {patient.gender}
-              </span>
-              {age !== null && (
-                <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-                  <Calendar size={13} /> {patient.dob} ({age} yrs)
-                </span>
-              )}
-              {patient.mobile && (
-                <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-                  <Phone size={13} /> {formatPhone(patient.mobile)}
-                </span>
-              )}
-              {patient.abha_number
-                ? <span className="badge-modern badge-success" style={{ fontSize: "11px" }}>{patient.abha_number}</span>
-                : <span className="badge-modern badge-warning" style={{ fontSize: "11px" }}>Not ABHA-linked</span>
-              }
-              {patient.cashless_cases_count > 0 && (
-                <span className="badge-modern badge-info" style={{ fontSize: "11px" }}>{patient.cashless_cases_count} case{patient.cashless_cases_count !== 1 ? "s" : ""}</span>
-              )}
-              {totalBilled > 0 && (
-                <span className="badge-modern badge-warning" style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-                  ₹{totalBilled.toLocaleString("en-IN")} billed
-                </span>
+    <div className="pd-screen ep-screen pt-screen">
+      <div className="wq-header">
+        <div>
+          <h1 className="wq-title">{patient.name}</h1>
+        </div>
+      </div>
+
+      <div className="pd-layout">
+        <div className="pd-main">
+          <Section id="pt-patient" title="Patient">
+            <div className="ep-pad">
+              <Fields
+                cols={3}
+                rows={[
+                  { label: "Child ID", value: `#${patient.child_id}`, mono: true },
+                  { label: "Gender", value: gender },
+                  { label: "Date of birth", value: patient.dob && formatDate(patient.dob), sub: age !== null ? `${age} yrs` : null },
+                  { label: "Mobile", value: patient.mobile && formatPhone(patient.mobile), mono: true },
+                  { label: "ABHA", value: patient.abha_number || "Not linked", mono: !!patient.abha_number, tone: patient.abha_number ? null : "warn" },
+                  { label: "Registered", value: patient.created_at && formatDate(patient.created_at) },
+                ]}
+              />
+            </div>
+          </Section>
+
+          <Section id="pt-cases" title="Cashless cases" meta={`${caseCount} on record`}>
+            {cases.length === 0 ? (
+              <p className="ds-empty">No cashless case has been started for this patient.</p>
+            ) : (
+              <div className="ep-table-wrap">
+                <table className="ep-table">
+                  <thead>
+                    <tr>
+                      <th>Case</th>
+                      <th>Payer · Policy</th>
+                      <th>Status</th>
+                      <th className="ep-num">Billed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cases.map((c, i) => (
+                      <tr
+                        key={c.cashless_case_id ?? c.claim_id ?? i}
+                        className="pt-row"
+                        tabIndex={0}
+                        title="Open case"
+                        onClick={() => openCase(c)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") openCase(c);
+                        }}
+                      >
+                        <td>
+                          <div className="ep-mono ep-strong">
+                            {c.cashless_case_id ? formatCaseRef(c.cashless_case_id) : `Claim #${c.claim_id}`}
+                          </div>
+                          {c.admission_no && <div className="ep-muted">{c.admission_no}</div>}
+                        </td>
+                        <td>
+                          <div>{c.payer_name || c.payer_id || "—"}</div>
+                          {c.policy_number && <div className="ep-muted ep-mono">{c.policy_number}</div>}
+                        </td>
+                        <td>
+                          <span className={`ds-verdict is-${statusTone(c)} pt-status`}>
+                            <span className="ep-dot" aria-hidden="true" />
+                            {resolveCaseStatus(c).label}
+                          </span>
+                          {(c.claim_decision || c.payment_status) && (
+                            <div className="ep-muted ep-cap">
+                              {[
+                                c.claim_decision && `Claim ${c.claim_decision.replace(/_/g, " ").toLowerCase()}`,
+                                c.payment_status && `Payment ${c.payment_status.replace(/_/g, " ").toLowerCase()}`,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </div>
+                          )}
+                        </td>
+                        <td className="ep-num ep-mono">{c.total_billed != null ? formatMoney(c.total_billed) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {cases.length < caseCount && (
+                  <p className="ds-empty pt-note">Only the latest case is listed here. Older cases are in Cashless Cases.</p>
+                )}
+              </div>
+            )}
+          </Section>
+
+          {visits.length === 0 ? (
+            <Section id="pt-visits" title="Visits">
+              <p className="ds-empty">No visits on record.</p>
+            </Section>
+          ) : (
+            visits.map((visit, vi) => {
+              const invoices = visit.invoices || [];
+              const lines = invoices.flatMap((inv) =>
+                (inv.line_items || []).map((li) => ({ ...li, invoice_no: inv.invoice_no })),
+              );
+              const paid = [
+                ...(visit.advance_payments || []).map((p) => ({ ...p, kind: "Advance" })),
+                ...(visit.payments || []).map((p) => ({ ...p, kind: "Collected" })),
+              ];
+              const paidTotal = paid.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+              const doctorSub = [
+                visit.primary_doctor?.specialization,
+                visit.primary_doctor?.registration_no && `Reg ${visit.primary_doctor.registration_no}`,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <Section
+                  key={visit.admission_id ?? vi}
+                  id={`pt-visit-${vi}`}
+                  title={`${visit.admission_no || `Visit ${vi + 1}`} · ${(visit.visit_type || "visit").toUpperCase()}`}
+                  meta={
+                    <Button variant="outline" size="small" icon={Plus} onClick={() => startWorkflow(visit)}>
+                      Start case for this visit
+                    </Button>
+                  }
+                >
+                  <div className="ep-pad">
+                    <Fields
+                      cols={3}
+                      rows={[
+                        { label: "Started", value: visit.started_at && formatDate(visit.started_at) },
+                        { label: "Status", value: visit.status && visit.status[0].toUpperCase() + visit.status.slice(1).replace(/_/g, " ") },
+                        { label: "Reason", value: visit.reason },
+                        { label: "Diagnosis", value: visit.diagnosis },
+                        { label: "Primary doctor", value: visit.primary_doctor?.name, sub: doctorSub || null },
+                      ]}
+                    />
+                  </div>
+
+                  {visit.procedures?.length > 0 && (
+                    <div className="ep-table-wrap">
+                      <table className="ep-table">
+                        <thead>
+                          <tr>
+                            <th>Procedure code</th>
+                            <th>Procedure</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visit.procedures.map((p, pi) => (
+                            <tr key={pi}>
+                              <td className="ep-mono">{p.code || "—"}</td>
+                              <td>{p.name}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {invoices.length > 0 && (
+                    <div className="ep-table-wrap">
+                      <table className="ep-table">
+                        <thead>
+                          <tr>
+                            <th>Invoice</th>
+                            <th>Date</th>
+                            <th>Billing</th>
+                            <th className="ep-num">Billed</th>
+                            <th className="ep-num">Discount</th>
+                            <th className="ep-num">Final</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {invoices.map((inv, ii) => (
+                            <tr key={inv.invoice_id ?? ii}>
+                              <td className="ep-mono">{inv.invoice_no || "—"}</td>
+                              <td>{inv.invoice_date ? formatDate(inv.invoice_date) : "—"}</td>
+                              <td className="ep-cap">{inv.billing_status?.replace(/_/g, " ") || "—"}</td>
+                              <td className="ep-num ep-mono">{formatMoney(inv.amount_billed)}</td>
+                              <td className="ep-num ep-mono">{inv.final_discount ? formatMoney(inv.final_discount) : "—"}</td>
+                              <td className="ep-num ep-mono ep-strong">{formatMoney(inv.final_amount ?? inv.amount_billed)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {lines.length > 0 && (
+                    <div className="ep-table-wrap">
+                      <table className="ep-table">
+                        <thead>
+                          <tr>
+                            <th>Code</th>
+                            <th>Bill item</th>
+                            <th>Category</th>
+                            <th className="ep-num">Qty</th>
+                            <th className="ep-num">Unit price</th>
+                            <th className="ep-num">Net</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lines.map((li, n) => (
+                            <tr key={li.line_item_id ?? n}>
+                              <td className="ep-mono">{li.code || "—"}</td>
+                              <td>
+                                {li.name}
+                                {invoices.length > 1 && <div className="ep-muted">{li.invoice_no}</div>}
+                              </td>
+                              <td className="ep-cap">{li.category || "—"}</td>
+                              <td className="ep-num ep-mono">{li.quantity ?? "—"}</td>
+                              <td className="ep-num ep-mono">{li.unit_price != null ? formatMoney(li.unit_price) : "—"}</td>
+                              <td className="ep-num ep-mono">{li.net_amount != null ? formatMoney(li.net_amount) : "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {paid.length > 0 && (
+                    <div className="ep-table-wrap">
+                      <table className="ep-table">
+                        <thead>
+                          <tr>
+                            <th>Patient payment</th>
+                            <th>Mode</th>
+                            <th>Date</th>
+                            <th className="ep-num">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paid.map((p, pi) => (
+                            <tr key={pi}>
+                              <td>{p.kind}</td>
+                              <td className="ep-cap">{p.mode || "—"}</td>
+                              <td>{p.date ? formatDate(p.date) : "—"}</td>
+                              <td className="ep-num ep-mono">{formatMoney(p.amount)}</td>
+                            </tr>
+                          ))}
+                          {paid.length > 1 && (
+                            <tr className="pd-total-row">
+                              <td colSpan={3}>Total collected</td>
+                              <td className="ep-num ep-mono">{formatMoney(paidTotal)}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {invoices.length === 0 && paid.length === 0 && <p className="ds-empty">No billing on this visit yet.</p>}
+                </Section>
+              );
+            })
+          )}
+
+          <Section id="pt-tasks" title="Pending tasks" meta={loadingExtra ? null : String(tasks.length)}>
+            {loadingExtra ? (
+              <p className="ds-empty">Loading…</p>
+            ) : tasks.length === 0 ? (
+              <p className="ds-empty">No pending tasks.</p>
+            ) : (
+              <div className="ep-table-wrap">
+                <table className="ep-table">
+                  <thead>
+                    <tr>
+                      <th>Task</th>
+                      <th>Workflow</th>
+                      <th>Priority</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tasks.map((task, ti) => (
+                      <tr key={task.id ?? task.task_id ?? ti}>
+                        <td>{task.title}</td>
+                        <td className="ep-cap">{task.workflow?.replace(/_/g, " ") || "—"}</td>
+                        <td className={`ep-cap${task.priority === "urgent" || task.priority === "high" ? " is-bad" : ""}`}>
+                          {task.priority || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Section>
+
+          <Section id="pt-comms" title="Payer communications" meta={loadingExtra ? null : String(communications.length)}>
+            {loadingExtra ? (
+              <p className="ds-empty">Loading…</p>
+            ) : communications.length === 0 ? (
+              <p className="ds-empty">No communications.</p>
+            ) : (
+              <div className="ep-table-wrap">
+                <table className="ep-table">
+                  <thead>
+                    <tr>
+                      <th>Topic</th>
+                      <th>From</th>
+                      <th>Priority</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {communications.map((comm, ci) => (
+                      <tr key={comm.correlation_id ?? ci}>
+                        <td>{comm.topic_display || <span className="ep-muted">No subject</span>}</td>
+                        <td className="ep-mono">{comm.payer_id || "—"}</td>
+                        <td className={`ep-cap${comm.priority === "urgent" || comm.priority === "stat" ? " is-bad" : ""}`}>
+                          {comm.priority || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Section>
+        </div>
+
+        <aside className="pd-side">
+          <section className="ep-section pd-request">
+            <header className="ep-section-head">
+              <h3 className="ep-section-title">Cashless</h3>
+            </header>
+            {latest ? (
+              <>
+                <div className={`ds-verdict is-${statusTone(latest)}`}>
+                  <span className="ep-dot" aria-hidden="true" />
+                  <span className="ds-verdict-label">{resolveCaseStatus(latest).label}</span>
+                </div>
+                <div className="ds-ref">
+                  <span className="ep-muted">Latest case</span>
+                  <span className="ep-mono">{formatCaseRef(latest.cashless_case_id)}</span>
+                </div>
+                <div className="ds-ref">
+                  <span className="ep-muted">Payer</span>
+                  <span className="ep-mono">{latest.payer_name || latest.payer_id || "—"}</span>
+                </div>
+              </>
+            ) : (
+              <p className="ds-empty">No case yet.</p>
+            )}
+            {totalBilled > 0 && (
+              <div className="pd-amount">
+                <div className="ep-muted">Billed across visits</div>
+                <div className="pd-amount-value ep-mono">{formatMoney(totalBilled)}</div>
+              </div>
+            )}
+            <div className="pd-submit">
+              {latest ? (
+                <>
+                  <Button variant="primary" onClick={() => resumeCase(latest)} className="pd-submit-btn">
+                    Resume {formatCaseRef(latest.cashless_case_id)}
+                  </Button>
+                  <button type="button" className="pd-text-btn" onClick={() => startWorkflow(visits[0])}>
+                    <Plus size={13} /> Start a new cashless case
+                  </button>
+                </>
+              ) : (
+                <Button variant="primary" icon={Plus} onClick={() => startWorkflow(visits[0])} className="pd-submit-btn">
+                  Start cashless case
+                </Button>
               )}
             </div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
-          {patient.latest_claim && (
-            <Button variant="outline" onClick={() => resumeCase(patient.latest_claim)}>
-              Resume Case
-            </Button>
-          )}
-          <Button variant="primary" icon={Plus} onClick={() => startWorkflow(patient.visits?.[0])}>
-            New Cashless
-          </Button>
-        </div>
+          </section>
+        </aside>
       </div>
-
-      {patient.latest_claim && (
-        <div style={{
-          padding: "12px 16px", borderRadius: "var(--radius-md)",
-          background: "rgba(79,70,229,0.05)", border: "1px solid var(--primary-light)",
-          display: "flex", gap: "var(--space-5)", flexWrap: "wrap", fontSize: "13px",
-        }}>
-          <div>
-            <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Latest Case</span>
-            <span style={{ fontWeight: 600 }}>#{patient.latest_claim.cashless_case_id}</span>
-          </div>
-          <div>
-            <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Step</span>
-            <span style={{ fontWeight: 600 }}>{patient.latest_claim.current_step?.replace(/_/g, " ")}</span>
-          </div>
-          <div>
-            <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Payer</span>
-            <span style={{ fontWeight: 600 }}>{patient.latest_claim.payer_name || patient.latest_claim.payer_id || "-"}</span>
-          </div>
-          <div>
-            <span style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "2px" }}>Policy</span>
-            <span style={{ fontWeight: 600 }}>{patient.latest_claim.policy_number}</span>
-          </div>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-            <CaseStatusChip claim={patient.latest_claim} />
-          </div>
-        </div>
-      )}
-
-      <div className="grid-1-to-3" style={{ gap: "var(--space-5)" }}>
-        <div className="col-span-2" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          <Card title="Visits & Admissions">
-            {!patient.visits?.length ? (
-              <div className="text-muted text-sm" style={{ padding: "20px 0", textAlign: "center" }}>No visits on record.</div>
-            ) : (
-              patient.visits.map((visit, vi) => {
-                const visitBilled = (visit.invoices || []).reduce(
-                  (s, inv) => s + Math.max(Number(inv.amount_billed) || 0, Number(inv.final_amount) || 0),
-                  0,
-                );
-                const visitPaid = [...(visit.payments || []), ...(visit.advance_payments || [])].reduce(
-                  (s, p) => s + (Number(p.amount) || 0),
-                  0,
-                );
-                const hasBillingActivity = visitBilled > 0 || visitPaid > 0 || visit.claims?.length > 0;
-                return (
-                <div key={vi} style={{ marginBottom: "var(--space-3)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
-                  <div
-                    onClick={() => setExpandedVisit(expandedVisit === vi ? null : vi)}
-                    style={{ padding: "14px 16px", background: "var(--bg-main)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span className="badge-modern badge-info" style={{ textTransform: "uppercase" }}>{visit.visit_type}</span>
-                      <strong style={{ fontSize: "14px" }}>{visit.admission_no || `Visit ${vi + 1}`}</strong>
-                      <StatusBadge status={visit.status} />
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-muted)", fontSize: "13px" }}>
-                      <span>{formatDate(visit.started_at)}</span>
-                      {expandedVisit === vi ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </div>
-                  </div>
-                  <AnimatePresence>
-                    {expandedVisit === vi && (
-                      <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} style={{ overflow: "hidden" }}>
-                        <div style={{ padding: "var(--space-4)", borderTop: "1px solid var(--border-color)" }}>
-                          <div className="grid-2-col" style={{ gap: "var(--space-4)", marginBottom: "var(--space-4)", fontSize: "13px" }}>
-                            <div>
-                              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-1)" }}>Diagnosis</div>
-                              <div>{visit.diagnosis || "-"}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-1)" }}>Primary Doctor</div>
-                              <div style={{ fontWeight: 600 }}>{visit.primary_doctor?.name || "-"}</div>
-                              {visit.primary_doctor?.registration_no && (
-                                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Reg: {visit.primary_doctor.registration_no}</div>
-                              )}
-                            </div>
-                          </div>
-
-                          {visit.procedures?.length > 0 && (
-                            <div style={{ marginBottom: "var(--space-4)" }}>
-                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--text-muted)", textTransform: "uppercase" }}>Procedures</div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                                {visit.procedures.map((proc, pi) => (
-                                  <span key={pi} className="badge-modern badge-info" style={{ fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}>
-                                    <Activity size={10} />
-                                    {proc.code && <code style={{ fontSize: "10px" }}>{proc.code}</code>}
-                                    {proc.name}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {visit.invoices?.length > 0 && visitBilled > 0 && (
-                            <div style={{ marginBottom: "var(--space-4)" }}>
-                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--text-muted)", textTransform: "uppercase" }}>Invoices</div>
-                              {visit.invoices.map((inv, ii) => (
-                                <div key={ii} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", marginBottom: "var(--space-2)", fontSize: "13px" }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-1)" }}>
-                                    <strong>{inv.invoice_no}</strong>
-                                    <StatusBadge status={inv.billing_status} />
-                                  </div>
-                                  <div style={{ display: "flex", gap: "var(--space-5)", color: "var(--text-muted)" }}>
-                                    <span>Billed: <strong style={{ color: "var(--text-main)" }}>{formatMoney(inv.amount_billed)}</strong></span>
-                                    {inv.final_discount > 0 && <span>Discount: <strong style={{ color: "var(--success)" }}>-{formatMoney(inv.final_discount)}</strong></span>}
-                                    <span>Final: <strong style={{ color: "var(--primary)" }}>{formatMoney(inv.final_amount)}</strong></span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {(visit.payments?.length > 0 || visit.advance_payments?.length > 0) && (() => {
-                            // Cash the patient has already paid (deposits/advances +
-                            // collected) — needed to reconcile against the payer
-                            // settlement and compute any refund at discharge.
-                            const rows = [
-                              ...(visit.advance_payments || []).map((p) => ({ ...p, kind: "Advance" })),
-                              ...(visit.payments || []).map((p) => ({ ...p, kind: "Collected" })),
-                            ];
-                            const total = rows.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-                            return (
-                              <div style={{ marginBottom: "var(--space-4)" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--text-muted)", textTransform: "uppercase" }}>
-                                  <span>Patient Payments</span>
-                                  <span style={{ color: "var(--text-main)" }}>{formatMoney(total)} collected</span>
-                                </div>
-                                {rows.map((p, pi) => (
-                                  <div key={pi} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", marginBottom: "6px", fontSize: "12px" }}>
-                                    <span style={{ color: "var(--text-muted)" }}>{p.kind}{p.mode ? ` · ${p.mode}` : ""}{p.date ? ` · ${p.date}` : ""}</span>
-                                    <strong>{formatMoney(p.amount)}</strong>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()}
-
-                          {visit.claims?.length > 0 && (
-                            <div>
-                              <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "var(--space-2)", display: "flex", alignItems: "center", gap: "6px", color: "var(--text-muted)", textTransform: "uppercase" }}>
-                                <BadgeIndianRupee size={13} /> Claims
-                              </div>
-                              {visit.claims.map((claim, ci) => (
-                                <div key={ci} style={{ background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", padding: "10px 12px", marginBottom: "var(--space-2)" }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
-                                    <div>
-                                      <div style={{ fontWeight: 700, fontSize: "13px" }}>
-                                        {claim.cashless_case_id ? formatCaseRef(claim.cashless_case_id) : `Claim #${claim.claim_id}`}
-                                      </div>
-                                      <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
-                                        {claim.payer_name} · {claim.policy_number}
-                                      </div>
-                                    </div>
-                                    <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexShrink: 0 }}>
-                                      <div style={{ textAlign: "right" }}>
-                                        <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Billed</div>
-                                        <div style={{ fontWeight: 700, color: "var(--primary)" }}>{formatMoney(claim.total_billed)}</div>
-                                      </div>
-                                      <Button variant="outline" size="small" onClick={() => resumeCase(claim.cashless_case_id ? claim : null)}>Open</Button>
-                                    </div>
-                                  </div>
-                                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-                                    <CaseStatusChip claim={claim} />
-                                    {claim.claim_decision && (
-                                      <span className={`badge-modern badge-${claim.claim_decision === "APPROVED" ? "success" : claim.claim_decision === "REJECTED" ? "error" : "warning"}`} style={{ fontSize: "10px" }}>
-                                        Claim: {claim.claim_decision}
-                                      </span>
-                                    )}
-                                    {claim.payment_status && (
-                                      <span className={`badge-modern badge-${claim.payment_status === "paid" ? "success" : claim.payment_status === "failed" ? "error" : "info"}`} style={{ fontSize: "10px" }}>
-                                        Pay: {claim.payment_status}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {!hasBillingActivity && (
-                            <div style={{ padding: "16px", textAlign: "center", color: "var(--text-muted)", fontSize: "13px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border-color)" }}>
-                              {visit.invoices?.length > 0
-                                ? `Invoice ${visit.invoices.map((inv) => inv.invoice_no).filter(Boolean).join(", ")} raised — nothing billed yet.`
-                                : "No billing information yet."}
-                            </div>
-                          )}
-
-                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--space-3)", paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
-                            <Button variant="primary" icon={Plus} onClick={() => startWorkflow(visit)}>
-                              Start Cashless Case
-                            </Button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-                );
-              })
-            )}
-          </Card>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          <Card title="Pending Tasks">
-            {loadingExtra ? (
-              <div className="flex-center py-6"><div className="spinner" style={{ width: "24px", height: "24px" }} /></div>
-            ) : tasks.length === 0 ? (
-              <p className="text-muted text-sm" style={{ padding: "12px 0", textAlign: "center" }}>No pending tasks.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {tasks.map((task) => (
-                  <div
-                    key={task.id ?? task.task_id}
-                    style={{
-                      borderLeft: `3px solid ${task.priority === "urgent" ? "var(--error)" : task.priority === "high" ? "var(--warning)" : "var(--primary)"}`,
-                      padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)",
-                      border: "1px solid var(--border-color)", borderLeftWidth: "3px",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-1)" }}>
-                      <span className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>
-                        {task.priority?.toUpperCase()}
-                      </span>
-                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{task.workflow}</span>
-                    </div>
-                    <div style={{ fontSize: "13px", fontWeight: 600 }}>{task.title}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card title="Communications">
-            {loadingExtra ? (
-              <div className="flex-center py-6"><div className="spinner" style={{ width: "24px", height: "24px" }} /></div>
-            ) : communications.length === 0 ? (
-              <p className="text-muted text-sm" style={{ padding: "12px 0", textAlign: "center" }}>No communications.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {communications.map((comm) => (
-                  <div key={comm.correlation_id} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", fontSize: "13px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-1)" }}>
-                      <span style={{ fontWeight: 600 }}>{comm.topic_display}</span>
-                      <span className={`badge-modern badge-${comm.priority === "high" ? "warning" : "info"}`} style={{ fontSize: "10px" }}>{comm.priority}</span>
-                    </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>From: {comm.payer_id}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
-    </motion.div>
+    </div>
   );
 }
 

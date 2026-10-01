@@ -743,6 +743,39 @@ h3,
     text-decoration: none;
 }
 
+/* ─── Patient file (PatientProfile.jsx detail) ─────────────────────────── */
+.pt-screen .ds-empty {
+    padding-bottom: 12px;
+}
+
+.pt-screen .ep-section > .ep-table-wrap + .ep-table-wrap {
+    border-top: 1px solid var(--border-color);
+}
+
+.pt-row {
+    cursor: pointer;
+}
+
+.pt-row:hover td,
+.pt-row:focus-visible td {
+    background: var(--bg-main);
+}
+
+.ds-verdict.pt-status {
+    display: inline-flex;
+    gap: 6px;
+    padding: 0;
+    font-weight: var(--fw-medium);
+}
+
+.ds-verdict.pt-status.is-bad {
+    color: var(--error);
+}
+
+.pt-note {
+    border-top: 1px solid var(--border-color);
+}
+
 /* ─── Shared overlays (Overlay.jsx: Drawer, Modal) ─────────────────────── */
 .ov-backdrop {
     position: fixed;
