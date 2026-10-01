@@ -3209,6 +3209,57 @@ select.pd-input {
     padding-top: 12px;
 }
 
+/* ─── Payment (PaymentReconciliation) ──────────────────────────────────── */
+.pay-history-toggle {
+    margin: 4px 0 0;
+    font-size: 12px;
+}
+
+.pay-ack {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.ep-table tr.pay-subrow td {
+    background: var(--bg-main);
+    padding-top: 10px;
+    padding-bottom: 12px;
+}
+
+.pay-subrow-title {
+    margin-bottom: 6px;
+}
+
+.pay-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 14px;
+    padding: 4px 0;
+    font-size: 12.5px;
+}
+
+.pay-notice-id {
+    margin-left: auto;
+    font-size: 11px;
+}
+
+.pay-overrides {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 10px 14px;
+}
+
+.pay-overrides label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
 /* ─── Payment table summary row ──────────────────────────────────────────── */
 .table-modern tfoot tr td {
     font-weight: 700;
