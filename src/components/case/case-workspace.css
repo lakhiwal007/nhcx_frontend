@@ -563,13 +563,6 @@
   background: currentColor;
   animation: cx-live-ping 1.6s ease-out infinite;
 }
-/* also drives the coverage vitals' live dot (.cx-vital-dot) */
-@keyframes cx-pulse-ring {
-  0% { transform: scale(1); opacity: 0.9; }
-  70% { transform: scale(1.65); opacity: 0; }
-  100% { transform: scale(1.65); opacity: 0; }
-}
-
 @keyframes cx-live-ping {
   0% { transform: scale(1); opacity: 0.7; }
   80%, 100% { transform: scale(2.6); opacity: 0; }
@@ -757,96 +750,6 @@
   }
 }
 
-/* tiny ECG trace — used by the coverage vitals monitor */
-.cx-ecg {
-  width: 100%;
-  height: 14px;
-  margin-top: 5px;
-  display: block;
-  color: var(--cx-pulse);
-}
-.cx-ecg polyline {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  stroke-dasharray: 120;
-  stroke-dashoffset: 120;
-  animation: cx-trace 2.2s linear infinite;
-}
-@keyframes cx-trace {
-  to { stroke-dashoffset: -120; }
-}
-
-/* ── Coverage "vitals" — the three eligibility sub-checks as a monitor ──
-   Each CE purpose (validation / benefits / auth) is its own vital sign so a
-   `partial` case reads as "which check is still live", not one opaque spinner.
-   Live rows reuse the spine's ECG trace + pulse-ring signature. */
-.cx-vitals {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-.cx-vital {
-  display: grid;
-  grid-template-columns: 18px 1fr auto;
-  align-items: center;
-  gap: 11px;
-  padding: 9px 11px;
-  border-radius: var(--cx-radius-sm);
-  background: var(--cx-surface-2);
-  border: 1px solid var(--cx-line);
-  box-shadow: var(--clay-inset);
-}
-.cx-vital-dot {
-  position: relative;
-  width: 9px;
-  height: 9px;
-  justify-self: center;
-  border-radius: 50%;
-  background: var(--cx-line-strong);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-}
-.cx-vital.is-live .cx-vital-dot { background: var(--cx-pulse); }
-.cx-vital.is-live .cx-vital-dot::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  border: 2px solid var(--cx-pulse);
-  animation: cx-pulse-ring 1.8s ease-out infinite;
-}
-.cx-vital.is-done .cx-vital-dot { background: var(--cx-approve); }
-.cx-vital.is-wait .cx-vital-dot { background: var(--cx-wait); }
-.cx-vital.is-error .cx-vital-dot { background: var(--cx-urgent); }
-.cx-vital-label {
-  font-family: var(--cx-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: lowercase;
-  color: var(--cx-ink-soft);
-}
-.cx-vital-value {
-  font-family: var(--cx-font-body);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--cx-ink);
-  text-align: right;
-}
-.cx-vital-value.tone-approve { color: var(--cx-approve); }
-.cx-vital-value.tone-wait { color: var(--cx-wait); }
-.cx-vital-value.tone-urgent { color: var(--cx-urgent); }
-.cx-vital .cx-ecg { width: 70px; height: 14px; margin: 0; }
-.cx-vital-note {
-  grid-column: 2 / -1;
-  font-size: 11.5px;
-  color: var(--cx-ink-soft);
-  margin-top: 2px;
-}
-.cx-vital-note.tone-wait { color: var(--cx-wait); }
-
 /* ── Stage workspace (right pane) ─────────────────────────────────────── */
 .cx-stage {
   min-width: 0;
@@ -917,8 +820,6 @@
 /* ── Reduced motion ───────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .cx-live-dot::after { animation: none; opacity: 0; }
-  .cx-vital.is-live .cx-vital-dot::after { animation: none; opacity: 0; }
-  .cx-ecg polyline { animation: none; stroke-dashoffset: 0; }
 }
 
 /* ============================================================================

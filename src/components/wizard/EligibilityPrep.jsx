@@ -1,19 +1,10 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  CheckCircle2,
-  FileText,
-  AlertCircle,
-  RefreshCw,
-  Clock,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, AlertCircle, RefreshCw } from "lucide-react";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Card, Button, StatusBadge, LoadingBlock } from "../Common";
+import { Card, Button, LoadingBlock, TablePagination } from "../Common";
+import Dropdown from "../Dropdown";
 import { formatDate, formatMoney } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
 import PayrErrorList from "../PayrErrorList";
@@ -35,6 +26,7 @@ const shouldStopPolling = (res) =>
 // a raw FHIR extension: {url, values: [{url: "category", display}, {url: "code", display}]}.
 function describeDocRequirement(d) {
   if (d.name) return { label: d.name };
+  if (!d.values && (d.display || d.text)) return { label: d.display || d.text, code: d.code };
   if (d.type?.display) return { label: d.type.display, code: d.type.code };
   const values = d.values || [];
   const category = values.find((v) => v.url === "category");
@@ -48,622 +40,464 @@ function describeDocRequirement(d) {
   return { label: "Document requirement" };
 }
 
-function InsurancePlanPanel({ plan }) {
-  const [expanded, setExpanded] = useState(null);
-  const [page, setPage] = useState(0);
-  const PAGE_SIZE = 5;
+// ─── Normalisers for the parsed InsurancePlan ─────────────────────────────
+// Plan entries arrive flat ({code, name}) or FHIR-shaped from the backend's
+// InsurancePlanParser ({type: {code, display}, limits, claim_conditions,
+// document_requirements}).
+function planEntry(e) {
+  if (!e || typeof e !== "object") return { label: String(e ?? ""), code: null };
+  const rawCode = e.type?.code ?? e.code;
+  const code = typeof rawCode === "string" ? rawCode : rawCode?.code ?? null;
+  const label =
+    e.type?.display || e.name || e.display || e.description || e.code?.display || e.text || code || "Unnamed";
+  return { label, code: code && code !== label ? code : null };
+}
 
-  if (!plan) return null;
-  const details = plan.plan_details;
-  const inclusions = plan.inclusions || [];
-  const exclusions = plan.exclusions || [];
-  const docReqs = plan.document_requirements || [];
-  const totalPages = Math.ceil(inclusions.length / PAGE_SIZE);
-  const pageInclusions = inclusions.slice(
-    page * PAGE_SIZE,
-    (page + 1) * PAGE_SIZE,
+// Claim-Condition extensions → { ProcedureType: "Surgical", ApprovalNotRequired: "N", … }
+function conditionsOf(entry) {
+  const out = {};
+  for (const c of entry?.claim_conditions || []) {
+    for (const v of c.values || [c]) {
+      const key = String(v.url || "").split("/").pop();
+      const value = v.value ?? v.display ?? v.code;
+      if (key && value != null) out[key] = String(value).trim();
+    }
+  }
+  return out;
+}
+
+// Per-package documents: the document name alone (the category is implied).
+const docsOf = (entry) =>
+  (entry?.document_requirements || []).map((d) => {
+    const doc = describeDocRequirement(d);
+    return { ...doc, label: doc.label.split(" — ").pop() };
+  });
+
+const rateOf = (entry) => {
+  const v = entry?.limits?.[0]?.value;
+  const n = Number(v?.value ?? v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+const yn = (v) => (v == null ? null : /^y/i.test(v) ? "Yes" : /^n/i.test(v) ? "No" : v);
+
+// ApprovalNotRequired is phrased negatively: "N" means preauth IS required.
+const preauthFromRules = (rules) =>
+  rules.ApprovalNotRequired == null ? null : /^y/i.test(rules.ApprovalNotRequired) ? "Not required" : "Required";
+
+const ruleNotes = (r) =>
+  [
+    /^y/i.test(r.IsDayCare || "") && "Day care",
+    /^y/i.test(r.ImplantApplicable || "") && "Implant",
+    /^y/i.test(r.StratificationAllowed || "") && "Stratified",
+    /^y/i.test(r.CyclicProcedure || "") && `Cyclic${r.MaximumCyclesAllowed ? ` ×${r.MaximumCyclesAllowed}` : ""}`,
+    r.QuantityAllowed && `Qty ≤ ${r.QuantityAllowed}`,
+  ].filter(Boolean);
+
+// The package list: from coverage_benefits (grouped by specialty) when the
+// plan has it, else from inclusions.
+function packageCatalogue(plan) {
+  const fromBenefits = (plan?.coverage_benefits || []).flatMap((cov) =>
+    (cov.benefits || [])
+      .filter((b) => !b.excluded)
+      .map((b) => ({ entry: b, specialty: cov.type?.display || cov.type?.code || null })),
   );
+  const rows = fromBenefits.length
+    ? fromBenefits
+    : (plan?.inclusions || []).map((entry) => ({ entry, specialty: null }));
+  return rows.map(({ entry, specialty }, i) => {
+    const { label, code } = planEntry(entry);
+    const rules = conditionsOf(entry);
+    return {
+      key: `${specialty || ""}:${code || label}:${i}`,
+      code: code || entry.id || null,
+      name: label,
+      specialty,
+      rate: rateOf(entry),
+      rules,
+      docs: docsOf(entry),
+    };
+  });
+}
 
+const identifierOf = (details, typeCode) =>
+  (details?.identifiers || []).find((i) => i?.type?.code === typeCode)?.value || null;
+
+const familySumInsured = (plan) => {
+  const cost = plan?.raw_payload?.plan?.[0]?.generalCost?.[0]?.cost;
+  if (cost?.value != null) return Number(cost.value);
+  const pricing = Array.isArray(plan?.pricing) ? plan.pricing : plan?.pricing ? [plan.pricing] : [];
+  const flat = pricing.find((p) => p?.sum_insured != null)?.sum_insured;
+  return flat != null ? Number(flat) : null;
+};
+
+const period = (start, end) => (start || end ? `${formatDate(start)} – ${formatDate(end)}` : null);
+
+// ─── Coverage eligibility ─────────────────────────────────────────────────
+// Real backend returns nested validation/benefits/auth_requirements; flat is
+// legacy mock.
+function deriveChecks(ce, benefitsTimedOut) {
+  if (!ce) return null;
+  const pick = (sub) => sub || (ce.validation || ce.benefits || ce.auth_requirements ? null : ce);
+  const stateOf = (sub) => {
+    if (!sub) return "pending";
+    if (sub.status === "complete") return sub.errors?.length ? "error" : "done";
+    if (sub.status === "failed") return "error";
+    return "pending";
+  };
+  const itemsOf = (sub) =>
+    (sub?.insurance_items || []).flatMap((ins) => (ins.items || []).map((it) => ({ ...it, _coverage: ins.coverage })));
+  const validation = pick(ce.validation);
+  const benefits = pick(ce.benefits);
+  const auth = pick(ce.auth_requirements);
+  const coverage =
+    validation?.insurance_items?.find((ins) => ins.coverage_details) ||
+    benefits?.insurance_items?.find((ins) => ins.coverage_details) ||
+    validation?.insurance_items?.[0] ||
+    null;
+  return {
+    coverage,
+    inforce: validation?.inforce ?? coverage?.inforce ?? null,
+    validation: { sub: validation, state: stateOf(validation), items: itemsOf(validation) },
+    benefits: { sub: benefits, state: benefitsTimedOut ? "unavailable" : stateOf(benefits), items: itemsOf(benefits) },
+    auth: {
+      sub: auth,
+      state: stateOf(auth),
+      items: itemsOf(auth).length ? itemsOf(auth) : itemsOf(benefits),
+      required: auth?.auth_required ?? ce.auth_required ?? null,
+    },
+  };
+}
+
+// ─── Presentational pieces ────────────────────────────────────────────────
+function Section({ id, title, meta, children }) {
   return (
-    <Card title="Insurance Plan">
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          marginBottom: "10px",
-          flexWrap: "wrap",
-        }}
-      >
-        <StatusBadge status={plan.status} />
-        {plan.correlation_id && (
-          <code style={{ fontSize: "10px", color: "var(--text-muted)" }}>
-            {plan.correlation_id.slice(0, 20)}…
-          </code>
-        )}
-      </div>
-
-      {details?.name && (
-        <div
-          style={{
-            padding: "10px 12px",
-            background: "var(--bg-main)",
-            borderRadius: "var(--radius-sm)",
-            marginBottom: "var(--space-3)",
-          }}
-        >
-          <div
-            style={{ fontWeight: 700, fontSize: "14px", marginBottom: "var(--space-1)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
-          >
-            <span>{details.name}</span>
-            {plan.pricing?.sum_insured != null && (
-              <span className="num-cell" style={{ color: "var(--success)", fontSize: "13px" }}>
-                {formatMoney(plan.pricing.sum_insured)}
-              </span>
-            )}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: "var(--space-4)",
-              fontSize: "12px",
-              color: "var(--text-muted)",
-              flexWrap: "wrap",
-            }}
-          >
-            {details.type?.display && <span>{details.type.display}</span>}
-            {details.period?.start && details.period?.end && (
-              <span>
-                {formatDate(details.period.start)} →{" "}
-                {formatDate(details.period.end)}
-              </span>
-            )}
-            {details.status && (
-              <span
-                className={`badge-modern badge-${details.status === "active" ? "success" : "warning"}`}
-                style={{ fontSize: "10px" }}
-              >
-                {details.status.toUpperCase()}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {plan.status === "pending" && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-2)",
-            color: "var(--text-muted)",
-            fontSize: "13px",
-            padding: "8px 0",
-          }}
-        >
-          <Clock size={14} /> Awaiting insurer response…
-        </div>
-      )}
-
-      {inclusions.length > 0 && (
-        <div style={{ marginBottom: "var(--space-3)" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "6px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "var(--text-muted)",
-                textTransform: "uppercase",
-              }}
-            >
-              Inclusions ({inclusions.length})
-            </div>
-            {totalPages > 1 && (
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <button
-                  onClick={() => {
-                    setPage((p) => Math.max(0, p - 1));
-                    setExpanded(null);
-                  }}
-                  disabled={page === 0}
-                  style={{
-                    background: "var(--bg-main)",
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "var(--radius-xs)",
-                    padding: "2px 8px",
-                    cursor: page === 0 ? "not-allowed" : "pointer",
-                    opacity: page === 0 ? 0.4 : 1,
-                    fontSize: "13px",
-                  }}
-                >
-                  ‹
-                </button>
-                <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                  {page + 1} / {totalPages}
-                </span>
-                <button
-                  onClick={() => {
-                    setPage((p) => Math.min(totalPages - 1, p + 1));
-                    setExpanded(null);
-                  }}
-                  disabled={page === totalPages - 1}
-                  style={{
-                    background: "var(--bg-main)",
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "var(--radius-xs)",
-                    padding: "2px 8px",
-                    cursor: page === totalPages - 1 ? "not-allowed" : "pointer",
-                    opacity: page === totalPages - 1 ? 0.4 : 1,
-                    fontSize: "13px",
-                  }}
-                >
-                  ›
-                </button>
-              </div>
-            )}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
-            {pageInclusions.map((inc, i) => {
-              const globalIdx = page * PAGE_SIZE + i;
-              const code = inc.type?.code;
-              const name = inc.type?.display;
-              const limits = inc.limits || [];
-              const isOpen = expanded === globalIdx;
-              return (
-                <div
-                  key={globalIdx}
-                  style={{
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "var(--radius-sm)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    onClick={() => setExpanded(isOpen ? null : globalIdx)}
-                    style={{
-                      padding: "7px 10px",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "var(--space-2)",
-                      background: isOpen
-                        ? "var(--primary-light)"
-                        : "transparent",
-                      transition: "background 0.2s ease"
-                    }}
-                    onMouseEnter={(e) => { if (!isOpen) e.currentTarget.style.background = "var(--bg-main)"; }}
-                    onMouseLeave={(e) => { if (!isOpen) e.currentTarget.style.background = "transparent"; }}
-                  >
-                    <span
-                      className="badge-modern badge-success"
-                      style={{ fontSize: "10px", flexShrink: 0 }}
-                    >
-                      {code || "INC"}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: isOpen ? 700 : 600,
-                        flex: 1,
-                        color: isOpen ? "var(--primary)" : "var(--text-main)",
-                        transition: "color 0.2s ease"
-                      }}
-                    >
-                      {name || "Unnamed Inclusion"}
-                    </span>
-                    {limits.length > 0 && (
-                      <motion.div animate={{ rotate: isOpen ? 180 : 0 }}>
-                        <ChevronDown size={13} color="var(--text-muted)" />
-                      </motion.div>
-                    )}
-                  </div>
-                  <AnimatePresence>
-                    {isOpen && limits.length > 0 && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        style={{ overflow: "hidden" }}
-                      >
-                    <div
-                      style={{
-                        padding: "6px 10px 8px",
-                        background: "var(--bg-main)",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "var(--space-1)",
-                      }}
-                    >
-                      {limits.map((lim, li) => (
-                        <div
-                          key={li}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            fontSize: "12px",
-                            padding: "3px 0",
-                            borderBottom: "1px solid var(--border-color)",
-                          }}
-                        >
-                          <span style={{ color: "var(--text-muted)" }}>
-                            {lim.code?.display}
-                          </span>
-                          <strong style={{ color: "var(--primary)" }}>
-                            {lim.value?.unit}{" "}
-                            {lim.value?.value?.toLocaleString()}
-                          </strong>
-                        </div>
-                      ))}
-                    </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
-          </div>
-          {totalPages > 1 && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                gap: "var(--space-1)",
-                marginTop: "var(--space-2)",
-              }}
-            >
-              {Array.from({ length: totalPages }, (_, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setPage(i);
-                    setExpanded(null);
-                  }}
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    border: "none",
-                    padding: 0,
-                    background:
-                      i === page ? "var(--primary)" : "var(--border-color)",
-                    cursor: "pointer",
-                    transition: "background 0.2s",
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {exclusions.length > 0 && (
-        <div style={{ marginBottom: "var(--space-3)" }}>
-          <div
-            style={{
-              fontSize: "11px",
-              fontWeight: 700,
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              marginBottom: "6px",
-            }}
-          >
-            Exclusions ({exclusions.length})
-          </div>
-          {exclusions.map((exc, i) => (
-            <div
-              key={i}
-              style={{
-                fontSize: "12px",
-                padding: "4px 0",
-                display: "flex",
-                gap: "var(--space-2)",
-                alignItems: "center",
-                borderBottom: "1px solid var(--border-color)",
-              }}
-            >
-              <span
-                className="badge-modern badge-error"
-                style={{ fontSize: "10px" }}
-              >
-                {exc.type?.code || exc.code}
-              </span>
-              {exc.type?.display || exc.name}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {docReqs.length > 0 && (
-        <div>
-          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Required Documents</div>
-          {docReqs.map((d, i) => {
-            const { label, code } = describeDocRequirement(d);
-            return (
-              <div key={i} style={{ fontSize: "12px", display: "flex", gap: "6px", alignItems: "center", padding: "3px 0" }}>
-                <FileText size={12} color="var(--text-muted)" />
-                {code && (
-                  <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{code}</span>
-                )}
-                {label}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {plan.errors?.length > 0 && (
-        <div style={{ marginTop: "var(--space-2)" }}>
-          {plan.errors.map((err, i) => (
-            <div
-              key={i}
-              style={{
-                fontSize: "12px",
-                color: "var(--error)",
-                background: "rgba(239,68,68,0.05)",
-                borderRadius: "var(--radius-xs)",
-                padding: "6px 8px",
-                marginBottom: "var(--space-1)",
-              }}
-            >
-              {err.message || err.code}
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
+    <section className="ep-section" id={id}>
+      <header className="ep-section-head">
+        <h3 className="ep-section-title">{title}</h3>
+        {meta && <div className="ep-section-meta">{meta}</div>}
+      </header>
+      {children}
+    </section>
   );
 }
 
-// One eligibility sub-check rendered as a vital sign. A live (pending) check
-// shows the ECG trace; a resolved one shows its value with a status tone.
-function CeVital({ label, state, value, tone, note }) {
-  const live = state === "live";
+function Fields({ rows, cols = 2 }) {
+  const shown = rows.filter((r) => r && r.value != null && r.value !== "");
+  if (!shown.length) return null;
   return (
-    <div className={`cx-vital is-${state}`}>
-      <span className="cx-vital-dot" aria-hidden="true" />
-      <span className="cx-vital-label">{label}</span>
-      {live ? (
-        <svg
-          className="cx-ecg"
-          viewBox="0 0 120 14"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <polyline points="0,7 22,7 30,7 36,2 42,12 50,7 70,7 78,7 84,3 90,11 96,7 120,7" />
-        </svg>
+    <dl className={`ep-fields cols-${cols}`}>
+      {shown.map((r) => (
+        <div key={r.label} className="ep-field">
+          <dt>{r.label}</dt>
+          <dd className={`${r.mono ? "ep-mono" : ""}${r.tone ? ` is-${r.tone}` : ""}`} title={typeof r.value === "string" ? r.value : undefined}>
+            {r.value}
+            {r.sub && <span className="ep-field-sub">{r.sub}</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function SubList({ title, items, empty }) {
+  return (
+    <div className="ep-sublist">
+      <div className="ep-sublist-title">
+        {title} {items.length > 0 && <span className="ep-count">{items.length}</span>}
+      </div>
+      {items.length ? (
+        <ul>
+          {items.map((it, i) => (
+            <li key={i}>
+              <span>{it.label}</span>
+              {it.code && <span className="ep-code">{it.code}</span>}
+            </li>
+          ))}
+        </ul>
       ) : (
-        <span className={`cx-vital-value${tone ? ` tone-${tone}` : ""}`}>{value}</span>
+        <div className="ep-muted">{empty}</div>
       )}
-      {note && <span className={`cx-vital-note${tone ? ` tone-${tone}` : ""}`}>{note}</span>}
     </div>
   );
 }
 
-function CoverageEligibilityPanel({ ce, benefitsTimedOut }) {
-  const [expandedItem, setExpandedItem] = useState(null);
-  if (!ce) return null;
-  // Real backend returns nested validation/benefits/auth_requirements; flat is legacy mock
-  const validation = ce.validation || {};
-  const benefits = ce.benefits || {};
-  const authReq = ce.auth_requirements || {};
-  const inforce = validation.inforce ?? ce.inforce;
-  const auth_required = authReq.auth_required ?? ce.auth_required;
-  const disposition = validation.disposition ?? ce.disposition;
-  const allErrors = [
-    ...(validation.errors || ce.errors || []),
-    ...(benefits.errors || []),
-    ...(authReq.errors || []),
-  ];
-  // The validation purpose is the one that resolves the FHIR Coverage
-  // resource (member id, plan name, sum insured) — prefer it for the
-  // coverage-details block; fall back to whichever sub-check has it.
-  const insuranceGroups =
-    (validation.insurance_items?.some((ins) => ins.coverage_details) && validation.insurance_items) ||
-    (benefits.insurance_items ?? ce.insurance_items ?? []);
-  const allItems = (benefits.insurance_items ?? ce.insurance_items ?? [])
-    .flatMap((ins) => (ins.items || []).map((it) => ({ ...it, _coverage: ins.coverage })));
+// Section jump-bar; highlights the section currently at the top of the pane.
+const SECTIONS = [
+  { id: "ep-policy", label: "Policy & member" },
+  { id: "ep-plan", label: "Insurance plan" },
+  { id: "ep-eligibility", label: "Eligibility checks" },
+  { id: "ep-treatment", label: "Planned treatment" },
+  { id: "ep-packages", label: "Package catalogue" },
+];
 
-  // Resolve each sub-check to a vital state. Falls back to the aggregate
-  // ce.status for the legacy flat shape that has no sub-objects.
-  const stateOf = (sub) => {
-    const s = sub?.status ?? ce.status;
-    if (s === "complete") return sub?.errors?.length ? "error" : "done";
-    if (s === "failed") return "error";
-    return "live";
-  };
-
-  const validationState = stateOf(validation);
-  const authState = stateOf(authReq);
-  // Benefits that timed out won't resolve on their own — mark as `wait`, not live.
-  const benefitsState = benefitsTimedOut ? "wait" : stateOf(benefits);
-
+function JumpBar() {
+  const [active, setActive] = useState(SECTIONS[0].id);
+  useEffect(() => {
+    const scroller = document.querySelector(".content");
+    if (!scroller) return;
+    const onScroll = () => {
+      const top = scroller.getBoundingClientRect().top + 140;
+      let current = SECTIONS[0].id;
+      for (const s of SECTIONS) {
+        const el = document.getElementById(s.id);
+        if (el && el.getBoundingClientRect().top <= top) current = s.id;
+      }
+      setActive(current);
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => scroller.removeEventListener("scroll", onScroll);
+  }, []);
   return (
-    <Card title="Coverage Eligibility">
-      <div className="cx-vitals">
-        <CeVital
-          label="validation"
-          state={validationState}
-          value={inforce == null ? "-" : inforce ? "In-force" : "Not in-force"}
-          tone={inforce == null ? undefined : inforce ? "approve" : "urgent"}
-          note={validationState === "done" && disposition ? disposition : undefined}
-        />
-        <CeVital
-          label="benefits"
-          state={benefitsState}
-          value={
-            benefitsTimedOut
-              ? "Insurer unavailable"
-              : allItems.length > 0
-                ? `${allItems.length} service${allItems.length > 1 ? "s" : ""}`
-                : benefitsState === "done"
-                  ? "No limits returned"
-                  : "-"
-          }
-          tone={benefitsTimedOut ? "wait" : undefined}
-          note={
-            benefitsTimedOut
-              ? "Coverage details may be incomplete - you can still proceed."
-              : undefined
-          }
-        />
-        <CeVital
-          label="auth-requirements"
-          state={authState}
-          value={
-            auth_required == null
-              ? "-"
-              : auth_required
-                ? "Preauth required"
-                : "No preauth needed"
-          }
-          tone={auth_required == null ? undefined : auth_required ? "wait" : "approve"}
-        />
-      </div>
+    <nav className="ep-jump" aria-label="Sections">
+      {SECTIONS.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          className={active === s.id ? "is-on" : ""}
+          onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        >
+          {s.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
 
-      {insuranceGroups.some((ins) => ins.coverage_details) && (
-        <div style={{ marginBottom: "var(--space-3)" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Coverage Detail</div>
-          {insuranceGroups.filter((ins) => ins.coverage_details).map((ins, i) => {
-            const cd = ins.coverage_details;
-            const bp = ins.benefit_period;
+const CHECKS = [
+  { id: "validation", label: "Validation", question: "Is the policy in force?" },
+  { id: "benefits", label: "Benefits", question: "What cover and limits apply?" },
+  { id: "auth", label: "Auth requirements", question: "Does the treatment need preauth?" },
+];
+
+function checkSummary(id, c, inforce) {
+  if (c.state === "pending") return "Awaiting insurer";
+  if (c.state === "error") return "Failed";
+  if (c.state === "unavailable") return "No response in time";
+  if (id === "validation") return inforce == null ? "Answered" : inforce ? "In force" : "Not in force";
+  if (id === "benefits") return c.items.length ? `${c.items.length} benefit line${c.items.length === 1 ? "" : "s"}` : "No item limits";
+  return c.required == null ? "Answered" : c.required ? "Preauth required" : "Not required";
+}
+
+function ItemsTable({ items, mode }) {
+  if (!items.length) return <div className="ep-muted ep-pad-y">The insurer returned no item lines for this check.</div>;
+  return (
+    <div className="ep-table-wrap">
+      <table className="ep-table">
+        <thead>
+          <tr>
+            <th>Service</th>
+            {mode === "auth" ? (
+              <>
+                <th>Preauth</th>
+                <th>Documents for preauth</th>
+              </>
+            ) : (
+              <>
+                <th>Covered</th>
+                <th className="ep-num">Allowed</th>
+                <th className="ep-num">Used</th>
+                <th className="ep-num">Available</th>
+              </>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it, i) => {
+            const b = it.benefit?.[0];
+            const allowed = b?.allowed?.value;
+            const used = b?.used?.value;
             return (
-              <div key={i} style={{ padding: "10px 12px", background: "var(--bg-main)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-2)", fontSize: "12.5px" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
-                  {cd.plan_name && (
-                    <div><span style={{ color: "var(--text-muted)" }}>Plan: </span><strong>{cd.plan_name}</strong></div>
-                  )}
-                  {cd.member_id && (
-                    <div><span style={{ color: "var(--text-muted)" }}>Member ID: </span><span className="mono-cell">{cd.member_id}</span></div>
-                  )}
-                  {cd.sum_insured && (
-                    <div><span style={{ color: "var(--text-muted)" }}>Sum Insured: </span><strong style={{ color: "var(--success)" }}>{formatMoney(Number(cd.sum_insured))}</strong></div>
-                  )}
-                  {cd.status && (
-                    <span className={`badge-modern badge-${cd.status === "active" ? "success" : "warning"}`} style={{ fontSize: "10px" }}>{cd.status.toUpperCase()}</span>
-                  )}
-                </div>
-                {bp?.start && bp?.end && (
-                  <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
-                    Benefit period: {formatDate(bp.start)} → {formatDate(bp.end)}
+              <tr key={i}>
+                <td>
+                  <div className="ep-strong">{it.product_or_service?.display || it.product_or_service?.code || "—"}</div>
+                  <div className="ep-muted">
+                    {[it.product_or_service?.code, it.category?.display || it.category?.code].filter(Boolean).join(" · ")}
                   </div>
+                  {mode !== "auth" &&
+                    (it.benefit || []).slice(1).map((x, j) => (
+                      <div key={j} className="ep-muted">
+                        {x.type?.display || "Benefit"}: {formatMoney(x.allowed?.value)} allowed · {formatMoney(x.used?.value)} used
+                      </div>
+                    ))}
+                </td>
+                {mode === "auth" ? (
+                  <>
+                    <td className="ep-nowrap">{it.authorization_required == null ? "—" : it.authorization_required ? "Required" : "Not required"}</td>
+                    <td>
+                      {(it.authorization_supporting || []).length
+                        ? it.authorization_supporting.map((d) => d.display || d.code).join(", ")
+                        : "—"}
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className={it.excluded ? "is-bad ep-nowrap" : "ep-nowrap"}>{it.excluded ? "Excluded" : "Covered"}</td>
+                    <td className="ep-num ep-mono">{formatMoney(allowed)}</td>
+                    <td className="ep-num ep-mono">{formatMoney(used)}</td>
+                    <td className="ep-num ep-mono ep-strong">{allowed != null ? formatMoney(allowed - (used || 0)) : "—"}</td>
+                  </>
                 )}
-              </div>
+              </tr>
             );
           })}
-        </div>
-      )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
-      {allItems.length > 0 && (
-        <div className="table-responsive-wrapper">
-          <table className="table-modern" style={{ fontSize: "12px" }}>
-            <thead>
+function CheckDetail({ id, check, inforce, coverage }) {
+  const sub = check.sub || {};
+  const cd = coverage?.coverage_details || {};
+  return (
+    <div className="ep-check-detail">
+      <Fields
+        cols={2}
+        rows={[
+          { label: "Status", value: <span className="ep-cap">{sub.status || "pending"}</span> },
+          { label: "Outcome", value: sub.outcome },
+          { label: "Disposition", value: sub.disposition },
+          id === "validation" && { label: "In force", value: inforce == null ? null : inforce ? "Yes" : "No", tone: inforce === false ? "bad" : undefined },
+          id === "auth" && { label: "Preauth required", value: check.required == null ? null : check.required ? "Yes" : "No" },
+          { label: "Request ID", value: sub.correlation_id, mono: true },
+        ]}
+      />
+      {id === "validation" && (
+        <>
+          <div className="ep-detail-title">Coverage resolved by the insurer</div>
+          <Fields
+            cols={2}
+            rows={[
+              { label: "Coverage plan", value: cd.plan_name || cd.plan },
+              { label: "Member ID", value: cd.member_id, mono: true },
+              { label: "Sum insured", value: cd.sum_insured ? formatMoney(Number(cd.sum_insured)) : null, mono: true },
+              { label: "Coverage status", value: cd.status && <span className="ep-cap">{cd.status}</span> },
+              { label: "Benefit period", value: period(coverage?.benefit_period?.start, coverage?.benefit_period?.end) },
+              { label: "Coverage reference", value: coverage?.coverage, mono: true },
+              // plan / subplan classes are the plan and sum insured above
+              ...(cd.classes || [])
+                .filter((c) => c?.value && !["plan", "subplan"].includes(c.type))
+                .map((c) => ({ label: c.name || c.type, value: c.value })),
+            ]}
+          />
+          {check.items.length > 0 && <ItemsTable items={check.items} mode="benefits" />}
+          {!cd.plan && !cd.plan_name && !cd.member_id && check.state === "done" && (
+            <div className="ep-muted ep-pad-y">The insurer confirmed eligibility without coverage details.</div>
+          )}
+        </>
+      )}
+      {id === "benefits" && check.state !== "pending" && <ItemsTable items={check.items} mode="benefits" />}
+      {id === "auth" && check.state !== "pending" && <ItemsTable items={check.items} mode="auth" />}
+      {check.state === "pending" && <div className="ep-muted ep-pad-y">Waiting for the insurer's answer to this check.</div>}
+      {check.state === "unavailable" && (
+        <div className="ep-notice is-warn">The insurer didn't answer this check in time. Coverage details may be incomplete; you can still proceed to preauth.</div>
+      )}
+      {sub.errors?.length > 0 && <PayrErrorList errors={sub.errors} />}
+    </div>
+  );
+}
+
+const CATALOGUE_PAGE = 12;
+
+function PackageCatalogue({ rows, plannedCodes }) {
+  const [query, setQuery] = useState("");
+  const [specialty, setSpecialty] = useState("");
+  const [page, setPage] = useState(0);
+  const specialties = [...new Set(rows.map((r) => r.specialty).filter(Boolean))].sort();
+  const q = query.trim().toLowerCase();
+  const filtered = rows.filter(
+    (r) =>
+      (!specialty || r.specialty === specialty) &&
+      (!q || r.name.toLowerCase().includes(q) || String(r.code || "").toLowerCase().includes(q)),
+  );
+  const pageRows = filtered.slice(page * CATALOGUE_PAGE, (page + 1) * CATALOGUE_PAGE);
+
+  if (!rows.length) return <div className="ep-muted ep-pad">The insurer's plan lists no packages.</div>;
+
+  return (
+    <>
+      <div className="ep-toolbar">
+        <input
+          className="input-modern ep-search"
+          placeholder="Search package name or code…"
+          aria-label="Search packages"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(0);
+          }}
+        />
+        {specialties.length > 1 && (
+          <div style={{ width: "240px" }}>
+            <Dropdown
+              compact
+              ariaLabel="Specialty"
+              value={specialty}
+              options={[{ value: "", label: "All specialties" }, ...specialties.map((s) => ({ value: s, label: s }))]}
+              onChange={(v) => {
+                setSpecialty(v);
+                setPage(0);
+              }}
+            />
+          </div>
+        )}
+        <span className="ep-muted ep-toolbar-count">
+          {filtered.length} of {rows.length} packages
+        </span>
+      </div>
+      <div className="ep-table-wrap">
+        <table className="ep-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th className="ep-col-name">Package</th>
+              <th>Specialty</th>
+              <th>Type</th>
+              <th className="ep-num">Rate</th>
+              <th>Preauth</th>
+              <th>Enhancement</th>
+              <th>Documents</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map((r) => {
+              const notes = ruleNotes(r.rules);
+              return (
+                <tr key={r.key} className={plannedCodes.has(String(r.code)) ? "is-planned" : undefined}>
+                  <td className="ep-mono ep-nowrap">{r.code || "—"}</td>
+                  <td className="ep-col-name">
+                    <div className="ep-pkg-name">
+                      {r.name}
+                      {plannedCodes.has(String(r.code)) && <span className="ep-label">Planned</span>}
+                    </div>
+                    {notes.length > 0 && <div className="ep-muted">{notes.join(" · ")}</div>}
+                  </td>
+                  <td className="ep-muted">{r.specialty || "—"}</td>
+                  <td>{r.rules.ProcedureType || "—"}</td>
+                  <td className="ep-num ep-mono">{r.rate != null ? formatMoney(r.rate) : "—"}</td>
+                  <td>{preauthFromRules(r.rules) || "—"}</td>
+                  <td>{yn(r.rules.EnhancementAllowed) || "—"}</td>
+                  <td className="ep-muted" title={r.docs.map((d) => d.label).join("\n") || undefined}>
+                    {r.docs.length ? `${r.docs.length} required` : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+            {!pageRows.length && (
               <tr>
-                <th>Service</th>
-                <th>Auth Req.</th>
-                <th>Excluded</th>
-                <th style={{ textAlign: "right" }}>Allowed</th>
-                <th style={{ textAlign: "right" }}>Used</th>
+                <td colSpan={8} className="ep-muted">
+                  No packages match this search.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {allItems.map((item, i) => {
-                const isOpen = expandedItem === i;
-                const extraBenefits = (item.benefit || []).slice(1);
-                const docs = item.authorization_supporting || [];
-                const hasDetail = extraBenefits.length > 0 || docs.length > 0;
-                return (
-                  <Fragment key={i}>
-                    <tr
-                      onClick={hasDetail ? () => setExpandedItem(isOpen ? null : i) : undefined}
-                      style={hasDetail ? { cursor: "pointer" } : undefined}
-                    >
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          {hasDetail && (
-                            <ChevronDown size={12} color="var(--text-muted)" style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
-                          )}
-                          <div>
-                            <div style={{ fontWeight: 600 }}>
-                              {item.product_or_service?.display ||
-                                item.product_or_service?.code}
-                            </div>
-                            <div
-                              style={{ fontSize: "11px", color: "var(--text-muted)" }}
-                            >
-                              {item.category?.display}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge-modern badge-${item.authorization_required ? "warning" : "success"}`}
-                          style={{ fontSize: "10px" }}
-                        >
-                          {item.authorization_required ? "Yes" : "No"}
-                        </span>
-                      </td>
-                      <td>
-                        {item.excluded ? (
-                          <span className="badge-modern badge-error" style={{ fontSize: "10px" }}>Excluded</span>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="num-cell">{formatMoney(item.benefit?.[0]?.allowed?.value)}</td>
-                      <td className="num-cell">{formatMoney(item.benefit?.[0]?.used?.value)}</td>
-                    </tr>
-                    {isOpen && hasDetail && (
-                      <tr>
-                        <td colSpan={5} style={{ background: "var(--bg-main)", padding: "8px 10px 10px 30px" }}>
-                          {extraBenefits.length > 0 && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: docs.length > 0 ? "8px" : 0 }}>
-                              {extraBenefits.map((b, bi) => (
-                                <div key={bi} style={{ display: "flex", justifyContent: "space-between", fontSize: "11.5px" }}>
-                                  <span style={{ color: "var(--text-muted)" }}>{b.type?.display || "Benefit"}</span>
-                                  <span>
-                                    Allowed {formatMoney(b.allowed?.value)} · Used {formatMoney(b.used?.value)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {docs.length > 0 && (
-                            <div>
-                              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "4px" }}>Required for preauth</div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                                {docs.map((d, di) => (
-                                  <span key={di} className="badge-modern badge-info" style={{ fontSize: "10px" }}>{d.display || d.code}</span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {allErrors.length > 0 && (
-        <div style={{ marginTop: "10px" }}>
-          <PayrErrorList errors={allErrors} />
-        </div>
-      )}
-    </Card>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="ep-pager">
+        <TablePagination page={page} pageSize={CATALOGUE_PAGE} total={filtered.length} onPageChange={setPage} label="packages" />
+      </div>
+    </>
   );
 }
 
@@ -679,6 +513,7 @@ export default function EligibilityPrep({ ctx }) {
   const [error, setError] = useState(null);
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
   const [movedOn, setMovedOn] = useState(null);
+  const [activeCheck, setActiveCheck] = useState("validation");
 
   const hasInitialized = useRef(false);
 
@@ -912,236 +747,280 @@ export default function EligibilityPrep({ ctx }) {
   const canProceed = caseData?.next_actions?.includes("prepare_preauth") && (isComplete || isPartial);
   const movedOnLabel = movedOn ? STEP_FORWARD_LABEL[movedOn] : null;
 
+  const plan = caseData?.insurance_plan;
+  const checks = deriveChecks(caseData?.coverage_eligibility, benefitsTimedOut);
+  const canRerun = !(forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy)));
+  const rerunTitle = !caseData?.cashless_case_id && (!payer || !policy) ? "Select payer & policy to re-run" : undefined;
+
+  const inforce = checks?.inforce;
+  const verdict = needsRetry
+    ? { tone: "bad", label: "Check failed", text: caseData?.prepare_error?.message || "The eligibility submission couldn't be completed." }
+    : isStalePending
+      ? { tone: "warn", label: "No insurer response", text: "The request may have been lost. Re-run the check to retry." }
+      : inforce === false
+        ? { tone: "bad", label: "Not eligible", text: "The insurer reports the policy as not in force." }
+        : polling || isPending
+          ? { tone: "pending", label: "Awaiting insurer", text: "Results fill in as each check returns." }
+          : inforce || isComplete
+            ? { tone: "ok", label: "Eligible", text: "The policy is in force for this admission." }
+            : { tone: "pending", label: "Not confirmed", text: "Refresh to fetch the latest answer." };
+
+  const cd = checks?.coverage?.coverage_details || {};
+  const bp = checks?.coverage?.benefit_period;
+  const details = plan?.plan_details || {};
+  const catalogue = packageCatalogue(plan);
+  const specialtyCount = new Set(catalogue.map((r) => r.specialty).filter(Boolean)).size;
+  const planDocs = (plan?.document_requirements || []).map(describeDocRequirement);
+  const exclusions = (plan?.exclusions || []).map(planEntry);
+  const planConditions = (plan?.claim_conditions || []).flatMap((c) =>
+    (c.values || [c]).map((v) => ({ label: `${String(v.url || "").split("/").pop() || "Condition"}: ${v.value ?? v.display ?? ""}` })),
+  );
+  const planError = plan?.error_message || plan?.errors?.map((e) => e.message || e.code).join(" · ");
+  const planCategory = plan?.raw_payload?.plan?.[0]?.type?.coding?.[0]?.display;
+  const familySI = familySumInsured(plan);
+
+  // Planned procedures, each matched to its package and to the payer's lines.
+  const procedures = caseData?.procedures?.items || [];
+  const plannedCodes = new Set(procedures.map((p) => String(p.code)));
+  const treatment = procedures.map((proc) => {
+    const pkg = catalogue.find((r) => String(r.code) === String(proc.code)) || null;
+    const benefitLine = checks?.benefits.items.find((it) => String(it.product_or_service?.code) === String(proc.code));
+    const authLine = checks?.auth.items.find((it) => String(it.product_or_service?.code) === String(proc.code));
+    const preauth =
+      authLine?.authorization_required != null
+        ? authLine.authorization_required
+          ? "Required"
+          : "Not required"
+        : preauthFromRules(pkg?.rules || {});
+    const docs = [
+      ...(authLine?.authorization_supporting || []).map((d) => d.display || d.code),
+      ...(pkg?.docs || []).map((d) => d.label),
+    ].filter((d, i, a) => d && a.indexOf(d) === i);
+    return { proc, pkg, benefitLine, preauth, docs };
+  });
+
+  const activeDef = CHECKS.find((c) => c.id === activeCheck) || CHECKS[0];
+
   return (
-    <div className="wizard-step">
-      {movedOn && (
-        <div className="ep-moved-banner">
-          <CheckCircle2 size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: "1px" }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: "13.5px" }}>
-              Eligibility is complete for this case
-            </div>
-            <div style={{ fontSize: "12.5px", color: "var(--text-muted)", marginTop: "2px" }}>
-              The case has already moved on to {movedOnLabel}. Everything below is the eligibility
-              and plan detail as last checked — re-run it if you need a fresh answer from the payer.
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-            <Button
-              variant="outline"
-              size="small"
-              icon={RefreshCw}
-              disabled={forceRefreshing}
-              onClick={handleForceRefresh}
-            >
-              {forceRefreshing ? "Re-running…" : "Re-run Eligibility"}
-            </Button>
-            <Button variant="primary" size="small" onClick={() => navigate(`../${movedOn}`)}>
-              Continue to {movedOnLabel}
-              <ArrowRight size={15} style={{ marginLeft: "6px" }} />
-            </Button>
-          </div>
-        </div>
-      )}
-      <Card className="mb-6">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-            {polling ? (
-              <div
-                className="spinner"
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  borderTopColor: "var(--warning)",
-                }}
-              />
-            ) : (
-              <CheckCircle2
-                size={24}
-                color={isComplete ? "var(--success)" : "var(--text-muted)"}
-              />
-            )}
-            <div>
-              <div style={{ fontWeight: 700 }}>
-                Cashless Case{" "}
-                {caseData?.cashless_case_id
-                  ? `#${caseData.cashless_case_id}`
-                  : ""}
-              </div>
-              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                {isStalePending
-                  ? "No response from the payer yet - the request may have been lost"
-                  : caseData?.current_step?.replace(/_/g, " ")}
-                {polling ? " - polling for updates…" : ""}
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-            <StatusBadge status={caseData?.status} />
-            {!polling && !isComplete && !isFailed && (
-              <Button
-                variant="outline"
-                size="small"
-                icon={RefreshCw}
-                onClick={manualRefresh}
-              >
-                Refresh
-              </Button>
-            )}
-            {!polling && (isComplete || isFailed || needsResubmit) && (
-              <Button
-                variant="outline"
-                size="small"
-                icon={RefreshCw}
-                disabled={forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy))}
-                title={!caseData?.cashless_case_id && (!payer || !policy) ? "Select payer & policy to re-run" : undefined}
-                onClick={handleForceRefresh}
-              >
-                {forceRefreshing ? "Re-running…" : "Re-run Eligibility"}
-              </Button>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      <div
-        className="grid-1-to-2"
-        style={{ gap: "var(--space-6)", marginBottom: "var(--space-6)" }}
-      >
-        <InsurancePlanPanel plan={caseData?.insurance_plan} />
-        <CoverageEligibilityPanel
-          ce={caseData?.coverage_eligibility}
-          benefitsTimedOut={benefitsTimedOut}
-        />
+    <div className="wizard-step ep-screen">
+      {/* One-line verdict + re-run; everything else lives in the sections */}
+      <div className={`ep-verdict is-${verdict.tone}`}>
+        <span className="ep-dot" aria-hidden="true" />
+        <span className="ep-verdict-label">{verdict.label}</span>
+        <span className="ep-verdict-text">{verdict.text}</span>
+        <span className="ep-verdict-actions">
+          {!polling && (isComplete || isFailed || needsResubmit) ? (
+            <button type="button" className="ep-action" disabled={!canRerun} title={rerunTitle} onClick={handleForceRefresh}>
+              <RefreshCw size={13} />
+              {forceRefreshing ? "Re-running…" : needsRetry ? "Retry preparation" : "Re-run eligibility"}
+            </button>
+          ) : !polling && !isComplete && !isFailed ? (
+            <button type="button" className="ep-action" onClick={manualRefresh}>
+              <RefreshCw size={13} />
+              Refresh
+            </button>
+          ) : null}
+        </span>
       </div>
+      {needsResubmit && !isStalePending && (
+        <div className="ep-notice is-warn">
+          One or more eligibility checks didn't complete and won't resolve on their own. Re-run the eligibility check.
+        </div>
+      )}
+      {movedOn && (
+        <div className="ep-notice">This case has moved on to {movedOnLabel}. The details below are as last checked.</div>
+      )}
 
-      <Card title="Procedures" className="mb-6">
-        {caseData?.procedures?.source && (
-          <div
-            style={{
-              fontSize: "11px",
-              color: "var(--text-muted)",
-              marginBottom: "var(--space-2)",
-            }}
-          >
-            Source: <strong>{caseData.procedures.source}</strong>
-          </div>
-        )}
-        {caseData?.procedures?.items?.length > 0 ? (
-          caseData.procedures.items.map((proc, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-2)",
-                padding: "8px 0",
-                borderBottom: "1px solid var(--border-color)",
-                fontSize: "13px",
-              }}
-            >
-              <FileText size={14} color="var(--primary)" />
-              <span style={{ fontWeight: 600 }}>{proc.name}</span>
-              <code style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                ({proc.code})
-              </code>
-              {proc.category && (
-                <span
-                  className="badge-modern badge-info"
-                  style={{ fontSize: "10px", marginLeft: "auto" }}
-                >
-                  {proc.category}
-                </span>
-              )}
-            </div>
-          ))
+      <JumpBar />
+
+      <Section id="ep-policy" title="Policy & member" meta="As resolved by the insurer's eligibility response">
+        <Fields
+          cols={3}
+          rows={[
+            { label: "Policy number", value: caseData?.policy_number || policy?.policy_number || policy?.policyNumber, mono: true },
+            { label: "Payer", value: caseState.payer?.name || caseData?.payer_id, sub: caseState.payer?.name && caseData?.payer_id ? caseData.payer_id : null },
+            { label: "Member ID", value: cd.member_id || policy?.member_id, mono: true },
+            { label: "Coverage plan", value: cd.plan_name || cd.plan },
+            { label: "Sum insured", value: cd.sum_insured ? formatMoney(Number(cd.sum_insured)) : null, mono: true },
+            { label: "Benefit period", value: period(bp?.start, bp?.end) },
+            { label: "Coverage status", value: cd.status && <span className="ep-cap">{cd.status}</span>, tone: cd.status && !/active/i.test(cd.status) ? "bad" : undefined },
+            { label: "In force", value: inforce == null ? (checks?.validation.state === "pending" ? "Awaiting insurer" : null) : inforce ? "Yes" : "No", tone: inforce === false ? "bad" : undefined },
+            { label: "Coverage reference", value: checks?.coverage?.coverage, mono: true },
+          ]}
+        />
+      </Section>
+
+      <Section
+        id="ep-plan"
+        title="Insurance plan"
+        meta={
+          plan
+            ? [
+                plan.status && <span key="s" className="ep-cap">{plan.status}</span>,
+                plan.stored_record?.updated_at && <span key="u">Updated {formatDate(plan.stored_record.updated_at)}</span>,
+                plan.correlation_id && (
+                  <span key="r" className="ep-mono" title={plan.correlation_id}>
+                    {plan.correlation_id.slice(0, 8)}
+                  </span>
+                ),
+              ].filter(Boolean)
+            : null
+        }
+      >
+        {planError && <div className="ep-notice is-bad">{plan?.error_code ? `${plan.error_code}: ` : ""}{planError}</div>}
+        {!plan || plan.status === "pending" ? (
+          <div className="ep-muted ep-pad">Waiting for the insurer to return the plan.</div>
         ) : (
-          <div className="text-muted" style={{ fontSize: "13px" }}>
-            No procedures found in clinical records for this visit.
-          </div>
+          <>
+            <Fields
+              cols={3}
+              rows={[
+                { label: "Plan", value: details.name },
+                { label: "Plan type", value: details.type?.display || details.type?.code },
+                { label: "Plan category", value: planCategory },
+                { label: "Plan ID", value: identifierOf(details, "XV") || details.id, mono: true },
+                { label: "Policy number on plan", value: identifierOf(details, "NH"), mono: true },
+                { label: "Family sum insured", value: familySI != null ? formatMoney(familySI) : null, mono: true },
+                { label: "Plan period", value: period(details.period?.start, details.period?.end) },
+                { label: "Plan status", value: details.status && <span className="ep-cap">{details.status}</span>, tone: details.status && !/active/i.test(details.status) ? "bad" : undefined },
+                { label: "Network", value: (details.networks || []).map((n) => n.display || n.reference).filter(Boolean).join(", ") },
+                {
+                  label: "Coverage",
+                  value: catalogue.length
+                    ? `${catalogue.length} package${catalogue.length === 1 ? "" : "s"}${specialtyCount ? ` across ${specialtyCount} specialt${specialtyCount === 1 ? "y" : "ies"}` : ""}`
+                    : null,
+                },
+              ]}
+            />
+            <div className="ep-sublists">
+              <SubList title="Required for every case" items={planDocs} empty="No plan-level documents listed." />
+              <SubList title="Exclusions" items={exclusions} empty="No exclusions listed." />
+              {planConditions.length > 0 && <SubList title="Plan conditions" items={planConditions} empty="" />}
+            </div>
+          </>
         )}
-      </Card>
+      </Section>
 
-      {needsResubmit && (
-        <div className="inline-error-banner" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "1px" }} />
-            <span>
-              <strong>{isStalePending ? "No response from the payer yet." : "One or more eligibility checks didn't complete."}</strong>{" "}
-              {isStalePending
-                ? "The request may have been lost - re-run the eligibility check to retry."
-                : "This won't resolve on its own - re-run the eligibility check to retry."}
-            </span>
+      <Section id="ep-eligibility" title="Eligibility checks" meta="Three questions sent to the insurer for this admission">
+        {checks ? (
+          <div className="ep-checks">
+            <div className="ep-check-list" role="tablist" aria-label="Eligibility checks">
+              {CHECKS.map((c) => {
+                const check = checks[c.id];
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeCheck === c.id}
+                    className={`ep-check is-${check.state}${activeCheck === c.id ? " is-on" : ""}`}
+                    onClick={() => setActiveCheck(c.id)}
+                  >
+                    <span className="ep-check-name">
+                      <span className="ep-dot" aria-hidden="true" />
+                      {c.label}
+                    </span>
+                    <span className="ep-check-q">{c.question}</span>
+                    <span className="ep-check-a">{checkSummary(c.id, check, inforce)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="ep-check-pane" role="tabpanel" aria-label={activeDef.label}>
+              <CheckDetail id={activeDef.id} check={checks[activeDef.id]} inforce={inforce} coverage={checks.coverage} />
+            </div>
           </div>
-          <Button
-            variant="primary"
-            size="small"
-            icon={RefreshCw}
-            disabled={forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy))}
-            title={!caseData?.cashless_case_id && (!payer || !policy) ? "Select payer & policy to re-run" : undefined}
-            onClick={handleForceRefresh}
-          >
-            {forceRefreshing ? "Re-running…" : "Re-run Eligibility Check"}
-          </Button>
-        </div>
-      )}
+        ) : (
+          <div className="ep-muted ep-pad">Eligibility has not been requested yet.</div>
+        )}
+      </Section>
 
-      {needsRetry && (
-        <div className="inline-error-banner" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "1px" }} />
-            <span>
-              <strong>Preparation failed.</strong>{" "}
-              {caseData?.prepare_error?.message ||
-                "The eligibility submission couldn't be completed."}
-            </span>
+      <Section
+        id="ep-treatment"
+        title="Planned treatment"
+        meta={caseData?.procedures?.source ? `From ${caseData.procedures.source.replace(/_/g, " ")}` : null}
+      >
+        {treatment.length ? (
+          <div className="ep-table-wrap">
+            <table className="ep-table">
+              <thead>
+                <tr>
+                  <th className="ep-col-name">Package</th>
+                  <th>Type</th>
+                  <th className="ep-num">Package rate</th>
+                  <th className="ep-num">Payer allows</th>
+                  <th>Preauth</th>
+                  <th>Enhancement</th>
+                  <th>Documents needed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {treatment.map(({ proc, pkg, benefitLine, preauth, docs }, i) => (
+                  <tr key={i}>
+                    <td className="ep-col-name">
+                      <div className="ep-strong">{proc.name}</div>
+                      <div className="ep-muted">
+                        {[proc.code, pkg?.specialty || proc.category].filter(Boolean).join(" · ")}
+                        {!pkg && catalogue.length > 0 && " · not in the plan's package list"}
+                      </div>
+                      {pkg && ruleNotes(pkg.rules).length > 0 && <div className="ep-muted">{ruleNotes(pkg.rules).join(" · ")}</div>}
+                    </td>
+                    <td>{pkg?.rules.ProcedureType || "—"}</td>
+                    <td className="ep-num ep-mono">{pkg?.rate != null ? formatMoney(pkg.rate) : "—"}</td>
+                    <td className="ep-num ep-mono">
+                      {benefitLine?.excluded ? (
+                        <span className="is-bad">Excluded</span>
+                      ) : benefitLine?.benefit?.[0]?.allowed?.value != null ? (
+                        formatMoney(benefitLine.benefit[0].allowed.value)
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="ep-nowrap">{preauth || "—"}</td>
+                    <td>{yn(pkg?.rules.EnhancementAllowed) || "—"}</td>
+                    <td>{docs.length ? docs.join(", ") : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <Button
-            variant="primary"
-            size="small"
-            icon={RefreshCw}
-            disabled={forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy))}
-            title={!caseData?.cashless_case_id && (!payer || !policy) ? "Select payer & policy to retry" : undefined}
-            onClick={handleForceRefresh}
-          >
-            {forceRefreshing ? "Retrying…" : "Retry Preparation"}
-          </Button>
-        </div>
-      )}
+        ) : (
+          <div className="ep-muted ep-pad">No procedures found in clinical records for this visit.</div>
+        )}
+      </Section>
 
-      {benefitsTimedOut && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "color-mix(in srgb, var(--warning) 10%, var(--bg-card))", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
-          <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
-          <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete. You can still proceed to preauth - eligibility will remain pending in the background.</span>
-        </div>
-      )}
+      <Section id="ep-packages" title="Package catalogue" meta="Every package the plan allows at this hospital">
+        <PackageCatalogue rows={catalogue} plannedCodes={plannedCodes} />
+      </Section>
 
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
+      <div className="ep-footer">
         <Button variant="text" onClick={() => navigate("../payer")}>
-          ← Back
+          ← Back to policy
         </Button>
-        <Button
-          variant="primary"
-          disabled={!movedOn && !canProceed}
-          onClick={() => navigate(movedOn ? `../${movedOn}` : "../review")}
-        >
-          {movedOn
-            ? `Continue to ${movedOnLabel}`
-            : polling
-              ? "Awaiting Eligibility…"
-              : canProceed
-                ? "Proceed to Preauth Draft"
-                : isComplete
-                  ? "Preparing…"
-                  : "Eligibility Pending"}
-          <ArrowRight size={18} style={{ marginLeft: "8px" }} />
-        </Button>
+        <div className="ep-footer-right">
+          {!movedOn && !canProceed && (
+            <span className="ep-muted">
+              {polling ? "Waiting for the insurer to answer…" : "Eligibility must complete before preauth."}
+            </span>
+          )}
+          <Button
+            variant="primary"
+            size="small"
+            disabled={!movedOn && !canProceed}
+            onClick={() => navigate(movedOn ? `../${movedOn}` : "../review")}
+          >
+            {movedOn
+              ? `Continue to ${movedOnLabel}`
+              : polling
+                ? "Awaiting eligibility…"
+                : canProceed
+                  ? "Proceed to preauth draft"
+                  : isComplete
+                    ? "Preparing…"
+                    : "Eligibility pending"}
+            <ArrowRight size={14} />
+          </Button>
+        </div>
       </div>
     </div>
   );

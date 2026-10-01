@@ -313,6 +313,133 @@ const http = {
 // Where each mock case sits on the journey. Keyed by cashless_case_id so mock
 // mode can exercise a case that has moved past eligibility (read-only prep with
 // a re-run), an undecided claim, and a settled payment — not just a fresh case.
+// ─── PMJAY-shaped InsurancePlan mock ───────────────────────────────────────
+// Mirrors what the backend's InsurancePlanParser produces from a PMJAY
+// InsurancePlan bundle (see nhcx-docs `nhcx.fhir.pmjay-insurance-plan`):
+// one coverage per specialty, one benefit per package with its rate in
+// `limits`, Claim-Condition rules and Claim-SupportingInfoRequirement docs.
+const CC = "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Claim-Condition";
+const SIR = "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Claim-SupportingInfoRequirement";
+
+const mockConditions = (rules) => [
+  { url: CC, values: Object.entries(rules).map(([k, v]) => ({ url: `${CC}/${k}`, value: v })) },
+];
+
+const mockDoc = (category, catDisplay, code, display) => ({
+  url: SIR,
+  values: [
+    { url: "category", code: category, display: catDisplay },
+    { url: "code", code, display },
+  ],
+});
+
+const mockPackage = (code, display, rate, rules, docs = []) => ({
+  id: code,
+  type: { system: "https://nrces.in/ndhm/fhir/r4/ValueSet/ndhm-productorservice", code, display },
+  limits: [{ code: { code }, value: { value: String(rate), unit: "INR" } }],
+  claim_conditions: mockConditions(rules),
+  document_requirements: docs,
+});
+
+const MOCK_PMJAY_SPECIALTIES = [
+  {
+    code: "SG",
+    display: "General Surgery",
+    packages: [
+      mockPackage("47562", "Laparoscopic cholecystectomy", 22800,
+        { ProcedureType: "Surgical", ApprovalNotRequired: "N", EnhancementAllowed: "N", IsDayCare: "N" },
+        [mockDoc("DIA", "Diagnostic report", "MAND0409", "USG abdomen report"), mockDoc("INF", "Clinical information", "MAND0101", "Clinical notes")]),
+      mockPackage("SG045A", "Open appendicectomy", 18500,
+        { ProcedureType: "Surgical", ApprovalNotRequired: "N", EnhancementAllowed: "N", IsDayCare: "N" },
+        [mockDoc("DIA", "Diagnostic report", "MAND0411", "USG / CT abdomen report")]),
+      mockPackage("SG062A", "Inguinal hernia repair (mesh)", 21000,
+        { ProcedureType: "Surgical", ApprovalNotRequired: "N", EnhancementAllowed: "N", ImplantApplicable: "Y", IsDayCare: "N" },
+        [mockDoc("INF", "Clinical information", "MAND0101", "Clinical notes")]),
+      mockPackage("SG018B", "Incision and drainage of abscess", 4200,
+        { ProcedureType: "Surgical", ApprovalNotRequired: "Y", EnhancementAllowed: "N", IsDayCare: "Y" }),
+    ],
+  },
+  {
+    code: "MG",
+    display: "General Medicine",
+    packages: [
+      mockPackage("MG004A", "Acute gastroenteritis with moderate dehydration", 9000,
+        { ProcedureType: "Medical", ApprovalNotRequired: "N", EnhancementAllowed: "Y", StratificationAllowed: "Y", IsDayCare: "N" },
+        [mockDoc("DIA", "Diagnostic report", "MAND0301", "Serum electrolytes report")]),
+      mockPackage("MG011A", "Dengue fever", 12000,
+        { ProcedureType: "Medical", ApprovalNotRequired: "N", EnhancementAllowed: "Y", StratificationAllowed: "Y", IsDayCare: "N" },
+        [mockDoc("DIA", "Diagnostic report", "MAND0322", "NS1 / IgM dengue report"), mockDoc("DIA", "Diagnostic report", "MAND0323", "Platelet count")]),
+      mockPackage("MG067A", "Haemodialysis (per session)", 2000,
+        { ProcedureType: "Medical", ApprovalNotRequired: "N", EnhancementAllowed: "N", CyclicProcedure: "Y", MaximumCyclesAllowed: "12", IsDayCare: "Y" }),
+    ],
+  },
+  {
+    code: "MP",
+    display: "Paediatric Medical Management",
+    packages: [
+      mockPackage("MP002A", "Severe pneumonia in children", 15000,
+        { ProcedureType: "Medical", ApprovalNotRequired: "N", EnhancementAllowed: "Y", StratificationAllowed: "Y", IsDayCare: "N" },
+        [mockDoc("DIA", "Diagnostic report", "MAND0501", "Chest X-ray report")]),
+      mockPackage("MP014A", "Febrile seizures", 8000,
+        { ProcedureType: "Conservative", ApprovalNotRequired: "N", EnhancementAllowed: "N", IsDayCare: "N" }),
+    ],
+  },
+  {
+    code: "SN",
+    display: "Neurosurgery",
+    packages: [
+      mockPackage("SN021A", "Ventriculoperitoneal shunt", 45000,
+        { ProcedureType: "Surgical", ApprovalNotRequired: "N", EnhancementAllowed: "N", ImplantApplicable: "Y", IsDayCare: "N" },
+        [mockDoc("DIA", "Diagnostic report", "MAND0601", "CT / MRI brain report")]),
+    ],
+  },
+];
+
+const MOCK_PMJAY_PLAN = {
+  plan_details: {
+    id: "PMJAY-UHP-2026",
+    name: "PMJAY - Universal Health Policy",
+    status: "active",
+    type: { system: "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-insuranceplan-type", code: "07", display: "Universal Health Policy" },
+    identifier: "POL-91711234567890-2026",
+    identifiers: [
+      { value: "POL-91711234567890-2026", type: { code: "NH", display: "Policy number" } },
+      { value: "PMJAY-KA-2026-01", type: { code: "XV", display: "Plan ID" } },
+    ],
+    networks: [{ display: "PMJAY empanelled hospitals — Karnataka" }],
+    period: { start: "2026-01-01", end: "2026-12-31" },
+  },
+  inclusions: MOCK_PMJAY_SPECIALTIES.flatMap((s) => s.packages),
+  exclusions: [
+    { id: "EXC-COS", type: { code: "EXC-COS", display: "Cosmetic and aesthetic procedures" }, limits: [] },
+    { id: "EXC-OPD", type: { code: "EXC-OPD", display: "Out-patient care without admission" }, limits: [] },
+    { id: "EXC-DRUG", type: { code: "EXC-DRUG", display: "Drug and alcohol induced illness" }, limits: [] },
+  ],
+  coverage_benefits: MOCK_PMJAY_SPECIALTIES.map((s) => ({
+    id: s.code,
+    type: { system: "https://nrces.in/ndhm/fhir/r4/ValueSet/ndhm-benefitcategory", code: s.code, display: s.display },
+    benefits: s.packages.map((p) => ({ ...p, excluded: false })),
+  })),
+  pricing: [],
+  claim_conditions: [],
+  document_requirements: [
+    mockDoc("POI", "Proof of identity", "ADN", "Aadhaar / PMJAY e-card"),
+    { link_id: "admission-details", text: "Admission details", type: "group", required: true, code: "ODN", display: "Admission Details" },
+    { link_id: "discharge-information", text: "Discharge information", type: "group", required: true, code: "ODN", display: "Discharge Information" },
+    { link_id: "authentication-consent", text: "Beneficiary authentication consent", type: "group", required: true, code: "ODN", display: "Authentication Consent" },
+  ],
+  raw_payload: {
+    resourceType: "InsurancePlan",
+    id: "PMJAY-UHP-2026",
+    plan: [
+      {
+        type: { coding: [{ code: "03", display: "Group" }] },
+        generalCost: [{ cost: { value: 500000, currency: "INR" } }],
+      },
+    ],
+  },
+};
+
 const MOCK_CASE_JOURNEYS = {
   default: {
     child_id: 12,
@@ -878,21 +1005,7 @@ const mock = {
       insurance_plan: {
         status: "complete",
         correlation_id: "550e8400-e29b-41d4-a716-446655440000",
-        plan_details: { name: "GeneralHealth-2026", status: "active" },
-        inclusions: [
-          { code: "ROOM", name: "Room rent" },
-          { code: "ICU", name: "ICU Charges" },
-        ],
-        exclusions: [
-          { code: "COSMETIC", name: "Cosmetic surgery" },
-          { code: "DENTAL", name: "Routine Dental" },
-        ],
-        pricing: { sum_insured: 500000, currency: "INR" },
-        document_requirements: [
-          { name: "Admission note" },
-          { name: "Doctor prescription" },
-        ],
-        raw_payload: { resourceType: "InsurancePlan" },
+        ...MOCK_PMJAY_PLAN,
         stored_record: {
           id: 7,
           request_id: "550e8400-e29b-41d4-a716-446655440000",
@@ -950,7 +1063,7 @@ const mock = {
                   benefit: [
                     {
                       type: { code: "benefit", display: "Benefit Limit" },
-                      allowed: { type: "Money", value: 75000, currency: "INR" },
+                      allowed: { type: "Money", value: 22800, currency: "INR" },
                       used: { type: "Money", value: 0, currency: "INR" },
                     },
                   ],
