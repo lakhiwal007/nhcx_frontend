@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { AlertCircle, X } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { SkeletonTable, Button, TablePagination } from "./Common";
 import { formatMoney, formatDate, formatDateTime } from "../format.js";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { groupPaymentEvents, stageLabel } from "../paymentEvents.js";
 import Dropdown from "./Dropdown";
+import { Modal } from "./Overlay";
 
 const PAYMENTS_PAGE_SIZE = 20;
 
@@ -332,39 +332,15 @@ function PaymentDetailModal({ payment, patient, onClose, navigate }) {
   };
 
   return (
-    <AnimatePresence>
+    <Modal
+      open={!!payment}
+      onClose={onClose}
+      title={payment?.payment_reference || "Payment"}
+      subtitle={payment ? `${stageLabel(payment.payment_stage) || "—"} · ${ackLabel(payment)}` : null}
+      width={540}
+    >
       {payment && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{ position: "absolute", inset: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 12 }}
-            className="glass-panel pm-modal"
-            role="dialog"
-            aria-label="Payment detail"
-          >
-            <div className="pm-modal-head">
-              <div>
-                <h3>{payment.payment_reference || "Payment"}</h3>
-                <div className="ep-muted">
-                  <span className="ep-cap">{stageLabel(payment.payment_stage)}</span>
-                  {" · "}
-                  {ackLabel(payment)}
-                </div>
-              </div>
-              <button type="button" className="pd-icon-btn" onClick={onClose} aria-label="Close">
-                <X size={18} />
-              </button>
-            </div>
-
+        <>
             <div className="pm-modal-amount">
               <span className="ep-muted">Net credited</span>
               <span className="wq-mono">{formatMoney(payment.net_payment_amount)}</span>
@@ -422,9 +398,8 @@ function PaymentDetailModal({ payment, patient, onClose, navigate }) {
                 Find this claim in Cashless Cases
               </Button>
             )}
-          </motion.div>
-        </div>
+        </>
       )}
-    </AnimatePresence>
+    </Modal>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Paperclip, AlertCircle } from "lucide-react";
+import { Send, Paperclip, AlertCircle } from "lucide-react";
+import { Modal } from "./Overlay";
 import { api } from "../api";
 import { Button } from "./Common";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
@@ -109,33 +109,7 @@ export default function SendCommunicationModal({
   const canSubmit = payerId.trim() && claimReference.trim() && reasonCode && !submitting;
 
   return (
-    <AnimatePresence>
-      {open && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{ position: "absolute", inset: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="glass-panel"
-            style={{ position: "relative", width: "100%", maxWidth: "520px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-              <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>Message Payer</h3>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
-                <X size={22} />
-              </button>
-            </div>
-            <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "0 0 20px" }}>
-              Beta - the payer's reply arrives later through the normal Communications inbox, not in this dialog.
-            </p>
+    <Modal open={open} onClose={onClose} title="Message payer" subtitle="Beta — the payer's reply arrives later in the Communications inbox, not in this dialog.">
 
             {result ? (
               <div style={{ padding: "14px 16px", background: result.success ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${result.success ? "var(--success)" : "var(--error)"}`, borderRadius: "10px", fontSize: "13px", marginBottom: "var(--space-2)" }}>
@@ -222,9 +196,6 @@ export default function SendCommunicationModal({
                 </Button>
               </div>
             )}
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 }

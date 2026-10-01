@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { usePoll } from "../../hooks/usePoll";
 import { useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, RefreshCw, PlusCircle, X, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
 import { Button, QueryResponseFields, formatMoney } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
+import { Drawer, Modal } from "../Overlay";
 import { buildQueryResponseBody, documentFromFile } from "../../queryResponse.js";
 import PayrErrorList from "../PayrErrorList";
 import PreauthEnhancement from "./PreauthEnhancement";
@@ -30,77 +30,6 @@ function netAmountOf(claimItem, adj) {
   const unit = claimItem?.unit_price ?? claimItem?.amount;
   if (unit != null) return (claimItem?.quantity ?? 1) * unit;
   return adj?.submitted?.value ?? null;
-}
-
-function Drawer({ open, onClose, title, children }) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{ position: "fixed", inset: 0, zIndex: 90 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            className="glass-panel"
-            style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(520px, 95vw)", zIndex: 91, display: "flex", flexDirection: "column" }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--border-color)" }}>
-              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>{title}</h3>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
-                <X size={22} />
-              </button>
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-6)" }}>
-              {children}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function ConfirmModal({ open, onClose, title, children }) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{ position: "absolute", inset: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="glass-panel"
-            style={{ position: "relative", width: "100%", maxWidth: "500px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px" }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-5)" }}>
-              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>{title}</h3>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
-                <X size={22} />
-              </button>
-            </div>
-            {children}
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
 }
 
 export default function PreauthStatus({ ctx }) {
@@ -850,7 +779,7 @@ export default function PreauthStatus({ ctx }) {
         </Button>
       </Drawer>
 
-      <ConfirmModal open={showCancelModal} onClose={() => { setShowCancelModal(false); setCancelError(null); }} title="Cancel Preauthorization">
+      <Modal open={showCancelModal} onClose={() => { setShowCancelModal(false); setCancelError(null); }} title="Cancel Preauthorization">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           Cancellation is irreversible. The preauth reference <strong>{statusData?.preauth_ref}</strong>
           {(statusData?.totals?.benefit?.value ?? statusData?.totals?.eligible?.value) != null && (
@@ -890,7 +819,7 @@ export default function PreauthStatus({ ctx }) {
             {submitting ? "Cancelling…" : "Confirm Cancellation"}
           </Button>
         </div>
-      </ConfirmModal>
+      </Modal>
 
       <SendCommunicationModal
         open={showSendModal}
@@ -901,30 +830,9 @@ export default function PreauthStatus({ ctx }) {
         cashlessCaseId={cashless_case_id}
       />
 
-      <AnimatePresence>
-        {showEnhancement && (
-          <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="glass-overlay"
-              style={{ position: "absolute", inset: 0 }}
-              onClick={() => setShowEnhancement(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="glass-panel"
-              style={{ position: "relative", width: "100%", maxWidth: "640px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
-            >
-              <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "var(--space-5)" }}>Request preauth enhancement</h3>
-              <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} onSubmitted={restartPoll} />
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <Modal open={showEnhancement} onClose={() => setShowEnhancement(false)} title="Request preauth enhancement" width={680}>
+        <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} onSubmitted={restartPoll} />
+      </Modal>
     </div>
   );
 }

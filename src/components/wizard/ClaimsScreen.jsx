@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Send, ArrowRight, AlertCircle, CheckCircle2, X, ChevronDown, Edit2 } from "lucide-react";
+import { Send, ArrowRight, AlertCircle, CheckCircle2, ChevronDown, Edit2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
 import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
+import { Drawer } from "../Overlay";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
 const POLL_INTERVAL_MS = 7000;
@@ -24,43 +25,6 @@ const PATIENT_CONTEXT_FIELDS = [
 // preauth_ref requires an approved preauth. preauth_ref has its own banner, so
 // the HIS-blocker banner only surfaces diagnoses/items.
 const HIS_BLOCKERS = new Set(["diagnoses", "items", "preauth_ref"]);
-
-function Drawer({ open, onClose, title, children }) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{ position: "fixed", inset: 0, zIndex: 90 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            className="glass-panel"
-            style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(520px, 95vw)", zIndex: 91, display: "flex", flexDirection: "column" }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--border-color)" }}>
-              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>{title}</h3>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
-                <X size={22} />
-              </button>
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-6)" }}>
-              {children}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
 
 function PatientContextForm({ claimId, onResolved }) {
   const [values, setValues] = useState({});

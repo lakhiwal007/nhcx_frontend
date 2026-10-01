@@ -697,6 +697,124 @@ h3,
     -webkit-backdrop-filter: blur(8px);
 }
 
+/* ─── Shared overlays (Overlay.jsx: Drawer, Modal) ─────────────────────── */
+.ov-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+}
+
+.ov-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 91;
+    display: flex;
+    flex-direction: column;
+}
+
+.ov-modal-wrap {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ov-backdrop-abs {
+    position: absolute;
+    inset: 0;
+}
+
+.ov-modal {
+    position: relative;
+    z-index: 101;
+    width: 100%;
+    max-height: 90vh;
+    margin: 0 16px;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.ov-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ov-head-text {
+    min-width: 0;
+}
+
+.ov-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 15px;
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0;
+}
+
+.ov-subtitle {
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.ov-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: var(--radius-xs);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.ov-close:hover {
+    background: var(--bg-main);
+    color: var(--text-main);
+}
+
+.ov-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.ov-body-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.ov-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.ov-modal-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 18px 20px 20px;
+}
+
 .glass-panel {
     /* --glass-panel-bg (not --glass): these are large content surfaces
        (drawers, modals) with a lot of body text — --glass's chrome-strip
@@ -821,14 +939,6 @@ h3,
     position: relative;
 }
 
-.status-dot {
-    width: 6px;
-    height: 6px;
-    background: var(--success);
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
 @keyframes pulse {
     0% {
         transform: scale(1);
@@ -868,20 +978,6 @@ h3,
 }
 
 /* Page Header */
-.page-header-modern {
-    margin-bottom: 28px;
-}
-
-.page-header-modern h1 {
-    font-size: 26px;
-    letter-spacing: -0.5px;
-    margin-bottom: 6px;
-}
-
-.page-header-modern p {
-    color: var(--text-muted);
-    font-size: 14px;
-}
 
 /* ─── Cards — clay raised surface (shadow/radius come from the tokens) ──── */
 .card-modern {
@@ -921,9 +1017,6 @@ h3,
 }
 
 /* Table */
-.table-container-modern {
-    overflow-x: auto;
-}
 
 .table-modern {
     width: 100%;
@@ -958,12 +1051,6 @@ h3,
 
 .table-modern tbody tr:last-child td {
     border-bottom: none;
-}
-
-.table-modern th.col-fit,
-.table-modern td.col-fit {
-    width: 1%;
-    white-space: nowrap;
 }
 
 .table-modern tbody tr:hover td {
@@ -1166,11 +1253,6 @@ select.input-modern option {
 }
 
 /* ─── Responsive Grid Utilities ────────────────────────────────────────────── */
-.grid-1-to-2 {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-    gap: 24px;
-}
 
 .grid-1-to-3 {
     display: grid;
@@ -1182,19 +1264,6 @@ select.input-modern option {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
     gap: 16px;
-}
-
-.layout-sidebar-right {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 24px;
-    align-items: start;
-}
-
-@media (min-width: 900px) {
-    .layout-sidebar-right {
-        grid-template-columns: 1fr 380px;
-    }
 }
 
 /* Base Utility hidden states.
@@ -1385,16 +1454,8 @@ select.input-modern option {
         display: none;
     }
 
-    .status-text {
-        display: none;
-    }
-
     .main-view {
         padding: 16px 16px 28px;
-    }
-
-    .page-header-modern h1 {
-        font-size: 24px;
     }
 }
 
@@ -1404,47 +1465,21 @@ select.input-modern option {
     align-items: center;
     justify-content: center;
 }
-.flex-between {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
 .flex-col {
     display: flex;
     flex-direction: column;
 }
-.gap-4 { gap: 16px; }
-.gap-3 { gap: 12px; }
-.gap-2 { gap: 8px; }
-.mt-8 { margin-top: 32px; }
-.mt-6 { margin-top: 24px; }
-.mt-5 { margin-top: 20px; }
 .mt-4 { margin-top: 16px; }
-.mt-3 { margin-top: 12px; }
-.mt-2 { margin-top: 8px; }
-.mb-8 { margin-bottom: 32px; }
 .mb-6 { margin-bottom: 24px; }
 .mb-4 { margin-bottom: 16px; }
-.mb-3 { margin-bottom: 12px; }
-.mb-2 { margin-bottom: 8px; }
-.py-40 { padding-top: 160px; padding-bottom: 160px; }
 .py-20 { padding-top: 80px; padding-bottom: 80px; }
-.py-12 { padding-top: 48px; padding-bottom: 48px; }
 .py-10 { padding-top: 40px; padding-bottom: 40px; }
 .py-8  { padding-top: 32px; padding-bottom: 32px; }
 .py-6  { padding-top: 24px; padding-bottom: 24px; }
-.py-4  { padding-top: 16px; padding-bottom: 16px; }
-.p-6 { padding: 24px; }
-.p-4 { padding: 16px; }
-.text-center { text-align: center; }
 .text-muted { color: var(--text-muted); }
 .text-sm { font-size: 13px; line-height: 1.5; }
 .w-full { width: 100%; }
-.mx-auto { margin-left: auto; margin-right: auto; }
 .grid { display: grid; }
-.grid-cols-1 { grid-template-columns: 1fr; }
-.grid-cols-2 { grid-template-columns: 1fr 1fr; }
-.items-center { align-items: center; }
 
 /* Status Badges Modern — clay pill: subtle shadow gives them a soft pop */
 .badge-modern {
@@ -2004,14 +2039,6 @@ select.input-modern option {
 }
 
 /* ─── Task card (Common.jsx TaskCard) ───────────────────────────────────── */
-.task-card-modern {
-    padding: var(--space-4);
-    cursor: pointer;
-    border-left: 4px solid var(--task-accent, var(--primary));
-    display: flex;
-    gap: var(--space-4);
-    align-items: center;
-}
 
 /* Spinner Styles */
 .spinner {
@@ -2033,40 +2060,6 @@ select.input-modern option {
 }
 
 /* ─── Tab Bar ────────────────────────────────────────────────────────────── */
-.tab-bar {
-    display: flex;
-    gap: 4px;
-    background: var(--bg-main);
-    padding: 4px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    box-shadow: var(--clay-inset);
-}
-
-.tab-btn-modern {
-    flex: 1;
-    padding: 10px 16px;
-    border-radius: var(--radius-md);
-    border: none;
-    background: transparent;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-}
-
-.tab-btn-modern.active {
-    background: var(--bg-card);
-    color: var(--primary);
-    box-shadow: var(--shadow);
-}
-
-.tab-btn-modern.disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
 
 /* ─── Shared Doc Row ─────────────────────────────────────────────────────── */
 .doc-row {
@@ -2083,45 +2076,6 @@ select.input-modern option {
 .mono-cell {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-}
-
-.num-cell,
-.num-col {
-    text-align: right;
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-.table-modern th.num-col {
-    text-align: right;
-}
-
-.dashboard-screen .dx-empty-cell {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: var(--space-8) var(--space-4);
-    color: var(--text-muted);
-}
-
-.dashboard-screen .dx-empty-cell svg {
-    opacity: 0.5;
-}
-
-.dashboard-screen .dx-empty-heading {
-    font-size: var(--text-md);
-    font-weight: var(--fw-semibold);
-    color: var(--text-main);
-}
-
-.dashboard-screen .dx-empty-hint {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-    max-width: 320px;
-    text-align: center;
 }
 
 /* Shared inline error banner — used on any screen whose data fetch fails
@@ -3329,40 +3283,18 @@ select.pd-input {
     border-bottom: none;
 }
 
-.pm-modal {
-    position: relative;
-    z-index: 101;
-    width: 100%;
-    max-width: 540px;
-    max-height: 90vh;
-    margin: 0 16px;
-    padding: 20px 22px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    border-radius: var(--radius-lg);
-}
-
-.pm-modal-head {
+.wq-drawer-body {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-}
-
-.pm-modal-head h3 {
-    margin: 0 0 2px;
-    font-family: var(--font-mono);
-    font-size: 15px;
-    font-weight: var(--fw-semibold);
+    flex-direction: column;
+    gap: 18px;
 }
 
 .pm-modal-amount {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin: 14px 0 4px;
-    padding: 10px 0;
-    border-top: 1px solid var(--border-color);
+    margin: 0 0 4px;
+    padding: 0 0 10px;
     border-bottom: 1px solid var(--border-color);
     font-size: 13px;
 }
@@ -3411,7 +3343,7 @@ select.pd-input {
     word-break: break-all;
 }
 
-.pm-modal .ep-notice {
+.pm-group + .ep-notice {
     margin-top: 10px;
 }
 
@@ -3527,7 +3459,6 @@ select.pd-input {
 .table-modern tbody tr.skeleton-row {
     animation: none;
 }
-
 
 /* ─── Code / UTR chip ────────────────────────────────────────────────────── */
 code {

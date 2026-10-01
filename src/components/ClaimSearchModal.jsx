@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { Modal } from "./Overlay";
 import { api } from "../api";
 import { Button, DecisionBanner, AmountGrid } from "./Common";
 import { usePoll } from "../hooks/usePoll";
@@ -75,33 +75,7 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
   };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{ position: "absolute", inset: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="glass-panel"
-            style={{ position: "relative", width: "100%", maxWidth: "520px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-              <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>Search via NHCX Gateway</h3>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
-                <X size={22} />
-              </button>
-            </div>
-            <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "0 0 20px" }}>
-              Queries the payer directly through NHCX for the current status of a claim.
-            </p>
+    <Modal open={open} onClose={onClose} title="Search via NHCX Gateway" subtitle="Queries the payer directly through NHCX for the current status of a claim.">
 
             {correlationId ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -201,9 +175,6 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
                 </Button>
               </div>
             )}
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 }

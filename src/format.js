@@ -14,15 +14,6 @@ export const formatDate = (v, dash = DASH) => {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 };
 
-export const formatDateShort = (v, dash = DASH) => {
-  const d = toDate(v);
-  if (!d) return dash;
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear()
-    ? `${d.getDate()} ${MONTHS[d.getMonth()]}`
-    : formatDate(d, dash);
-};
-
 export const formatTime = (v, dash = DASH) => {
   const d = toDate(v);
   if (!d) return dash;
@@ -54,17 +45,6 @@ export const formatRelative = (v, dash = DASH) => {
   return formatDate(d);
 };
 
-export const formatRelativePhrase = (v, dash = DASH) => {
-  const s = formatRelative(v, dash);
-  return /^(Today|Yesterday|Tomorrow)$/.test(s) ? s.toLowerCase() : s;
-};
-
-export const daysSince = (v) => {
-  const d = toDate(v);
-  if (!d) return null;
-  return Math.floor((Date.now() - d.getTime()) / DAY_MS);
-};
-
 export const formatMoney = (v, { dash = DASH, currency = "₹", signed = false } = {}) => {
   if (v === null || v === undefined || v === "") return dash;
   const n = Number(v);
@@ -87,12 +67,6 @@ export const formatPercent = (v, { dash = DASH } = {}) => {
   if (v === null || v === undefined || v === "") return dash;
   const n = Number(v);
   return Number.isNaN(n) ? dash : `${n.toLocaleString("en-IN")}%`;
-};
-
-export const formatNumber = (v, dash = DASH) => {
-  if (v === null || v === undefined || v === "") return dash;
-  const n = Number(v);
-  return Number.isNaN(n) ? dash : n.toLocaleString("en-IN");
 };
 
 export const formatPhone = (v, dash = DASH) => {

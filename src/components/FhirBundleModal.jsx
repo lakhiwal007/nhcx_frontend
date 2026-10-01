@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Copy, Check, RefreshCw } from "lucide-react";
+import { Copy, Check, RefreshCw } from "lucide-react";
+import { Modal } from "./Overlay";
 import { api } from "../api";
 import { Button } from "./Common";
 import { formatDateTime } from "../format.js";
@@ -102,40 +102,7 @@ export default function FhirBundleModal({ open, onClose, cashlessCaseId, transac
   useEffect(() => { if (open) load(); }, [open, load]);
 
   return (
-    <AnimatePresence>
-      {open && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{ position: "absolute", inset: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="glass-panel"
-            style={{
-              position: "relative", width: "100%", maxWidth: "820px", padding: "28px",
-              borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "88vh", overflowY: "auto",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>
-                FHIR bundle — {TRANSACTION_LABELS[transactionType] || transactionType}
-              </h3>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
-                <X size={22} />
-              </button>
-            </div>
-            {data?.correlation_id && (
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "monospace", marginBottom: "16px" }}>
-                correlation {data.correlation_id}
-              </div>
-            )}
+    <Modal open={open} onClose={onClose} title={`FHIR bundle — ${TRANSACTION_LABELS[transactionType] || transactionType}`} subtitle={data?.correlation_id ? `Correlation ${data.correlation_id}` : null} width={820}>
 
             {loading ? (
               <div style={{ padding: "40px 0", textAlign: "center", fontSize: "13px", color: "var(--text-muted)" }}>Loading bundle…</div>
@@ -152,9 +119,6 @@ export default function FhirBundleModal({ open, onClose, cashlessCaseId, transac
                 <BundleSide label="Received from payer" emptyText="No response yet" side={data.inbound} />
               </div>
             )}
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 }

@@ -1,19 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
-  X,
   FileText,
   RefreshCw,
   RotateCcw,
   AlertCircle,
-  Copy,
-  User
+  Copy
 } from "lucide-react";
 import { api } from "../api";
 import { taskScreen } from "../taskRoutes";
 import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
 import Dropdown from "./Dropdown";
+import { Drawer } from "./Overlay";
 import { formatRelative, formatDateTime, formatCaseRef } from "../format.js";
 import { useNavigate } from "react-router-dom";
 
@@ -271,127 +269,85 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
   };
 
   return (
-    <AnimatePresence>
-      {open && task && (
+    <Drawer
+      open={open && !!task}
+      onClose={onClose}
+      width={560}
+      title={task?.title}
+      subtitle={task && [
+        task.priority && `${task.priority[0].toUpperCase()}${task.priority.slice(1)} priority`,
+        task.task_type?.replace(/_/g, " "),
+        taskSubject(task),
+        task.facility_name,
+      ].filter(Boolean).join(" · ")}
+      footer={task && (
         <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 90,
-            }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            className="glass-panel"
-            style={{
-              position: "fixed",
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: "min(560px, 95vw)",
-              zIndex: 91,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "20px 24px",
-                borderBottom: "1px solid var(--border-color)",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "var(--space-2)",
-                    alignItems: "center",
-                    marginBottom: "var(--space-1)",
-                  }}
+              {/* A failed callback is resolved by replaying it, not by opening the
+                  case — so retry leads and the case link plays second. */}
+              {isCallbackFailure ? (
+                <>
+                  <Button
+                    variant="primary"
+                    disabled={running || allFacilitiesMode || task.metadata?.retryable === false}
+                    title={
+                      task.metadata?.retryable === false
+                        ? "This failure predates payload capture, so it cannot be replayed. Confirm the outcome with the payer."
+                        : undefined
+                    }
+                    onClick={handleRetry}
+                    style={{ flex: 1, justifyContent: "center" }}
+                  >
+                    {running ? "Retrying…" : "Retry payer response"}
+                  </Button>
+                  <Button variant="outline" disabled={allFacilitiesMode} onClick={handleNavigate}>
+                    Review Case &rarr;
+                  </Button>
+                </>
+              ) : isSupersededCancel ? (
+                <>
+                  <Button
+                    variant="primary"
+                    disabled={running || allFacilitiesMode}
+                    onClick={handleCancelPreauth}
+                    style={{ flex: 1, justifyContent: "center" }}
+                  >
+                    {running ? "Withdrawing…" : "Withdraw with previous payer"}
+                  </Button>
+                  <Button variant="outline" disabled={allFacilitiesMode} onClick={handleNavigate}>
+                    Review Case &rarr;
+                  </Button>
+                </>
+              ) : (
+                task.action && (
+                  <Button
+                    variant="primary"
+                    disabled={allFacilitiesMode}
+                    title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
+                    onClick={handleNavigate}
+                    style={{ flex: 1, justifyContent: "center" }}
+                  >
+                    {task.action.label || "Review Case"} &rarr;
+                  </Button>
+                )
+              )}
+              {task.task_type === "acknowledge_payment" && (
+                <Button
+                  variant="outline"
+                  disabled={completing || allFacilitiesMode}
+                  onClick={handleComplete}
+                  style={{ flex: 1, justifyContent: "center" }}
                 >
-                  <span
-                    className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`}
-                    style={{ fontSize: "10px" }}
-                  >
-                    {task.priority?.toUpperCase()}
-                  </span>
-                  <span
-                    className="badge-modern badge-info"
-                    style={{ fontSize: "10px" }}
-                  >
-                    {task.workflow}
-                  </span>
-                  <span
-                    className="badge-modern"
-                    style={{
-                      fontSize: "10px",
-                      background: "var(--bg-main)",
-                      color: "var(--text-muted)",
-                      border: "1px solid var(--border-color)",
-                    }}
-                  >
-                    {task.task_type?.replace(/_/g, " ")}
-                  </span>
-                  {task.facility_name && (
-                    <span
-                      className="badge-modern"
-                      style={{ fontSize: "10px", background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}
-                    >
-                      {task.facility_name}
-                    </span>
-                  )}
-                </div>
-                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800 }}>
-                  {task.title}
-                </h3>
-                {taskSubject(task) && (
-                  <div
-                    style={{
-                      display: "flex", alignItems: "center", gap: "5px",
-                      marginTop: "3px", fontSize: "12px", color: "var(--text-muted)",
-                    }}
-                  >
-                    <User size={12} />
-                    {taskSubject(task)}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={onClose}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
-                  display: "flex",
-                }}
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            <div
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                padding: "var(--space-6)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "18px",
-              }}
-            >
+                  {completing ? "Completing…" : "Mark as Complete ✓"}
+                </Button>
+              )}
+              <Button variant="outline" onClick={onClose}>
+                Close
+              </Button>
+        </>
+      )}
+    >
+      {task && (
+        <div className="wq-drawer-body">
               {task.description && (
                 <p
                   style={{
@@ -569,82 +525,9 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
               )}
 
               {/* Task results (if any) used to be shown here, removed for navigation flow */}
-            </div>
-
-            <div
-              style={{
-                padding: "16px 24px",
-                borderTop: "1px solid var(--border-color)",
-                display: "flex",
-                gap: "var(--space-3)",
-              }}
-            >
-              {/* A failed callback is resolved by replaying it, not by opening the
-                  case — so retry leads and the case link plays second. */}
-              {isCallbackFailure ? (
-                <>
-                  <Button
-                    variant="primary"
-                    disabled={running || allFacilitiesMode || task.metadata?.retryable === false}
-                    title={
-                      task.metadata?.retryable === false
-                        ? "This failure predates payload capture, so it cannot be replayed. Confirm the outcome with the payer."
-                        : undefined
-                    }
-                    onClick={handleRetry}
-                    style={{ flex: 1, justifyContent: "center" }}
-                  >
-                    {running ? "Retrying…" : "Retry payer response"}
-                  </Button>
-                  <Button variant="outline" disabled={allFacilitiesMode} onClick={handleNavigate}>
-                    Review Case &rarr;
-                  </Button>
-                </>
-              ) : isSupersededCancel ? (
-                <>
-                  <Button
-                    variant="primary"
-                    disabled={running || allFacilitiesMode}
-                    onClick={handleCancelPreauth}
-                    style={{ flex: 1, justifyContent: "center" }}
-                  >
-                    {running ? "Withdrawing…" : "Withdraw with previous payer"}
-                  </Button>
-                  <Button variant="outline" disabled={allFacilitiesMode} onClick={handleNavigate}>
-                    Review Case &rarr;
-                  </Button>
-                </>
-              ) : (
-                task.action && (
-                  <Button
-                    variant="primary"
-                    disabled={allFacilitiesMode}
-                    title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
-                    onClick={handleNavigate}
-                    style={{ flex: 1, justifyContent: "center" }}
-                  >
-                    {task.action.label || "Review Case"} &rarr;
-                  </Button>
-                )
-              )}
-              {task.task_type === "acknowledge_payment" && (
-                <Button
-                  variant="outline"
-                  disabled={completing || allFacilitiesMode}
-                  onClick={handleComplete}
-                  style={{ flex: 1, justifyContent: "center" }}
-                >
-                  {completing ? "Completing…" : "Mark as Complete ✓"}
-                </Button>
-              )}
-              <Button variant="outline" onClick={onClose}>
-                Close
-              </Button>
-            </div>
-          </motion.div>
-        </>
+        </div>
       )}
-    </AnimatePresence>
+    </Drawer>
   );
 }
 

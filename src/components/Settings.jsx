@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Building2,
   Plus,
   Key,
   Edit2,
-  X,
   CheckCircle2,
   AlertTriangle,
   Globe,
@@ -25,6 +24,7 @@ import {
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
 import { getDeepLinkClinicId } from "../sessionBootstrap";
 import { Button, Card, EmptyState, Input, LoadingBlock } from "./Common";
+import { Drawer } from "./Overlay";
 
 const ROLE_OPTIONS = [
   { value: "10001", label: "Provider" },
@@ -203,116 +203,6 @@ function MultiCheckbox({ options, value = [], onChange }) {
         </label>
       ))}
     </div>
-  );
-}
-
-function Drawer({ open, onClose, title, subtitle, children, footer }) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 90,
-            }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="glass-panel"
-            style={{
-              position: "fixed",
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: "min(620px, 95vw)",
-              zIndex: 91,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div
-              style={{
-                padding: "22px 28px",
-                borderBottom: "1px solid var(--border-color)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div>
-                  <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>
-                    {title}
-                  </h3>
-                  {subtitle && (
-                    <p
-                      style={{
-                        margin: "4px 0 0",
-                        fontSize: "13px",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      {subtitle}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={onClose}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--text-muted)",
-                    display: "flex",
-                    padding: "var(--space-1)",
-                  }}
-                >
-                  <X size={22} />
-                </button>
-              </div>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                padding: "24px 28px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--space-5)",
-              }}
-            >
-              {children}
-            </div>
-            {footer && (
-              <div
-                style={{
-                  padding: "16px 28px",
-                  borderTop: "1px solid var(--border-color)",
-                  display: "flex",
-                  gap: "10px",
-                  justifyContent: "flex-end",
-                }}
-              >
-                {footer}
-              </div>
-            )}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
   );
 }
 
@@ -661,6 +551,8 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
 
   return (
     <Drawer
+      width={620}
+      stack
       open={open}
       onClose={onClose}
       title={`Upload RSA Key - ${facility?.name || facility?.facility_code}`}
@@ -1407,6 +1299,8 @@ export default function Settings({
       )}
 
       <Drawer
+      width={620}
+      stack
         open={showFacilityDrawer}
         onClose={() => setShowFacilityDrawer(false)}
         title={

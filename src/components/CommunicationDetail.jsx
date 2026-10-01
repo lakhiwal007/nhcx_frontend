@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, CheckCircle2, Paperclip, FileText, ExternalLink, Circle, Send,
+  CheckCircle2, Paperclip, FileText, ExternalLink, Circle, Send,
 } from "lucide-react";
 import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
 import { Button, QueryResponseFields } from "./Common";
+import { Drawer } from "./Overlay";
 import { formatDateTime, safeHref } from "../format.js";
 import { buildActionBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
 import { useNavigate } from "react-router-dom";
@@ -54,12 +54,6 @@ export function commPreview(comm) {
 
 export function commHasAttachment(comm) {
   return !!comm?.payload?.some((p) => p.content_attachment);
-}
-
-export function commTone(comm) {
-  if (comm?.pending_tasks?.length > 0) return "action";
-  if (!comm?.provider_read) return "unread";
-  return "read";
 }
 
 export function parseDocumentsFromTaskInputs(taskInputs) {
@@ -207,37 +201,44 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   };
 
   return (
-    <AnimatePresence>
-      {open && (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width={600}
+      stack
+      title="Communication detail"
+      titleExtra={
         <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-overlay"
-            style={{ position: "fixed", inset: 0, zIndex: 90 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            className="glass-panel"
-            style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(600px, 95vw)", zIndex: 91, display: "flex", flexDirection: "column" }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--border-color)" }}>
-              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800 }}>Communication Detail</h3>
-                {detail?.reason_code && <span className={`badge-modern ${reasonCfg.badge || "badge-info"}`}>{reasonCfg.label || detail.reason_code}</span>}
-                {detail?.priority && priorityBadge(detail.priority)}
-              </div>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
-                <X size={22} />
-              </button>
-            </div>
-
-            <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-6)", display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+          {detail?.reason_code && <span className={`badge-modern ${reasonCfg.badge || "badge-info"}`}>{reasonCfg.label || detail.reason_code}</span>}
+          {detail?.priority && priorityBadge(detail.priority)}
+        </>
+      }
+      footer={
+        <>
+              {taskId && (
+                <Button
+                  variant="primary"
+                  disabled={completing || allFacilitiesMode || (actionable && !executeResult?.success)}
+                  onClick={handleMarkReviewed}
+                  style={{ flex: 1, justifyContent: "center" }}
+                  title={
+                    allFacilitiesMode
+                      ? "Select a facility in Settings to act on this task"
+                      : actionable && !executeResult?.success
+                        ? "Submit the required documents first"
+                        : undefined
+                  }
+                >
+                  {completing ? "Completing…" : "Mark as Reviewed ✓"}
+                </Button>
+              )}
+              {showOpenCase && detail?.cashless_case_id && detail?.child_id && (
+                <Button variant="outline" icon={ExternalLink} onClick={handleOpenCase}>Open Case</Button>
+              )}
+              <Button variant="outline" onClick={onClose}>Close</Button>
+        </>
+      }
+    >
               {loading && <div className="flex-center py-10"><div className="spinner" /></div>}
 
               {detail && (
@@ -391,34 +392,6 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                   )}
                 </>
               )}
-            </div>
-
-            <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border-color)", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              {taskId && (
-                <Button
-                  variant="primary"
-                  disabled={completing || allFacilitiesMode || (actionable && !executeResult?.success)}
-                  onClick={handleMarkReviewed}
-                  style={{ flex: 1, justifyContent: "center" }}
-                  title={
-                    allFacilitiesMode
-                      ? "Select a facility in Settings to act on this task"
-                      : actionable && !executeResult?.success
-                        ? "Submit the required documents first"
-                        : undefined
-                  }
-                >
-                  {completing ? "Completing…" : "Mark as Reviewed ✓"}
-                </Button>
-              )}
-              {showOpenCase && detail?.cashless_case_id && detail?.child_id && (
-                <Button variant="outline" icon={ExternalLink} onClick={handleOpenCase}>Open Case</Button>
-              )}
-              <Button variant="outline" onClick={onClose}>Close</Button>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </Drawer>
   );
 }

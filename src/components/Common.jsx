@@ -8,13 +8,12 @@ import {
   AlertTriangle,
   FileText,
   CheckCircle2,
-  ChevronRight,
   Ban,
   Plus,
   Trash2,
   Paperclip,
 } from "lucide-react";
-import { formatMoney, formatDateTime, formatPhone, formatPercent, currencySymbol, safeHref } from "../format.js";
+import { formatMoney, formatPhone, formatPercent, currencySymbol, safeHref } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
 export { formatMoney };
@@ -163,23 +162,6 @@ export const Input = ({
 );
 
 /**
- * Page-level title block with an optional subtitle and an optional
- * "Back" button rendered above the title when `backAction` is given.
- * @category Layout
- */
-export const PageHeader = ({ title, subtitle, backAction }) => (
-  <div className="page-header-modern">
-    {backAction && (
-      <Button variant="text" onClick={backAction} className="mb-2" size="small">
-        ← Back
-      </Button>
-    )}
-    <h1>{title}</h1>
-    {subtitle && <p>{subtitle}</p>}
-  </div>
-);
-
-/**
  * Compact, selectable patient summary row for search/list results: avatar
  * (photo or initial fallback), name, ID/gender/age/mobile meta line, an
  * optional status area (`statusSlot`, e.g. a case status chip + payer), and
@@ -226,61 +208,6 @@ export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) =
 };
 
 // ─── Reusable Flow Components (as per README) ─────────────────────────────
-
-/**
- * Warning banner listing missing required patient-context fields as badges,
- * with an optional "Resolve Now" action. Renders nothing when `fields` is empty.
- * @category Feedback
- */
-export const MissingFieldsAlert = ({ fields, onResolve }) => {
-  if (!fields?.length) return null;
-  return (
-    <div
-      className="warning-banner tone-error mb-6"
-      style={{
-        display: "flex",
-        gap: "var(--space-3)",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-      }}
-    >
-      <div style={{ display: "flex", gap: "var(--space-3)" }}>
-        <AlertCircle
-          size={18}
-          color="var(--error)"
-          style={{ flexShrink: 0, marginTop: "2px" }}
-        />
-        <div>
-          <div
-            style={{
-              fontWeight: 700,
-              marginBottom: "6px",
-              color: "var(--error)",
-            }}
-          >
-            Missing Required Patient Context
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-            {fields.map((f, i) => (
-              <span
-                key={i}
-                className="badge-modern badge-error"
-                style={{ fontSize: "11px" }}
-              >
-                {f}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-      {onResolve && (
-        <Button size="small" variant="primary" onClick={onResolve}>
-          Resolve Now
-        </Button>
-      )}
-    </div>
-  );
-};
 
 /**
  * Checklist of insurance-claim documents, each row colour-coded by state
@@ -717,61 +644,6 @@ export const AmountGrid = ({ totals }) => {
     </div>
   );
 };
-
-/**
- * Clickable Work Queue task summary: priority-colored left border, priority
- * badge, timestamp, task type, and description.
- * @category Domain
- */
-export const TaskCard = ({ task, onClick }) => (
-  <motion.div
-    whileHover={{ y: -2 }}
-    className="card-modern task-card-modern"
-    style={{
-      "--task-accent":
-        task.priority === "urgent"
-          ? "var(--error)"
-          : task.priority === "high"
-            ? "var(--warning)"
-            : "var(--primary)",
-    }}
-    onClick={onClick}
-  >
-    <div style={{ flex: 1 }}>
-      <div
-        style={{
-          display: "flex",
-          gap: "var(--space-2)",
-          alignItems: "center",
-          marginBottom: "var(--space-2)",
-        }}
-      >
-        <span
-          className={`badge-modern badge-${task.priority === "urgent" ? "error" : task.priority === "high" ? "warning" : "info"}`}
-          style={{ fontSize: "10px" }}
-        >
-          {task.priority?.toUpperCase()}
-        </span>
-        <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-          {formatDateTime(task.created_at)}
-        </span>
-      </div>
-      <h4 style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>
-        {task.task_type?.replace(/_/g, " ")}
-      </h4>
-      <div
-        style={{
-          fontSize: "13px",
-          color: "var(--text-muted)",
-          marginTop: "var(--space-1)",
-        }}
-      >
-        {task.description || `Action required for claim #${task.claim_id}`}
-      </div>
-    </div>
-    <ChevronRight size={20} color="var(--text-muted)" />
-  </motion.div>
-);
 
 /**
  * Footer pager for a client-side paginated table: "Showing X–Y of N" plus
