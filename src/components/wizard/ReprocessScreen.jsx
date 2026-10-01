@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, ArrowRight } from "lucide-react";
+import { Send, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Card, Button, DecisionBanner, DocumentChecklist } from "../Common";
+import { Button, DocumentChecklist } from "../Common";
+import Dropdown from "../Dropdown";
+import { Section, Fields } from "../case/CaseFile";
 
 const POLL_INTERVAL_MS = 7000;
 const REASON_CODES = [
@@ -97,144 +99,192 @@ export default function ReprocessScreen({ ctx }) {
     setSupportingDocs((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const decision = status?.decision;
+  const isComplete = status?.status === "complete";
+  const isFailed = status?.status === "failed";
+  const reasonLabel = REASON_CODES.find((r) => r.value === reasonCode)?.label;
+  const attached = supportingDocs.filter((d) => d.url).length;
+  const appealApproved = ["APPROVED", "PARTIALLY_APPROVED", "REPROCESS_APPROVED"].includes(decision);
+  const verdict = isFailed
+    ? { tone: "bad", label: "Not delivered" }
+    : !isComplete
+      ? { tone: "pending", label: "Awaiting payer" }
+      : appealApproved
+        ? { tone: decision === "PARTIALLY_APPROVED" ? "warn" : "ok", label: decision === "PARTIALLY_APPROVED" ? "Partially approved" : "Appeal accepted" }
+        : decision === "QUERIED"
+          ? { tone: "warn", label: "Query raised" }
+          : decision === "REJECTED"
+            ? { tone: "bad", label: "Appeal rejected" }
+            : { tone: "pending", label: "Decision received" };
+
   if (polling || status) {
-    const isComplete = status?.status === "complete";
-    const isFailed = status?.status === "failed";
     return (
-      <div className="wizard-step">
-        {isFailed ? (
-          <Card className="mb-6">
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-              <div>
-                <div style={{ fontWeight: 700, color: "var(--error)" }}>Appeal submission failed</div>
-                <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "6px" }}>
-                  {status?.error_message || "The request could not be delivered to the payer."}
-                </div>
-                <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-4)" }}>
-                  <Button variant="outline" onClick={() => navigate("../claim")}>Back to Claim</Button>
-                  <Button variant="primary" onClick={handleRetry}>Try Again</Button>
-                </div>
+      <div className="wizard-step pd-screen">
+        <div className="pd-layout">
+          <div className="pd-main">
+            {isFailed ? (
+              <div className="ep-notice is-bad">
+                <strong>The appeal could not be delivered.</strong>{" "}
+                {status?.error_message || "The request did not reach the payer."}
               </div>
-            </div>
-          </Card>
-        ) : !isComplete ? (
-          <Card className="mb-6">
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-              <div className="spinner" style={{ width: "24px", height: "24px" }} />
-              <div>
-                <div style={{ fontWeight: 700 }}>Appeal in Progress</div>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                  {reprocessCorrelationId} · polling every {POLL_INTERVAL_MS / 1000}s
-                </div>
+            ) : !isComplete ? (
+              <Section id="rp-waiting" title="Appeal sent">
+                <Fields
+                  cols={2}
+                  rows={[
+                    { label: "Status", value: "Waiting for the payer's decision" },
+                    { label: "Checking every", value: `${POLL_INTERVAL_MS / 1000} seconds` },
+                    { label: "Reason", value: reasonLabel },
+                    { label: "Request ID", value: reprocessCorrelationId, mono: true },
+                  ]}
+                />
+              </Section>
+            ) : (
+              <>
+                {decision === "REJECTED" && (
+                  <div className="ep-notice is-bad">
+                    The payer rejected the appeal. The case stays in your history; contact the payer directly to escalate.
+                  </div>
+                )}
+                {(status?.process_notes?.length > 0 || status?.claim_response?.errors?.[0]?.detail) && (
+                  <Section id="rp-notes" title="Payer notes">
+                    <ol className="ds-notes">
+                      {(status.process_notes || []).map((n, i) => (
+                        <li key={n.number ?? i}>
+                          <span className="ep-mono ep-muted">{n.number ?? i + 1}</span>
+                          <span>{n.text}</span>
+                        </li>
+                      ))}
+                      {status?.claim_response?.errors?.[0]?.detail && (
+                        <li>
+                          <span className="ep-mono ep-muted">!</span>
+                          <span>{status.claim_response.errors[0].detail}</span>
+                        </li>
+                      )}
+                    </ol>
+                  </Section>
+                )}
+                <Section id="rp-response" title="Appeal">
+                  <Fields
+                    cols={2}
+                    rows={[
+                      { label: "Decision", value: decision ? String(decision).replace(/_/g, " ").toLowerCase() : null },
+                      { label: "Reason given", value: reasonLabel },
+                      { label: "Explanation", value: description },
+                      { label: "Request ID", value: reprocessCorrelationId, mono: true },
+                    ]}
+                  />
+                </Section>
+              </>
+            )}
+          </div>
+
+          <aside className="pd-side">
+            <section className="ep-section pd-request">
+              <header className="ep-section-head">
+                <h3 className="ep-section-title">Appeal</h3>
+              </header>
+              <div className={`ds-verdict is-${verdict.tone}`}>
+                <span className="ep-dot" aria-hidden="true" />
+                <span className="ds-verdict-label">{verdict.label}</span>
+                {!isComplete && !isFailed && <span className="spinner ds-spinner" aria-hidden="true" />}
               </div>
-            </div>
-          </Card>
-        ) : (
-          <>
-            <DecisionBanner decision={status?.decision} message={status?.claim_response?.errors?.[0]?.detail} />
-            {status?.decision === "REJECTED" ? (
-              <div style={{ padding: "16px 20px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginTop: "var(--space-4)", marginBottom: "var(--space-4)" }}>
-                <div style={{ fontWeight: 700, color: "var(--error)", marginBottom: "6px" }}>Appeal rejected</div>
-                <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                  The payer has rejected the appeal. This case remains in your history. Contact the payer directly if you wish to escalate further.
-                </div>
+              <div className="pd-submit">
+                {isFailed ? (
+                  <Button variant="primary" onClick={handleRetry} className="pd-submit-btn">
+                    Try again
+                  </Button>
+                ) : appealApproved ? (
+                  <Button variant="primary" icon={ArrowRight} onClick={() => navigate("../payment")} className="pd-submit-btn">
+                    Go to payment
+                  </Button>
+                ) : decision === "QUERIED" ? (
+                  <Button variant="primary" icon={ArrowRight} onClick={() => navigate("../claim")} className="pd-submit-btn">
+                    Respond on the claim
+                  </Button>
+                ) : null}
+                <button type="button" className="pd-text-btn" onClick={() => navigate("../claim")}>
+                  Back to claim
+                </button>
               </div>
-            ) : null}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
-              <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
-              {/* Payment is only reachable once the appeal actually succeeded.
-                  A QUERIED appeal needs a response on the claim; a REJECTED one
-                  has nowhere forward. Don't dump the user on an empty Payment screen. */}
-              {["APPROVED", "PARTIALLY_APPROVED", "REPROCESS_APPROVED"].includes(status?.decision) ? (
-                <Button variant="primary" onClick={() => navigate("../payment")}>
-                  Proceed to Payment <ArrowRight size={18} style={{ marginLeft: "8px" }} />
-                </Button>
-              ) : status?.decision === "QUERIED" ? (
-                <Button variant="primary" onClick={() => navigate("../claim")}>
-                  Respond on Claim <ArrowRight size={18} style={{ marginLeft: "8px" }} />
-                </Button>
-              ) : null}
-            </div>
-          </>
-        )}
+            </section>
+          </aside>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="wizard-step">
-      <div className="grid-1-to-2" style={{ gap: "var(--space-6)" }}>
-        <Card title="File an Appeal">
-          <p className="text-muted" style={{ fontSize: "14px", marginBottom: "var(--space-5)" }}>
-            Use this when the claim was partially approved or rejected and you have additional justification or missing documents to submit.
-          </p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-            <div>
-              <label className="input-label-modern">Reason Code</label>
-              <select
-                className="input-modern"
-                value={reasonCode}
-                onChange={(e) => setReasonCode(e.target.value)}
-              >
-                {REASON_CODES.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
+    <div className="wizard-step pd-screen">
+      <div className="pd-layout">
+        <div className="pd-main">
+          <Section id="rp-form" title="Grounds for the appeal" meta="For a rejected or partly approved claim">
+            <div className="pd-form rp-form">
+              <label className="pd-form-field">
+                <span>Reason</span>
+                <Dropdown compact ariaLabel="Appeal reason" value={reasonCode} options={REASON_CODES} onChange={setReasonCode} />
+              </label>
+              <label className="pd-form-field rp-wide">
+                <span>Explanation</span>
+                <textarea
+                  className="input-modern rp-textarea"
+                  placeholder="Explain why the claim should be re-evaluated, referring to the payer's notes…"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </label>
             </div>
-            <div>
-              <label className="input-label-modern">Description</label>
-              <textarea
-                className="input-modern"
-                style={{ height: "100px", resize: "vertical" }}
-                placeholder="Explain why the claim should be re-evaluated…"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+          </Section>
+
+          <Section id="rp-docs" title="Supporting evidence" meta="Attach anything the payer's rejection notes ask for">
+            <div className="pd-docs">
+              <DocumentChecklist
+                documents={supportingDocs}
+                onUpload={handleUpload}
+                onAddDocument={addDocument}
+                onRenameDocument={renameDocument}
+                onRemoveDocument={removeDocument}
+                hideSummary
               />
             </div>
-          </div>
-        </Card>
+          </Section>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          <Card title="Supporting Evidence">
-            <div className="warning-banner mb-4" style={{ color: "var(--warning)" }}>
-              Attach any documents referenced in the payer's rejection notes.
-            </div>
-            <DocumentChecklist
-              documents={supportingDocs}
-              onUpload={handleUpload}
-              onAddDocument={addDocument}
-              onRenameDocument={renameDocument}
-              onRemoveDocument={removeDocument}
-            />
-          </Card>
-
-          <Card>
-            {submitError && (
-              <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "13px", color: "var(--error)", fontWeight: 600 }}>
-                {submitError}
-              </div>
-            )}
-            <Button
-              variant="primary"
-              className="w-full"
-              icon={Send}
-              disabled={!description || submitting}
-              onClick={handleSubmit}
-              style={{ justifyContent: "center" }}
-            >
-              {submitting ? "Submitting…" : "Submit Appeal"}
+          <div className="ep-footer">
+            <Button variant="text" onClick={() => navigate("../claim")}>
+              ← Back to claim
             </Button>
-          </Card>
+          </div>
         </div>
-      </div>
 
-      {/* No "Skip to Payment" here: this is the appeal-FILING screen, reached only
-          because the claim was rejected/partially approved. There is no payment to
-          collect until an appeal (or resubmission) succeeds, so skipping forward
-          dead-ends on an empty Payment screen. */}
-      <div style={{ display: "flex", justifyContent: "flex-start", marginTop: "var(--space-6)" }}>
-        <Button variant="text" onClick={() => navigate("../claim")}>← Back to Claim</Button>
+        <aside className="pd-side">
+          <section className="ep-section pd-request">
+            <header className="ep-section-head">
+              <h3 className="ep-section-title">Appeal</h3>
+            </header>
+            <ul className="pd-ready" aria-label="Appeal readiness">
+              <li className="is-ok">
+                <CheckCircle2 size={14} />
+                <span>Reason</span>
+                <span className="pd-ready-note">{reasonLabel}</span>
+              </li>
+              <li className={description ? "is-ok" : "is-todo"}>
+                {description ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                <span>Explanation</span>
+              </li>
+              <li className={attached ? "is-ok" : "is-soft"}>
+                {attached ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                <span>Evidence attached</span>
+                <span className="pd-ready-note">{attached}</span>
+              </li>
+            </ul>
+            <div className="pd-submit">
+              {submitError && <div className="ep-notice is-bad">{submitError}</div>}
+              <Button variant="primary" icon={Send} disabled={!description || submitting} onClick={handleSubmit} className="pd-submit-btn">
+                {submitting ? "Submitting…" : "Submit appeal"}
+              </Button>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );

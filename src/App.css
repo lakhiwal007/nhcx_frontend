@@ -3350,6 +3350,19 @@ select.pd-input {
     margin: 2px 0 0;
 }
 
+/* ─── Reprocess / appeal (ReprocessScreen) ──────────────────────────────── */
+.rp-form {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 14px;
+}
+
+.rp-textarea {
+    min-height: 110px;
+    padding: 10px 12px;
+    font-size: 13px;
+    resize: vertical;
+}
+
 /* ─── Payment table summary row ──────────────────────────────────────────── */
 .table-modern tfoot tr td {
     font-weight: 700;
