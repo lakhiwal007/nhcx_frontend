@@ -5,6 +5,7 @@ import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, LoadingBlock, TablePagination } from "../Common";
 import Dropdown from "../Dropdown";
+import { Section, Fields } from "../case/CaseFile";
 import { formatDate, formatMoney } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
 import PayrErrorList from "../PayrErrorList";
@@ -170,36 +171,6 @@ function deriveChecks(ce, benefitsTimedOut) {
 }
 
 // ─── Presentational pieces ────────────────────────────────────────────────
-function Section({ id, title, meta, children }) {
-  return (
-    <section className="ep-section" id={id}>
-      <header className="ep-section-head">
-        <h3 className="ep-section-title">{title}</h3>
-        {meta && <div className="ep-section-meta">{meta}</div>}
-      </header>
-      {children}
-    </section>
-  );
-}
-
-function Fields({ rows, cols = 2 }) {
-  const shown = rows.filter((r) => r && r.value != null && r.value !== "");
-  if (!shown.length) return null;
-  return (
-    <dl className={`ep-fields cols-${cols}`}>
-      {shown.map((r) => (
-        <div key={r.label} className="ep-field">
-          <dt>{r.label}</dt>
-          <dd className={`${r.mono ? "ep-mono" : ""}${r.tone ? ` is-${r.tone}` : ""}`} title={typeof r.value === "string" ? r.value : undefined}>
-            {r.value}
-            {r.sub && <span className="ep-field-sub">{r.sub}</span>}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 function SubList({ title, items, empty }) {
   return (
     <div className="ep-sublist">

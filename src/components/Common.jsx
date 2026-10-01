@@ -290,7 +290,9 @@ export const MissingFieldsAlert = ({ fields, onResolve }) => {
  * aren't on the pre-populated required/optional list.
  * @category Domain
  */
-export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument }) => {
+// `hideSummary` drops the "N required documents still needed" banner for
+// screens that already state the count elsewhere.
+export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument, hideSummary = false }) => {
   const fileInputRef = useRef(null);
   const pendingDocRef = useRef(null);
   const [uploadError, setUploadError] = useState(null);
@@ -347,7 +349,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
           <span style={{ color: "var(--error)", fontWeight: 600, fontSize: "13px" }}>{uploadError}</span>
         </div>
       )}
-      {missingRequired.length > 0 && (
+      {!hideSummary && missingRequired.length > 0 && (
         <div
           className="warning-banner tone-error mb-4"
           style={{

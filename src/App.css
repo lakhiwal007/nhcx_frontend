@@ -2194,19 +2194,6 @@ select.input-modern option {
     font-weight: var(--fw-medium);
 }
 
-.ep-moved-banner {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    margin-bottom: var(--space-5);
-    background: color-mix(in srgb, var(--success) 8%, var(--bg-card));
-    border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
-    border-left: 3px solid var(--success);
-    border-radius: var(--radius-md);
-    flex-wrap: wrap;
-}
-
 /* ─── Eligibility step (EligibilityPrep) ────────────────────────────────────
    Adjudication-style case file: one verdict line, a sticky section bar, and
    neutral sections of label/value fields and tables. Colour is reserved for
@@ -2721,6 +2708,271 @@ select.input-modern option {
     .ep-footer-right {
         flex-direction: column-reverse;
         align-items: stretch;
+    }
+}
+
+/* Single-column fields: label beside value */
+.ep-fields.cols-1 {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.ep-fields.cols-1 .ep-field {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+}
+
+.ep-fields.cols-1 .ep-field dd {
+    margin: 0;
+}
+
+/* ─── Preauth draft (PreauthDraft) ─────────────────────────────────────────
+   Same case-file language as the eligibility step: neutral sections in the
+   main column, and one sticky "Preauth request" panel holding the amount,
+   readiness and the only submit button. */
+.pd-screen {
+    gap: 12px;
+}
+
+.pd-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 12px;
+    align-items: start;
+}
+
+.pd-main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.pd-side {
+    position: sticky;
+    top: calc(var(--topbar-h, 56px) + 12px);
+}
+
+.pd-inline-link {
+    margin-left: 6px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--primary);
+    font: var(--fw-medium) 12.5px var(--font-sans);
+    cursor: pointer;
+}
+
+/* Inputs inside tables and forms: one compact size everywhere */
+.pd-input {
+    width: 100%;
+    height: 32px;
+    padding: 0 10px;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+select.pd-input {
+    padding-right: 28px;
+}
+
+.pd-input:disabled {
+    opacity: 0.5;
+}
+
+.ep-table.pd-edit-table {
+    min-width: 520px;
+}
+
+.pd-edit-table td {
+    vertical-align: middle;
+}
+
+.pd-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.pd-radio input {
+    margin: 0;
+    cursor: pointer;
+}
+
+.pd-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-xs);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.pd-icon-btn:hover {
+    background: color-mix(in srgb, var(--error) 10%, transparent);
+    color: var(--error);
+}
+
+.ep-table tfoot .pd-total-row td {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-main);
+    font-weight: var(--fw-semibold);
+}
+
+/* Missing patient details form */
+.pd-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px 16px;
+    padding: 14px 16px 4px;
+}
+
+.pd-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.pd-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px 16px 14px;
+}
+
+/* Documents: the shared checklist sits inside the section padding */
+.pd-docs {
+    padding: 12px 16px 14px;
+}
+
+/* Request panel */
+.pd-amount {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.pd-amount-value {
+    margin: 2px 0;
+    font-size: 22px;
+    font-weight: var(--fw-semibold);
+    color: var(--text-main);
+}
+
+.pd-ready {
+    margin: 0;
+    padding: 8px 16px;
+    list-style: none;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.pd-ready li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 13px;
+}
+
+.pd-ready li svg {
+    flex-shrink: 0;
+}
+
+.pd-ready li.is-ok svg { color: var(--success); }
+.pd-ready li.is-todo svg { color: var(--error); }
+.pd-ready li.is-soft svg { color: var(--warning); }
+.pd-ready li.is-ok span:first-of-type { color: var(--text-muted); }
+
+.pd-ready-note {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.pd-sent {
+    margin: 0;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.pd-sent > div {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 12.5px;
+}
+
+.pd-sent dt {
+    color: var(--text-muted);
+}
+
+.pd-sent dd {
+    margin: 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pd-sent dd.ep-mono {
+    font-size: 12px;
+}
+
+.pd-submit {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px 16px;
+}
+
+.pd-submit .btn-modern.pd-submit-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px;
+    font-size: 13.5px;
+}
+
+.pd-text-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font: var(--fw-medium) 12.5px var(--font-sans);
+    cursor: pointer;
+}
+
+.pd-text-btn:hover {
+    color: var(--text-main);
+}
+
+@media (max-width: 1100px) {
+    .pd-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .pd-side {
+        position: static;
+    }
+}
+
+@media (max-width: 640px) {
+    .ep-fields.cols-1 .ep-field {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1px;
     }
 }
 

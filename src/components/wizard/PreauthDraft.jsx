@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, User, AlertCircle, ChevronDown, ChevronUp, Save, ArrowLeft, ArrowRight, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Send, AlertCircle, Save, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { api } from "../../api";
-import { Card, Button, DocumentChecklist, MissingFieldsAlert, LoadingBlock, formatMoney } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
+import { formatDate } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL } from "../case/caseStages";
+import { Section, Fields } from "../case/CaseFile";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -57,7 +58,6 @@ const serializeDiagnoses = (list) =>
 function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
-  const [open, setOpen] = useState(true);
 
   const relevantKeys = new Set(
     missingFields.flatMap((m) => MISSING_FIELD_MAP[m.toLowerCase()] ?? [])
@@ -83,51 +83,31 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
   };
 
   return (
-    <div style={{ border: "1px solid var(--error)", borderRadius: "var(--radius-md)", overflow: "hidden", marginBottom: "var(--space-4)" }}>
-      <div
-        onClick={() => setOpen((p) => !p)}
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(239,68,68,0.06)", cursor: "pointer", transition: "background 0.2s ease" }}
-        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.1)"}
-        onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.06)"}
-      >
-        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", fontWeight: 700, color: "var(--error)", fontSize: "14px" }}>
-          <AlertCircle size={16} /> Supply Missing Patient Attributes
-        </div>
-        <motion.div animate={{ rotate: open ? 180 : 0 }} style={{ color: "var(--error)" }}>
-          <ChevronDown size={16} />
-        </motion.div>
+    <Section
+      id="pd-missing"
+      title="Missing patient details"
+      meta={<span className="is-bad">Needed before the request can be sent</span>}
+    >
+      <div className="pd-form">
+        {allFields.map((f) => (
+          <label key={f.key} className="pd-form-field">
+            <span>{f.label}</span>
+            <input
+              className="input-modern pd-input"
+              type={f.type || "text"}
+              placeholder={f.placeholder}
+              value={values[f.key] || ""}
+              onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+            />
+          </label>
+        ))}
       </div>
-      <AnimatePresence>
-        {open && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }} 
-            animate={{ height: "auto", opacity: 1 }} 
-            exit={{ height: 0, opacity: 0 }}
-            style={{ overflow: "hidden" }}
-          >
-            <div style={{ padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
-              {allFields.map((f) => (
-                <div key={f.key}>
-                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "var(--space-1)" }}>
-                    {f.label}
-                  </label>
-                  <input
-                    className="input-modern"
-                    type={f.type || "text"}
-                    placeholder={f.placeholder}
-                    value={values[f.key] || ""}
-                    onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
-                  />
-                </div>
-              ))}
-              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
-                {saving ? "Saving…" : "Save & Refresh"}
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      <div className="pd-form-actions">
+        <Button variant="primary" size="small" disabled={saving} onClick={handleSave}>
+          {saving ? "Saving…" : "Save & refresh draft"}
+        </Button>
+      </div>
+    </Section>
   );
 }
 
@@ -332,479 +312,391 @@ export default function PreauthDraft({ ctx }) {
   const hasMissingDocs = draft?.supporting_documents?.some((d) => !d.optional && !d.url);
   const canSubmit = !hasMissingFields && !hasMissingDocs && !submitting;
 
+  const docs = draft?.supporting_documents || [];
+  const requiredDocs = docs.filter((d) => !d.optional);
+  const attachedRequired = requiredDocs.filter((d) => d.url).length;
+  const eligibility = draft?.eligibility;
+  const accommodation = draft?.accommodation || {};
+  const justification = [
+    ["Chief complaints", draft?.chief_complaints],
+    ["Clinical findings", draft?.clinical_findings],
+    ["Investigations", draft?.investigations],
+    ["Medications", draft?.medications],
+  ].filter(([, codes]) => codes?.length > 0);
+
+  // What still stands between this draft and the payer, in reading order.
+  const readiness = [
+    { label: "Patient details", ok: patientContextMissing.length === 0, note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null },
+    { label: "Diagnosis with a principal", ok: displayDiagnoses.length > 0 && displayDiagnoses.some((d) => d.primary) && !hisBlockers.some((f) => /diagnos/i.test(f)) },
+    { label: "Billable line items", ok: displayItems.length > 0 && effectiveTotal > 0 && !hisBlockers.some((f) => /items/i.test(f)) },
+    { label: "Required documents", ok: !hasMissingDocs, note: requiredDocs.length ? `${attachedRequired} of ${requiredDocs.length}` : null },
+    { label: "Eligibility checked", ok: !eligibility || eligibility.status === "complete", soft: true, note: eligibility && eligibility.status !== "complete" ? "incomplete" : null },
+  ];
+  const blocking = readiness.filter((r) => !r.ok && !r.soft).length;
+
+  const fieldRow = (label, value, opts = {}) => ({ label, value, ...opts });
+  // Procedures already billed as a line item are shown there; list the rest.
+  const billedCodes = new Set(displayItems.map((it) => String(it.service_code)));
+  const unbilledProcedures = (draft?.procedures || []).filter((p) => !billedCodes.has(String(p.code)));
+
   return (
-    <div className="wizard-step">
+    <div className="wizard-step pd-screen">
       {preauthAlreadyLive && (
-        <div className="ep-moved-banner">
-          <CheckCircle2 size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: "1px" }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: "13.5px" }}>
-              Preauth is already submitted for this case
-            </div>
-            <div style={{ fontSize: "12.5px", color: "var(--text-muted)", marginTop: "2px" }}>
-              {movedOnLabel
-                ? `The case has already moved on to ${movedOnLabel}. `
-                : ""}
-              The draft below is rebuilt from current records — submitting again sends the payer a
-              fresh preauth for this case.
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-            <Button
-              variant="outline"
-              size="small"
-              icon={Send}
-              disabled={!canSubmit}
-              onClick={handleSubmit}
-            >
-              {submitting ? "Re-submitting…" : "Re-submit Preauth"}
-            </Button>
-            {movedOn && (
-              <Button variant="primary" size="small" onClick={() => navigate(`../${movedOn}`)}>
-                Continue to {movedOnLabel}
-                <ArrowRight size={15} style={{ marginLeft: "6px" }} />
-              </Button>
-            )}
-          </div>
+        <div className="ep-notice">
+          A preauth has already been submitted for this case
+          {movedOnLabel ? ` and it has moved on to ${movedOnLabel}` : ""}. This draft is rebuilt from current
+          records; submitting again sends the payer a fresh preauth.
+          {movedOn && (
+            <button type="button" className="pd-inline-link" onClick={() => navigate(`../${movedOn}`)}>
+              Go to {movedOnLabel} →
+            </button>
+          )}
         </div>
       )}
       {hisBlockers.length > 0 && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
-          <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: "1px" }} />
-          <div>
-            <strong style={{ color: "var(--error)" }}>Clinical / billing data is incomplete.</strong>
-            {" "}Diagnosis codes and billing items are missing. Please complete clinical and billing records in the HIS before submitting preauth.
-            <div style={{ marginTop: "6px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              {hisBlockers.map((f, i) => (
-                <span key={i} className="badge-modern badge-error" style={{ fontSize: "11px" }}>{f}</span>
-              ))}
-            </div>
-          </div>
+        <div className="ep-notice is-bad">
+          <strong>Clinical or billing records are incomplete</strong> ({hisBlockers.join(", ")}). Complete them in the
+          HIS, then reload this draft.
         </div>
       )}
-      {patientContextMissing.length > 0 && (
-        <PatientContextForm
-          claimId={draft?.claim_id || claim_id}
-          cashlessCaseId={cashless_case_id}
-          missingFields={patientContextMissing}
-          onResolved={(remaining) => {
-            setMissingFields(remaining);
-            if (remaining.length === 0) loadDraft();
-          }}
-        />
-      )}
-
-      {draft?.eligibility && draft.eligibility.status !== "complete" && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-4)", fontSize: "13px", color: "var(--text-main)" }}>
-          <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: "1px" }} />
-          <span><strong>Benefits data from insurer is unavailable.</strong> Coverage details may be incomplete - the preauth draft was built from available eligibility data.</span>
+      {eligibility && eligibility.status !== "complete" && (
+        <div className="ep-notice is-warn">
+          Eligibility is incomplete. The draft was built from the eligibility data available so far.
         </div>
       )}
 
-      <div className="grid-1-to-3" style={{ gap: "var(--space-6)" }}>
-        {/* ── Left rail ── */}
-        <div style={{ gridColumn: "span 1", display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-
-          {/* Patient & Admission */}
-          <Card title="Patient & Admission">
-            <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)" }}>
-              <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "var(--primary-light)", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "18px" }}>
-                <User size={20} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 700 }}>{draft?.patient?.name}</div>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                  {draft?.patient?.gender} · DOB: {draft?.patient?.dob}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: "var(--space-6)", fontSize: "13px" }}>
-              <div>
-                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Admission</div>
-                <div style={{ fontWeight: 600 }}>{draft?.admission_date || "-"}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>ABHA</div>
-                <div style={{ fontWeight: 600 }}>{draft?.patient?.abha || "-"}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Member ID</div>
-                <div style={{ fontWeight: 600 }}>{draft?.patient?.member_id || "-"}</div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Payer & policy now live in the case identity strip — not repeated here. */}
-
-          {/* Accommodation */}
-          {draft?.accommodation && (
-            <Card title="Accommodation">
-              <div style={{ display: "flex", gap: "var(--space-6)", flexWrap: "wrap", fontSize: "13px" }}>
-                {["ward", "specialty", "room", "bed_code"].map((key) => (
-                  draft.accommodation[key] != null && (
-                    <div key={key}>
-                      <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>
-                        {key.replace("_", " ")}
-                      </div>
-                      <div style={{ fontWeight: 600 }}>{draft.accommodation[key]}</div>
-                    </div>
-                  )
-                ))}
-              </div>
-            </Card>
+      <div className="pd-layout">
+        <div className="pd-main">
+          {patientContextMissing.length > 0 && (
+            <PatientContextForm
+              claimId={draft?.claim_id || claim_id}
+              cashlessCaseId={cashless_case_id}
+              missingFields={patientContextMissing}
+              onResolved={(remaining) => {
+                setMissingFields(remaining);
+                if (remaining.length === 0) loadDraft();
+              }}
+            />
           )}
 
-          {/* Eligibility Summary */}
-          {draft?.eligibility && (
-            <Card title="Eligibility Summary">
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ color: "var(--text-muted)" }}>Status</span>
-                  <span className={`badge-modern ${draft.eligibility.status === "complete" ? "badge-success" : "badge-warning"}`}>
-                    {draft.eligibility.status}
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ color: "var(--text-muted)" }}>validation</span>
-                  <span style={{ fontWeight: 700, color: draft.eligibility.inforce ? "var(--success)" : "var(--error)" }}>
-                    {draft.eligibility.inforce === true ? "Yes" : draft.eligibility.inforce === false ? "No" : "-"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ color: "var(--text-muted)" }}>auth-requirements</span>
-                  <span style={{ fontWeight: 700, color: draft.eligibility.auth_required ? "var(--warning)" : "var(--success)" }}>
-                    {draft.eligibility.auth_required === true ? "Yes" : draft.eligibility.auth_required === false ? "No" : "-"}
-                  </span>
-                </div>
-                {draft.eligibility.correlation_id && (
-                  <div style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "monospace", wordBreak: "break-all" }}>
-                    {draft.eligibility.correlation_id}
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
+          <Section id="pd-admission" title="Admission">
+            <Fields
+              cols={3}
+              rows={[
+                fieldRow("Admission date", draft?.admission_date ? formatDate(draft.admission_date) : null),
+                fieldRow("Discharge date", draft?.discharge_date ? formatDate(draft.discharge_date) : "Not discharged"),
+                fieldRow("Encounter", draft?.inpatient === false ? "Out-patient" : "In-patient"),
+                fieldRow("Priority", draft?.urgent ? "Urgent" : "Routine"),
+                fieldRow("Ward", accommodation.ward),
+                fieldRow("Specialty", accommodation.specialty),
+                fieldRow("Room", accommodation.room),
+                fieldRow("Bed", accommodation.bed_code, { mono: true }),
+              ]}
+            />
+          </Section>
 
-          {/* Clinical Information */}
-          <Card title="Clinical Information">
-            {/* Procedures (read-only) */}
-            {draft?.procedures?.length > 0 && (
-              <div style={{ marginBottom: "var(--space-4)" }}>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-2)", textTransform: "uppercase" }}>Procedures</div>
-                {draft.procedures.map((proc, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", padding: "8px 12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px" }}>
-                    <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{proc.code}</span>
-                    <span style={{ fontSize: "13px", fontWeight: 600 }}>{proc.name}</span>
-                    {proc.date && (
-                      <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--text-muted)" }}>{proc.date}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Clinical justification chips (read-only, auto-attached) */}
-            {[
-              ["Chief Complaints", draft?.chief_complaints],
-              ["Clinical Findings", draft?.clinical_findings],
-              ["Medications", draft?.medications],
-              ["Investigations", draft?.investigations],
-            ].map(([label, codes]) => codes?.length > 0 && (
-              <div key={label} style={{ marginBottom: "var(--space-4)" }}>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-2)", textTransform: "uppercase" }}>{label}</div>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {codes.map((c, i) => (
-                    <span key={i} className="badge-modern badge-info" style={{ fontSize: "11px" }}>{c.name || c.code}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Diagnoses (editable) */}
-            <div style={{ marginBottom: "var(--space-4)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Diagnoses</div>
-                <button
-                  onClick={addDiagnosis}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "12px", fontWeight: 700, padding: "2px 6px" }}
-                >
-                  <Plus size={13} /> Add
-                </button>
-              </div>
-              <AnimatePresence>
-                {displayDiagnoses.map((diag, i) => (
-                  <motion.div
-                    key={diag._uid ?? `d-${i}`}
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    style={{ overflow: "hidden" }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", padding: "8px 10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "6px", background: "var(--bg-card)" }}>
-                      <input
-                        className="input-modern"
-                        style={{ width: "90px", fontSize: "12px", padding: "4px 8px" }}
-                        placeholder="Code"
-                        value={diag.code ?? ""}
-                        onChange={(e) => updateDiagnosis(i, "code", e.target.value)}
-                      />
-                      <select
-                        className="input-modern"
-                        style={{ width: "108px", fontSize: "12px", padding: "4px 6px", opacity: diag.code ? 1 : 0.5 }}
-                        disabled={!diag.code}
-                        value={effectiveSystem(diag)}
-                        onChange={(e) => updateDiagnosis(i, "code_system", e.target.value)}
-                        title={diag.code ? "Terminology this code belongs to" : "Enter a code first"}
-                      >
-                        {!diag.code && <option value="">—</option>}
-                        {CODE_SYSTEMS.map((sys) => (
-                          <option key={sys.value} value={sys.value}>{sys.label}</option>
-                        ))}
-                      </select>
-                      <input
-                        className="input-modern"
-                        style={{ flex: 1, fontSize: "12px", padding: "4px 8px" }}
-                        placeholder="Diagnosis name"
-                        value={diag.name ?? ""}
-                        onChange={(e) => updateDiagnosis(i, "name", e.target.value)}
-                      />
-                      <label
-                        style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: diag.primary ? "var(--success)" : "var(--text-muted)", whiteSpace: "nowrap", cursor: "pointer" }}
-                        title="Principal diagnosis — exactly one per claim"
-                      >
-                        <input
-                          type="radio"
-                          name="primary-diagnosis"
-                          style={{ cursor: "pointer", margin: 0 }}
-                          checked={!!diag.primary}
-                          onChange={() => setPrimaryDiagnosis(i)}
-                        />
-                        PRIMARY
-                      </label>
-                      <button
-                        onClick={() => removeDiagnosis(i)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", padding: "2px", display: "flex", flexShrink: 0, transition: "transform 0.15s ease" }}
-                        onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-                        onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-
-            {/* Line Items (editable) */}
-            <div>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-2)", textTransform: "uppercase" }}>Line Items</div>
-              <div className="table-responsive-wrapper">
-                <table className="table-modern" style={{ fontSize: "13px" }}>
+          <Section
+            id="pd-diagnosis"
+            title="Diagnosis"
+            meta={
+              <button type="button" className="ep-action" onClick={addDiagnosis}>
+                <Plus size={13} /> Add diagnosis
+              </button>
+            }
+          >
+            {displayDiagnoses.length ? (
+              <div className="ep-table-wrap">
+                <table className="ep-table pd-edit-table">
                   <thead>
                     <tr>
-                      <th>Service</th>
-                      <th>Qty</th>
-                      <th>Unit Price</th>
-                      <th style={{ textAlign: "right" }}>Net Amount</th>
+                      <th style={{ width: 120 }}>Code</th>
+                      <th style={{ width: 130 }}>System</th>
+                      <th>Description</th>
+                      <th style={{ width: 90 }}>Principal</th>
+                      <th style={{ width: 44 }} aria-label="Remove" />
                     </tr>
                   </thead>
                   <tbody>
-                    {displayItems.map((item, i) => (
-                      <tr key={i}>
-                        <td>{item.service_name} <code style={{ fontSize: "11px" }}>({item.service_code})</code></td>
+                    {displayDiagnoses.map((diag, i) => (
+                      <tr key={diag._uid ?? `d-${i}`}>
                         <td>
                           <input
-                            className="input-modern"
-                            style={{ width: "60px", fontSize: "12px", padding: "4px 6px" }}
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(i, "quantity", e.target.value)}
+                            className="input-modern pd-input ep-mono"
+                            placeholder="Code"
+                            aria-label="Diagnosis code"
+                            value={diag.code ?? ""}
+                            onChange={(e) => updateDiagnosis(i, "code", e.target.value)}
                           />
                         </td>
                         <td>
+                          <select
+                            className="input-modern pd-input"
+                            disabled={!diag.code}
+                            value={effectiveSystem(diag)}
+                            onChange={(e) => updateDiagnosis(i, "code_system", e.target.value)}
+                            title={diag.code ? "Terminology this code belongs to" : "Enter a code first"}
+                            aria-label="Code system"
+                          >
+                            {!diag.code && <option value="">—</option>}
+                            {CODE_SYSTEMS.map((sys) => (
+                              <option key={sys.value} value={sys.value}>{sys.label}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
                           <input
-                            className="input-modern"
-                            style={{ width: "90px", fontSize: "12px", padding: "4px 6px" }}
-                            type="number"
-                            min="0"
-                            value={item.unit_price}
-                            onChange={(e) => updateItem(i, "unit_price", e.target.value)}
+                            className="input-modern pd-input"
+                            placeholder="Diagnosis description"
+                            aria-label="Diagnosis description"
+                            value={diag.name ?? ""}
+                            onChange={(e) => updateDiagnosis(i, "name", e.target.value)}
                           />
                         </td>
-                        <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
+                        <td>
+                          <label className="pd-radio" title="Principal diagnosis — exactly one per claim">
+                            <input
+                              type="radio"
+                              name="primary-diagnosis"
+                              checked={!!diag.primary}
+                              onChange={() => setPrimaryDiagnosis(i)}
+                            />
+                            {diag.primary ? "Principal" : ""}
+                          </label>
+                        </td>
+                        <td>
+                          <button type="button" className="pd-icon-btn" onClick={() => removeDiagnosis(i)} aria-label="Remove diagnosis">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan="3" style={{ textAlign: "right", fontWeight: 700 }}>Total Billed</td>
-                      <td className="num-cell" style={{ fontWeight: 800, color: "var(--primary)", fontSize: "15px" }}>
-                        {formatMoney(effectiveTotal)}
-                      </td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
-            </div>
-          </Card>
+            ) : (
+              <div className="ep-muted ep-pad">No diagnosis on record. Add the principal diagnosis before submitting.</div>
+            )}
+          </Section>
 
-          {/* Care Team */}
+          <Section id="pd-treatment" title="Treatment & cost" meta={editedItems ? "Edited — amount recomputed from the lines below" : null}>
+            {unbilledProcedures.length > 0 && (
+              <Fields
+                cols={1}
+                rows={unbilledProcedures.map((p, i) =>
+                  fieldRow(i === 0 ? "Procedures not billed" : " ", `${p.name}${p.date ? ` · ${formatDate(p.date)}` : ""}`, { sub: p.code }),
+                )}
+              />
+            )}
+            <div className="ep-table-wrap">
+              <table className="ep-table pd-edit-table">
+                <thead>
+                  <tr>
+                    <th>Service</th>
+                    <th style={{ width: 90 }}>Qty</th>
+                    <th style={{ width: 140 }}>Unit price</th>
+                    <th className="ep-num" style={{ width: 140 }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayItems.map((item, i) => (
+                    <tr key={i}>
+                      <td>
+                        <div className="ep-strong">{item.service_name}</div>
+                        <div className="ep-muted">
+                          {[item.service_code, item.category, item.service_start_date && formatDate(item.service_start_date)].filter(Boolean).join(" · ")}
+                        </div>
+                      </td>
+                      <td>
+                        <input
+                          className="input-modern pd-input ep-mono"
+                          type="number"
+                          min="1"
+                          aria-label="Quantity"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(i, "quantity", e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="input-modern pd-input ep-mono"
+                          type="number"
+                          min="0"
+                          aria-label="Unit price"
+                          value={item.unit_price}
+                          onChange={(e) => updateItem(i, "unit_price", e.target.value)}
+                        />
+                      </td>
+                      <td className="ep-num ep-mono">{formatMoney(item.net_amount)}</td>
+                    </tr>
+                  ))}
+                  {!displayItems.length && (
+                    <tr>
+                      <td colSpan={4} className="ep-muted">No billable items on record.</td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="pd-total-row">
+                    <td colSpan={3}>Amount requested</td>
+                    <td className="ep-num ep-mono">{formatMoney(effectiveTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </Section>
+
+          <Section id="pd-justification" title="Clinical justification" meta="Coded from the clinical notes; sent with the request">
+            {justification.length ? (
+              <Fields
+                cols={1}
+                rows={justification.map(([label, codes]) => fieldRow(label, codes.map((c) => c.name || c.code).join(", ")))}
+              />
+            ) : (
+              <div className="ep-muted ep-pad">No coded complaints, findings, investigations or medications on the clinical note.</div>
+            )}
+          </Section>
+
           {displayCareTeam.length > 0 && (
-            <Card title="Care Team">
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-2)" }}>
-                <button
-                  onClick={() => setCareTeamEditMode((p) => !p)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "12px", fontWeight: 700, padding: "2px 6px" }}
-                >
+            <Section
+              id="pd-team"
+              title="Treating team"
+              meta={
+                <button type="button" className="ep-action" onClick={() => setCareTeamEditMode((p) => !p)}>
                   {careTeamEditMode ? <><CheckCircle2 size={13} /> Done</> : <><Edit2 size={13} /> Edit</>}
                 </button>
-              </div>
-              {displayCareTeam.map((doc, i) => (
-                <div key={i} style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start", padding: "10px 0", borderBottom: "1px solid var(--border-color)" }}>
-                  <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "var(--primary-light)", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "14px", flexShrink: 0 }}>
-                    {doc.doc_name?.[0]?.toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    {careTeamEditMode ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <input
-                          className="input-modern"
-                          style={{ fontSize: "13px", padding: "4px 8px" }}
-                          placeholder="Doctor name"
-                          value={doc.doc_name || ""}
-                          onChange={(e) => updateCareTeamMember(i, "doc_name", e.target.value)}
-                        />
-                        <input
-                          className="input-modern"
-                          style={{ fontSize: "13px", padding: "4px 8px" }}
-                          placeholder="Speciality"
-                          value={doc.speciality_display || doc.speciality || ""}
-                          onChange={(e) => updateCareTeamMember(i, "speciality_display", e.target.value)}
-                        />
-                        <input
-                          className="input-modern"
-                          style={{ fontSize: "13px", padding: "4px 8px" }}
-                          placeholder="Registration number"
-                          value={doc.registration_no || ""}
-                          onChange={(e) => updateCareTeamMember(i, "registration_no", e.target.value)}
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ fontWeight: 700, fontSize: "14px" }}>{doc.doc_name}</div>
-                        <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                          {doc.speciality_display || doc.speciality}
-                          {doc.registration_no && ` · Reg: ${doc.registration_no}`}
-                        </div>
-                        {doc.role && (
-                          <span className="badge-modern badge-info" style={{ fontSize: "10px", marginTop: "var(--space-1)" }}>{doc.role}</span>
+              }
+            >
+              <div className="ep-table-wrap">
+                <table className="ep-table pd-edit-table">
+                  <thead>
+                    <tr>
+                      <th>Doctor</th>
+                      <th>Speciality</th>
+                      <th>Registration no.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayCareTeam.map((doc, i) => (
+                      <tr key={i}>
+                        {careTeamEditMode ? (
+                          <>
+                            <td>
+                              <input className="input-modern pd-input" aria-label="Doctor name" placeholder="Doctor name" value={doc.doc_name || ""} onChange={(e) => updateCareTeamMember(i, "doc_name", e.target.value)} />
+                            </td>
+                            <td>
+                              <input className="input-modern pd-input" aria-label="Speciality" placeholder="Speciality" value={doc.speciality_display || doc.speciality || ""} onChange={(e) => updateCareTeamMember(i, "speciality_display", e.target.value)} />
+                            </td>
+                            <td>
+                              <input className="input-modern pd-input ep-mono" aria-label="Registration number" placeholder="Registration number" value={doc.registration_no || ""} onChange={(e) => updateCareTeamMember(i, "registration_no", e.target.value)} />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td>
+                              <div className="ep-strong">{doc.doc_name || "—"}</div>
+                              {doc.role && <div className="ep-muted">{doc.role}</div>}
+                            </td>
+                            <td>{doc.speciality_display || doc.speciality || "—"}</td>
+                            <td className={doc.registration_no ? "ep-mono" : "is-bad"}>{doc.registration_no || "Missing"}</td>
+                          </>
                         )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </Card>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Section>
           )}
 
-          {/* Discharge Summary — only present once the patient has been discharged */}
+          <Section
+            id="pd-documents"
+            title="Supporting documents"
+            meta={requiredDocs.length ? `${attachedRequired} of ${requiredDocs.length} required attached` : null}
+          >
+            <div className="pd-docs">
+              <DocumentChecklist
+                documents={draft?.supporting_documents}
+                onUpload={handleUpload}
+                onAddDocument={addDocument}
+                onRenameDocument={renameDocument}
+                onRemoveDocument={removeDocument}
+                hideSummary
+              />
+            </div>
+          </Section>
+
           {draft?.discharge_summary && (
-            <Card title="Discharge Summary">
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-                {draft.discharge_summary.condition && (
-                  <div><span style={{ color: "var(--text-muted)" }}>Condition: </span><strong>{draft.discharge_summary.condition}</strong></div>
-                )}
-                {draft.discharge_summary.advice && (
-                  <div><span style={{ color: "var(--text-muted)" }}>Advice: </span>{draft.discharge_summary.advice}</div>
-                )}
-                {draft.discharge_summary.followup_on && (
-                  <div><span style={{ color: "var(--text-muted)" }}>Follow-up: </span>{draft.discharge_summary.followup_on}</div>
-                )}
-                {draft.discharge_summary.summary_html && (
-                  <div style={{ whiteSpace: "pre-wrap" }}>{draft.discharge_summary.summary_html.replace(/<[^>]*>/g, "")}</div>
-                )}
-              </div>
-            </Card>
+            <Section id="pd-discharge" title="Discharge summary">
+              <Fields
+                cols={1}
+                rows={[
+                  fieldRow("Condition", draft.discharge_summary.condition),
+                  fieldRow("Advice", draft.discharge_summary.advice),
+                  fieldRow("Follow-up", draft.discharge_summary.followup_on ? formatDate(draft.discharge_summary.followup_on) : null),
+                  fieldRow("Summary", draft.discharge_summary.summary_html?.replace(/<[^>]*>/g, "")),
+                ]}
+              />
+            </Section>
           )}
+
+          <div className="ep-footer">
+            <Button variant="text" onClick={() => navigate("../prep")}>
+              ← Back to eligibility
+            </Button>
+          </div>
         </div>
 
-        {/* ── Right side ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          <Card title="Required Documents">
-            <DocumentChecklist
-              documents={draft?.supporting_documents}
-              onUpload={handleUpload}
-              onAddDocument={addDocument}
-              onRenameDocument={renameDocument}
-              onRemoveDocument={removeDocument}
-            />
-          </Card>
-
-          <Card>
-            <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
-              <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Total Request</div>
-              <div style={{ fontSize: "32px", fontWeight: 800, color: "var(--primary)" }}>
-                {formatMoney(effectiveTotal)}
+        {/* The request as it will be sent, and the one place to submit it */}
+        <aside className="pd-side">
+          <section className="ep-section pd-request">
+            <header className="ep-section-head">
+              <h3 className="ep-section-title">Preauth request</h3>
+            </header>
+            <div className="pd-amount">
+              <div className="ep-muted">Amount requested</div>
+              <div className="pd-amount-value ep-mono">{formatMoney(effectiveTotal)}</div>
+              <div className="ep-muted">
+                {displayItems.length} line item{displayItems.length === 1 ? "" : "s"}
+                {editedItems ? " · edited" : ""}
               </div>
-              {editedItems && (
-                <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "var(--space-1)" }}>Edited · recomputed from line items</div>
-              )}
             </div>
 
-            {hasMissingFields && (
-              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-                <AlertCircle size={14} />
-                Resolve missing patient attributes above before submitting.
-              </div>
-            )}
+            <ul className="pd-ready" aria-label="Readiness">
+              {readiness.map((r) => (
+                <li key={r.label} className={r.ok ? "is-ok" : r.soft ? "is-soft" : "is-todo"}>
+                  {r.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                  <span>{r.label}</span>
+                  {r.note && <span className="pd-ready-note">{r.note}</span>}
+                </li>
+              ))}
+            </ul>
 
-            {hasMissingDocs && !hasMissingFields && (
-              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-                <AlertCircle size={14} />
-                Upload all required documents before submitting.
-              </div>
-            )}
+            <dl className="pd-sent">
+              <div><dt>Payer</dt><dd>{payer?.name || draft?.payer_id || "—"}</dd></div>
+              <div><dt>Policy</dt><dd className="ep-mono" title={draft?.policy_number}>{draft?.policy_number || "—"}</dd></div>
+              <div><dt>Member ID</dt><dd className="ep-mono">{draft?.patient?.member_id || "—"}</dd></div>
+              <div><dt>ABHA</dt><dd className="ep-mono">{draft?.patient?.abha || "—"}</dd></div>
+              {eligibility?.correlation_id && (
+                <div><dt>Eligibility ref.</dt><dd className="ep-mono" title={eligibility.correlation_id}>{eligibility.correlation_id}</dd></div>
+              )}
+            </dl>
 
-            {submitError && (
-              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "10px", background: "rgba(239,68,68,0.06)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-                <AlertCircle size={14} />
-                {submitError}
-              </div>
-            )}
-
-            <Button
-              variant="primary"
-              className="w-full"
-              icon={Send}
-              disabled={!canSubmit}
-              onClick={handleSubmit}
-              style={{ justifyContent: "center" }}
-            >
-              {submitting ? "Submitting…" : "Submit to Payer"}
-            </Button>
-          </Card>
-        </div>
-      </div>
-
-      {/* Sticky footer: Back · Save Draft · Submit */}
-      <div className="cx-stage-actions">
-        <Button variant="ghost" icon={ArrowLeft} onClick={() => navigate("../prep")}>
-          Back
-        </Button>
-        <div className="cx-stage-actions-group">
-          <Button variant="secondary" icon={Save} onClick={handleSaveDraft}>
-            Save Draft
-          </Button>
-          <Button
-            variant="primary"
-            icon={Send}
-            disabled={!canSubmit}
-            onClick={handleSubmit}
-          >
-            {submitting ? "Submitting…" : "Submit Preauth"}
-          </Button>
-        </div>
+            <div className="pd-submit">
+              {submitError && <div className="ep-notice is-bad">{submitError}</div>}
+              {!submitError && blocking > 0 && (
+                <div className="ep-muted">
+                  {blocking} item{blocking === 1 ? "" : "s"} above must be resolved before submitting.
+                </div>
+              )}
+              <Button variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit} className="pd-submit-btn">
+                {submitting ? "Submitting…" : preauthAlreadyLive ? "Re-submit preauth" : "Submit preauth"}
+              </Button>
+              <button type="button" className="pd-text-btn" onClick={handleSaveDraft}>
+                <Save size={13} /> Save draft
+              </button>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );
