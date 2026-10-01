@@ -13,7 +13,7 @@ import {
   Trash2,
   Paperclip,
 } from "lucide-react";
-import { formatMoney, formatPhone, formatPercent, currencySymbol, safeHref } from "../format.js";
+import { formatMoney, formatPercent, currencySymbol, safeHref } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
 export { formatMoney };
@@ -160,52 +160,6 @@ export const Input = ({
     </div>
   </div>
 );
-
-/**
- * Compact, selectable patient summary row for search/list results: avatar
- * (photo or initial fallback), name, ID/gender/age/mobile meta line, an
- * optional status area (`statusSlot`, e.g. a case status chip + payer), and
- * a cashless-case-count pill when the patient has prior cases.
- * @category Domain
- */
-export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) => {
-  const [photoError, setPhotoError] = useState(false);
-  return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      onClick={onClick}
-      className={`patient-card-modern${isSelected ? " selected" : ""}`}
-    >
-      <div className="patient-card-avatar">
-        {patient.profile_photo && !photoError
-          ? <img src={patient.profile_photo} alt="" onError={() => setPhotoError(true)} />
-          : patient.name?.[0]?.toUpperCase()
-        }
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "3px", color: "var(--text-main)" }}>
-          {patient.name}
-        </div>
-        <div className="patient-card-meta">
-          <span className="mono-cell">#{patient.child_id}</span>
-          <span style={{ textTransform: "capitalize" }}>{patient.gender}</span>
-          {age != null && <span>{age} yrs</span>}
-          {patient.mobile && <span className="mono-cell">{formatPhone(patient.mobile)}</span>}
-        </div>
-        {statusSlot && (
-          <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
-            {statusSlot}
-          </div>
-        )}
-      </div>
-      {patient.cashless_cases_count > 0 && (
-        <div className="patient-card-count">
-          {patient.cashless_cases_count} case{patient.cashless_cases_count !== 1 ? "s" : ""}
-        </div>
-      )}
-    </motion.div>
-  );
-};
 
 // ─── Reusable Flow Components (as per README) ─────────────────────────────
 

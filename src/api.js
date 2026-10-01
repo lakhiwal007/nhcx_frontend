@@ -699,11 +699,7 @@ const mock = {
   // ─── Child / Patient Registry ───────────────────────────────────────────────
   searchChildren: async (params = {}) => {
     await delay(800);
-    return {
-      total_count: 2,
-      limit: 20,
-      offset: 0,
-      children: [
+    const all = [
         {
           child_id: 12,
           name: "Arjun Mehta",
@@ -794,8 +790,15 @@ const mock = {
           },
           visits: [],
         },
-      ],
-    };
+    ];
+    const name = params.name?.toLowerCase();
+    const children = all.filter(
+      (c) =>
+        (params.child_id == null || c.child_id === params.child_id) &&
+        (!params.mobile || c.mobile === params.mobile) &&
+        (!name || c.name.toLowerCase().includes(name)),
+    );
+    return { total_count: children.length, limit: 20, offset: 0, children };
   },
 
   // ─── Payer Search ───────────────────────────────────────────────────────────

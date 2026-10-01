@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, User, Calendar, Phone, ChevronDown, ChevronRight, ChevronLeft,
-  BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle, LayoutGrid, List
+  User, Calendar, Phone, ChevronDown, ChevronRight,
+  BadgeIndianRupee, Plus, ArrowLeft, Activity, AlertCircle
 } from "lucide-react";
 import { api } from "../api";
-import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock, formatMoney } from "./Common";
+import { Card, StatusBadge, Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney } from "./Common";
 import { formatDate, formatPhone, formatCaseRef } from "../format.js";
 import { taskStep } from "../taskRoutes";
 import { resolveCaseStatus } from "../caseStatus.js";
@@ -23,7 +23,7 @@ function CaseStatusChip({ claim }) {
   return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
 }
 
-function PatientDetail({ patient, onBack }) {
+function PatientDetail({ patient }) {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [communications, setCommunications] = useState([]);
@@ -482,11 +482,7 @@ export default function PatientProfile() {
   const [searchQuery, setSearchQuery] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem("registry_viewMode") || "grid");
-  const [sortBy, setSortBy] = useState("newest");
   const [searchParams, setSearchParams] = useSearchParams();
-
-  useEffect(() => { localStorage.setItem("registry_viewMode", viewMode); }, [viewMode]);
 
   const loadChildren = useCallback(async (query = "", pageNum = 1) => {
     setLoading(true);
@@ -535,7 +531,7 @@ export default function PatientProfile() {
     api
       .searchChildren({ child_id: Number(deepLinkChildId) })
       .then((res) => {
-        const full = res?.children?.[0];
+        const full = res?.children?.find((c) => String(c.child_id) === deepLinkChildId);
         if (!cancelled && full) setSelectedPatient(full);
       })
       .catch(() => {})
@@ -563,28 +559,51 @@ export default function PatientProfile() {
     loadChildren(searchQuery, newPage);
   };
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-  const startItem = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const endItem = Math.min(page * PAGE_SIZE, totalCount);
+  if (selectedPatient || loadingDetail) {
+    return (
+      <div className="cc-screen">
+        <div>
+          <Button variant="outline" size="small" icon={ArrowLeft} onClick={clearSelection}>
+            All patients
+          </Button>
+        </div>
+        {selectedPatient ? (
+          <PatientDetail patient={selectedPatient} />
+        ) : (
+          <LoadingBlock text="Loading patient details…" />
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+    <div className="cc-screen">
+      <div className="wq-header">
+        <div>
+          <h1 className="wq-title">Child Registry</h1>
+          <div className="wq-counts">
+            <span>{loading ? "Loading patients…" : `${totalCount} patient${totalCount === 1 ? "" : "s"}`}</span>
+          </div>
+        </div>
+      </div>
+
       {loadError && (
-        <div className="inline-error-banner">
+        <div className="inline-error-banner" style={{ margin: 0 }}>
           <AlertCircle size={16} />
           Could not load patients. Showing the last known results, if any.
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "var(--space-3)", maxWidth: "560px" }}>
-        <div style={{ flex: 1 }}>
-          <Input
-            icon={Search}
-            placeholder="Search by name, ID or mobile…"
+      <div className="wq-panel">
+        <div className="wq-toolbar">
+          <input
+            className="input-modern wq-search"
+            placeholder="Name, ID or mobile — press Enter"
+            aria-label="Search patients"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              if (!e.target.value.trim()) {
+              if (!e.target.value.trim() && hasSearched) {
                 setHasSearched(false);
                 setPage(1);
                 loadChildren("", 1);
@@ -593,203 +612,78 @@ export default function PatientProfile() {
             onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
           />
         </div>
-        
-        <select
-          className="input-modern"
-          style={{ width: "auto", minWidth: "140px" }}
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-        >
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-        </select>
-        
-        <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
-          <button
-            title="Grid View"
-            onClick={() => setViewMode("grid")}
-            style={{ padding: "6px 12px", background: viewMode === "grid" ? "var(--bg-main)" : "transparent", color: viewMode === "grid" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "grid" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "grid" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-          >
-            <LayoutGrid size={16} />
-          </button>
-          <button
-            title="Table View"
-            onClick={() => setViewMode("list")}
-            style={{ padding: "6px 12px", background: viewMode === "list" ? "var(--bg-main)" : "transparent", color: viewMode === "list" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "list" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "list" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-          >
-            <List size={16} />
-          </button>
-        </div>
-        {selectedPatient && (
-          <Button variant="outline" icon={ArrowLeft} onClick={clearSelection}>
-            All Patients
-          </Button>
+
+        {loading ? (
+          <SkeletonTable rows={6} cols={5} />
+        ) : children.length === 0 ? (
+          <EmptyState
+            icon={User}
+            title={hasSearched ? "No patients found" : "No patients registered yet"}
+            description={hasSearched ? "Try a different name, ID or mobile number." : "Registered children will show up here."}
+          />
+        ) : (
+          <div className="wq-table-scroll">
+            <table className="wq-table">
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Mobile</th>
+                  <th>Latest case</th>
+                  <th>Cases</th>
+                </tr>
+              </thead>
+              <tbody>
+                {children.map((child) => {
+                  const age = calculateAge(child.dob);
+                  const claim = child.latest_claim;
+                  return (
+                    <tr
+                      key={child.child_id}
+                      tabIndex={0}
+                      title="Open patient"
+                      onClick={() => handleSelectPatient(child)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSelectPatient(child); }}
+                    >
+                      <td>
+                        <div className="cc-patient">{child.name}</div>
+                        <div className="wq-sub">
+                          {[`#${child.child_id}`, child.gender && child.gender[0].toUpperCase() + child.gender.slice(1), age !== null && `${age} yrs`]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      </td>
+                      <td className="wq-mono">{child.mobile ? formatPhone(child.mobile) : "—"}</td>
+                      <td>
+                        {claim ? (
+                          <>
+                            <CaseStatusChip claim={claim} />
+                            {(claim.payer_name || claim.payer_id) && <div className="wq-sub">{claim.payer_name || claim.payer_id}</div>}
+                          </>
+                        ) : (
+                          <span className="ep-muted">No cases</span>
+                        )}
+                      </td>
+                      <td className="wq-mono">{child.cashless_cases_count ?? (claim ? 1 : 0)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {!loading && children.length > 0 && (
+          <div className="wq-pagination">
+            <TablePagination
+              page={page - 1}
+              pageSize={PAGE_SIZE}
+              total={totalCount}
+              onPageChange={(p) => handlePageChange(p + 1)}
+              label="patients"
+            />
+          </div>
         )}
       </div>
-
-      {selectedPatient ? (
-        <PatientDetail patient={selectedPatient} onBack={clearSelection} />
-      ) : (
-        <div>
-          {loading || loadingDetail ? (
-            <LoadingBlock text={loadingDetail ? "Loading patient details…" : "Loading patients…"} />
-          ) : children.length === 0 ? (
-            <EmptyState
-              icon={User}
-              title={hasSearched ? "No patients found" : "Search for a patient"}
-              description={
-                hasSearched
-                  ? "Try a different name or ID number."
-                  : "Enter a patient name or ID number above and click Search."
-              }
-            />
-          ) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
-                <span style={{ fontSize: "13px", color: "var(--text-muted)", fontWeight: 600 }}>
-                  Showing {startItem}–{endItem} of {totalCount} patient{totalCount !== 1 ? "s" : ""}
-                </span>
-                {totalPages > 1 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                    <button
-                      onClick={() => handlePageChange(page - 1)}
-                      disabled={page === 1}
-                      style={{
-                        display: "flex", alignItems: "center", gap: "var(--space-1)",
-                        padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
-                        border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
-                        color: page === 1 ? "var(--text-muted)" : "var(--text-main)",
-                        cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.5 : 1,
-                      }}
-                    >
-                      <ChevronLeft size={15} /> Prev
-                    </button>
-                    <span style={{ fontSize: "13px", color: "var(--text-muted)", minWidth: "80px", textAlign: "center" }}>
-                      Page {page} of {totalPages}
-                    </span>
-                    <button
-                      onClick={() => handlePageChange(page + 1)}
-                      disabled={page === totalPages}
-                      style={{
-                        display: "flex", alignItems: "center", gap: "var(--space-1)",
-                        padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
-                        border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
-                        color: page === totalPages ? "var(--text-muted)" : "var(--text-main)",
-                        cursor: page === totalPages ? "not-allowed" : "pointer", opacity: page === totalPages ? 0.5 : 1,
-                      }}
-                    >
-                      Next <ChevronRight size={15} />
-                    </button>
-                  </div>
-                )}
-              </div>
-              {viewMode === "grid" ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: "10px" }}>
-                  {[...children].sort((a,b) => sortBy === "oldest" ? Date.parse(a.created_at) - Date.parse(b.created_at) : Date.parse(b.created_at) - Date.parse(a.created_at)).map((child) => (
-                    <PatientCard
-                      key={child.child_id}
-                      patient={child}
-                      age={calculateAge(child.dob)}
-                      isSelected={selectedPatient?.child_id === child.child_id}
-                      onClick={() => handleSelectPatient(child)}
-                      statusSlot={child.latest_claim && (
-                        <>
-                          <CaseStatusChip claim={child.latest_claim} />
-                          {(child.latest_claim.payer_name || child.latest_claim.payer_id) && (
-                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id}</span>
-                          )}
-                        </>
-                      )}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <Card style={{ padding: 0, overflow: "hidden" }}>
-                  <div className="table-responsive-wrapper">
-                    <table className="table-modern" style={{ tableLayout: "fixed" }}>
-                      <thead>
-                        <tr>
-                          <th style={{ width: "22%" }}>Patient Name</th>
-                          <th style={{ width: "8%" }}>ID</th>
-                          <th style={{ width: "8%" }}>Gender</th>
-                          <th style={{ width: "8%" }}>Age</th>
-                          <th style={{ width: "12%" }}>Mobile</th>
-                          <th style={{ width: "32%" }}>Latest Case</th>
-                          <th style={{ width: "10%" }}>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...children].sort((a,b) => sortBy === "oldest" ? Date.parse(a.created_at) - Date.parse(b.created_at) : Date.parse(b.created_at) - Date.parse(a.created_at)).map((child) => {
-                          const age = calculateAge(child.dob);
-                          return (
-                            <tr key={child.child_id} onClick={() => handleSelectPatient(child)} style={{ cursor: "pointer" }}>
-                              <td style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{child.name}</td>
-                              <td className="mono-cell" style={{ fontSize: "12px", color: "var(--text-muted)" }}>#{child.child_id}</td>
-                              <td style={{ textTransform: "capitalize" }}>{child.gender}</td>
-                              <td>{age !== null ? `${age} yrs` : "-"}</td>
-                              <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatPhone(child.mobile)}</td>
-                              <td>
-                                {child.latest_claim ? (
-                                  <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
-                                    <CaseStatusChip claim={child.latest_claim} />
-                                    {(child.latest_claim.payer_name || child.latest_claim.payer_id) && (
-                                      <span style={{ fontSize: "11px", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{child.latest_claim.payer_name || child.latest_claim.payer_id}</span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>No Cases</span>
-                                )}
-                              </td>
-                              <td>
-                                <Button variant="outline" size="small" onClick={(e) => { e.stopPropagation(); handleSelectPatient(child); }}>
-                                  View
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              )}
-              {totalPages > 1 && (
-                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "var(--space-2)", marginTop: "var(--space-5)" }}>
-                  <button
-                    onClick={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "var(--space-1)",
-                      padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
-                      border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
-                      color: page === 1 ? "var(--text-muted)" : "var(--text-main)",
-                      cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.5 : 1,
-                    }}
-                  >
-                    <ChevronLeft size={15} /> Prev
-                  </button>
-                  <span style={{ fontSize: "13px", color: "var(--text-muted)", minWidth: "80px", textAlign: "center" }}>
-                    Page {page} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "var(--space-1)",
-                      padding: "6px 12px", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 600,
-                      border: "1.5px solid var(--border-color)", background: "var(--bg-card)",
-                      color: page === totalPages ? "var(--text-muted)" : "var(--text-main)",
-                      cursor: page === totalPages ? "not-allowed" : "pointer", opacity: page === totalPages ? 0.5 : 1,
-                    }}
-                  >
-                    Next <ChevronRight size={15} />
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
