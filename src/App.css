@@ -2976,6 +2976,179 @@ select.pd-input {
     }
 }
 
+/* ─── Preauth decision (PreauthStatus) ─────────────────────────────────────
+   Reuses the case-file sections and the preauth request panel; adds the
+   verdict line, the amount statement and the action list. */
+.ds-verdict {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 4px;
+}
+
+.ds-verdict.is-ok .ep-dot { background: var(--success); }
+.ds-verdict.is-warn .ep-dot { background: var(--warning); }
+.ds-verdict.is-bad .ep-dot { background: var(--error); }
+
+.ds-verdict-label {
+    font-size: 16px;
+    font-weight: var(--fw-semibold);
+}
+
+.ds-verdict.is-bad .ds-verdict-label {
+    color: var(--error);
+}
+
+.ds-spinner {
+    width: 14px !important;
+    height: 14px !important;
+    border-width: 2px !important;
+    margin: 0 0 0 auto !important;
+}
+
+.ds-ref {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 16px 12px;
+    font-size: 12.5px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ds-actions {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-color);
+}
+
+.ds-actions li {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ds-actions button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 9px 2px;
+    border: none;
+    background: none;
+    color: var(--text-main);
+    font: var(--fw-medium) 13px var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+}
+
+.ds-actions button svg {
+    color: var(--text-muted);
+}
+
+.ds-actions button:hover:not(:disabled) {
+    color: var(--primary);
+}
+
+.ds-actions button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
+
+.ds-actions button.is-danger,
+.ds-actions button.is-danger svg {
+    color: var(--error);
+}
+
+.ep-table.ds-lines-table {
+    min-width: 540px;
+}
+
+.ds-lines-table th,
+.ds-lines-table td {
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.ds-lines-table th:first-child,
+.ds-lines-table td:first-child {
+    padding-left: 16px;
+}
+
+/* Destructive confirm (Button ignores inline style, so this is a class) */
+.btn-modern.ds-danger-btn,
+.btn-modern.ds-danger-btn:hover:not(:disabled) {
+    background: var(--error);
+    border-color: var(--error);
+    box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--error) 45%, transparent);
+}
+
+/* Requested → approved statement */
+.ds-statement {
+    margin: 0;
+    padding: 6px 16px 10px;
+}
+
+.ds-statement > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 13px;
+}
+
+.ds-statement > div:last-child {
+    border-bottom: none;
+}
+
+.ds-statement dt {
+    color: var(--text-main);
+}
+
+.ds-statement dd {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.ds-statement > div.is-total {
+    border-top: 1px solid var(--text-main);
+    font-weight: var(--fw-semibold);
+}
+
+.ds-notes {
+    margin: 0;
+    padding: 6px 16px 10px;
+    list-style: none;
+}
+
+.ds-notes li {
+    display: flex;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 13px;
+}
+
+.ds-notes li:last-child {
+    border-bottom: none;
+}
+
+.ds-notice-in {
+    margin: 0 16px 14px;
+}
+
+.ds-empty {
+    margin: 0;
+    padding: 12px 16px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.ds-empty-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px 16px;
+}
+
 /* ─── Payment table summary row ──────────────────────────────────────────── */
 .table-modern tfoot tr td {
     font-weight: 700;

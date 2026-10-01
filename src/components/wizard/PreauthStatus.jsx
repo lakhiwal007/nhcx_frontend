@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { usePoll } from "../../hooks/usePoll";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, RefreshCw, PlusCircle, AlertCircle, X, Radio, Wifi, Send } from "lucide-react";
+import { ArrowRight, RefreshCw, PlusCircle, X, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
-import { Card, Button, DecisionBanner, AmountGrid, StatusBadge, DocumentChecklist, QueryResponseFields, formatMoney } from "../Common";
-import { formatDate } from "../../format.js";
+import { Button, QueryResponseFields, formatMoney } from "../Common";
+import { formatDate, formatDateTime } from "../../format.js";
+import { Section, Fields } from "../case/CaseFile";
 import { buildQueryResponseBody, documentFromFile } from "../../queryResponse.js";
 import PayrErrorList from "../PayrErrorList";
 import PreauthEnhancement from "./PreauthEnhancement";
@@ -53,7 +54,7 @@ function Drawer({ open, onClose, title, children }) {
             style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: "min(520px, 95vw)", zIndex: 91, display: "flex", flexDirection: "column" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--border-color)" }}>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>{title}</h3>
+              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>{title}</h3>
               <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
                 <X size={22} />
               </button>
@@ -89,7 +90,7 @@ function ConfirmModal({ open, onClose, title, children }) {
             style={{ position: "relative", width: "100%", maxWidth: "500px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-5)" }}>
-              <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h3>
+              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>{title}</h3>
               <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
                 <X size={22} />
               </button>
@@ -393,313 +394,350 @@ export default function PreauthStatus({ ctx }) {
 
   if (!correlationId) {
     return (
-      <div className="wizard-step">
-        <Card>
-          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
-            <AlertCircle size={22} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: "6px" }}>No preauth submission found for this session</div>
-              <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 16px" }}>
-                If you submitted a preauth earlier, the result will appear in your Work Queue when the payer responds. You can also go back and resubmit from the Preauth Draft screen.
-              </p>
-              <div style={{ display: "flex", gap: "var(--space-3)" }}>
-                <Button variant="primary" onClick={() => navigate("/work-queue")}>Go to Work Queue</Button>
-                <Button variant="outline" onClick={() => navigate("../review")}>Back to Preauth Draft</Button>
-              </div>
-            </div>
+      <div className="wizard-step pd-screen">
+        <Section id="ds-none" title="No preauth found for this case">
+          <p className="ds-empty">
+            If a preauth was submitted earlier, its result will appear in the Work Queue when the payer responds.
+            You can also submit one from the preauth draft.
+          </p>
+          <div className="ds-empty-actions">
+            <Button variant="primary" size="small" onClick={() => navigate("../review")}>
+              Open preauth draft
+            </Button>
+            <Button variant="outline" size="small" onClick={() => navigate("/work-queue")}>
+              Go to Work Queue
+            </Button>
           </div>
-        </Card>
+        </Section>
       </div>
     );
   }
 
+  const totals = statusData?.totals || {};
+  const approvedValue = totals.benefit?.value ?? totals.eligible?.value ?? null;
+  const requestedValue = totals.submitted?.value ?? null;
+  const notesByNumber = Object.fromEntries((statusData?.process_notes || []).map((n) => [n.number, n.text]));
+  const adjItems = statusData?.claim_items?.length > 0 ? statusData.claim_items : statusData?.items || [];
+  const deductibleTotal = adjItems.reduce((sum, it) => sum + (Number(it.adjudication?.deductible?.value) || 0), 0);
+  const outcome = statusData?.outcome;
+  // Guard against a mis-classified decision hiding behind a confident verdict:
+  // prefer the wrapper's own `ambiguous` flag from the decision event; fall
+  // back to an approval whose raw FHIR outcome isn't a success signal.
+  const ambiguous =
+    preauthProvenance?.ambiguous ??
+    (isApproved && outcome != null && !["complete", "partial"].includes(String(outcome).toLowerCase()));
+
+  const verdict = isFailed
+    ? { tone: "bad", label: "Not delivered" }
+    : !isComplete
+      ? { tone: "pending", label: statusData?.purpose === "cancel" ? "Awaiting cancellation" : "Awaiting payer" }
+      : isApproved
+        ? { tone: ambiguous ? "warn" : "ok", label: "Approved" }
+        : isPartial
+          ? { tone: "warn", label: "Partially approved" }
+          : isQueried
+            ? { tone: "warn", label: "Query raised" }
+            : isRejected
+              ? { tone: "bad", label: "Rejected" }
+              : isCancelled
+                ? { tone: "pending", label: "Cancelled" }
+                : { tone: "pending", label: "Decision unclear" };
+
+  // Actions are described by id and run from one event handler.
+  const runAction = (id) => {
+    if (id === "claim") navigate("../claim", { state: { claim_id: statusData?.claim_id || caseState.claim_id } });
+    else if (id === "query") setShowQueryDrawer(true);
+    else if (id === "resubmit") setShowResubmitDrawer(true);
+    else if (id === "refresh") restartPoll(correlationId);
+    else if (id === "gateway") handleGatewayStatus();
+    else if (id === "enhance") setShowEnhancement(true);
+    else if (id === "reprocess") navigate("../reprocess");
+    else if (id === "message") setShowSendModal(true);
+    else if (id === "recheck") handleRecheckEligibility();
+    else if (id === "cancel") setShowCancelModal(true);
+  };
+
+  // One primary action per decision; everything else is listed under it.
+  const primary = !isComplete
+    ? null
+    : isApproved || isPartial
+      ? { id: "claim", label: "Proceed to claim", icon: ArrowRight }
+      : isQueried
+        ? { id: "query", label: "Respond to query" }
+        : isRejected
+          ? { id: "resubmit", label: "Resubmit preauth" }
+          : { id: "refresh", label: "Refresh decision", icon: RefreshCw };
+
+  const secondary = [];
+  if (!isComplete && !isFailed) {
+    secondary.push({ id: "refresh", label: "Refresh now", icon: RefreshCw });
+    if (showGatewayRecovery) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
+  }
+  if (isComplete) {
+    if (isApproved || isPartial) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
+    if (isQueried) secondary.push({ id: "resubmit", label: "Resubmit with corrections" });
+    if (isPartial) secondary.push({ id: "resubmit", label: "Resubmit preauth" });
+    if ((isRejected || isPartial) && hasClaimContext) secondary.push({ id: "reprocess", label: "Appeal / reprocess" });
+    if ((isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED)
+      secondary.push({ id: "message", label: "Message payer", icon: Send });
+    if (isUnknown) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
+  }
+  if (resolvedCashlessCaseId && (isComplete || isFailed)) {
+    secondary.push({
+      id: "recheck",
+      label: recheckingEligibility ? "Re-checking eligibility…" : "Re-check eligibility",
+      icon: RefreshCw,
+      disabled: recheckingEligibility,
+      title: "Refresh sum-insured/coverage data from the payer without affecting the preauth decision",
+    });
+  }
+  const canCancel = isComplete && (isApproved || isPartial);
+
+  // Requested → approved, as a statement.
+  const notEligible = requestedValue != null && totals.eligible?.value != null ? requestedValue - totals.eligible.value : null;
+  const statement = [
+    { label: "Requested", value: requestedValue },
+    notEligible > 0 && { label: "Not eligible", value: -notEligible, note: adjItems.map((it) => it.adjudication?.eligible?.reason).filter(Boolean).join(", ") },
+    totals.copay?.value > 0 && { label: "Co-payment", value: -totals.copay.value, note: totals.copay.reason },
+    deductibleTotal > 0 && { label: "Deductible", value: -deductibleTotal },
+    { label: "Approved", value: approvedValue, total: true },
+  ].filter(Boolean);
+
+  const lineName = (item, i) => {
+    const claimItem = statusData?.claim_items?.[i] || draftData?.editedItems?.[i] || draftData?.items?.[i] || item;
+    return {
+      name: claimItem?.service_name || claimItem?.name || claimItem?.description || `Line ${item.sequence ?? i + 1}`,
+      code: claimItem?.service_code || claimItem?.code || null,
+      claimItem,
+    };
+  };
+
   return (
-    <div className="wizard-step">
+    <div className="wizard-step pd-screen">
       {isFailed && (
-        <Card className="mb-6">
-          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
-            <AlertCircle size={22} color="var(--error)" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: "6px", color: "var(--error)" }}>Preauthorization submission failed</div>
-              <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 16px" }}>
-                {statusData?.error_message || "The request could not be delivered to the payer."}
-              </p>
-              <div style={{ display: "flex", gap: "var(--space-3)" }}>
-                <Button variant="outline" size="small" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>Check Again</Button>
-                <Button variant="primary" onClick={() => navigate("../review")}>Back to Preauth Draft</Button>
-              </div>
-            </div>
-          </div>
-        </Card>
+        <div className="ep-notice is-bad">
+          <strong>The preauth could not be delivered to the payer.</strong>{" "}
+          {statusData?.error_message || statusData?.errors?.[0]?.detail || statusData?.errors?.[0]?.display || ""}
+          <button type="button" className="pd-inline-link" onClick={() => navigate("../review")}>
+            Back to preauth draft →
+          </button>
+        </div>
       )}
-
-      {!isComplete && !isFailed && !knownDecision && (
-        <Card className="mb-6">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-              <div className="spinner" style={{ width: "24px", height: "24px", borderTopColor: "var(--warning)" }} />
-              <div>
-                <div style={{ fontWeight: 700 }}>
-                  {statusData?.purpose === "cancel" ? "Awaiting cancellation response" : "Awaiting payer decision"}
-                </div>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                  {correlationId} · Polling every {POLL_INTERVAL_MS / 1000}s
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              {showGatewayRecovery && (
-                <Button variant="outline" size="small" icon={Wifi} onClick={handleGatewayStatus}>
-                  Request Gateway Status
-                </Button>
-              )}
-              <Button variant="outline" size="small" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>
-                Refresh
-              </Button>
-            </div>
-          </div>
-          {showSoftWarning && (
-            <div style={{ marginTop: "var(--space-3)", padding: "10px 14px", background: "rgba(245,158,11,0.08)", borderRadius: "var(--radius-sm)", border: "1px solid var(--warning)", fontSize: "13px", color: "var(--text-main)" }}>
-              Payer decisions can take minutes to hours. You can safely leave this page - the result will appear in your Work Queue when it arrives.
-            </div>
-          )}
-        </Card>
+      {ambiguous && isComplete && (
+        <div className="ep-notice is-warn">
+          Verify this approval: the payer's raw outcome ({outcome}) does not corroborate it.
+        </div>
       )}
-
-      {!isComplete && !isFailed && knownDecision && (
-        <Card className="mb-6">
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-            <div className="spinner" style={{ width: "24px", height: "24px", borderTopColor: "var(--primary)" }} />
-            <div>
-              <div style={{ fontWeight: 700 }}>Loading adjudication details...</div>
-              <div style={{ fontSize: "12px", color: "var(--text-muted)", textTransform: "capitalize" }}>
-                Decision: {String(decision).toLowerCase().replace(/_/g, " ")}
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
       {pendingTasks.length > 0 && (
-        <div style={{ marginBottom: "var(--space-4)", padding: "12px 16px", background: "rgba(245,158,11,0.06)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: "13px", fontWeight: 600 }}>
-            {pendingTasks.length} pending task{pendingTasks.length > 1 ? "s" : ""} in your Work Queue
-          </div>
-          <Button size="small" variant="outline" onClick={() => navigate("/work-queue")}>View Queue</Button>
+        <div className="ep-notice">
+          {pendingTasks.length} task{pendingTasks.length > 1 ? "s" : ""} for this preauth in the Work Queue.
+          <button type="button" className="pd-inline-link" onClick={() => navigate("/work-queue")}>
+            Open Work Queue →
+          </button>
         </div>
       )}
 
-          {/* Totals summary */}
-      {isComplete && (
-        <>
-          <DecisionBanner
-            decision={decision}
-            outcome={statusData?.outcome}
-            approvedAmount={statusData?.totals?.benefit?.value ?? statusData?.totals?.eligible?.value}
-            message={statusData?.process_notes?.[0]?.text}
-            provenance={preauthProvenance}
-          />
+      <div className="pd-layout">
+        <div className="pd-main">
+          {!isComplete && !isFailed && (
+            <Section id="ds-waiting" title={knownDecision ? "Loading adjudication details" : "Waiting for the payer"}>
+              <Fields
+                cols={2}
+                rows={[
+                  { label: "Sent", value: statusData?.submitted_at ? formatDateTime(statusData.submitted_at) : null },
+                  { label: "Waiting for", value: `${Math.max(1, Math.round(pollElapsed / 60000))} min` },
+                  { label: "Checking every", value: `${POLL_INTERVAL_MS / 1000} seconds` },
+                  { label: "Request ID", value: correlationId, mono: true },
+                ]}
+              />
+              {showSoftWarning && (
+                <div className="ep-notice ds-notice-in">
+                  Payer decisions can take minutes to hours. You can leave this page; the result will appear in the Work
+                  Queue when it arrives.
+                </div>
+              )}
+            </Section>
+          )}
 
-          <Card title="Adjudication Summary" className="mb-6">
-            <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", marginBottom: statusData?.items?.length > 0 ? "16px" : 0 }}>
-              {(() => {
-                const tiles = [
-                  { label: "Eligible Amount", value: statusData?.totals?.eligible?.value, currency: statusData?.totals?.eligible?.currency, color: "var(--success)" },
-                  { label: "Benefit", value: statusData?.totals?.benefit?.value, currency: statusData?.totals?.benefit?.currency, color: "var(--primary)" },
-                  { label: "Copay", value: statusData?.totals?.copay?.value, currency: statusData?.totals?.copay?.currency, color: "var(--error)" },
-                  { label: "Submitted", value: statusData?.totals?.submitted?.value, currency: statusData?.totals?.submitted?.currency, color: "var(--text-main)" },
-                ].filter((t) => t.value != null);
-                if (tiles.length === 0) return <AmountGrid totals={statusData?.totals} />;
-                return tiles.map((t, i) => (
-                  <div key={i} style={{ flex: "1 1 120px", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", textAlign: "center" }}>
-                    <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: "var(--space-1)" }}>{t.label}</div>
-                    <div style={{ fontSize: "20px", fontWeight: 800, color: t.color }}>
-                      {t.currency === "INR" ? "₹" : (t.currency || "")}{formatMoney(t.value, { currency: "" })}
+          {isComplete && (
+            <>
+              <Section id="ds-amounts" title="Amount breakdown">
+                <dl className="ds-statement">
+                  {statement.map((r) => (
+                    <div key={r.label} className={r.total ? "is-total" : undefined}>
+                      <dt>
+                        {r.label}
+                        {r.note && <span className="ep-muted"> · {r.note}</span>}
+                      </dt>
+                      <dd className="ep-mono">
+                        {r.value == null ? "—" : r.value < 0 ? `− ${formatMoney(-r.value)}` : formatMoney(r.value)}
+                      </dd>
                     </div>
-                  </div>
-                ));
-              })()}
-            </div>
+                  ))}
+                </dl>
+              </Section>
 
-            {/* Claim Items table */}
-            {(statusData?.claim_items?.length > 0 || statusData?.items?.length > 0) && (
-              <div className="table-responsive-wrapper">
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Claim Items</div>
-                <table className="table-modern" style={{ fontSize: "13px" }}>
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Service</th>
-                      <th>Category</th>
-                      <th style={{ textAlign: "right" }}>Qty</th>
-                      <th style={{ textAlign: "right" }}>Unit Price</th>
-                      <th style={{ textAlign: "right" }}>Net Amount</th>
-                      <th style={{ textAlign: "right" }}>Eligible</th>
-                      <th>Decision</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(statusData?.claim_items?.length > 0 ? statusData.claim_items : statusData.items).map((item, i) => {
-                      const adj = item.adjudication;
-                      const claimItem = statusData?.claim_items?.[i] || draftData?.editedItems?.[i] || draftData?.items?.[i] || item;
-                      const sequence = item.sequence ?? claimItem?.sequence ?? i + 1;
-                      return (
-                        <tr key={i}>
-                          <td style={{ color: "var(--text-muted)" }}>{sequence}</td>
-                          <td>
-                            <div style={{ fontWeight: 600 }}>{claimItem?.service_name || claimItem?.name || claimItem?.description || `Seq #${sequence}`}</div>
-                            {(claimItem?.service_code || claimItem?.code) && <code style={{ fontSize: "11px", color: "var(--text-muted)" }}>{claimItem.service_code || claimItem.code}</code>}
-                          </td>
-                          <td>{claimItem?.category ? <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{claimItem.category}</span> : "-"}</td>
-                          <td className="num-cell">{claimItem?.quantity ?? "—"}</td>
-                          <td className="num-cell">{formatMoney(claimItem?.unit_price ?? claimItem?.amount)}</td>
-                          <td className="num-cell" style={{ fontWeight: 600 }}>{formatMoney(netAmountOf(claimItem, adj))}</td>
-                          <td className="num-cell" style={{ color: "var(--success)", fontWeight: 700 }}>
-                            {formatMoney(adj?.eligible?.value)}
-                          </td>
-                          <td>
-                            {adj?.eligible?.reason ? (
-                              <span className="badge-modern badge-success" style={{ fontSize: "10px" }}>{adj.eligible.reason}</span>
-                            ) : adj?.reason?.raw ? (
-                              <span className="badge-modern badge-success" style={{ fontSize: "10px" }}>{adj.reason.raw}</span>
-                            ) : "-"}
-                          </td>
+              {adjItems.length > 0 && (
+                <Section id="ds-lines" title="Line adjudication">
+                  <div className="ep-table-wrap">
+                    <table className="ep-table ds-lines-table">
+                      <thead>
+                        <tr>
+                          <th>Service</th>
+                          <th className="ep-num">Requested</th>
+                          <th className="ep-num">Eligible</th>
+                          <th className="ep-num">Co-pay</th>
+                          <th className="ep-num">Approved</th>
+                          <th>Reason / note</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody>
+                        {adjItems.map((item, i) => {
+                          const adj = item.adjudication || {};
+                          const { name, code, claimItem } = lineName(item, i);
+                          // Reasons inline; payer notes by number (their text is in "Payer notes").
+                          const notes = [
+                            adj.eligible?.reason,
+                            adj.benefit?.reason,
+                            adj.reason?.raw,
+                            ...(item.notes || []).map((n) => (notesByNumber[n] ? `Note ${n}` : null)),
+                          ].filter((v, idx, a) => v && a.indexOf(v) === idx);
+                          return (
+                            <tr key={i}>
+                              <td className="ep-col-name">
+                                <div className="ep-strong">{name}</div>
+                                <div className="ep-muted">
+                                  {[code, claimItem?.category, claimItem?.quantity != null && `Qty ${claimItem.quantity}`].filter(Boolean).join(" · ")}
+                                </div>
+                              </td>
+                              <td className="ep-num ep-mono">{formatMoney(adj.submitted?.value ?? netAmountOf(claimItem, adj))}</td>
+                              <td className="ep-num ep-mono">{formatMoney(adj.eligible?.value)}</td>
+                              <td className="ep-num ep-mono">{formatMoney(adj.copay?.value)}</td>
+                              <td className="ep-num ep-mono ep-strong">{formatMoney(adj.benefit?.value ?? adj.eligible?.value)}</td>
+                              <td>{notes.length ? notes.join(" · ") : <span className="ep-muted">—</span>}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </Section>
+              )}
+
+              {statusData?.process_notes?.length > 0 && (
+                <Section id="ds-notes" title="Payer notes">
+                  <ol className="ds-notes">
+                    {statusData.process_notes.map((n, i) => (
+                      <li key={n.number ?? i}>
+                        <span className="ep-mono ep-muted">{n.number ?? i + 1}</span>
+                        <span>{n.text}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </Section>
+              )}
+
+              {(statusData?.diagnoses?.length > 0 || statusData?.procedures?.length > 0) && (
+                <Section id="ds-clinical" title="Clinical basis">
+                  <Fields
+                    cols={1}
+                    rows={[
+                      ...(statusData.diagnoses || []).map((d, i) => ({
+                        label: i === 0 ? "Diagnoses" : " ",
+                        value: `${d.name}${d.primary ? " (principal)" : ""}`,
+                        sub: d.code,
+                      })),
+                      ...(statusData.procedures || []).map((p, i) => ({
+                        label: i === 0 ? "Procedures" : " ",
+                        value: `${p.name}${p.date ? ` · ${formatDate(p.date)}` : ""}`,
+                        sub: p.code,
+                      })),
+                    ]}
+                  />
+                </Section>
+              )}
+
+              {statusData?.errors?.length > 0 && (
+                <Section id="ds-errors" title="Payer errors">
+                  <div className="ep-pad">
+                    <PayrErrorList errors={statusData.errors} />
+                  </div>
+                </Section>
+              )}
+
+              <Section id="ds-response" title="Payer response" meta="As received over NHCX">
+                <Fields
+                  cols={3}
+                  rows={[
+                    { label: "Classified decision", value: decision ? String(decision).replace(/_/g, " ").toLowerCase() : null },
+                    { label: "Raw outcome", value: preauthProvenance?.raw_outcome ?? outcome, mono: true },
+                    { label: "Reason codes", value: preauthProvenance?.reason_codes?.join(", "), mono: true },
+                    { label: "Classified by", value: preauthProvenance?.classified_by, mono: true },
+                    { label: "NHCX workflow", value: preauthProvenance?.nhcx_workflow_id != null ? String(preauthProvenance.nhcx_workflow_id) : null, mono: true },
+                    { label: "Preauth reference", value: statusData?.preauth_ref, mono: true },
+                    { label: "Request ID", value: correlationId, mono: true },
+                  ]}
+                />
+              </Section>
+            </>
+          )}
+        </div>
+
+        <aside className="pd-side">
+          <section className="ep-section pd-request">
+            <header className="ep-section-head">
+              <h3 className="ep-section-title">Preauth decision</h3>
+            </header>
+            <div className={`ds-verdict is-${verdict.tone}`}>
+              <span className="ep-dot" aria-hidden="true" />
+              <span className="ds-verdict-label">{verdict.label}</span>
+              {!isComplete && !isFailed && <span className="spinner ds-spinner" aria-hidden="true" />}
+            </div>
+            {statusData?.preauth_ref && (
+              <div className="ds-ref">
+                <span className="ep-muted">Reference</span>
+                <span className="ep-mono">{statusData.preauth_ref}</span>
               </div>
             )}
-          </Card>
+            {isComplete && !isCancelled && approvedValue != null && (
+              <div className="pd-amount">
+                <div className="ep-muted">Approved</div>
+                <div className="pd-amount-value ep-mono">{formatMoney(approvedValue)}</div>
+                {requestedValue != null && <div className="ep-muted">of {formatMoney(requestedValue)} requested</div>}
+              </div>
+            )}
 
-          {/* Procedures + Diagnoses side by side */}
-          {(statusData?.procedures?.length > 0 || statusData?.diagnoses?.length > 0) && (
-            <div className="grid-2-col" style={{ gap: "var(--space-4)", marginBottom: "var(--space-4)" }}>
-              {statusData?.procedures?.length > 0 && (
-                <Card title="Procedures">
-                  {statusData.procedures.map((p, i) => (
-                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-color)", fontSize: "13px" }}>
-                      <div style={{ fontWeight: 600 }}>{p.name}</div>
-                      <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                        {p.date && formatDate(p.date)}
-                        {p.code && <> · <code>{p.code}</code></>}
-                      </div>
-                    </div>
-                  ))}
-                </Card>
-              )}
-              {statusData?.diagnoses?.length > 0 && (
-                <Card title="Diagnoses">
-                  {statusData.diagnoses.map((d, i) => (
-                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-color)", fontSize: "13px", display: "flex", gap: "var(--space-2)", alignItems: "flex-start" }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600 }}>{d.name}</div>
-                        <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                          {d.code && <code>{d.code}</code>}
-                          {d.primary && <span className="badge-modern badge-info" style={{ fontSize: "10px", marginLeft: d.code ? "6px" : "0" }}>Primary</span>}
-                          {d.on_admission && <span className="badge-modern badge-success" style={{ fontSize: "10px", marginLeft: "4px" }}>On Admission</span>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </Card>
-              )}
-            </div>
-          )}
-
-          {statusData?.errors?.length > 0 && (
-            <Card className="mb-6">
-              <PayrErrorList errors={statusData.errors} />
-            </Card>
-          )}
-
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "var(--space-6)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-              <Button variant="outline" onClick={() => navigate("/")}>Save & Close</Button>
-              {resolvedCashlessCaseId && (
-                <Button
-                  variant="text"
-                  size="small"
-                  icon={RefreshCw}
-                  disabled={recheckingEligibility}
-                  title="Refresh sum-insured/coverage data from the payer without affecting the preauth decision"
-                  onClick={handleRecheckEligibility}
-                >
-                  {recheckingEligibility ? "Refreshing…" : "Re-check Eligibility"}
+            <div className="pd-submit">
+              {primary && (
+                <Button variant="primary" icon={primary.icon} onClick={() => runAction(primary.id)} className="pd-submit-btn">
+                  {primary.label}
                 </Button>
               )}
-              {recheckMessage && (
-                <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{recheckMessage}</span>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-              {(isApproved || isPartial) && (
-                <>
-                  <Button variant="outline" icon={PlusCircle} onClick={() => setShowEnhancement(true)}>
-                    Request Enhancement
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowCancelModal(true)}>
-                    Cancel Preauth
-                  </Button>
-                </>
-              )}
-              {isQueried && (
-                <>
-                  <Button variant="outline" onClick={() => setShowQueryDrawer(true)}>
-                    Respond to Query
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowResubmitDrawer(true)}>
-                    Resubmit with Corrections
-                  </Button>
-                </>
-              )}
-              {(isRejected || isPartial) && (
-                <>
-                  <Button variant="outline" onClick={() => setShowResubmitDrawer(true)}>
-                    Resubmit Preauth
-                  </Button>
-                  {hasClaimContext && (
-                    <Button variant="outline" onClick={() => navigate("../reprocess")}>
-                      Appeal / Reprocess
-                    </Button>
+              {secondary.length > 0 && (
+                <ul className="ds-actions">
+                  {secondary.map((a) => (
+                    <li key={a.label}>
+                      <button type="button" disabled={a.disabled} title={a.title} onClick={() => runAction(a.id)}>
+                        {a.icon && <a.icon size={14} />}
+                        {a.label}
+                      </button>
+                    </li>
+                  ))}
+                  {canCancel && (
+                    <li>
+                      <button type="button" className="is-danger" onClick={() => runAction("cancel")}>
+                        <X size={14} />
+                        Cancel preauth
+                      </button>
+                    </li>
                   )}
-                </>
+                </ul>
               )}
-              {(isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED && (
-                <Button variant="outline" icon={Send} onClick={() => setShowSendModal(true)}>
-                  Message Payer
-                </Button>
-              )}
-              {isUnknown && (
-                <>
-                  <Button variant="outline" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>
-                    Refresh
-                  </Button>
-                  <Button variant="outline" icon={Wifi} onClick={handleGatewayStatus}>
-                    Request Gateway Status
-                  </Button>
-                </>
-              )}
-              {isCancelled && (
-                <Button variant="outline" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>
-                  Refresh
-                </Button>
-              )}
-              {!isCancelled && (
-                <Button
-                  variant="primary"
-                  disabled={!isApproved && !isPartial}
-                  onClick={() => navigate("../claim", { state: { claim_id: statusData?.claim_id || caseState.claim_id } })}
-                >
-                  Proceed to Claim <ArrowRight size={18} style={{ marginLeft: "8px" }} />
-                </Button>
-              )}
+              {recheckMessage && <div className="ep-muted">{recheckMessage}</div>}
             </div>
-          </div>
-        </>
-      )}
+          </section>
+        </aside>
+      </div>
 
       <Drawer open={showQueryDrawer} onClose={() => { setShowQueryDrawer(false); setQueryError(null); }} title="Respond to Payer Query">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
@@ -848,8 +886,7 @@ export default function PreauthStatus({ ctx }) {
         )}
         <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
           <Button variant="outline" onClick={() => { setShowCancelModal(false); setCancelError(null); }}>Keep Preauth</Button>
-          <Button variant="primary" disabled={submitting} onClick={handleCancelSubmit}
-            style={{ background: "var(--error)", borderColor: "var(--error)" }}>
+          <Button variant="primary" className="ds-danger-btn" disabled={submitting} onClick={handleCancelSubmit}>
             {submitting ? "Cancelling…" : "Confirm Cancellation"}
           </Button>
         </div>
@@ -882,7 +919,7 @@ export default function PreauthStatus({ ctx }) {
               className="glass-panel"
               style={{ position: "relative", width: "100%", maxWidth: "640px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
             >
-              <h3 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "var(--space-5)" }}>Request Preauth Enhancement</h3>
+              <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "var(--space-5)" }}>Request preauth enhancement</h3>
               <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} onSubmitted={restartPoll} />
             </motion.div>
           </div>
