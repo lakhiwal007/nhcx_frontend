@@ -1,19 +1,28 @@
 import { useState, useEffect } from "react";
-import { Search, CreditCard, CheckCircle, AlertCircle, Clock, Landmark, Wallet, LayoutGrid, List, X, User } from "lucide-react";
-import { Card, StatusBadge, Input, SkeletonTable, EmptyState, Button, TablePagination } from "./Common";
+import { AlertCircle, X } from "lucide-react";
+import { SkeletonTable, Button, TablePagination } from "./Common";
 import { formatMoney, formatDate, formatDateTime } from "../format.js";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { groupPaymentEvents, stageLabel } from "../paymentEvents.js";
+import Dropdown from "./Dropdown";
 
 const PAYMENTS_PAGE_SIZE = 20;
 
-const METRICS = [
-  { key: "settledThisMonth", label: "Settled This Month", icon: CheckCircle, color: "var(--success)", format: "currency" },
-  { key: "pendingAck",       label: "Pending Acknowledgement", icon: Clock,  color: "var(--warning)", format: "count" },
-  { key: "totalTds",         label: "TDS Deducted",       icon: Landmark,   color: "var(--error)",   format: "currency" },
-  { key: "totalNetSettled",  label: "Total Net Settled",  icon: Wallet,     color: "var(--primary)", format: "currency" },
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "highest_amount", label: "Highest net" },
+  { value: "highest_tds", label: "Highest TDS" },
+];
+
+// Stage chips; "ack" is the work item — notices the payer is still waiting on.
+const STAGE_TABS = [
+  { key: "all", label: "All", match: () => true },
+  { key: "settled", label: "Settled", match: (p) => p.settled, dot: "var(--success)" },
+  { key: "progress", label: "In progress", match: (p) => !p.settled, dot: "var(--info)" },
+  { key: "ack", label: "Ack pending", match: (p) => p.pending_ack, dot: "var(--warning)" },
 ];
 
 const claimSearchKey = (p) => p.cashless_case_id ?? p.claim_reference;
@@ -33,6 +42,9 @@ function computePaymentMetrics(unique) {
   };
 }
 
+const ackLabel = (p) =>
+  p.acknowledgement_status === "submitted" ? "Acknowledged" : p.acknowledgement_status === "failed" ? "Failed" : "Pending";
+
 export default function Payments() {
   const navigate = useNavigate();
   const [payments, setPayments] = useState([]);
@@ -40,12 +52,10 @@ export default function Payments() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem("payments_viewMode") || "table");
+  const [stageTab, setStageTab] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [paymentsPage, setPaymentsPage] = useState(0);
-
-  useEffect(() => { localStorage.setItem("payments_viewMode", viewMode); }, [viewMode]);
 
   useEffect(() => {
     const fetchPayments = async () => {
@@ -82,336 +92,212 @@ export default function Payments() {
     return joined;
   };
 
-  const filtered = payments.filter(
+  const q = searchQuery.trim().toLowerCase();
+  const searched = payments.filter(
     (p) =>
-      p.claim_reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.payment_reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patientFor(p)?.patient_name?.toLowerCase().includes(searchQuery.toLowerCase()),
-  ).sort((a, b) => {
+      !q ||
+      p.claim_reference?.toLowerCase().includes(q) ||
+      p.payment_reference?.toLowerCase().includes(q) ||
+      p.utr?.toLowerCase().includes(q) ||
+      patientFor(p)?.patient_name?.toLowerCase().includes(q),
+  );
+  const tabCounts = Object.fromEntries(STAGE_TABS.map((t) => [t.key, searched.filter(t.match).length]));
+  const activeTab = STAGE_TABS.find((t) => t.key === stageTab) || STAGE_TABS[0];
+
+  const filtered = searched.filter(activeTab.match).sort((a, b) => {
     const dA = Date.parse(a.payment_date) || 0;
     const dB = Date.parse(b.payment_date) || 0;
-    const nA = a.net_payment_amount || 0;
-    const nB = b.net_payment_amount || 0;
-    const tA = a.tds_amount || 0;
-    const tB = b.tds_amount || 0;
     if (sortBy === "oldest") return dA - dB;
-    if (sortBy === "highest_amount") return nB - nA;
-    if (sortBy === "highest_tds") return tB - tA;
+    if (sortBy === "highest_amount") return (b.net_payment_amount || 0) - (a.net_payment_amount || 0);
+    if (sortBy === "highest_tds") return (b.tds_amount || 0) - (a.tds_amount || 0);
     return dB - dA;
   });
 
   const paymentsPageCount = Math.max(1, Math.ceil(filtered.length / PAYMENTS_PAGE_SIZE));
   const safePaymentsPage = Math.min(paymentsPage, paymentsPageCount - 1);
   const pagedPayments = filtered.slice(safePaymentsPage * PAYMENTS_PAGE_SIZE, (safePaymentsPage + 1) * PAYMENTS_PAGE_SIZE);
+  const metrics = computePaymentMetrics(payments);
+  const sum = (key) => filtered.reduce((s, p) => s + Math.abs(p[key] ?? 0), 0);
+
+  const KPIS = [
+    { key: "net", label: "Net settled", value: formatMoney(Math.round(metrics.totalNetSettled)), color: "var(--success)" },
+    { key: "month", label: "Settled this month", value: formatMoney(Math.round(metrics.settledThisMonth)), color: "var(--primary)" },
+    { key: "tds", label: "TDS deducted", value: formatMoney(Math.round(metrics.totalTds)), color: "var(--text-muted)" },
+    { key: "ack", label: "Acknowledgements pending", value: metrics.pendingAck, color: "var(--warning)" },
+  ];
 
   return (
-    <div className="payments-screen">
+    <div className="cc-screen payments-screen">
+      <div className="wq-header">
+        <div>
+          <h1 className="wq-title">Payments</h1>
+          <div className="wq-counts">
+            <span>{loading ? "Loading payments…" : `${payments.length} payment${payments.length === 1 ? "" : "s"}`}</span>
+            {!loading && metrics.pendingAck > 0 && (
+              <span className="is-overdue">{metrics.pendingAck} awaiting acknowledgement</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {loadError && (
-        <div className="inline-error-banner">
+        <div className="inline-error-banner" style={{ margin: 0 }}>
           <AlertCircle size={16} />
           Could not load payment events. Showing the last known results, if any.
         </div>
       )}
 
-      {!loading && payments.length > 0 && (() => {
-        const metrics = computePaymentMetrics(payments);
-        return (
-          <div className="metrics-grid-responsive">
-            {METRICS.map((m) => (
-              <motion.div whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }} key={m.key} className="dx-stat-card" style={{ transition: "box-shadow 0.2s ease" }}>
-                <div className="dx-stat-top">
-                  <div className="dx-stat-icon" style={{ background: `color-mix(in srgb, ${m.color} 16%, transparent)`, color: m.color }}>
-                    <m.icon size={14} />
-                  </div>
-                  <div className="dx-stat-value">
-                    {m.format === "currency" ? formatMoney(Math.round(metrics[m.key])) : metrics[m.key]}
-                  </div>
-                </div>
-                <div className="dx-stat-label">{m.label}</div>
-              </motion.div>
+      {!loading && payments.length > 0 && (
+        <div className="cc-kpis">
+          {KPIS.map((k) => (
+            <div key={k.key} className="cc-kpi">
+              <div className="cc-kpi-label">
+                <span className="cc-kpi-dot" style={{ background: k.color }} />
+                {k.label}
+              </div>
+              <div className="cc-kpi-value">{k.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="wq-panel">
+        <div className="wq-toolbar">
+          <input
+            className="input-modern wq-search"
+            placeholder="Search claim, payment ref, UTR or patient…"
+            aria-label="Search payments"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPaymentsPage(0);
+            }}
+          />
+          <div className="wq-chips" role="tablist" aria-label="Payment stage">
+            {STAGE_TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={stageTab === t.key}
+                className={`wq-chip${stageTab === t.key ? " is-on" : ""}`}
+                onClick={() => {
+                  setStageTab(t.key);
+                  setPaymentsPage(0);
+                }}
+              >
+                {t.dot && <span className="wq-chip-dot" style={{ "--wq-dot": t.dot }} />}
+                {t.label}
+                <span className="wq-chip-count">{loading ? "–" : tabCounts[t.key]}</span>
+              </button>
             ))}
           </div>
-        );
-      })()}
-
-      <Card className="mb-6">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: "280px", maxWidth: "400px" }}>
-            <Input
-              icon={Search}
-              placeholder="Search claim ref, payment ref, or patient name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-            <select
-              className="input-modern"
-              style={{ width: "auto", minWidth: "160px" }}
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="highest_amount">Highest Amount</option>
-              <option value="highest_tds">Highest TDS</option>
-            </select>
-            <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "var(--space-1)", gap: "var(--space-1)" }}>
-              <button
-                title="Grid View"
-                onClick={() => setViewMode("grid")}
-                style={{ padding: "6px 12px", background: viewMode === "grid" ? "var(--bg-main)" : "transparent", color: viewMode === "grid" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "grid" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "grid" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-              >
-                <LayoutGrid size={16} />
-              </button>
-              <button
-                title="Table View"
-                onClick={() => setViewMode("table")}
-                style={{ padding: "6px 12px", background: viewMode === "table" ? "var(--bg-main)" : "transparent", color: viewMode === "table" ? "var(--text-main)" : "var(--text-muted)", border: viewMode === "table" ? "1px solid var(--border-color)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", boxShadow: viewMode === "table" ? "0 1px 3px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s ease" }}
-              >
-                <List size={16} />
-              </button>
-            </div>
+          <div className="wq-toolbar-spacer" />
+          <div style={{ width: "160px" }}>
+            <Dropdown compact ariaLabel="Sort" value={sortBy} options={SORT_OPTIONS} onChange={(v) => { setSortBy(v); setPaymentsPage(0); }} />
           </div>
         </div>
-      </Card>
 
-      {loading ? (
-        <Card title="Payment Events">
-          <SkeletonTable rows={5} cols={10} />
-        </Card>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={CreditCard}
-          iconOpacity={0.5}
-          title="No Payments Found"
-          description="No matching payment records."
-        />
-      ) : viewMode === "grid" ? (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "var(--space-4)" }}>
-          {pagedPayments.map((pay, i) => (
-            <motion.div
-              key={pay.group_key || i}
-              layout
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileHover={{ y: -4, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.15)" }}
-              className="card-modern"
-              onClick={() => setSelectedPayment(pay)}
-              style={{
-                padding: "var(--space-4)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--space-3)",
-                transition: "box-shadow 0.2s ease",
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-2)" }}>
-                <div>
-                  <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Claim Ref</div>
-                  <a href="#" onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(pay))}`); }} style={{ fontWeight: 700, fontSize: "15px" }}>
-                    {pay.claim_reference}
-                  </a>
-                </div>
-                <StatusBadge status={stageLabel(pay.payment_stage)} />
-              </div>
-              {patientFor(pay) && (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: "var(--text-main)" }}>
-                  <User size={13} color="var(--text-muted)" />
-                  <span style={{ fontWeight: 600 }}>{patientFor(pay).patient_name || patientFor(pay).child_name}</span>
-                  {patientFor(pay).child_id != null && (
-                    <span className="mono-cell" style={{ color: "var(--text-muted)" }}>#{patientFor(pay).child_id}</span>
-                  )}
-                </div>
-              )}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--text-muted)" }}>Payment Ref:</span>
-                  <span className="mono-cell" style={{ fontWeight: 600 }}>{pay.payment_reference}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--text-muted)" }}>Date:</span>
-                  <span>{formatDate(pay.payment_date)}</span>
-                </div>
-                {pay.utr && (
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-muted)" }}>UTR:</span>
-                    <span className="mono-cell" style={{ color: "var(--primary)", fontWeight: 600 }}>{pay.utr}</span>
-                  </div>
-                )}
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-1)", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
-                  <span style={{ color: "var(--text-muted)" }}>Gross Amount:</span>
-                  <span className="num-cell">{formatMoney(pay.gross_amount)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--text-muted)" }}>TDS Deducted:</span>
-                  <span className="num-cell" style={{ color: "var(--error)" }}>{formatMoney(pay.tds_amount == null ? null : -Math.abs(pay.tds_amount))}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-1)", paddingTop: "8px", borderTop: "1px dashed var(--border-color)" }}>
-                  <span style={{ fontWeight: 700 }}>Net Payment:</span>
-                  <span className="num-cell" style={{ fontWeight: 700, color: "var(--success)", fontSize: "14px" }}>{formatMoney(pay.net_payment_amount)}</span>
-                </div>
-              </div>
-              <div style={{ marginTop: "auto", paddingTop: "12px" }}>
-                {pay.acknowledgement_status === "submitted" ? (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)", color: "var(--success)", fontSize: "11px", fontWeight: 700, background: "var(--success-light)", padding: "4px 8px", borderRadius: "4px" }}>
-                    <CheckCircle size={12} /> ACKNOWLEDGED
-                  </div>
-                ) : (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)", color: "var(--warning)", fontSize: "11px", fontWeight: 700, background: "var(--warning-light)", padding: "4px 8px", borderRadius: "4px" }}>
-                    <Clock size={12} /> PENDING ACKNOWLEDGEMENT
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ))}
-          <TablePagination
-            page={safePaymentsPage}
-            pageSize={PAYMENTS_PAGE_SIZE}
-            total={filtered.length}
-            onPageChange={setPaymentsPage}
-            label="events"
-          />
-        </motion.div>
-      ) : (
-        <Card title="Payment Events">
-          <div className="table-responsive-wrapper">
-            <table className="table-modern">
-              <thead>
-                <tr>
-                  <th>Payment Ref</th>
-                  <th>Claim Ref</th>
-                  <th>Patient</th>
-                  <th>Date</th>
-                  <th>Stage</th>
-                  <th className="num-col">Gross Amt</th>
-                  <th className="num-col">TDS</th>
-                  <th className="num-col">Net Payment</th>
-                  <th>UTR</th>
-                  <th>Ack Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedPayments.map((pay, i) => (
-                  <tr
-                    key={`${pay.payment_reference || "pay"}-${pay.payment_stage || ""}-${i}`}
-                    onClick={() => setSelectedPayment(pay)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <td className="mono-cell" style={{ fontWeight: 700 }}>
-                      {pay.payment_reference}
-                      {pay.notice_count > 1 && (
-                        <div style={{ fontSize: "10.5px", fontWeight: 600, color: "var(--text-muted)" }}>
-                          {pay.notice_count} notices
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <a
-                        href="#"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(pay))}`);
-                        }}
-                        title="Find this claim in the dashboard"
-                      >
-                        {pay.claim_reference}
-                      </a>
-                    </td>
-                    <td>
-                      {patientFor(pay) ? (
-                        <>
-                          <div style={{ fontWeight: 600 }}>{patientFor(pay).patient_name || patientFor(pay).child_name}</div>
-                          {patientFor(pay).child_id != null && (
-                            <div className="mono-cell" style={{ fontSize: "11px", color: "var(--text-muted)" }}>#{patientFor(pay).child_id}</div>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                    <td>{formatDate(pay.payment_date)}</td>
-                    <td>
-                      <StatusBadge
-                        status={stageLabel(pay.payment_stage)}
-                      />
-                    </td>
-                    <td className="num-cell">{formatMoney(pay.gross_amount)}</td>
-                    <td className="num-cell" style={{ color: "var(--error)" }}>
-                      {formatMoney(pay.tds_amount == null ? null : -Math.abs(pay.tds_amount))}
-                    </td>
-                    <td className="num-cell" style={{ fontWeight: 700, color: "var(--success)" }}>
-                      {formatMoney(pay.net_payment_amount)}
-                    </td>
-                    <td>
-                      {pay.utr ? (
-                        <code>{pay.utr}</code>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {pay.acknowledgement_status === "submitted" ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "var(--space-1)",
-                            color: "var(--success)",
-                            fontSize: "11px",
-                            fontWeight: 600,
-                          }}
-                        >
-                          <CheckCircle size={12} /> ACKNOWLEDGED
-                        </div>
-                      ) : (
-                        <span
-                          className="badge-modern badge-warning"
-                          style={{ fontSize: "10px" }}
-                        >
-                          PENDING
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              {filtered.length > 1 && (() => {
-                const eventCount = filtered.reduce((s, p) => s + (p.notice_count ?? 1), 0);
-                return (
-                <tfoot>
-                  <tr>
-                    <td colSpan={5} style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
-                      {filtered.length} {filtered.length === 1 ? "payment" : "payments"}
-                      {eventCount !== filtered.length && ` · ${eventCount} events`}
-                    </td>
-                    <td className="num-cell" style={{ fontWeight: 700 }}>
-                      {formatMoney(filtered.reduce((s, p) => s + (p.gross_amount ?? 0), 0))}
-                    </td>
-                    <td className="num-cell" style={{ color: "var(--error)", fontWeight: 700 }}>
-                      {formatMoney(-filtered.reduce((s, p) => s + Math.abs(p.tds_amount ?? 0), 0))}
-                    </td>
-                    <td className="num-cell" style={{ color: "var(--success)", fontWeight: 700 }}>
-                      {formatMoney(filtered.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0))}
-                    </td>
-                    <td colSpan={2} />
-                  </tr>
-                </tfoot>
-                );
-              })()}
-            </table>
-            <TablePagination
-              page={safePaymentsPage}
-              pageSize={PAYMENTS_PAGE_SIZE}
-              total={filtered.length}
-              onPageChange={setPaymentsPage}
-              label="events"
-            />
+        {loading ? (
+          <SkeletonTable rows={5} cols={6} />
+        ) : filtered.length === 0 ? (
+          <div className="wq-empty">
+            <div className="wq-empty-title">{payments.length ? "No payments match these filters" : "No payments yet"}</div>
+            <div className="cc-empty-hint">
+              {payments.length
+                ? "Try a different search or stage."
+                : "Payer payment notices appear here once claims are settled."}
+            </div>
           </div>
-        </Card>
-      )}
+        ) : (
+          <>
+            <div className="wq-table-scroll">
+              <table className="wq-table pm-table">
+                <thead>
+                  <tr>
+                    <th>Payment</th>
+                    <th>Patient · Claim</th>
+                    <th>Stage</th>
+                    <th className="cc-num">Gross</th>
+                    <th className="cc-num">TDS</th>
+                    <th className="cc-num">Net credited</th>
+                    <th>Acknowledgement</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedPayments.map((pay, i) => {
+                    const patient = patientFor(pay);
+                    return (
+                      <tr
+                        key={pay.group_key || i}
+                        tabIndex={0}
+                        onClick={() => setSelectedPayment(pay)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setSelectedPayment(pay);
+                        }}
+                      >
+                        <td>
+                          <div className="wq-mono cc-case-id">{pay.payment_reference || "—"}</div>
+                          <div className="wq-sub">
+                            {[pay.payment_date && formatDate(pay.payment_date), pay.utr && `UTR ${pay.utr}`, pay.notice_count > 1 && `${pay.notice_count} notices`]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cc-patient">{patient?.patient_name || patient?.child_name || "—"}</div>
+                          {pay.claim_reference && (
+                            <button
+                              type="button"
+                              className="pd-inline-link pm-claim-link"
+                              title="Find this claim in Cashless Cases"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(pay))}`);
+                              }}
+                            >
+                              {pay.claim_reference}
+                            </button>
+                          )}
+                        </td>
+                        <td className="ep-cap">{stageLabel(pay.payment_stage) || "—"}</td>
+                        <td className="wq-mono cc-num">{formatMoney(pay.gross_amount)}</td>
+                        <td className="wq-mono cc-num">{pay.tds_amount != null ? formatMoney(Math.abs(pay.tds_amount)) : "—"}</td>
+                        <td className="wq-mono cc-num ep-strong">{formatMoney(pay.net_payment_amount)}</td>
+                        <td className={pay.acknowledgement_status === "failed" ? "is-bad" : pay.acknowledgement_status === "submitted" ? undefined : "ep-muted"}>
+                          {ackLabel(pay)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {filtered.length > 1 && (
+                  <tfoot>
+                    <tr className="pm-total">
+                      <td colSpan={3}>
+                        {filtered.length} payments
+                      </td>
+                      <td className="wq-mono cc-num">{formatMoney(sum("gross_amount"))}</td>
+                      <td className="wq-mono cc-num">{formatMoney(sum("tds_amount"))}</td>
+                      <td className="wq-mono cc-num">{formatMoney(sum("net_payment_amount"))}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+            <div className="wq-pagination">
+              <TablePagination
+                page={safePaymentsPage}
+                pageSize={PAYMENTS_PAGE_SIZE}
+                total={filtered.length}
+                onPageChange={setPaymentsPage}
+                label="payments"
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       <PaymentDetailModal
         payment={selectedPayment}
@@ -423,17 +309,27 @@ export default function Payments() {
   );
 }
 
-// Row/card click opens this — the payment event alone doesn't carry every
-// field worth showing (patient identity, notice/recon detail, acknowledgement
-// lifecycle), so the list view only surfaces a summary and this fills in the rest.
+// Row click opens this — the payment event alone doesn't carry every field
+// worth showing (patient identity, notice/recon detail, acknowledgement
+// lifecycle), so the list surfaces a summary and this fills in the rest.
 function PaymentDetailModal({ payment, patient, onClose, navigate }) {
-  const row = (label, value) =>
-    value != null && value !== "" && (
-      <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-3)", padding: "6px 0", borderBottom: "1px solid var(--border-color)", fontSize: "12.5px" }}>
-        <span style={{ color: "var(--text-muted)" }}>{label}</span>
-        <span style={{ fontWeight: 600, textAlign: "right", overflowWrap: "anywhere" }}>{value}</span>
+  const group = (title, rows) => {
+    const shown = rows.filter(([, v]) => v != null && v !== "" && v !== "—");
+    if (!shown.length) return null;
+    return (
+      <div className="pm-group">
+        <div className="pm-group-title">{title}</div>
+        <dl>
+          {shown.map(([label, value, mono]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd className={mono ? "wq-mono" : undefined}>{value}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
     );
+  };
 
   return (
     <AnimatePresence>
@@ -448,97 +344,82 @@ function PaymentDetailModal({ payment, patient, onClose, navigate }) {
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.97, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="glass-panel"
-            style={{ position: "relative", width: "100%", maxWidth: "560px", padding: "28px", borderRadius: "var(--radius-lg)", zIndex: 101, margin: "0 16px", maxHeight: "90vh", overflowY: "auto" }}
+            exit={{ opacity: 0, scale: 0.97, y: 12 }}
+            className="glass-panel pm-modal"
+            role="dialog"
+            aria-label="Payment detail"
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "var(--space-3)" }}>
+            <div className="pm-modal-head">
               <div>
-                <h3 style={{ margin: 0, fontSize: "19px", fontWeight: 800 }}>{payment.payment_reference || "Payment"}</h3>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>{payment.claim_reference}</div>
+                <h3>{payment.payment_reference || "Payment"}</h3>
+                <div className="ep-muted">
+                  <span className="ep-cap">{stageLabel(payment.payment_stage)}</span>
+                  {" · "}
+                  {ackLabel(payment)}
+                </div>
               </div>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
-                <X size={22} />
+              <button type="button" className="pd-icon-btn" onClick={onClose} aria-label="Close">
+                <X size={18} />
               </button>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-              <StatusBadge status={stageLabel(payment.payment_stage)} />
-              {payment.acknowledgement_status === "submitted" ? (
-                <span className="badge-modern badge-success" style={{ fontSize: "10px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                  <CheckCircle size={11} /> ACKNOWLEDGED
-                </span>
-              ) : (
-                <span className="badge-modern badge-warning" style={{ fontSize: "10px" }}>PENDING ACK</span>
-              )}
+            <div className="pm-modal-amount">
+              <span className="ep-muted">Net credited</span>
+              <span className="wq-mono">{formatMoney(payment.net_payment_amount)}</span>
             </div>
 
-            {patient && (
-              <div style={{ marginBottom: "var(--space-4)" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Patient</div>
-                {row("Name", patient.patient_name || patient.child_name)}
-                {row("Patient ID", patient.child_id)}
-                {row("Facility", patient.facility_name)}
-              </div>
-            )}
-
-            <div style={{ marginBottom: "var(--space-4)" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Claim &amp; Payer</div>
-              {row("Claim Reference", payment.claim_reference)}
-              {row("Claim ID", payment.claim_id)}
-              {row("Payer ID", payment.payer_id)}
-              {row("Provider ID", payment.provider_id)}
-            </div>
-
-            <div style={{ marginBottom: "var(--space-4)" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Notice</div>
-              {row("Notice Identifier", payment.notice_identifier)}
-              {row("Notice Status", payment.notice_status)}
-              {row("Notice Amount", payment.notice_amount != null ? formatMoney(payment.notice_amount) : null)}
-              {row("Notice Created", formatDateTime(payment.notice_created_at))}
-            </div>
-
-            <div style={{ marginBottom: "var(--space-4)" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Reconciliation</div>
-              {row("Recon Identifier", payment.recon_identifier)}
-              {row("Payment Date", formatDate(payment.payment_date))}
-              {row("Gross Amount", formatMoney(payment.gross_amount))}
-              {row("TDS Deducted", payment.tds_amount != null ? formatMoney(-Math.abs(payment.tds_amount)) : null)}
-              {row("Net Payment", formatMoney(payment.net_payment_amount))}
-              {row("UTR", payment.utr)}
-              {row("UTR Type", payment.utr_type)}
-              {row("Currency", payment.currency)}
-            </div>
-
-            {(payment.acknowledgement_status || payment.acknowledgement_error) && (
-              <div style={{ marginBottom: "var(--space-2)" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Acknowledgement</div>
-                {row("Status", payment.acknowledgement_status)}
-                {row("Acknowledged At", formatDateTime(payment.acknowledged_at))}
-                {row("Attempts", payment.acknowledgement_attempts)}
-                {payment.acknowledgement_error && (
-                  <div style={{ marginTop: "6px", padding: "8px 10px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", fontSize: "12px", color: "var(--error)" }}>
-                    {payment.acknowledgement_error}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div style={{ marginTop: "var(--space-2)", paddingTop: "12px", borderTop: "1px dashed var(--border-color)" }}>
-              {row("Correlation ID", payment.correlation_id)}
-              {row("Event Key", payment.event_key)}
-              {row("Workflow ID", payment.workflow_id)}
-            </div>
+            {group("Patient", [
+              ["Name", patient?.patient_name || patient?.child_name],
+              ["Patient ID", patient?.child_id != null ? String(patient.child_id) : null, true],
+              ["Facility", patient?.facility_name],
+            ])}
+            {group("Claim & payer", [
+              ["Claim reference", payment.claim_reference, true],
+              ["Claim ID", payment.claim_id != null ? String(payment.claim_id) : null, true],
+              ["Payer", payment.payer_id, true],
+              ["Provider", payment.provider_id, true],
+            ])}
+            {group("Settlement", [
+              ["Payment date", payment.payment_date ? formatDate(payment.payment_date) : null],
+              ["Gross", formatMoney(payment.gross_amount), true],
+              ["TDS", payment.tds_amount != null ? formatMoney(Math.abs(payment.tds_amount)) : null, true],
+              ["Net credited", formatMoney(payment.net_payment_amount), true],
+              ["UTR", payment.utr, true],
+              ["UTR type", payment.utr_type],
+              ["Currency", payment.currency],
+            ])}
+            {group("Notice", [
+              ["Notice identifier", payment.notice_identifier, true],
+              ["Notice status", payment.notice_status],
+              ["Notice amount", payment.notice_amount != null ? formatMoney(payment.notice_amount) : null, true],
+              ["Created", payment.notice_created_at ? formatDateTime(payment.notice_created_at) : null],
+              ["Reconciliation identifier", payment.recon_identifier, true],
+            ])}
+            {group("Acknowledgement", [
+              ["Status", ackLabel(payment)],
+              ["Acknowledged at", payment.acknowledged_at ? formatDateTime(payment.acknowledged_at) : null],
+              ["Attempts", payment.acknowledgement_attempts != null ? String(payment.acknowledgement_attempts) : null],
+            ])}
+            {payment.acknowledgement_error && <div className="ep-notice is-bad">{payment.acknowledgement_error}</div>}
+            {group("References", [
+              ["Correlation ID", payment.correlation_id, true],
+              ["Event key", payment.event_key, true],
+              ["Workflow", payment.workflow_id != null ? String(payment.workflow_id) : null, true],
+            ])}
 
             {payment.claim_reference && (
               <Button
                 variant="outline"
-                onClick={() => { onClose(); navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(payment))}`); }}
-                style={{ justifyContent: "center", marginTop: "var(--space-4)", width: "100%" }}
+                size="small"
+                className="pm-modal-btn"
+                onClick={() => {
+                  onClose();
+                  navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(payment))}`);
+                }}
               >
-                View Claim in Dashboard
+                Find this claim in Cashless Cases
               </Button>
             )}
           </motion.div>

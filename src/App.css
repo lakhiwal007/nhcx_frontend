@@ -2080,60 +2080,6 @@ select.input-modern option {
     font-size: 13px;
 }
 
-/* ─── Stat cards (opt-in per screen: .dashboard-screen, .payments-screen) ── */
-.dashboard-screen .dx-stat-card,
-.payments-screen .dx-stat-card {
-    padding: var(--space-3);
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-}
-
-.dashboard-screen .dx-stat-card.is-clickable,
-.payments-screen .dx-stat-card.is-clickable {
-    cursor: pointer;
-}
-
-.dashboard-screen .dx-stat-card.is-active,
-.payments-screen .dx-stat-card.is-active {
-    background: color-mix(in srgb, var(--stat-color) 8%, var(--bg-card));
-    border-color: var(--stat-color);
-    box-shadow: var(--shadow-sm), 0 0 0 2px color-mix(in srgb, var(--stat-color) 25%, transparent);
-}
-
-.dashboard-screen .dx-stat-top,
-.payments-screen .dx-stat-top {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
-}
-
-.dashboard-screen .dx-stat-icon,
-.payments-screen .dx-stat-icon {
-    padding: 4px;
-    border-radius: var(--radius-xs);
-    display: flex;
-}
-
-.dashboard-screen .dx-stat-value,
-.payments-screen .dx-stat-value {
-    font-size: var(--text-2xl);
-    font-weight: var(--fw-bold);
-    color: var(--text-main);
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-}
-
-.dashboard-screen .dx-stat-label,
-.payments-screen .dx-stat-label {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    font-weight: var(--fw-semibold);
-}
-
 .mono-cell {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
@@ -3363,6 +3309,118 @@ select.pd-input {
     resize: vertical;
 }
 
+/* ─── Payments list (Payments) ─────────────────────────────────────────── */
+.pm-table tbody tr:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+.pm-claim-link {
+    margin: 2px 0 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.wq-table tfoot tr.pm-total td {
+    padding: 10px 12px;
+    background: var(--bg-main);
+    font-weight: var(--fw-semibold);
+    border-bottom: none;
+}
+
+.pm-modal {
+    position: relative;
+    z-index: 101;
+    width: 100%;
+    max-width: 540px;
+    max-height: 90vh;
+    margin: 0 16px;
+    padding: 20px 22px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-radius: var(--radius-lg);
+}
+
+.pm-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.pm-modal-head h3 {
+    margin: 0 0 2px;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: var(--fw-semibold);
+}
+
+.pm-modal-amount {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 14px 0 4px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 13px;
+}
+
+.pm-modal-amount .wq-mono {
+    font-size: 18px;
+    font-weight: var(--fw-semibold);
+}
+
+.pm-group {
+    margin-top: 14px;
+}
+
+.pm-group-title {
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: var(--fw-semibold);
+}
+
+.pm-group dl {
+    margin: 0;
+}
+
+.pm-group dl > div {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr);
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12.5px;
+}
+
+.pm-group dt {
+    color: var(--text-muted);
+}
+
+.pm-group dd {
+    margin: 0;
+    font-weight: var(--fw-medium);
+    overflow-wrap: anywhere;
+}
+
+.pm-group dd.wq-mono {
+    font-size: 12px;
+    white-space: normal;
+    word-break: break-all;
+}
+
+.pm-modal .ep-notice {
+    margin-top: 10px;
+}
+
+.pm-modal-btn.btn-modern {
+    width: 100%;
+    justify-content: center;
+    margin-top: 16px;
+}
+
 /* ─── Payment table summary row ──────────────────────────────────────────── */
 .table-modern tfoot tr td {
     font-weight: 700;
@@ -4568,18 +4626,6 @@ code {
     width: 14px;
     text-align: right;
     font-weight: var(--fw-bold);
-}
-
-/* ─── Metrics responsive grid ────────────────────────────────────────────── */
-.metrics-grid-responsive {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
-    gap: 10px;
-    margin-bottom: 16px;
-}
-
-.metrics-grid-responsive > * {
-    min-width: 0;
 }
 
 /* Full-page blocking states: session expired / deep-link clinic mismatch.
