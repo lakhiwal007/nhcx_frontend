@@ -3149,6 +3149,66 @@ select.pd-input {
     padding: 12px 16px 16px;
 }
 
+/* ─── Preauth enhancement (PreauthEnhancement) ──────────────────────────── */
+.en-procs {
+    margin: 0;
+    padding: 4px 16px 8px;
+    list-style: none;
+}
+
+.en-procs li {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.en-procs li:last-child {
+    border-bottom: none;
+}
+
+.en-procs label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.en-procs input {
+    margin: 3px 0 0;
+}
+
+.en-procs label > span {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.ep-table tr.en-excluded td {
+    color: var(--text-muted);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--text-muted) 60%, transparent);
+}
+
+.en-url {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 16px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.en-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 4px;
+}
+
+.ds-ref.ds-ref-top {
+    padding-top: 12px;
+}
+
 /* ─── Payment table summary row ──────────────────────────────────────────── */
 .table-modern tfoot tr td {
     font-weight: 700;

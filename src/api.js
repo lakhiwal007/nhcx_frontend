@@ -1352,10 +1352,45 @@ const mock = {
 
   preparePreauthEnhancement: async (params = {}) => {
     await delay(800);
+    // An approved lap-chole case that later needed ICU care: two new line
+    // items and one new procedure on top of the authorized ₹50,000.
+    const authorizedItems = [
+      { service_code: "47562", service_name: "Laparoscopic cholecystectomy", category: "SE", quantity: 1, unit_price: 50000, net_amount: 50000 },
+    ];
+    const newItems = [
+      { service_code: "ICU-DAY", service_name: "ICU stay (per day)", category: "ICU", quantity: 2, unit_price: 6000, net_amount: 12000, is_new: true },
+      { service_code: "43239", service_name: "Upper GI endoscopy with biopsy", category: "SE", quantity: 1, unit_price: 8500, net_amount: 8500, is_new: true },
+    ];
     return {
+      cashless_case_id: params.cashless_case_id || 5,
       claim_id: params.claim_id || 101,
+      payer_id: "1518@hcx",
+      policy_number: "POL-91711234567890-2026",
       preauth_ref: "PA-2026-00001",
+      enhanceable: true,
+      reason: null,
+      authorized: {
+        total_amount: 50000,
+        approved_amount: 40000,
+        procedures: [{ code: "47562", name: "Laparoscopic cholecystectomy", date: "2026-05-04" }],
+        items: authorizedItems,
+      },
+      current: {
+        total_amount: 70500,
+        procedures: [
+          { code: "47562", name: "Laparoscopic cholecystectomy", date: "2026-05-04" },
+          { code: "43239", name: "Upper GI endoscopy with biopsy", date: "2026-05-06", is_new: true },
+        ],
+        items: [...authorizedItems, ...newItems],
+      },
+      new_procedures: [{ code: "43239", name: "Upper GI endoscopy with biopsy", date: "2026-05-06", is_new: true }],
+      new_items: newItems,
+      delta_amount: 20500,
+      supporting_documents: [
+        { category: "investigation", name: "ICU admission note", code: "ICU_NOTE", event_date: "2026-05-05", url: "https://hospital.example/records/101/icu-note.pdf" },
+      ],
       missing_fields: [],
+      suggested_request: { items: [...authorizedItems, ...newItems], total_amount: 70500 },
     };
   },
 

@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, AlertCircle } from "lucide-react";
+import { Send } from "lucide-react";
 import { api } from "../../api";
-import { Button, StatusBadge, LoadingBlock, formatMoney } from "../Common";
+import { Button, LoadingBlock, formatMoney } from "../Common";
+import { formatDate } from "../../format.js";
+import { Section, Fields } from "../case/CaseFile";
 
 export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const [checkedProcedures, setCheckedProcedures] = useState({});
   const [additionalDocUrl, setAdditionalDocUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -69,6 +72,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const selectedProcs = (preview.new_procedures || []).filter((_, i) => checkedProcedures[i]);
       const body = {
@@ -84,6 +88,10 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
         ].filter((d) => d.url),
       };
       const res = await api.submitPreauthEnhancement(body);
+      if (res?.status === "failed") {
+        setSubmitError(res.message || res.error?.message || "The enhancement could not be submitted.");
+        return;
+      }
       // As a modal inside PreauthStatus, onSubmitted is that screen's own
       // restartPoll - it must be the one to resume polling, since `polling`
       // is local state there that a plain updateCaseState can't reach (this
@@ -94,7 +102,8 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
       if (onSubmitted) onSubmitted(res.correlation_id);
       else updateCaseState({ preauthCorrelationId: res.correlation_id, preauthDecision: null });
       close();
-    } catch (_) {
+    } catch (err) {
+      setSubmitError(err.message || "The enhancement could not be submitted.");
     } finally {
       setSubmitting(false);
     }
@@ -104,117 +113,175 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
     return <LoadingBlock compact />;
   }
 
-  if (!preview) {
+  // Routed as its own step it gets the side panel; inside the Decision
+  // screen's dialog the same sections stack with the actions at the foot.
+  const routed = !onClose;
+
+  if (!preview || !preview.enhanceable) {
     return (
-      <div style={{ padding: "var(--space-4)", color: "var(--error)", fontSize: "14px" }}>
-        Failed to load enhancement preview.
+      <div className="wizard-step pd-screen">
+        <Section id="en-none" title={preview ? "Enhancement not available" : "Could not load the enhancement"}>
+          <p className="ds-empty">
+            {!preview
+              ? "The enhancement preview didn't load. Try again from the Decision screen."
+              : preview.reason || "No new procedures or billing found since the approved preauth."}
+          </p>
+          <div className="ds-empty-actions">
+            <Button variant="outline" size="small" onClick={close}>
+              {routed ? "Back to decision" : "Close"}
+            </Button>
+          </div>
+        </Section>
       </div>
     );
   }
 
-  if (!preview.enhanceable) {
-    return (
+  const newProcs = preview.new_procedures || [];
+  const newItems = preview.new_items || [];
+  const excludedItem = (it) => uncheckedProcKeys.has(it.service_code) || uncheckedProcKeys.has(it.service_name);
+  const authorizedTotal = preview.authorized?.total_amount;
+  const approvedSoFar = preview.authorized?.approved_amount;
+  const docs = (preview.supporting_documents || []).filter((d) => d.url);
+
+  const statement = (
+    <dl className="ds-statement">
       <div>
-        <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start", padding: "14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-5)" }}>
-          <AlertCircle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: "2px" }} />
-          <div>
-            <div style={{ fontWeight: 700, color: "var(--warning)", marginBottom: "var(--space-1)" }}>Enhancement Unavailable</div>
-            <div style={{ fontSize: "13px" }}>{preview.reason || "No new procedures or billing found since the approved preauth."}</div>
-          </div>
+        <dt>
+          Previously requested
+          {approvedSoFar != null && <span className="ep-muted"> · {formatMoney(approvedSoFar)} approved</span>}
+        </dt>
+        <dd className="ep-mono">{formatMoney(authorizedTotal)}</dd>
+      </div>
+      {revisedDelta != null && (
+        <div>
+          <dt>New scope</dt>
+          <dd className="ep-mono">{revisedDelta >= 0 ? "+ " : "− "}{formatMoney(Math.abs(revisedDelta))}</dd>
         </div>
-        <Button variant="outline" onClick={close}>Close</Button>
+      )}
+      <div className="is-total">
+        <dt>Revised request</dt>
+        <dd className="ep-mono">{formatMoney(revisedTotal)}</dd>
+      </div>
+    </dl>
+  );
+
+  const actions = (
+    <>
+      {submitError && <div className="ep-notice is-bad">{submitError}</div>}
+      <Button variant="primary" icon={Send} disabled={submitting} onClick={handleSubmit} className="pd-submit-btn">
+        {submitting ? "Submitting…" : "Submit enhancement"}
+      </Button>
+      <button type="button" className="pd-text-btn" onClick={close}>
+        {routed ? "Back to decision" : "Cancel"}
+      </button>
+    </>
+  );
+
+  const sections = (
+    <>
+      {!routed && (
+        <Section id="en-amounts" title="Amount">
+          {statement}
+        </Section>
+      )}
+
+      {newProcs.length > 0 && (
+        <Section id="en-procs" title="New procedures" meta="Untick a procedure to leave it and its lines out">
+          <ul className="en-procs">
+            {newProcs.map((proc, i) => (
+              <li key={i}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!checkedProcedures[i]}
+                    onChange={(e) => setCheckedProcedures((p) => ({ ...p, [i]: e.target.checked }))}
+                  />
+                  <span>
+                    <span className="ep-strong">{proc.name}</span>
+                    <span className="ep-muted">{[proc.code, proc.date && formatDate(proc.date)].filter(Boolean).join(" · ")}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {newItems.length > 0 && (
+        <Section id="en-items" title="New line items">
+          <div className="ep-table-wrap">
+            <table className="ep-table ds-lines-table">
+              <thead>
+                <tr>
+                  <th>Service</th>
+                  <th className="ep-num">Qty</th>
+                  <th className="ep-num">Unit price</th>
+                  <th className="ep-num">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {newItems.map((item, i) => (
+                  <tr key={i} className={excludedItem(item) ? "en-excluded" : undefined}>
+                    <td className="ep-col-name">
+                      <div className="ep-strong">{item.service_name}</div>
+                      <div className="ep-muted">
+                        {[item.service_code, item.category, excludedItem(item) && "left out"].filter(Boolean).join(" · ")}
+                      </div>
+                    </td>
+                    <td className="ep-num ep-mono">{item.quantity}</td>
+                    <td className="ep-num ep-mono">{formatMoney(item.unit_price)}</td>
+                    <td className="ep-num ep-mono">{formatMoney(item.net_amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      <Section id="en-docs" title="Documents sent with it">
+        <Fields cols={1} rows={docs.map((d, i) => ({ label: i === 0 ? "Attached" : " ", value: d.name || d.code, sub: d.event_date ? formatDate(d.event_date) : null }))} />
+        <label className="en-url">
+          <span>Revised estimate URL (optional)</span>
+          <input
+            className="input-modern pd-input"
+            placeholder="https://hospital.example/records/revised-estimate.pdf"
+            value={additionalDocUrl}
+            onChange={(e) => setAdditionalDocUrl(e.target.value)}
+          />
+        </label>
+      </Section>
+    </>
+  );
+
+  if (!routed) {
+    return (
+      <div className="pd-screen">
+        {sections}
+        <div className="en-footer">{actions}</div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-      <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "center", padding: "12px 16px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)", fontSize: "13px" }}>
-        <div>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Preauth Ref</div>
-          <div style={{ fontWeight: 700 }}>{preview.preauth_ref || "-"}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Authorized Total</div>
-          <div style={{ fontWeight: 700 }}>{formatMoney(preview.authorized?.total_amount)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Revised Total</div>
-          <div style={{ fontWeight: 800, color: "var(--primary)" }}>{formatMoney(revisedTotal)}</div>
-        </div>
-        {revisedDelta != null && (
-          <div>
-            <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Delta</div>
-            <div style={{ fontWeight: 700, color: revisedDelta > 0 ? "var(--success)" : "var(--text-muted)" }}>
-              {revisedDelta > 0 ? "+" : ""}{formatMoney(revisedDelta)}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {preview.new_procedures?.length > 0 && (
-        <div>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "10px" }}>New Procedures</div>
-          {preview.new_procedures.map((proc, i) => (
-            <label key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-2)", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={!!checkedProcedures[i]}
-                onChange={(e) => setCheckedProcedures((p) => ({ ...p, [i]: e.target.checked }))}
-              />
-              <div>
-                <div style={{ fontWeight: 600, fontSize: "13px" }}>{proc.name}</div>
-                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{proc.code} · {proc.date}</div>
+    <div className="wizard-step pd-screen">
+      <div className="pd-layout">
+        <div className="pd-main">{sections}</div>
+        <aside className="pd-side">
+          <section className="ep-section pd-request">
+            <header className="ep-section-head">
+              <h3 className="ep-section-title">Enhancement request</h3>
+            </header>
+            {preview.preauth_ref && (
+              <div className="ds-ref ds-ref-top">
+                <span className="ep-muted">Enhancing</span>
+                <span className="ep-mono">{preview.preauth_ref}</span>
               </div>
-            </label>
-          ))}
-        </div>
-      )}
-
-      {preview.new_items?.length > 0 && (
-        <div>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>New Line Items</div>
-          <table className="table-modern" style={{ fontSize: "12px", width: "100%" }}>
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Qty</th>
-                <th style={{ textAlign: "right" }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {preview.new_items.map((item, i) => (
-                <tr key={i}>
-                  <td>{item.service_name}</td>
-                  <td>{item.quantity}</td>
-                  <td style={{ textAlign: "right" }}>{formatMoney(item.net_amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div>
-        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Revised Estimate URL (optional)</label>
-        <input
-          className="input-modern"
-          placeholder="https://hospital.example/records/revised-estimate.pdf"
-          value={additionalDocUrl}
-          onChange={(e) => setAdditionalDocUrl(e.target.value)}
-        />
-      </div>
-
-      <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
-        <Button variant="outline" onClick={close}>Cancel</Button>
-        <Button
-          variant="primary"
-          icon={Send}
-          disabled={submitting}
-          onClick={handleSubmit}
-        >
-          {submitting ? "Submitting…" : "Submit Enhancement"}
-        </Button>
+            )}
+            {statement}
+            <div className="pd-submit">{actions}</div>
+          </section>
+        </aside>
       </div>
     </div>
   );
