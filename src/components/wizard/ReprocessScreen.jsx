@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
 import { api } from "../../api";
@@ -35,6 +35,22 @@ export default function ReprocessScreen({ ctx }) {
   const [reprocessCorrelationId, setReprocessCorrelationId] = useState(null);
   const [status, setStatus] = useState(null);
   const [polling, setPolling] = useState(false);
+
+  useEffect(() => {
+    if (reprocessCorrelationId || !caseState.cashless_case_id) return;
+    let live = true;
+    api.getCashlessStatus(caseState.cashless_case_id)
+      .then((res) => {
+        const recovered = res?.reprocess?.correlation_id;
+        if (!live || !recovered) return;
+        setReprocessCorrelationId(recovered);
+        setPolling(true);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [caseState.cashless_case_id]);
 
   const pollStatus = async (signal) => {
     try {
@@ -201,6 +217,10 @@ export default function ReprocessScreen({ ctx }) {
                 ) : decision === "QUERIED" ? (
                   <Button variant="primary" icon={ArrowRight} onClick={() => navigate("../claim")} className="pd-submit-btn">
                     Respond on the claim
+                  </Button>
+                ) : isComplete && verdict.tone === "bad" ? (
+                  <Button variant="primary" icon={Send} onClick={handleRetry} className="pd-submit-btn">
+                    File another appeal
                   </Button>
                 ) : null}
                 <button type="button" className="pd-text-btn" onClick={() => navigate("../claim")}>
