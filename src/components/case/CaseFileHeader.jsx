@@ -24,8 +24,8 @@ function CaseMoneyStrip({ ledger }) {
       tag: ceiling?.cumulative ? "cumulative" : null,
       title: ceilingComponents,
     },
-    { label: "Approved", value: ledger.approved?.value, color: "var(--success)" },
-    { label: "Settled", value: ledger.settlement?.net, color: "var(--success)" },
+    { label: "Approved", value: ledger.approved?.value },
+    { label: "Settled", value: ledger.settlement?.net },
   ].filter((c) => c.value != null);
 
   const collect = ledger.reconciliation?.to_collect_from_patient;
@@ -144,7 +144,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
         {approvedAmount != null && moneyLedger?.approved?.value == null && (
           <div className="cx-id-fact">
             <span className="cx-file-mono">Approved</span>
-            <span className="cx-file-val" style={{ color: "var(--success)", fontWeight: 800 }}>
+            <span className="cx-file-val" style={{ fontWeight: 800 }}>
               {formatMoney(approvedAmount)}
             </span>
           </div>

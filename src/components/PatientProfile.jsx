@@ -18,7 +18,7 @@ function calculateAge(dob) {
 
 function CaseStatusChip({ claim }) {
   const cfg = resolveCaseStatus(claim);
-  return <span className={`badge-modern ${cfg.badgeClass}`}>{cfg.label}</span>;
+  return <span className={`badge-modern cc-status-chip ${cfg.badgeClass}`}>{cfg.label}</span>;
 }
 
 function PatientDetail({ patient }) {

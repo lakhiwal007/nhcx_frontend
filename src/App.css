@@ -4244,7 +4244,7 @@ code {
 
 .cc-approved {
     margin-top: 4px;
-    color: var(--success);
+    color: var(--text-muted);
     font-weight: var(--fw-medium);
     white-space: nowrap;
 }
@@ -4365,6 +4365,15 @@ code {
    edges line up row to row. Sized to the longest labels ("Claim Partially
    Approved", "Retry Acknowledgement"); anything longer truncates, with the
    full text in the title tooltip. */
+/* Case status: neutral for normal progress; only warnings and errors
+   (query, pending payment, rejected) keep their colour. */
+.cc-status-chip.badge-success,
+.cc-status-chip.badge-info {
+    background: var(--bg-main);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
 .cc-table .cc-status-chip {
     display: inline-block;
     width: 176px;
