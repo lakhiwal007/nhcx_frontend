@@ -29,6 +29,7 @@ import {
   ChevronsUpDown,
   PanelLeftClose,
   PanelLeftOpen,
+  BarChart3,
 } from "lucide-react";
 import "./App.css";
 import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY, SIDEBAR_COLLAPSED_KEY, clearSessionToken } from "./api";
@@ -39,6 +40,7 @@ import Dashboard from "./components/Dashboard";
 import PatientProfile from "./components/PatientProfile";
 import Communications from "./components/Communications";
 import Payments from "./components/Payments";
+import Analytics from "./components/Analytics";
 import SettingsPage from "./components/Settings";
 import { stageInfo } from "./components/case/caseStages";
 import CaseWrapper from "./components/wizard/CaseWrapper";
@@ -295,6 +297,7 @@ export default function App() {
     { to: "/registry", icon: Users, label: "Patients" },
     { to: "/communications", icon: MessageSquare, label: "Communications", badge: unreadCommsCount, badgeTone: "info" },
     { to: "/payments", icon: CreditCard, label: "Payments" },
+    { to: "/analytics", icon: BarChart3, label: "Analytics" },
   ];
 
   // The sidebar shows the same destinations in labelled groups: day-to-day
@@ -317,6 +320,7 @@ export default function App() {
       registry: "Patients",
       communications: "Communications",
       payments: "Payments",
+      analytics: "Analytics",
       settings: "Settings",
       case: "Cashless Cases",
     };
@@ -753,6 +757,7 @@ export default function App() {
                 <Route path="/registry" element={<PatientProfile />} />
                 <Route path="/communications" element={<Communications allFacilitiesMode={allFacilitiesMode} />} />
                 <Route path="/payments" element={<Payments />} />
+                <Route path="/analytics" element={<Analytics />} />
                 <Route path="/case/:id/*" element={<CaseWrapper />} />
               </Route>
               <Route path="*" element={<Navigate to="/work-queue" replace />} />

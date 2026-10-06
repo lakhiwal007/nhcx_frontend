@@ -546,6 +546,57 @@ const mock = {
   },
 
   // ─── Dashboard ─────────────────────────────────────────────────────────────
+  getDashboardAnalytics: async (params = {}) => {
+    await delay(500);
+    const all = [
+      { payer_id: "1000077777@hcx", payer_name: "Star Health", claims: 9, decided: 7, approved_count: 6, rejected_count: 1, settled_count: 4,
+        billed: 1240000, approved: 905000, settled_gross: 610000, settled_net: 571000, tds: 39000, disallowed: 118000,
+        copay: 42000, deductible: 15000, patient_payable: 175000, outstanding: 295000, leakage: 96000, approval_rate: 85.7, realisation_rate: 86.4 },
+      { payer_id: "1000099999@hcx", payer_name: "PMJAY Telangana", claims: 6, decided: 6, approved_count: 4, rejected_count: 2, settled_count: 2,
+        billed: 480000, approved: 300000, settled_gross: 150000, settled_net: 150000, tds: 0, disallowed: 64000,
+        copay: 0, deductible: 0, patient_payable: 64000, outstanding: 150000, leakage: 38000, approval_rate: 66.7, realisation_rate: 79.8 },
+    ];
+    const rows = params.payer_id ? all.filter((r) => r.payer_id === params.payer_id) : all;
+    const add = (k) => rows.reduce((s, r) => s + (r[k] || 0), 0);
+    const totals = Object.fromEntries(Object.keys(all[0]).filter((k) => typeof all[0][k] === "number").map((k) => [k, add(k)]));
+    totals.approval_rate = totals.decided ? Math.round((totals.approved_count * 1000) / totals.decided) / 10 : null;
+    totals.realisation_rate = 84.6;
+    const now = Date.now();
+    const ago = (m) => new Date(now - m * 60000).toISOString();
+    return {
+      status: "complete",
+      period: { from: params.from || "2026-07-09", to: params.to || "2026-10-07" },
+      generated_at: new Date(now).toISOString(),
+      revenue: {
+        totals,
+        by_payer: rows,
+        ageing: [
+          { bucket: "0-30", count: 5, amount: 310000, awaiting_decision: 2, awaiting_payment: 3 },
+          { bucket: "31-60", count: 3, amount: 145000, awaiting_decision: 1, awaiting_payment: 2 },
+          { bucket: "61-90", count: 1, amount: 62000, awaiting_decision: 0, awaiting_payment: 1 },
+          { bucket: "90+", count: 1, amount: 38000, awaiting_decision: 1, awaiting_payment: 0 },
+        ],
+      },
+      turnaround: {
+        sla_minutes: { preauth: 60, claim: 180 },
+        by_workflow: [
+          { workflow: "preauth", sla_minutes: 60, decided: 14, median_minutes: 48, p90_minutes: 142, breached: 4, breach_rate: 28.6, pending: 2, pending_breached: 1 },
+          { workflow: "claim", sla_minutes: 180, decided: 8, median_minutes: 205, p90_minutes: 1460, breached: 5, breach_rate: 62.5, pending: 1, pending_breached: 1 },
+          { workflow: "reprocess", sla_minutes: null, decided: 2, median_minutes: 2880, p90_minutes: 4100, breached: null, breach_rate: null, pending: 0, pending_breached: null },
+        ],
+        by_payer: [
+          { workflow: "preauth", payer_id: "1000077777@hcx", payer_name: "Star Health", decided: 9, median_minutes: 38, p90_minutes: 95, breached: 2, breach_rate: 22.2, sla_minutes: 60 },
+          { workflow: "preauth", payer_id: "1000099999@hcx", payer_name: "PMJAY Telangana", decided: 5, median_minutes: 74, p90_minutes: 180, breached: 2, breach_rate: 40.0, sla_minutes: 60 },
+        ],
+        waiting: [
+          { correlation_id: "mock-wait-1", workflow: "claim", payer_id: "1000077777@hcx", payer_name: "Star Health", cashless_case_id: 5, claim_id: 12, child_id: 19, patient_name: "Aarav Kumar", sent_at: ago(310), waiting_minutes: 310, sla_minutes: 180, breached: true },
+          { correlation_id: "mock-wait-2", workflow: "preauth", payer_id: "1000099999@hcx", payer_name: "PMJAY Telangana", cashless_case_id: 4, claim_id: null, child_id: 17, patient_name: "Diya Sharma", sent_at: ago(75), waiting_minutes: 75, sla_minutes: 60, breached: true },
+          { correlation_id: "mock-wait-3", workflow: "preauth", payer_id: "1000077777@hcx", payer_name: "Star Health", cashless_case_id: 6, claim_id: null, child_id: 21, patient_name: "Kabir Rao", sent_at: ago(22), waiting_minutes: 22, sla_minutes: 60, breached: false },
+        ],
+      },
+    };
+  },
+
   getDashboardStats: async () => {
     await delay(500);
     return {
@@ -2614,6 +2665,8 @@ const real = {
   healthCheck: () => http.get("/health"),
 
   getDashboardStats: () => http.get("/cashless/dashboard/stats"),
+
+  getDashboardAnalytics: (params = {}) => http.get("/cashless/dashboard/analytics", params),
 
   getDashboardClaims: (params = {}) =>
     http.get("/cashless/dashboard/claims", params),

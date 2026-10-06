@@ -69,6 +69,16 @@ export const formatPercent = (v, { dash = DASH } = {}) => {
   return Number.isNaN(n) ? dash : `${n.toLocaleString("en-IN")}%`;
 };
 
+export const formatDuration = (minutes, dash = DASH) => {
+  if (minutes === null || minutes === undefined || minutes === "") return dash;
+  const m = Math.round(Number(minutes));
+  if (Number.isNaN(m)) return dash;
+  if (m < 60) return `${m} min`;
+  if (m < 1440) return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m / 60}h`;
+  const h = Math.floor((m % 1440) / 60);
+  return h ? `${Math.floor(m / 1440)}d ${h}h` : `${Math.floor(m / 1440)}d`;
+};
+
 export const formatPhone = (v, dash = DASH) => {
   if (v == null || v === "") return dash;
   const digits = String(v).replace(/\D/g, "");
