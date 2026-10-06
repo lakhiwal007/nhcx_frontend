@@ -151,6 +151,10 @@ function ageLabel(createdAt) {
   return null;
 }
 
+// Tasks that answer or send something to the payer can't be closed in bulk:
+// ticking them "done" would hide a query nobody answered.
+const needsOwnAction = (task) => /^(respond_|submit_|resubmit_)/.test(task.task_type || "");
+
 function taskSubject(task) {
   const ref = task.cashless_case_id
     ? formatCaseRef(task.cashless_case_id)
@@ -628,7 +632,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   };
 
   const handleMarkDone = async () => {
-    const ids = Object.keys(selected);
+    const ids = tasks.filter((t) => selected[taskKey(t)] && !needsOwnAction(t)).map(taskKey);
     setBulkBusy(true);
     try {
       await Promise.allSettled(
@@ -657,7 +661,8 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
   const selectable = statusFilter === "pending";
   const selCount = Object.keys(selected).length;
-  const allChecked = pageRows.length > 0 && pageRows.every((t) => selected[taskKey(t)]);
+  const bulkRows = pageRows.filter((t) => !needsOwnAction(t));
+  const allChecked = bulkRows.length > 0 && bulkRows.every((t) => selected[taskKey(t)]);
   const filtersActive = q || priorityFilter !== "all" || taskTypeFilter;
 
   const toggleOne = (task) =>
@@ -672,7 +677,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const toggleAll = () =>
     setSelected((s) => {
       const next = { ...s };
-      pageRows.forEach((t) => {
+      bulkRows.forEach((t) => {
         if (allChecked) delete next[taskKey(t)];
         else next[taskKey(t)] = true;
       });
@@ -817,6 +822,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
                           type="checkbox"
                           aria-label="Select all on this page"
                           checked={allChecked}
+                          disabled={bulkRows.length === 0}
                           onChange={toggleAll}
                         />
                       )}
@@ -874,8 +880,9 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
   const bucket = priorityBucket(task);
   const age = ageLabel(task.created_at);
-  const text = task.description || task.title;
-  const tooltip = task.description && task.title ? `${task.title}\n${task.description}` : text;
+  const title = task.title || task.description;
+  const detail = task.title && task.description ? task.description : null;
+  const canBulk = selectable && !needsOwnAction(task);
   const ref = task.cashless_case_id
     ? formatCaseRef(task.cashless_case_id)
     : task.claim_id
@@ -889,26 +896,49 @@ function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
   );
 
   return (
-    <tr className={checked ? "is-selected" : undefined} onClick={onOpen}>
+    <tr
+      className={checked ? "is-selected" : undefined}
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+    >
       <td
         className="wq-check"
-        title={`${bucket[0].toUpperCase()}${bucket.slice(1)} priority`}
+        title={
+          selectable && !canBulk
+            ? "Answer this from the task itself; it can't be closed in bulk"
+            : `${bucket[0].toUpperCase()}${bucket.slice(1)} priority`
+        }
         onClick={(e) => {
-          if (!selectable) return;
+          if (!canBulk) return;
           e.stopPropagation();
           onToggle();
         }}
       >
         {bucket !== "normal" && <span className={`wq-edge is-${bucket}`} />}
         {selectable && (
-          <input type="checkbox" aria-label={`Select ${task.title}`} checked={checked} readOnly />
+          <input type="checkbox" aria-label={`Select ${title}`} checked={checked} disabled={!canBulk} readOnly />
         )}
       </td>
       <td>
         <div className="wq-task">
           <span className="wq-type-tag">{shortTaskType(task.task_type)}</span>
-          <span className={`wq-task-text${bucket === "urgent" ? " is-urgent" : ""}`} title={tooltip}>
-            {text}
+          <span className="wq-task-main">
+            <span className={`wq-task-text${bucket === "urgent" ? " is-urgent" : ""}`} title={title}>
+              {bucket !== "normal" && <span className={`wq-prio is-${bucket}`}>{bucket === "urgent" ? "Urgent" : "High"}</span>}
+              {title}
+            </span>
+            {detail && (
+              <span className="wq-task-detail" title={detail}>
+                {detail}
+              </span>
+            )}
           </span>
         </div>
       </td>

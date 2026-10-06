@@ -3958,6 +3958,43 @@ code {
     font-weight: var(--fw-semibold);
 }
 
+.wq-task-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.wq-task-detail {
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Priority in words beside the coloured row edge, so it isn't colour-only. */
+.wq-prio {
+    margin-right: 6px;
+    font-size: 11px;
+    font-weight: var(--fw-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.wq-prio.is-urgent { color: var(--error); }
+.wq-prio.is-high { color: var(--warning); }
+
+.wq-table tbody tr:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+.wq-table input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
 .wq-mono {
     font-family: var(--font-mono);
     font-size: 12px;
