@@ -164,6 +164,9 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       if (claimDecision && /reject|denied|short/i.test(String(claimDecision))) return { done: true, note: label, tone: "urgent" };
       if (claimDecision && /approv|paid/i.test(String(claimDecision))) return { done: true, note: label, tone: "approve" };
       if (claimDecision) return { done: false, note: label, tone: "wait" };
+      // Money already settled means the payer decided the claim, even when the
+      // decision itself isn't on this case record.
+      if (paymentDone) return { done: true, note: "Decided · paid", tone: "approve" };
       return { done: false, note: claimSubmitted ? "Awaiting decision" : "", tone: claimSubmitted ? "wait" : undefined };
     })(),
     payment: (() => {

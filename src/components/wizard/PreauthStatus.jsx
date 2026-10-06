@@ -270,7 +270,10 @@ export default function PreauthStatus({ ctx }) {
       setRecheckingEligibility(false);
     }
   };
-  const isComplete = statusData?.status === "complete";
+  // Until the first poll answers, a decision the case already knows stands in,
+  // so the page doesn't flash "Awaiting payer" over a decided preauth.
+  const cachedDecision = !statusData && caseState.preauthDecision && caseState.preauthDecision !== "UNKNOWN";
+  const isComplete = statusData?.status === "complete" || !!cachedDecision;
   const isFailed = statusData?.status === "failed";
   const decision = statusData?.decision || caseState.preauthDecision;
   // Latest preauth decision event from the audit trail — carries the payer's
