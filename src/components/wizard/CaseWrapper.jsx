@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { History } from "lucide-react";
+import { History, StickyNote } from "lucide-react";
 import { api } from "../../api";
 import { Button, EmptyState, LoadingBlock } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
 import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
 import CaseCommsBar from "../case/CaseCommsBar";
+import CaseNotesDrawer, { PinnedNoteStrip } from "../case/CaseNotes";
+import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
 import { buildStages, projectCaseStatus, landingStage, stageInfo } from "../case/caseStages";
 import "../case/case-workspace.css";
@@ -109,6 +111,9 @@ export default function CaseWrapper() {
   useEffect(() => {
     refreshTimeline();
   }, [refreshTimeline, caseState.preauthDecision, caseState.approvedAmount, caseState.claimCorrelationId, caseState.dischargeCorrelationId]);
+
+  const { notes, loaded: notesLoaded, error: notesError, refresh: refreshNotes } = useCaseNotes(ledgerCaseId);
+  const [notesOpen, setNotesOpen] = useState(false);
 
   const [communications, setCommunications] = useState([]);
   const [openCommId, setOpenCommId] = useState(null);
@@ -250,6 +255,8 @@ export default function CaseWrapper() {
 
           <CaseCommsBar communications={communications} onOpen={setOpenCommId} />
 
+          <PinnedNoteStrip notes={notes} onOpen={() => setNotesOpen(true)} />
+
           <div className="cx-stage-head">
             <div>
               <div className="cx-eyebrow">
@@ -263,6 +270,11 @@ export default function CaseWrapper() {
               {activeStage?.hint && <p className="cx-stage-hint">{activeStage.hint}</p>}
             </div>
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              {ledgerCaseId && (
+                <Button variant="outline" size="small" icon={StickyNote} onClick={() => setNotesOpen(true)}>
+                  {notes.length ? `Notes (${notes.length})` : "Notes"}
+                </Button>
+              )}
               {/* The stage's status note lives on the lifecycle rail; not repeated here. */}
               {currentStepPath === "timeline" ? (
                 <Button variant="outline" size="small" onClick={() => navigate(-1)}>Back to case</Button>
@@ -314,6 +326,19 @@ export default function CaseWrapper() {
           </div>
         </section>
       </div>
+
+      <CaseNotesDrawer
+        open={notesOpen}
+        onClose={() => setNotesOpen(false)}
+        cashlessCaseId={ledgerCaseId}
+        notes={notes}
+        loaded={notesLoaded}
+        loadError={notesError}
+        onChanged={async () => {
+          await refreshNotes();
+          refreshTimeline();
+        }}
+      />
 
       <CommunicationDetailDrawer
         correlationId={openCommId}

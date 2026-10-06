@@ -37,6 +37,7 @@ const WORKFLOW_LABELS = {
   reprocess: "Reprocess",
   payment: "Payment",
   communication: "Communication",
+  note: "Internal note",
 };
 
 const money = (v) => (v == null ? null : formatMoney(v));

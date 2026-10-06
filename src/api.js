@@ -259,6 +259,24 @@ const http = {
       throw err;
     }
   },
+  delete: async (path, body = {}) => {
+    const merged = { request_id: generateRequestId(), ...body };
+    try {
+      const res = await fetch(BASE_URL + path, {
+        method: "DELETE",
+        headers: buildHeaders(path, "DELETE"),
+        body: JSON.stringify(merged),
+      });
+      if (!res.ok) {
+        const info = await extractErrorMessage(res);
+        throw new ApiError(info.message, info.kind);
+      }
+      return await res.json();
+    } catch (err) {
+      dispatchError(err.message, err.kind);
+      throw err;
+    }
+  },
   /** Fire an arbitrary POST to a full path (used by Work Queue task actions). */
   rawPost: async (fullPath, body = {}) => {
     const merged = { request_id: generateRequestId(), ...body };
@@ -538,6 +556,20 @@ const MOCK_CASE_JOURNEYS = {
     },
   },
 };
+const MOCK_NOTES = {};
+const mockNotes = (cashless_case_id) => {
+  if (!MOCK_NOTES[cashless_case_id]) {
+    MOCK_NOTES[cashless_case_id] = [
+      {
+        id: 1, cashless_case_id, category: "payer_call", pinned: true, author_id: "2", author_name: "Riya (TPA desk)",
+        body: "Spoke to the payer helpdesk. Preauth is with their medical team; they want the CBC report attached to the next query reply.",
+        created_at: "2026-05-01T11:20:00+05:30", updated_at: "2026-05-01T11:20:00+05:30",
+      },
+    ];
+  }
+  return MOCK_NOTES[cashless_case_id];
+};
+
 const mock = {
   // ─── Health ────────────────────────────────────────────────────────────────
   healthCheck: async () => {
@@ -595,6 +627,34 @@ const mock = {
         ],
       },
     };
+  },
+
+  listCaseNotes: async (cashless_case_id) => {
+    await delay(250);
+    return { status: "complete", cashless_case_id, notes: [...mockNotes(cashless_case_id)].sort((a, b) => b.pinned - a.pinned || b.id - a.id) };
+  },
+  createCaseNote: async (cashless_case_id, data) => {
+    await delay(300);
+    const now = new Date().toISOString();
+    const note = {
+      id: Date.now(), cashless_case_id, category: data.category || "general", body: data.body, pinned: false,
+      author_id: "42", author_name: "You", created_at: now, updated_at: now,
+    };
+    mockNotes(cashless_case_id).push(note);
+    return { status: "created", note };
+  },
+  updateCaseNote: async (cashless_case_id, note_id, data) => {
+    await delay(200);
+    const note = mockNotes(cashless_case_id).find((n) => n.id === note_id);
+    if (note) Object.assign(note, data, { updated_at: new Date().toISOString() });
+    return { status: "complete", note };
+  },
+  deleteCaseNote: async (cashless_case_id, note_id) => {
+    await delay(200);
+    const list = mockNotes(cashless_case_id);
+    const idx = list.findIndex((n) => n.id === note_id);
+    if (idx >= 0) list.splice(idx, 1);
+    return { status: "complete", id: note_id };
   },
 
   getDashboardStats: async () => {
@@ -2667,6 +2727,13 @@ const real = {
   getDashboardStats: () => http.get("/cashless/dashboard/stats"),
 
   getDashboardAnalytics: (params = {}) => http.get("/cashless/dashboard/analytics", params),
+
+  listCaseNotes: (cashless_case_id) => http.get(`/cashless/${cashless_case_id}/notes`),
+  createCaseNote: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/notes`, data),
+  updateCaseNote: (cashless_case_id, note_id, data) =>
+    http.patch(`/cashless/${cashless_case_id}/notes/${note_id}`, data),
+  deleteCaseNote: (cashless_case_id, note_id) =>
+    http.delete(`/cashless/${cashless_case_id}/notes/${note_id}`),
 
   getDashboardClaims: (params = {}) =>
     http.get("/cashless/dashboard/claims", params),
