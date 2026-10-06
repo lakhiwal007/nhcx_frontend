@@ -786,25 +786,6 @@
   margin-top: 3px;
   max-width: 60ch;
 }
-.cx-stage-flag {
-  font-family: var(--cx-font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 6px 11px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--glass-border);
-  background-color: var(--glass);
-  background-image: var(--glass-sheen);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  box-shadow: var(--glass-shadow);
-  color: var(--cx-ink-soft);
-  white-space: nowrap;
-}
-.cx-stage-flag.tone-approve { color: var(--cx-approve); border-color: var(--cx-approve); }
-.cx-stage-flag.tone-wait { color: var(--cx-wait); border-color: var(--cx-wait); }
-.cx-stage-flag.tone-urgent { color: var(--cx-urgent); border-color: var(--cx-urgent); }
-.cx-stage-flag.tone-live { color: var(--cx-primary); border-color: var(--cx-primary); }
 
 @media (max-width: 768px) {
   .cx-root {

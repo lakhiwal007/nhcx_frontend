@@ -140,7 +140,8 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
           <span className="cx-file-mono">ABHA</span>
           <span className="cx-file-val">{abha || "-"}</span>
         </div>
-        {approvedAmount != null && (
+        {/* The money strip below carries Approved once the ledger has it. */}
+        {approvedAmount != null && moneyLedger?.approved?.value == null && (
           <div className="cx-id-fact">
             <span className="cx-file-mono">Approved</span>
             <span className="cx-file-val" style={{ color: "var(--success)", fontWeight: 800 }}>

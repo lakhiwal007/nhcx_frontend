@@ -263,11 +263,7 @@ export default function CaseWrapper() {
               {activeStage?.hint && <p className="cx-stage-hint">{activeStage.hint}</p>}
             </div>
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              {activeStage?.note && (
-                <span className={`cx-stage-flag${activeStage.tone ? ` tone-${activeStage.tone}` : ""}`}>
-                  {activeStage.note}
-                </span>
-              )}
+              {/* The stage's status note lives on the lifecycle rail; not repeated here. */}
               {currentStepPath === "timeline" ? (
                 <Button variant="outline" size="small" onClick={() => navigate(-1)}>Back to case</Button>
               ) : (
