@@ -837,7 +837,7 @@ export default function ClaimsScreen({ ctx }) {
                       </div>
                       {claimTotals.eligible?.value != null && claimRequested != null && claimRequested > claimTotals.eligible.value && (
                         <div>
-                          <dt>Not eligible</dt>
+                          <dt>Disallowed</dt>
                           <dd className="ep-mono">− {formatMoney(claimRequested - claimTotals.eligible.value)}</dd>
                         </div>
                       )}

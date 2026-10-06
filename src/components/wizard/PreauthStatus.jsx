@@ -429,7 +429,7 @@ export default function PreauthStatus({ ctx }) {
   const notEligible = requestedValue != null && totals.eligible?.value != null ? requestedValue - totals.eligible.value : null;
   const statement = [
     { label: "Requested", value: requestedValue },
-    notEligible > 0 && { label: "Not eligible", value: -notEligible, note: adjItems.map((it) => it.adjudication?.eligible?.reason).filter(Boolean).join(", ") },
+    notEligible > 0 && { label: "Disallowed", value: -notEligible, note: adjItems.map((it) => it.adjudication?.eligible?.reason).filter(Boolean).join(", ") },
     totals.copay?.value > 0 && { label: "Co-payment", value: -totals.copay.value, note: totals.copay.reason },
     deductibleTotal > 0 && { label: "Deductible", value: -deductibleTotal },
     { label: "Approved", value: approvedValue, total: true },
@@ -438,7 +438,7 @@ export default function PreauthStatus({ ctx }) {
   const lineName = (item, i) => {
     const claimItem = statusData?.claim_items?.[i] || draftData?.editedItems?.[i] || draftData?.items?.[i] || item;
     return {
-      name: claimItem?.service_name || claimItem?.name || claimItem?.description || `Line ${item.sequence ?? i + 1}`,
+      name: claimItem?.service_name || claimItem?.name || claimItem?.description || `Item ${item.sequence ?? i + 1} (unnamed by payer)`,
       code: claimItem?.service_code || claimItem?.code || null,
       claimItem,
     };
