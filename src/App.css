@@ -1237,14 +1237,14 @@ h3,
 }
 
 .btn-primary-modern {
-    background: var(--primary);
+    background: var(--primary-fill);
     color: white;
     box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--primary) 45%, transparent),
         inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .btn-primary-modern:hover {
-    background: var(--primary-hover);
+    background: var(--primary-fill-hover);
     transform: translateY(-1px);
     box-shadow: 0 8px 20px -4px color-mix(in srgb, var(--primary) 55%, transparent),
         inset 0 1px 0 rgba(255, 255, 255, 0.3);
@@ -4340,14 +4340,14 @@ code {
 }
 
 .cc-act.is-primary {
-    border-color: var(--primary);
-    background: var(--primary);
+    border-color: var(--primary-fill);
+    background: var(--primary-fill);
     color: #fff;
 }
 
 .cc-act.is-primary:hover:not(:disabled) {
-    border-color: var(--primary-hover);
-    background: var(--primary-hover);
+    border-color: var(--primary-fill-hover);
+    background: var(--primary-fill-hover);
 }
 
 .cc-act:disabled {
@@ -5117,4 +5117,9 @@ code {
 /* Settled case: one read-only note above the stage body (CaseWrapper). */
 .cx-closed-note {
     margin: 0 0 12px;
+}
+
+/* Overlay titles take focus on open (Overlay.jsx); no ring for that. */
+.ov-title:focus {
+    outline: none;
 }

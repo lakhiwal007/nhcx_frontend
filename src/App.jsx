@@ -342,6 +342,17 @@ export default function App() {
     }));
   };
 
+  // Name the browser tab after where the user is ("Approval · Patient 19"), so
+  // a desk with many tabs open can tell them apart.
+  const pageTitle = getBreadcrumb()
+    .map((c) => c.label)
+    .filter((l) => l !== "Cashless Cases" || location.pathname === "/dashboard")
+    .reverse()
+    .join(" · ");
+  useEffect(() => {
+    document.title = pageTitle ? `${pageTitle} · NHCX` : "NHCX";
+  }, [pageTitle]);
+
   // The facility whose context (X-Provider-Id) every API call is scoped to.
   // Prefer the saved name; fall back to the participant code. In
   // all-facilities mode there is no single facility - every read spans all

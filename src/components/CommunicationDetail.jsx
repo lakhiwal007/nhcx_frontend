@@ -248,7 +248,6 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
               {showOpenCase && detail?.cashless_case_id && detail?.child_id && (
                 <Button variant="outline" icon={ExternalLink} onClick={handleOpenCase}>Open Case</Button>
               )}
-              <Button variant="outline" onClick={onClose}>Close</Button>
         </>
       }
     >

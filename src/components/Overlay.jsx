@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -17,11 +17,22 @@ function useEscape(open, onClose) {
   }, [open, onClose]);
 }
 
+// The header mounts when the overlay opens: move focus to its title so keyboard
+// and screen-reader users start inside the dialog, and hand focus back to
+// whatever opened it on close.
 function Header({ title, subtitle, extra, onClose }) {
+  const titleRef = useRef(null);
+  useEffect(() => {
+    const opener = document.activeElement;
+    titleRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (opener && document.contains(opener)) opener.focus?.({ preventScroll: true });
+    };
+  }, []);
   return (
     <div className="ov-head">
       <div className="ov-head-text">
-        <h3 className="ov-title">
+        <h3 className="ov-title" ref={titleRef} tabIndex={-1}>
           {title}
           {extra}
         </h3>
