@@ -701,7 +701,9 @@ export default function App() {
         <div className="main-view">
           {/* A crash on one screen stays on that screen; changing route clears it. */}
           <PageActionsSlot.Provider value={pageActionsEl}>
-          <ErrorBoundary key={location.pathname}>
+          {/* Reset after a crash when the screen (or the case) changes, but not
+              on every case stage, or the whole case reloads per stage. */}
+          <ErrorBoundary key={location.pathname.split("/").slice(0, location.pathname.startsWith("/case/") ? 3 : 2).join("/")}>
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname.split("/")[1]}>
               <Route path="/" element={<Navigate to="/work-queue" replace />} />

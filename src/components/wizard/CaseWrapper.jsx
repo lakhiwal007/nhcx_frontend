@@ -21,6 +21,7 @@ import ClaimsScreen from "./ClaimsScreen";
 import ReprocessScreen from "./ReprocessScreen";
 import PaymentReconciliation from "./PaymentReconciliation";
 import CaseTimeline from "./CaseTimeline";
+import ErrorBoundary from "../ErrorBoundary";
 
 const COMMS_POLL_MS = 60_000;
 
@@ -287,6 +288,7 @@ export default function CaseWrapper() {
                     AnimatePresence during its exit animation also picks up the new
                     location via context and briefly mounts the next screen a second
                     time, double-firing its init effect (e.g. prepareCashless). */}
+                <ErrorBoundary key={currentStepPath}>
                 <Routes location={location}>
                   <Route path="/" element={<Navigate to={landingStage(effectiveCase)} replace />} />
                   <Route path="payer" element={<PayerPolicy ctx={contextValue} />} />
@@ -299,6 +301,7 @@ export default function CaseWrapper() {
                   <Route path="payment" element={<PaymentReconciliation ctx={contextValue} />} />
                   <Route path="timeline" element={<CaseTimeline ctx={contextValue} />} />
                 </Routes>
+                </ErrorBoundary>
               </motion.div>
             </AnimatePresence>
           </div>

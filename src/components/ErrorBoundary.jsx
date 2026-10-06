@@ -2,7 +2,8 @@ import { Component } from "react";
 
 // Catches a render-time exception so one broken screen shows a recoverable
 // message instead of blanking the whole app. App.jsx keys the screen-level
-// boundary by route, so navigating elsewhere clears the error.
+// boundary by screen (and case), CaseWrapper keys one per case stage, so
+// navigating elsewhere clears the error.
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
