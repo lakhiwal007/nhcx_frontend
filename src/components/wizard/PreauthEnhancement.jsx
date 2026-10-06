@@ -8,7 +8,7 @@ import { Section, Fields } from "../case/CaseFile";
 
 export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const navigate = useNavigate();
-  const { caseState, updateCaseState } = ctx;
+  const { caseState, updateCaseState, caseClosed } = ctx;
   const { cashless_case_id, claim_id } = caseState;
 
   // Used both as a modal inside PreauthStatus (onClose provided) and as a routed
@@ -168,7 +168,14 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const actions = (
     <>
       {submitError && <div className="ep-notice is-bad">{submitError}</div>}
-      <Button variant="primary" icon={Send} disabled={submitting} onClick={handleSubmit} className="pd-submit-btn">
+      <Button
+        variant="primary"
+        icon={Send}
+        disabled={submitting || caseClosed}
+        title={caseClosed ? "The case is settled" : undefined}
+        onClick={handleSubmit}
+        className="pd-submit-btn"
+      >
         {submitting ? "Submitting…" : "Submit enhancement"}
       </Button>
       <button type="button" className="pd-text-btn" onClick={close}>

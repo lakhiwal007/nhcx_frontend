@@ -35,7 +35,7 @@ function netAmountOf(claimItem, adj) {
 export default function PreauthStatus({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { caseState, updateCaseState, cashlessCase, setCashlessCase, timelineEvents } = ctx;
+  const { caseState, updateCaseState, cashlessCase, setCashlessCase, timelineEvents, caseClosed } = ctx;
   const { preauthCorrelationId, claim_id, cashless_case_id, draftData } = caseState;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
   const policyNumber = caseState.policy?.policyNumber || caseState.policy?.policy_number || cashlessCase?.policy_number || "";
@@ -403,15 +403,15 @@ export default function PreauthStatus({ ctx }) {
     if (showGatewayRecovery) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
   }
   if (isComplete) {
-    if (isApproved || isPartial) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
+    if ((isApproved || isPartial) && !caseClosed) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
     if (isQueried) secondary.push({ id: "resubmit", label: "Resubmit with corrections" });
-    if (isPartial) secondary.push({ id: "resubmit", label: "Resubmit preauth" });
+    if (isPartial && !caseClosed) secondary.push({ id: "resubmit", label: "Resubmit preauth" });
     if ((isRejected || isPartial) && hasClaimContext) secondary.push({ id: "reprocess", label: "Appeal / reprocess" });
     if ((isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED)
       secondary.push({ id: "message", label: "Message payer", icon: Send });
     if (isUnknown) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
   }
-  if (resolvedCashlessCaseId && (isComplete || isFailed)) {
+  if (resolvedCashlessCaseId && (isComplete || isFailed) && !caseClosed) {
     secondary.push({
       id: "recheck",
       label: recheckingEligibility ? "Re-checking eligibility…" : "Re-check eligibility",
@@ -420,7 +420,7 @@ export default function PreauthStatus({ ctx }) {
       title: "Refresh sum-insured/coverage data from the payer without affecting the preauth decision",
     });
   }
-  const canCancel = isComplete && (isApproved || isPartial);
+  const canCancel = isComplete && (isApproved || isPartial) && !caseClosed;
 
   // Requested → approved, as a statement.
   const notEligible = requestedValue != null && totals.eligible?.value != null ? requestedValue - totals.eligible.value : null;

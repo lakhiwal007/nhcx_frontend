@@ -197,17 +197,6 @@ export default function CaseWrapper() {
     );
   }
 
-  const contextValue = {
-    patient,
-    cashlessCase,
-    setCashlessCase,
-    caseState,
-    updateCaseState,
-    moneyLedger: timeline?.money_ledger || null,
-    timelineEvents: timeline?.events || [],
-    refreshTimeline,
-  };
-
   const effectiveCase = cashlessCase || {};
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
   const preauthDecision = caseState.preauthDecision || effectiveCase.preauth_status;
@@ -228,6 +217,21 @@ export default function CaseWrapper() {
   // Off-spine views (a branch opened before the decision calls for it, the
   // audit trail) still get their own title instead of a generic "Case".
   const activeStage = stages.find((s) => s.state === "active") || stageInfo(currentStepPath);
+  const caseClosed = stages.some((s) => s.id === "payment" && s.done);
+
+  const contextValue = {
+    patient,
+    cashlessCase,
+    setCashlessCase,
+    caseState,
+    updateCaseState,
+    moneyLedger: timeline?.money_ledger || null,
+    timelineEvents: timeline?.events || [],
+    refreshTimeline,
+    // Settled: screens hide actions that would change the payer's decision.
+    caseClosed,
+  };
+
 
   return (
     <div className="cx-root">
@@ -273,6 +277,13 @@ export default function CaseWrapper() {
               )}
             </div>
           </div>
+
+          {caseClosed && (
+            <div className="ep-notice cx-closed-note">
+              This case is settled, so it is read-only. Actions that would change the payer's decision are hidden;
+              an appeal is still possible from Reprocess.
+            </div>
+          )}
 
           <div className="cx-stage-body">
             <AnimatePresence mode="wait">

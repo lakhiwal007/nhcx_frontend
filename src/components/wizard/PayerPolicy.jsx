@@ -31,7 +31,7 @@ const payerFromPolicy = (policy) => {
 
 export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
-  const { patient, caseState, updateCaseState } = ctx;
+  const { patient, caseState, updateCaseState, caseClosed } = ctx;
 
   const [payers, setPayers] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
@@ -435,18 +435,20 @@ export default function PayerPolicy({ ctx }) {
                 </span>
               </>
             ) : (
-              <span className="pp-muted">Select a policy to continue.</span>
+              <span className="pp-muted">{caseClosed ? "The case is settled; its policy can't be changed." : "Select a policy to continue."}</span>
             )}
           </div>
-          <Button
-            variant="primary"
-            size="small"
-            disabled={!selectedPolicy || !effectivePayer}
-            onClick={handleNext}
-          >
-            Continue to eligibility
-            <ArrowRight size={14} />
-          </Button>
+          {!caseClosed && (
+            <Button
+              variant="primary"
+              size="small"
+              disabled={!selectedPolicy || !effectivePayer}
+              onClick={handleNext}
+            >
+              Continue to eligibility
+              <ArrowRight size={14} />
+            </Button>
+          )}
         </div>
       </div>
     </div>

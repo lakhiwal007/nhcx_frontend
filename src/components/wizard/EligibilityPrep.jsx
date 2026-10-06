@@ -474,7 +474,7 @@ function PackageCatalogue({ rows, plannedCodes }) {
 
 export default function EligibilityPrep({ ctx }) {
   const navigate = useNavigate();
-  const { patient, caseState, setCashlessCase, updateCaseState } = ctx;
+  const { patient, caseState, setCashlessCase, updateCaseState, caseClosed } = ctx;
   const { payer, policy, admission_id, cashless_case_id: existingCaseId } = caseState;
 
   const [loading, setLoading] = useState(true);
@@ -780,7 +780,7 @@ export default function EligibilityPrep({ ctx }) {
         <span className="ep-verdict-label">{verdict.label}</span>
         <span className="ep-verdict-text">{verdict.text}</span>
         <span className="ep-verdict-actions">
-          {!polling && (isComplete || isFailed || needsResubmit) ? (
+          {caseClosed ? null : !polling && (isComplete || isFailed || needsResubmit) ? (
             <button type="button" className="ep-action" disabled={!canRerun} title={rerunTitle} onClick={handleForceRefresh}>
               <RefreshCw size={13} />
               {forceRefreshing ? "Re-running…" : needsRetry ? "Retry preparation" : "Re-run eligibility"}

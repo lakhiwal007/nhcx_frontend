@@ -115,7 +115,7 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
 
 export default function PreauthDraft({ ctx }) {
   const navigate = useNavigate();
-  const { caseState, updateCaseState, cashlessCase } = ctx;
+  const { caseState, updateCaseState, cashlessCase, caseClosed } = ctx;
   const { payer, policy, cashless_case_id, claim_id, draftData } = caseState;
 
   // This screen stays re-enterable after a preauth has been submitted or decided,
@@ -705,9 +705,11 @@ export default function PreauthDraft({ ctx }) {
                       <FileJson size={13} /> View what was sent
                     </button>
                   )}
-                  <button type="button" className="pd-text-btn" disabled={!canSubmit} onClick={() => setConfirmResend(true)}>
-                    <Send size={13} /> Send a fresh preauth…
-                  </button>
+                  {!caseClosed && (
+                    <button type="button" className="pd-text-btn" disabled={!canSubmit} onClick={() => setConfirmResend(true)}>
+                      <Send size={13} /> Send a fresh preauth…
+                    </button>
+                  )}
                 </>
               ) : (
                 <>

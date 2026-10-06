@@ -5033,3 +5033,8 @@ code {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* Settled case: one read-only note above the stage body (CaseWrapper). */
+.cx-closed-note {
+    margin: 0 0 12px;
+}

@@ -191,7 +191,8 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
   CORE.forEach((stage, i) => {
     visible.push({ ...stage, ...meta[stage.id], num: i + 1, branch: false });
     if (stage.id === "status") {
-      if (decision === "APPROVED" || decision === "PARTIALLY_APPROVED") {
+      // A settled case can no longer raise its approved amount.
+      if ((decision === "APPROVED" || decision === "PARTIALLY_APPROVED") && !paymentDone) {
         visible.push({ ...BRANCHES.enhancement, branch: true, done: false, note: "Optional", tone: "live" });
       }
       if (decision === "REJECTED" || /reject|denied|short/i.test(String(claimDecision || ""))) {
