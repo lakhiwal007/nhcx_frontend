@@ -9,7 +9,7 @@ import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
 import CaseCommsBar from "../case/CaseCommsBar";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, projectCaseStatus, landingStage } from "../case/caseStages";
+import { buildStages, projectCaseStatus, landingStage, stageInfo } from "../case/caseStages";
 import "../case/case-workspace.css";
 
 import PayerPolicy from "./PayerPolicy";
@@ -215,7 +215,9 @@ export default function CaseWrapper() {
     moneyLedger: timeline?.money_ledger || null,
     paymentSummary: effectiveCase.payment || null,
   });
-  const activeStage = stages.find((s) => s.state === "active");
+  // Off-spine views (a branch opened before the decision calls for it, the
+  // audit trail) still get their own title instead of a generic "Case".
+  const activeStage = stages.find((s) => s.state === "active") || stageInfo(currentStepPath);
 
   return (
     <div className="cx-root">
@@ -237,11 +239,11 @@ export default function CaseWrapper() {
           <div className="cx-stage-head">
             <div>
               <div className="cx-eyebrow">
-                {activeStage
-                  ? activeStage.branch
-                    ? "Branch step"
-                    : `Stage ${activeStage.num} of 6`
-                  : "Cashless case"}
+                {activeStage?.branch
+                  ? "Branch step"
+                  : activeStage?.num
+                    ? `Stage ${activeStage.num} of 6`
+                    : "Cashless case"}
               </div>
               <h1 className="cx-stage-title">{activeStage?.label || "Case"}</h1>
               {activeStage?.hint && <p className="cx-stage-hint">{activeStage.hint}</p>}

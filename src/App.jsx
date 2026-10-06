@@ -40,6 +40,7 @@ import PatientProfile from "./components/PatientProfile";
 import Communications from "./components/Communications";
 import Payments from "./components/Payments";
 import SettingsPage from "./components/Settings";
+import { stageInfo } from "./components/case/caseStages";
 import CaseWrapper from "./components/wizard/CaseWrapper";
 import { LoadingBlock } from "./components/Common";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -317,10 +318,11 @@ export default function App() {
       communications: "Communications",
       payments: "Payments",
       settings: "Settings",
-      case: "Cashless Case",
+      case: "Cashless Cases",
     };
     return parts.map((p, i) => ({
-      label: isNaN(Number(p)) ? map[p] || p : `#${p}`,
+      // A case's stage segment (/case/:id/status) reads as its stage title.
+      label: parts[0] === "case" && i === 2 ? stageInfo(p)?.label || p : isNaN(Number(p)) ? map[p] || p : `#${p}`,
       // The "Cashless Case" crumb has no standalone route — send it to the
       // Cashless Cases list instead of the dead /case path.
       to: p === "case" ? "/dashboard" : "/" + parts.slice(0, i + 1).join("/"),

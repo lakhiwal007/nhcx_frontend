@@ -10,6 +10,26 @@ const CORE = [
   { id: "payment", label: "Payment", path: "payment", hint: "Reconcile the payment received and close the case." },
 ];
 
+// Views off the core spine. Enhancement and Reprocess appear on the spine
+// only when the decision calls for them, but can be opened from a task or a
+// link at any time, so their heading can't depend on the spine.
+const BRANCHES = {
+  enhancement: { id: "enhancement", label: "Enhancement", path: "enhancement", hint: "Add procedures or documents to increase the approved amount." },
+  reprocess: { id: "reprocess", label: "Reprocess", path: "reprocess", hint: "Appeal or resubmit after a rejection or short payment." },
+};
+
+const VIEWS = {
+  timeline: { label: "Audit trail", hint: "Every request, payer response and status change on this case, newest first." },
+};
+
+// Title and hint for any case path, on the spine or not.
+export function stageInfo(path) {
+  const core = CORE.find((s) => s.path === path);
+  if (core) return { ...core, num: CORE.indexOf(core) + 1 };
+  if (BRANCHES[path]) return { ...BRANCHES[path], branch: true };
+  return VIEWS[path] || null;
+}
+
 const fmt = (n) =>
   n != null && !Number.isNaN(Number(n)) ? `₹${Number(n).toLocaleString("en-IN")}` : null;
 
@@ -172,18 +192,10 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     visible.push({ ...stage, ...meta[stage.id], num: i + 1, branch: false });
     if (stage.id === "status") {
       if (decision === "APPROVED" || decision === "PARTIALLY_APPROVED") {
-        visible.push({
-          id: "enhancement", label: "Enhancement", path: "enhancement", branch: true,
-          hint: "Add procedures or documents to increase the approved amount.",
-          done: false, note: "Optional", tone: "live",
-        });
+        visible.push({ ...BRANCHES.enhancement, branch: true, done: false, note: "Optional", tone: "live" });
       }
       if (decision === "REJECTED" || /reject|denied|short/i.test(String(claimDecision || ""))) {
-        visible.push({
-          id: "reprocess", label: "Reprocess", path: "reprocess", branch: true,
-          hint: "Appeal or resubmit after a rejection or short payment.",
-          done: false, note: "Action available", tone: "urgent",
-        });
+        visible.push({ ...BRANCHES.reprocess, branch: true, done: false, note: "Action available", tone: "urgent" });
       }
     }
   });
