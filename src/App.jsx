@@ -322,10 +322,23 @@ export default function App() {
     };
     return parts.map((p, i) => ({
       // A case's stage segment (/case/:id/status) reads as its stage title.
-      label: parts[0] === "case" && i === 2 ? stageInfo(p)?.label || p : isNaN(Number(p)) ? map[p] || p : `#${p}`,
+      label:
+        parts[0] === "case" && i === 2
+          ? stageInfo(p)?.label || p
+          : parts[0] === "case" && i === 1
+            ? `Patient ${p}`
+            : isNaN(Number(p))
+              ? map[p] || p
+              : `#${p}`,
       // The "Cashless Case" crumb has no standalone route — send it to the
-      // Cashless Cases list instead of the dead /case path.
-      to: p === "case" ? "/dashboard" : "/" + parts.slice(0, i + 1).join("/"),
+      // Cashless Cases list instead of the dead /case path. A case's number
+      // segment is the patient, so it opens their record.
+      to:
+        p === "case"
+          ? "/dashboard"
+          : parts[0] === "case" && i === 1
+            ? `/registry?child_id=${p}`
+            : "/" + parts.slice(0, i + 1).join("/"),
     }));
   };
 

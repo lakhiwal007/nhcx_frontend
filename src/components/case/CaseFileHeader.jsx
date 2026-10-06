@@ -126,9 +126,14 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
       </div>
 
       <div className="cx-id-chips">
-        <span className="cx-chip"><Hash size={10} />Child {patient.child_id}</span>
-        {caseState.claim_id && <span className="cx-chip">Claim {caseState.claim_id}</span>}
-        {caseState.cashless_case_id && <span className="cx-chip">{formatCaseRef(caseState.cashless_case_id)}</span>}
+        {caseState.cashless_case_id && (
+          <span className="cx-chip" title="Case number">
+            <Hash size={10} />
+            {formatCaseRef(caseState.cashless_case_id)}
+          </span>
+        )}
+        {caseState.claim_id && <span className="cx-chip" title="Claim number">Claim {caseState.claim_id}</span>}
+        <span className="cx-chip" title="Patient number">Patient {patient.child_id}</span>
       </div>
 
       <div className="cx-id-facts">

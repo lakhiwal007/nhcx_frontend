@@ -9,7 +9,7 @@ import { resolveCaseStatus } from "../caseStatus.js";
 import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
-import { formatMoney, formatDate, formatRelative } from "../format.js";
+import { formatMoney, formatDate, formatRelative, formatCaseRef } from "../format.js";
 import { useNavigate, useLocation } from "react-router-dom";
 import ClaimSearchModal from "./ClaimSearchModal";
 
@@ -336,7 +336,7 @@ function ClaimCard({ claim, allFacilitiesMode, busy, onNavigate }) {
         <div style={{ minWidth: 0 }}>
           <div className="cc-patient">{claim.patient_name || claim.child_name || "—"}</div>
           <div className="wq-sub">
-            <span className="wq-mono">#{claim.id}</span> · {formatDate(claim.created_at)}
+            <span className="wq-mono">{formatCaseRef(claim.id)}</span> · {formatDate(claim.created_at)}
           </div>
         </div>
         <CaseStatusChip claim={claim} />
@@ -701,7 +701,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                         {attention && <span className="wq-edge is-high" />}
                       </td>
                       <td>
-                        <div className="wq-mono cc-case-id">#{claim.id}</div>
+                        <div className="wq-mono cc-case-id">{formatCaseRef(claim.id)}</div>
                         <div className="wq-sub" title={formatDate(claim.created_at)}>
                           {formatRelative(claim.created_at)}
                         </div>

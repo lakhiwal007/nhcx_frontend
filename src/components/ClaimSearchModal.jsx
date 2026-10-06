@@ -3,7 +3,7 @@ import { Search, Database, PencilLine } from "lucide-react";
 import { Modal } from "./Overlay";
 import { api } from "../api";
 import { Button } from "./Common";
-import { formatMoney, formatPercent, currencySymbol, humanize } from "../format.js";
+import { formatMoney, formatPercent, currencySymbol, humanize, formatCaseRef } from "../format.js";
 import { usePoll } from "../hooks/usePoll";
 
 const POLL_INTERVAL_MS = 7000;
@@ -201,7 +201,7 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
                 <option value="">Select a case…</option>
                 {claims.map((c) => (
                   <option key={c.id} value={c.id}>
-                    #{c.id} — {c.patient_name || c.child_name || "Unknown"} ({c.payer_name || c.payer_id || "no payer"})
+                    {formatCaseRef(c.id)} — {c.patient_name || c.child_name || "Unknown"} ({c.payer_name || c.payer_id || "no payer"})
                   </option>
                 ))}
               </select>
