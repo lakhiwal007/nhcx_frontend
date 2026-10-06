@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, AlertCircle, Save, Edit2, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { Send, AlertCircle, Save, Edit2, CheckCircle2, Plus, Trash2, FileJson, ArrowRight } from "lucide-react";
 import { api } from "../../api";
 import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
 import { formatDate } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL } from "../case/caseStages";
 import { Section, Fields } from "../case/CaseFile";
+import { Modal } from "../Overlay";
+import FhirBundleModal from "../FhirBundleModal";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -118,10 +120,11 @@ export default function PreauthDraft({ ctx }) {
 
   // This screen stays re-enterable after a preauth has been submitted or decided,
   // so clicking the Preauth step in the lifecycle rail lands here rather than
-  // bouncing to the Decision screen. The draft is rebuilt from the live DB and
-  // submit stays enabled: re-submitting a decided preauth is a deliberate,
-  // user-facing action here, announced by the banner below. Enhancement and
-  // Resubmit on the Decision screen remain the routes for a payer-driven change.
+  // bouncing to the Decision screen. The form is rebuilt from the live DB, so it
+  // is not what was sent: once a preauth is live, the primary action is the
+  // decision, "View what was sent" opens the real outbound bundle, and sending a
+  // fresh preauth needs an explicit confirmation. Enhancement and Resubmit on the
+  // Decision screen remain the routes for a payer-driven change.
   const preauthAlreadyLive = !!(
     caseState.preauthCorrelationId ||
     caseState.preauthDecision ||
@@ -130,6 +133,10 @@ export default function PreauthDraft({ ctx }) {
   );
   const movedOn = STEP_FORWARD_ROUTE[cashlessCase?.current_step] || null;
   const movedOnLabel = movedOn ? STEP_FORWARD_LABEL[movedOn] : null;
+
+  const [confirmResend, setConfirmResend] = useState(false);
+  const [showSent, setShowSent] = useState(false);
+  const sentCorrelationId = caseState.preauthCorrelationId || cashlessCase?.preauth?.correlation_id || null;
 
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState(null);
@@ -343,9 +350,9 @@ export default function PreauthDraft({ ctx }) {
     <div className="wizard-step pd-screen">
       {preauthAlreadyLive && (
         <div className="ep-notice">
-          A preauth has already been submitted for this case
-          {movedOnLabel ? ` and it has moved on to ${movedOnLabel}` : ""}. This draft is rebuilt from current
-          records; submitting again sends the payer a fresh preauth.
+          A preauth has already been sent for this case
+          {movedOnLabel ? ` and it has moved on to ${movedOnLabel}` : ""}. The form below is rebuilt from current
+          records, not what was sent.
           {movedOn && (
             <button type="button" className="pd-inline-link" onClick={() => navigate(`../${movedOn}`)}>
               Go to {movedOnLabel} →
@@ -683,21 +690,70 @@ export default function PreauthDraft({ ctx }) {
 
             <div className="pd-submit">
               {submitError && <div className="ep-notice is-bad">{submitError}</div>}
-              {!submitError && blocking > 0 && (
+              {!submitError && !preauthAlreadyLive && blocking > 0 && (
                 <div className="ep-muted">
                   {blocking} item{blocking === 1 ? "" : "s"} above must be resolved before submitting.
                 </div>
               )}
-              <Button variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit} className="pd-submit-btn">
-                {submitting ? "Submitting…" : preauthAlreadyLive ? "Re-submit preauth" : "Submit preauth"}
-              </Button>
-              <button type="button" className="pd-text-btn" onClick={handleSaveDraft}>
-                <Save size={13} /> Save draft
-              </button>
+              {preauthAlreadyLive ? (
+                <>
+                  <Button variant="primary" icon={ArrowRight} onClick={() => navigate("../status")} className="pd-submit-btn">
+                    View decision
+                  </Button>
+                  {sentCorrelationId && (cashless_case_id || draft?.cashless_case_id) && (
+                    <button type="button" className="pd-text-btn" onClick={() => setShowSent(true)}>
+                      <FileJson size={13} /> View what was sent
+                    </button>
+                  )}
+                  <button type="button" className="pd-text-btn" disabled={!canSubmit} onClick={() => setConfirmResend(true)}>
+                    <Send size={13} /> Send a fresh preauth…
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Button variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit} className="pd-submit-btn">
+                    {submitting ? "Submitting…" : "Submit preauth"}
+                  </Button>
+                  <button type="button" className="pd-text-btn" onClick={handleSaveDraft}>
+                    <Save size={13} /> Save draft
+                  </button>
+                </>
+              )}
             </div>
           </section>
         </aside>
       </div>
+
+      <Modal
+        open={confirmResend}
+        onClose={() => setConfirmResend(false)}
+        title="Send a fresh preauth?"
+        subtitle="The payer receives a new preauth request for this case, built from the current records."
+      >
+        <div className="pd-confirm">
+          <p className="ep-muted">
+            To answer a payer query, resubmit after a rejection, or raise the approved amount, use the Decision screen
+            instead. A fresh preauth starts the payer's review over.
+          </p>
+          {submitError && <div className="ep-notice is-bad">{submitError}</div>}
+          <div className="pd-confirm-actions">
+            <Button variant="outline" onClick={() => setConfirmResend(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit}>
+              {submitting ? "Sending…" : `Send ${formatMoney(effectiveTotal)} preauth`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <FhirBundleModal
+        open={showSent}
+        onClose={() => setShowSent(false)}
+        cashlessCaseId={cashless_case_id || draft?.cashless_case_id}
+        transactionType="preauth"
+        correlationId={sentCorrelationId}
+      />
     </div>
   );
 }

@@ -2862,8 +2862,31 @@ select.pd-input {
     cursor: pointer;
 }
 
-.pd-text-btn:hover {
+.pd-text-btn:hover:not(:disabled) {
     color: var(--text-main);
+}
+
+.pd-text-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pd-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pd-confirm p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.pd-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
 }
 
 @media (max-width: 1100px) {
