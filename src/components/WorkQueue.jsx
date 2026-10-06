@@ -15,6 +15,7 @@ import Dropdown from "./Dropdown";
 import { Drawer } from "./Overlay";
 import { formatRelative, formatDateTime, formatCaseRef } from "../format.js";
 import { useNavigate } from "react-router-dom";
+import PayerName from "./PayerName";
 
 const POLL_INTERVAL_MS = 45_000;
 const OVERDUE_HOURS = 24;
@@ -488,7 +489,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                     {task.patient_name || (task.child_id ? `#${task.child_id}` : "—")}
                   </DetailRow>
                   <DetailRow label="Payer">
-                    {task.payer_name || task.payer_id || "—"}
+                    <PayerName id={task.payer_id} name={task.payer_name} />
                   </DetailRow>
                   <DetailRow label="Case ID">{task.cashless_case_id || "—"}</DetailRow>
                   <DetailRow label="Claim ID">{task.claim_id || "—"}</DetailRow>
@@ -880,7 +881,12 @@ function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
     : task.claim_id
       ? `Claim ${task.claim_id}`
       : "—";
-  const payerLine = [task.payer_name || task.payer_id, task.facility_name].filter(Boolean).join(" · ");
+  const payerLine = (task.payer_name || task.payer_id || task.facility_name) && (
+    <>
+      {(task.payer_name || task.payer_id) && <PayerName id={task.payer_id} name={task.payer_name} />}
+      {task.payer_name || task.payer_id ? (task.facility_name ? ` · ${task.facility_name}` : "") : task.facility_name}
+    </>
+  );
 
   return (
     <tr className={checked ? "is-selected" : undefined} onClick={onOpen}>

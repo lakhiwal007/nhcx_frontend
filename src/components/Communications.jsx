@@ -6,6 +6,7 @@ import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { formatDateTime, formatRelative, priorityLabel } from "../format.js";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
+import PayerName from "./PayerName";
 import CommunicationDetailDrawer, {
   REASON_CONFIG,
   commHeadline,
@@ -213,7 +214,7 @@ export default function Communications({ allFacilitiesMode = false }) {
                         </span>
                       </span>
                       <span className="cm-item-side">
-                        <span className="cm-item-payer">{comm.payer_name || comm.payer_id}</span>
+                        <span className="cm-item-payer"><PayerName id={comm.payer_id} name={comm.payer_name} /></span>
                         {comm.claim_reference && <span className="wq-mono cm-item-ref">{comm.claim_reference}</span>}
                         {comm.facility_name && <span className="cm-item-ref">{comm.facility_name}</span>}
                       </span>

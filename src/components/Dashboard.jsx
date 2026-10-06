@@ -12,6 +12,7 @@ import Dropdown from "./Dropdown";
 import { formatMoney, formatDate, formatRelative, formatCaseRef } from "../format.js";
 import { useNavigate, useLocation } from "react-router-dom";
 import ClaimSearchModal from "./ClaimSearchModal";
+import PayerName from "./PayerName";
 
 const CLAIMS_PAGE_SIZE = 20;
 
@@ -288,7 +289,14 @@ function StatusDetail({ claim, card = false }) {
 }
 
 const payerLine = (claim) =>
-  [claim.payer_name || claim.payer_id, claim.policy_number].filter(Boolean).join(" · ") || "Payer not selected";
+  claim.payer_name || claim.payer_id ? (
+    <>
+      <PayerName id={claim.payer_id} name={claim.payer_name} />
+      {claim.policy_number && ` · ${claim.policy_number}`}
+    </>
+  ) : (
+    claim.policy_number || "Payer not selected"
+  );
 
 function RowActions({ claim, busy, onNavigate }) {
   const actionOptions = getActionOptions(claim);
@@ -347,7 +355,7 @@ function ClaimCard({ claim, allFacilitiesMode, busy, onNavigate }) {
       </div>
       <dl className="cc-card-meta">
         <dt>Payer</dt>
-        <dd>{claim.payer_name || claim.payer_id || "Not selected"}</dd>
+        <dd><PayerName id={claim.payer_id} name={claim.payer_name} fallback="Not selected" /></dd>
         {claim.policy_number && (
           <>
             <dt>Policy</dt>

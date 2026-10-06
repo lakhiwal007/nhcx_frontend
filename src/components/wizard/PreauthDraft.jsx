@@ -8,6 +8,7 @@ import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL } from "../case/caseStages";
 import { Section, Fields } from "../case/CaseFile";
 import { Modal } from "../Overlay";
 import FhirBundleModal from "../FhirBundleModal";
+import PayerName from "../PayerName";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -679,7 +680,7 @@ export default function PreauthDraft({ ctx }) {
             </ul>
 
             <dl className="pd-sent">
-              <div><dt>Payer</dt><dd>{payer?.name || draft?.payer_id || "—"}</dd></div>
+              <div><dt>Payer</dt><dd><PayerName id={draft?.payer_id || payer?.code} name={payer?.name} /></dd></div>
               <div><dt>Policy</dt><dd className="ep-mono" title={draft?.policy_number}>{draft?.policy_number || "—"}</dd></div>
               <div><dt>Member ID</dt><dd className="ep-mono">{draft?.patient?.member_id || "—"}</dd></div>
               <div><dt>ABHA</dt><dd className="ep-mono">{draft?.patient?.abha || "—"}</dd></div>

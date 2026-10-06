@@ -9,6 +9,7 @@ import { Drawer } from "./Overlay";
 import { formatDateTime, humanize, priorityLabel, safeHref } from "../format.js";
 import { buildActionBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
 import { useNavigate } from "react-router-dom";
+import PayerName from "./PayerName";
 
 export const PRIORITY_CONFIG = {
   urgent: { badge: "badge-error" },
@@ -264,7 +265,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                   )}
 
                   <div className="grid-2-col" style={{ gap: "14px", padding: "var(--space-4)", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
-                    <DetailField label="Payer" value={detail.payer_name || detail.payer_id} />
+                    <DetailField label="Payer" value={(detail.payer_name || detail.payer_id) && <PayerName id={detail.payer_id} name={detail.payer_name} />} />
                     <DetailField label="Claim Reference" value={detail.claim_reference} />
                     <DetailField label="Subject" value={detail.subject} />
                     <DetailField label="Requested by" value={detail.task_requester} />

@@ -8,6 +8,7 @@ import { taskStep } from "../taskRoutes";
 import { resolveCaseStatus } from "../caseStatus.js";
 import { routeAtOrAfter } from "../workflowStorage";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import PayerName from "./PayerName";
 
 function calculateAge(dob) {
   if (!dob) return null;
@@ -216,7 +217,7 @@ function PatientDetail({ patient }) {
                           {c.admission_no && <div className="ep-muted">{c.admission_no}</div>}
                         </td>
                         <td>
-                          <div>{c.payer_name || c.payer_id || "—"}</div>
+                          <div><PayerName id={c.payer_id} name={c.payer_name} /></div>
                           {c.policy_number && <div className="ep-muted ep-mono">{c.policy_number}</div>}
                         </td>
                         <td>
@@ -461,7 +462,7 @@ function PatientDetail({ patient }) {
                     {communications.map((comm, ci) => (
                       <tr key={comm.correlation_id ?? ci}>
                         <td>{comm.topic_display || <span className="ep-muted">No subject</span>}</td>
-                        <td className="ep-mono">{comm.payer_id || "—"}</td>
+                        <td><PayerName id={comm.payer_id} name={comm.payer_name} /></td>
                         <td className={`ep-cap${comm.priority === "urgent" || comm.priority === "stat" ? " is-bad" : ""}`}>
                           {comm.priority || "—"}
                         </td>
@@ -491,7 +492,7 @@ function PatientDetail({ patient }) {
                 </div>
                 <div className="ds-ref">
                   <span className="ep-muted">Payer</span>
-                  <span className="ep-mono">{latest.payer_name || latest.payer_id || "—"}</span>
+                  <span><PayerName id={latest.payer_id} name={latest.payer_name} /></span>
                 </div>
               </>
             ) : (
@@ -705,7 +706,7 @@ export default function PatientProfile() {
                         {claim ? (
                           <>
                             <CaseStatusChip claim={claim} />
-                            {(claim.payer_name || claim.payer_id) && <div className="wq-sub">{claim.payer_name || claim.payer_id}</div>}
+                            {(claim.payer_name || claim.payer_id) && <div className="wq-sub"><PayerName id={claim.payer_id} name={claim.payer_name} /></div>}
                           </>
                         ) : (
                           <span className="ep-muted">No cases</span>

@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { User, Hash, Building2, AlertTriangle } from "lucide-react";
-import { api } from "../../api";
+import PayerName from "../PayerName";
 import { formatMoney, formatDate, formatAge, humanize, formatCaseRef } from "../../format.js";
 
 const money = (v) => (v == null ? null : formatMoney(v));
@@ -77,20 +76,8 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
   const payerName = caseState.payer?.name;
   const payerId = effectiveCase.payer_id;
   // Resumed cases only carry payer_id, not the full payer object from the
-  // search dropdown — resolve the friendly name via the cache-first lookup.
-  const [resolvedPayerName, setResolvedPayerName] = useState(null);
-  useEffect(() => {
-    if (payerName || !payerId) return;
-    let cancelled = false;
-    api
-      .getPayerById(payerId)
-      .then((p) => !cancelled && setResolvedPayerName(p?.name || null))
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [payerName, payerId]);
-  const payer = payerName || resolvedPayerName || payerId;
+  // search dropdown — PayerName resolves the friendly name from a shared cache.
+  const payer = payerName || payerId ? <PayerName id={payerId} name={payerName} /> : null;
   // The facility (X-Provider-Id) every call on this case is scoped to.
   const facility =
     localStorage.getItem("nhcx_default_facility_name") ||
