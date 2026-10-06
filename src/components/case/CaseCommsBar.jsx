@@ -94,7 +94,7 @@ export default function CaseCommsBar({ communications = [], onOpen }) {
           size="small"
           onClick={() => onOpen(latest.correlation_id)}
         >
-          {needsAction ? "Review & Act" : "Review"}
+          Review
         </Button>
       </motion.div>
     </AnimatePresence>

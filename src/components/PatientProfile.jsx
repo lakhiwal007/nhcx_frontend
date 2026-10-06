@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { User, Plus, ArrowLeft, AlertCircle } from "lucide-react";
 import { api } from "../api";
 import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney } from "./Common";
@@ -537,6 +537,8 @@ export default function PatientProfile() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const searchTimer = useRef(null);
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -647,18 +649,26 @@ export default function PatientProfile() {
         <div className="wq-toolbar">
           <input
             className="input-modern wq-search"
-            placeholder="Name, ID or mobile — press Enter"
+            placeholder="Search name, ID or mobile…"
             aria-label="Search patients"
             value={searchQuery}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
-              if (!e.target.value.trim() && hasSearched) {
-                setHasSearched(false);
+              const value = e.target.value;
+              setSearchQuery(value);
+              // Live like every other list: search once typing pauses.
+              clearTimeout(searchTimer.current);
+              searchTimer.current = setTimeout(() => {
+                setHasSearched(!!value.trim());
                 setPage(1);
-                loadChildren("", 1);
+                loadChildren(value, 1);
+              }, 300);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                clearTimeout(searchTimer.current);
+                handleSearch();
               }
             }}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
           />
         </div>
 

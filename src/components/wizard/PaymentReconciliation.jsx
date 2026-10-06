@@ -21,7 +21,6 @@ export default function PaymentReconciliation({ ctx }) {
   // Advanced ack override state keyed by payment_reference
   const [ackOverrides, setAckOverrides] = useState({});
   const [showOverrides, setShowOverrides] = useState({});
-  const [showHistory, setShowHistory] = useState({});
 
   const fetchPayment = async () => {
     if (!claimId && !claimCorrelationId) {
@@ -174,7 +173,8 @@ export default function PaymentReconciliation({ ctx }) {
                         const isAcknowledging = acknowledging[ref];
                         const needsRetry = pay.acknowledgement_status === "failed" && !ackResult?.success;
                         const editing = showOverrides[ref];
-                        const historyOpen = showHistory[pay.group_key];
+                        // Every notice the payer sent for this payment, shown inline.
+                        const historyOpen = pay.notice_count > 1 && pay.history?.length > 0;
                         return (
                           <Fragment key={pay.group_key}>
                             <tr>
@@ -183,15 +183,6 @@ export default function PaymentReconciliation({ ctx }) {
                                 <div className="ep-muted">
                                   {[pay.payment_date && formatDate(pay.payment_date), pay.utr && `UTR ${pay.utr}`, pay.utr_type].filter(Boolean).join(" · ")}
                                 </div>
-                                {pay.notice_count > 1 && (
-                                  <button
-                                    type="button"
-                                    className="pd-inline-link pay-history-toggle"
-                                    onClick={() => setShowHistory((p) => ({ ...p, [pay.group_key]: !p[pay.group_key] }))}
-                                  >
-                                    {historyOpen ? "Hide" : "Show"} {pay.notice_count} notices
-                                  </button>
-                                )}
                               </td>
                               <td className="ep-cap">{stageLabel(pay.payment_stage) || "—"}</td>
                               <td className="ep-num ep-mono">{formatMoney(pay.gross_amount)}</td>
