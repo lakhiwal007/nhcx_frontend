@@ -219,6 +219,89 @@ paths:
                     children:
                       with_claims: 13
 
+  /cashless/dashboard/analytics:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardAnalytics
+      summary: Revenue and payer-turnaround analytics
+      description: >
+        Read-only analytics for the facility. `revenue` covers claims created in
+        the period (funnel, deductions, per-payer breakdown) plus an `ageing`
+        view of every claim still open today. Money is counted once per
+        payment: stage notices are grouped by `payment_reference` (split by a
+        distinct UTR) before summing, and only SETTLED payments count as
+        settled. `turnaround` measures each preauth / claim / reprocess
+        submission from send (`stored_at`) to payer response (`completed_at`)
+        against the IRDAI cashless limits (preauth 60 min, final claim 180
+        min; reprocess has none). A query answer is its own submission, so
+        query time is never counted against the payer. `waiting` lists up to
+        20 submissions still awaiting the payer, oldest first. Defaults to the
+        last 90 days.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: payer_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Analytics for the period
+          content:
+            application/json:
+              examples:
+                success:
+                  value:
+                    status: complete
+                    period: { from: "2026-07-09", to: "2026-10-07" }
+                    generated_at: "2026-10-07T12:00:00+05:30"
+                    revenue:
+                      totals:
+                        claims: 15
+                        decided: 13
+                        approved_count: 10
+                        rejected_count: 3
+                        settled_count: 6
+                        billed: 1720000.0
+                        approved: 1205000.0
+                        settled_gross: 760000.0
+                        settled_net: 721000.0
+                        tds: 39000.0
+                        disallowed: 182000.0
+                        copay: 42000.0
+                        deductible: 15000.0
+                        patient_payable: 239000.0
+                        outstanding: 445000.0
+                        leakage: 134000.0
+                        approval_rate: 76.9
+                        realisation_rate: 84.6
+                      by_payer:
+                        - { payer_id: "1000077777@hcx", payer_name: "Star Health", claims: 9, billed: 1240000.0, approved: 905000.0, settled_net: 571000.0, outstanding: 295000.0, approval_rate: 85.7 }
+                      ageing:
+                        - { bucket: "0-30", count: 5, amount: 310000.0, awaiting_decision: 2, awaiting_payment: 3 }
+                        - { bucket: "31-60", count: 3, amount: 145000.0, awaiting_decision: 1, awaiting_payment: 2 }
+                        - { bucket: "61-90", count: 1, amount: 62000.0, awaiting_decision: 0, awaiting_payment: 1 }
+                        - { bucket: "90+", count: 1, amount: 38000.0, awaiting_decision: 1, awaiting_payment: 0 }
+                    turnaround:
+                      sla_minutes: { preauth: 60, claim: 180 }
+                      by_workflow:
+                        - { workflow: preauth, sla_minutes: 60, decided: 14, median_minutes: 48, p90_minutes: 142, breached: 4, breach_rate: 28.6, pending: 2, pending_breached: 1 }
+                        - { workflow: claim, sla_minutes: 180, decided: 8, median_minutes: 205, p90_minutes: 1460, breached: 5, breach_rate: 62.5, pending: 1, pending_breached: 1 }
+                        - { workflow: reprocess, sla_minutes: null, decided: 2, median_minutes: 2880, p90_minutes: 4100, breached: null, breach_rate: null, pending: 0, pending_breached: null }
+                      by_payer:
+                        - { workflow: preauth, payer_id: "1000077777@hcx", payer_name: "Star Health", decided: 9, median_minutes: 38, p90_minutes: 95, breached: 2, breach_rate: 22.2, sla_minutes: 60 }
+                      waiting:
+                        - { correlation_id: "6f1c…", workflow: claim, payer_id: "1000077777@hcx", payer_name: "Star Health", cashless_case_id: 5, claim_id: 12, child_id: 19, patient_name: "Aarav Kumar", sent_at: "2026-10-07T06:50:00+05:30", waiting_minutes: 310, sla_minutes: 180, breached: true }
+        "400":
+          description: Malformed `from` / `to` date
   /cashless/dashboard/claims:
     get:
       tags: [Dashboard]
@@ -1069,6 +1152,108 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /cashless/{cashless_case_id}/notes:
+    get:
+      tags: [Cashless Preparation]
+      operationId: listCaseNotes
+      summary: List internal notes on a case
+      description: >
+        Hospital-only notes on a cashless case (payer calls, promised documents,
+        follow-ups). Never sent to the payer. Pinned notes first, then newest
+        first. Notes also appear on the case timeline as `note.added` events
+        (workflow `note`, direction `internal`).
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Notes for the case
+          content:
+            application/json:
+              examples:
+                success:
+                  value:
+                    status: complete
+                    cashless_case_id: 5
+                    notes:
+                      - { id: 1, cashless_case_id: 5, category: payer_call, body: "Payer wants the CBC report on the next query reply.", pinned: true, author_id: "42", author_name: "Riya", created_at: "2026-10-07T11:20:00+05:30", updated_at: "2026-10-07T11:20:00+05:30" }
+        "404":
+          description: Case not found or not visible to this facility
+    post:
+      tags: [Cashless Preparation]
+      operationId: createCaseNote
+      summary: Add an internal note
+      description: The author is taken from the session user.
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, body]
+              properties:
+                request_id: { type: string }
+                body: { type: string, maxLength: 2000 }
+                category:
+                  type: string
+                  enum: [general, payer_call, follow_up, billing, clinical]
+                  default: general
+      responses:
+        "201":
+          description: "Created; returns `{ status: created, note }`"
+        "400":
+          description: Missing/over-long body or unknown category
+        "404":
+          description: Case not found or not visible to this facility
+  /cashless/{cashless_case_id}/notes/{note_id}:
+    patch:
+      tags: [Cashless Preparation]
+      operationId: updateCaseNote
+      summary: Pin/unpin or edit a note
+      description: >
+        Anyone on the facility may pin or unpin. Only the author may change
+        `body` (403 otherwise).
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - { name: cashless_case_id, in: path, required: true, schema: { type: integer } }
+        - { name: note_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id]
+              properties:
+                request_id: { type: string }
+                pinned: { type: boolean }
+                body: { type: string, maxLength: 2000 }
+      responses:
+        "200": { description: "Updated; returns `{ status: complete, note }`" }
+        "403": { description: Only the author can edit the body }
+        "404": { description: Note not found on this case }
+    delete:
+      tags: [Cashless Preparation]
+      operationId: deleteCaseNote
+      summary: Delete a note (author only)
+      description: "Send Content-Type application/json with a `{ request_id }` body, like every other write."
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - { name: cashless_case_id, in: path, required: true, schema: { type: integer } }
+        - { name: note_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: "Deleted; returns `{ status: complete, id }`" }
+        "403": { description: Only the author can delete the note }
+        "404": { description: Note not found on this case }
   /cashless/{cashless_case_id}/timeline:
     get:
       tags: [Cashless Preparation]
