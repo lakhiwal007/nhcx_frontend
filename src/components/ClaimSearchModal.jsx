@@ -1,11 +1,44 @@
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Database, PencilLine } from "lucide-react";
 import { Modal } from "./Overlay";
 import { api } from "../api";
-import { Button, DecisionBanner, AmountGrid } from "./Common";
+import { Button } from "./Common";
+import { formatMoney, formatPercent, currencySymbol, humanize } from "../format.js";
 import { usePoll } from "../hooks/usePoll";
 
 const POLL_INTERVAL_MS = 7000;
+
+const PERCENT_TOTALS = ["elig_percent", "eligpercent"];
+// Payer totals in statement order; anything else the payer sends follows.
+const TOTAL_ORDER = ["submitted", "eligible", "copay", "deductible", "tax", "benefit", "approved"];
+const DEDUCTIONS = ["copay", "deductible"];
+const PAYABLE = ["benefit", "approved"];
+
+const amountValue = (v) => (v && typeof v === "object" ? v.value : v);
+
+const formatTotal = (k, v) => {
+  const raw = amountValue(v);
+  if (PERCENT_TOTALS.includes(k)) return formatPercent(raw);
+  return formatMoney(raw, { currency: currencySymbol(v && typeof v === "object" ? v.currency : null) });
+};
+
+const orderedTotals = (totals) =>
+  Object.entries(totals || {}).sort(([a], [b]) => {
+    const ia = TOTAL_ORDER.indexOf(a);
+    const ib = TOTAL_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
+// The verdict as one line; the raw payer outcome sits beside it so a
+// mis-classified decision is visible.
+function decisionTone(decision, outcome) {
+  const d = String(decision || "").toUpperCase();
+  const ambiguous = d === "APPROVED" && outcome != null && !["complete", "partial"].includes(String(outcome).toLowerCase());
+  if (ambiguous) return { tone: "warn", ambiguous };
+  if (d === "APPROVED") return { tone: "ok" };
+  if (d === "REJECTED" || d === "DENIED") return { tone: "bad" };
+  return { tone: "warn" };
+}
 
 export default function ClaimSearchModal({ open, onClose, claims = [] }) {
   const [mode, setMode] = useState("existing"); // "existing" | "manual"
@@ -74,107 +107,139 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
     }
   };
 
+  const waiting = status !== "complete" && status !== "failed";
+  const decided = result && (result.decision || result.outcome);
+  const verdict = decided ? decisionTone(result.decision, result.outcome) : null;
+  const totals = orderedTotals(result?.totals);
+
   return (
-    <Modal open={open} onClose={onClose} title="Search via NHCX Gateway" subtitle="Queries the payer directly through NHCX for the current status of a claim.">
-
-            {correlationId ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div style={{ padding: "14px 16px", background: "rgba(59,130,246,0.08)", border: "1px solid var(--info)", borderRadius: "10px", fontSize: "13px" }}>
-                  <div style={{ fontWeight: 700, color: "var(--info)", marginBottom: "6px" }}>
-                    {status === "complete" ? "Response received" : status === "failed" ? "Search failed" : "Waiting for payer response…"}
-                  </div>
-                  <code style={{ fontSize: "11px" }}>{correlationId}</code>
-                </div>
-                {result && (result.decision || result.outcome) ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <DecisionBanner decision={result.decision} outcome={result.outcome} approvedAmount={result.approved_amount} />
-                    {result.totals && <AmountGrid totals={result.totals} />}
-                    {result.claim_response_ref && (
-                      <div style={{ fontSize: "12px" }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Payer Ref: </span>
-                        <code style={{ fontSize: "12px" }}>{result.claim_response_ref}</code>
-                      </div>
-                    )}
-                  </div>
-                ) : result ? (
-                  <pre style={{
-                    fontSize: "11px", background: "var(--bg-main)", border: "1px solid var(--border-color)",
-                    borderRadius: "8px", padding: "12px", maxHeight: "260px", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  }}>
-                    {JSON.stringify(result.raw_response ?? result, null, 2)}
-                  </pre>
-                ) : null}
-                <Button variant="outline" onClick={onClose} style={{ justifyContent: "center", marginTop: "6px" }}>
-                  Close
-                </Button>
+    <Modal open={open} onClose={onClose} title="Search via NHCX gateway" subtitle="Asks the payer directly, through NHCX, where a claim stands.">
+      {correlationId ? (
+        <div className="cs-body">
+          <div className="cs-panel">
+            <div className={`ds-verdict is-${status === "failed" ? "bad" : waiting ? "warn" : verdict?.tone || "ok"}`}>
+              <span className="ep-dot" aria-hidden="true" />
+              <span className="ds-verdict-label">
+                {status === "failed"
+                  ? "Search failed"
+                  : waiting
+                    ? "Waiting for the payer…"
+                    : decided
+                      ? humanize(result.decision || "Decision unavailable")
+                      : "Response received"}
+              </span>
+              {waiting && <span className="spinner ds-spinner" aria-hidden="true" />}
+            </div>
+            <dl className="ds-statement cs-refs">
+              <div>
+                <dt className="ep-muted">Correlation ID</dt>
+                <dd className="ep-mono">{correlationId}</dd>
               </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setMode("existing")}
-                    className={mode === "existing" ? "btn-modern btn-primary-modern" : "btn-modern btn-outline-modern"}
-                    style={{ flex: 1, justifyContent: "center", fontSize: "12px", padding: "8px" }}
-                  >
-                    Existing Case
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("manual")}
-                    className={mode === "manual" ? "btn-modern btn-primary-modern" : "btn-modern btn-outline-modern"}
-                    style={{ flex: 1, justifyContent: "center", fontSize: "12px", padding: "8px" }}
-                  >
-                    Manual Entry
-                  </button>
+              {result?.outcome && (
+                <div>
+                  <dt className="ep-muted">Payer outcome</dt>
+                  <dd className="ep-mono">{result.outcome}</dd>
                 </div>
-
-                {mode === "existing" ? (
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Case</label>
-                    <select className="input-modern" value={selectedClaimId} onChange={(e) => setSelectedClaimId(e.target.value)}>
-                      <option value="">Select a case…</option>
-                      {claims.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          #{c.id} — {c.patient_name || c.child_name || "Unknown"} ({c.payer_name || c.payer_id || "no payer"})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Payer ID</label>
-                      <input className="input-modern" placeholder="1518@hcx" value={payerId} onChange={(e) => setPayerId(e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Claim Number</label>
-                      <input className="input-modern" placeholder="CLM-1" value={claimNumber} onChange={(e) => setClaimNumber(e.target.value)} />
-                    </div>
-                    <div className="grid-2-col" style={{ gap: "14px" }}>
-                      <div>
-                        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>From Date</label>
-                        <input type="date" className="input-modern" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>To Date</label>
-                        <input type="date" className="input-modern" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {error && (
-                  <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.08)", border: "1px solid var(--error)", borderRadius: "8px", fontSize: "12px", color: "var(--error)" }}>
-                    {error}
-                  </div>
-                )}
-
-                <Button variant="primary" icon={Search} disabled={!canSubmit} onClick={handleSubmit} style={{ justifyContent: "center", marginTop: "6px" }}>
-                  {submitting ? "Submitting…" : "Search"}
-                </Button>
-              </div>
+              )}
+              {result?.claim_response_ref && (
+                <div>
+                  <dt className="ep-muted">Payer reference</dt>
+                  <dd className="ep-mono">{result.claim_response_ref}</dd>
+                </div>
+              )}
+            </dl>
+            {verdict?.ambiguous && (
+              <div className="ep-notice is-warn ds-notice-in">Verify — the payer outcome does not corroborate this approval.</div>
             )}
+          </div>
+
+          {decided && (totals.length > 0 || result.approved_amount != null) && (
+            <div className="cs-panel">
+              <dl className="ds-statement">
+                {totals.map(([k, v]) => (
+                  <div key={k} className={PAYABLE.includes(k) ? "is-total" : undefined}>
+                    <dt className="ep-cap">
+                      {DEDUCTIONS.includes(k) ? "Less " : ""}
+                      {k.replace(/_/g, " ")}
+                    </dt>
+                    <dd className="ep-mono">{formatTotal(k, v)}</dd>
+                  </div>
+                ))}
+                {result.approved_amount != null && !totals.some(([k]) => PAYABLE.includes(k)) && (
+                  <div className="is-total">
+                    <dt>Approved</dt>
+                    <dd className="ep-mono">{formatMoney(result.approved_amount)}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {result && !decided && <pre className="cs-raw">{JSON.stringify(result.raw_response ?? result, null, 2)}</pre>}
+
+          <div className="cs-footer">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="cs-body">
+          <div className="st-seg cs-mode" role="radiogroup">
+            <button type="button" role="radio" aria-checked={mode === "existing"} className={mode === "existing" ? "is-on" : ""} onClick={() => setMode("existing")}>
+              <Database size={14} /> Existing case
+            </button>
+            <button type="button" role="radio" aria-checked={mode === "manual"} className={mode === "manual" ? "is-on" : ""} onClick={() => setMode("manual")}>
+              <PencilLine size={14} /> Manual entry
+            </button>
+          </div>
+
+          {mode === "existing" ? (
+            <label className="st-field">
+              <span className="st-field-label">Case</span>
+              <select className="input-modern pd-input" value={selectedClaimId} onChange={(e) => setSelectedClaimId(e.target.value)}>
+                <option value="">Select a case…</option>
+                {claims.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    #{c.id} — {c.patient_name || c.child_name || "Unknown"} ({c.payer_name || c.payer_id || "no payer"})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="st-grid">
+              <label className="st-field">
+                <span className="st-field-label">Payer ID</span>
+                <input className="input-modern pd-input ep-mono" placeholder="1518@hcx" value={payerId} onChange={(e) => setPayerId(e.target.value)} />
+              </label>
+              <label className="st-field">
+                <span className="st-field-label">Claim number</span>
+                <input className="input-modern pd-input ep-mono" placeholder="CLM-1" value={claimNumber} onChange={(e) => setClaimNumber(e.target.value)} />
+              </label>
+              <label className="st-field">
+                <span className="st-field-label">From date</span>
+                <input type="date" className="input-modern pd-input" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              </label>
+              <label className="st-field">
+                <span className="st-field-label">To date</span>
+                <input type="date" className="input-modern pd-input" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              </label>
+              <span className="st-hint is-wide">Give a claim number, or both dates.</span>
+            </div>
+          )}
+
+          {error && <div className="ep-notice is-bad">{error}</div>}
+
+          <div className="cs-footer">
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="primary" icon={Search} disabled={!canSubmit} onClick={handleSubmit}>
+              {submitting ? "Submitting…" : "Search"}
+            </Button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

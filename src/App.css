@@ -1365,12 +1365,6 @@ select.input-modern option {
     gap: 16px;
 }
 
-.grid-1-to-4 {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
-    gap: 16px;
-}
-
 /* Base Utility hidden states.
    Must precede the responsive @media blocks below: the mobile rules reveal
    these buttons (display: block/flex), and with equal specificity the later
@@ -2049,45 +2043,6 @@ select.input-modern option {
 }
 
 /* ─── Patient card (Common.jsx PatientCard) ─────────────────────────────── */
-
-/* ─── Decision banner (Common.jsx DecisionBanner) ───────────────────────── */
-.decision-banner {
-    border-radius: var(--radius-lg);
-    padding: 20px 24px;
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    margin-bottom: var(--space-6);
-    box-shadow: var(--shadow-sm);
-    border: 1.5px solid transparent;
-}
-
-.decision-banner.tone-approve {
-    background: color-mix(in srgb, var(--success) 12%, var(--bg-card));
-    border-color: color-mix(in srgb, var(--success) 40%, transparent);
-}
-.decision-banner.tone-query {
-    background: color-mix(in srgb, var(--info) 12%, var(--bg-card));
-    border-color: color-mix(in srgb, var(--info) 40%, transparent);
-}
-.decision-banner.tone-warn {
-    background: color-mix(in srgb, var(--warning) 12%, var(--bg-card));
-    border-color: color-mix(in srgb, var(--warning) 40%, transparent);
-}
-.decision-banner.tone-neutral {
-    background: var(--bg-main);
-    border-color: var(--border-color);
-}
-
-/* ─── Amount grid (Common.jsx AmountGrid) ───────────────────────────────── */
-.amount-grid-cell {
-    background: var(--bg-main);
-    border-radius: var(--radius-md);
-    padding: 14px;
-    text-align: center;
-    border: 1px solid var(--border-color);
-    box-shadow: var(--clay-inset);
-}
 
 /* ─── Task card (Common.jsx TaskCard) ───────────────────────────────────── */
 
@@ -4872,4 +4827,51 @@ code {
         width: auto;
         flex: 1;
     }
+}
+
+.st-hint.is-wide {
+    grid-column: 1 / -1;
+}
+
+/* ─── Gateway claim search (ClaimSearchModal.jsx) ──────────────────────── */
+.cs-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cs-mode {
+    align-self: flex-start;
+}
+
+.cs-panel {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    overflow: hidden;
+}
+
+.cs-refs dd {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cs-raw {
+    max-height: 260px;
+    margin: 0;
+    padding: 12px;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-main);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.cs-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
 }

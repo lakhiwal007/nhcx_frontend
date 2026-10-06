@@ -5,15 +5,13 @@ import {
   AlertCircle,
   Clock,
   Info,
-  AlertTriangle,
   FileText,
   CheckCircle2,
-  Ban,
   Plus,
   Trash2,
   Paperclip,
 } from "lucide-react";
-import { formatMoney, formatPercent, currencySymbol, safeHref } from "../format.js";
+import { formatMoney, safeHref } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
 export { formatMoney };
@@ -365,118 +363,6 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
 };
 
 /**
- * Large banner announcing a payer's decision (APPROVED / QUERIED /
- * PARTIALLY_APPROVED / REJECTED), tinted to match, with the approved amount
- * and an optional message. Falls back to a neutral tone plus the raw FHIR
- * `outcome` when the decision itself couldn't be classified.
- * @category Feedback
- */
-export const DecisionBanner = ({ decision, approvedAmount, message, outcome, provenance }) => {
-  const isApproved = decision === "APPROVED";
-  const isQueried = decision === "QUERIED";
-  // The preauth was voided after the payer acknowledged a cancellation request.
-  const isCancelled = decision === "CANCELLED";
-  // Neutral state when the payer decision could not be classified.
-  const isUnknown = !decision || decision === "UNKNOWN";
-  // The authoritative raw payer signal from the audit trail's decision event
-  // (reason_codes / classified_by / inbound nhcx_workflow_id), when available.
-  const rawOutcome = provenance?.raw_outcome ?? outcome;
-  const reasonCodes = provenance?.reason_codes || [];
-  // Guard against a mis-classified decision hiding behind a confident banner:
-  // prefer the wrapper's own `ambiguous` flag from the decision event; fall
-  // back to the heuristic (an approval whose raw FHIR outcome isn't a success
-  // signal is suspect and must be verified, not shown as a clean approval).
-  const ambiguous =
-    provenance?.ambiguous ??
-    (isApproved && outcome != null && !["complete", "partial"].includes(String(outcome).toLowerCase()));
-
-  // An ambiguous approval is demoted from green to a warning tone.
-  const tone = ambiguous
-    ? "tone-warn"
-    : isApproved
-      ? "tone-approve"
-      : isQueried
-        ? "tone-query"
-        : isUnknown || isCancelled
-          ? "tone-neutral"
-          : "tone-warn";
-  const iconColor = ambiguous
-    ? "var(--warning)"
-    : isApproved
-      ? "var(--success)"
-      : isQueried
-        ? "var(--info)"
-        : isUnknown || isCancelled
-          ? "var(--text-muted)"
-          : "var(--warning)";
-
-  return (
-    <div className={`decision-banner ${tone}`}>
-      {isApproved ? (
-        <CheckCircle2 size={36} color={iconColor} />
-      ) : isCancelled ? (
-        <Ban size={36} color={iconColor} />
-      ) : (
-        <AlertTriangle size={36} color={iconColor} />
-      )}
-      <div>
-        <div style={{ fontSize: "22px", fontWeight: 800 }}>
-          {isCancelled ? "Cancelled — Preauth Void" : decision?.replace(/_/g, " ") || "Decision unavailable"}
-        </div>
-        {/* Always surface the raw payer outcome next to the classified verdict so
-            a mis-classification is visible, not just in the UNKNOWN state. */}
-        {outcome && (
-          <div style={{ fontSize: "13px", marginTop: "var(--space-1)", color: "var(--text-muted)" }}>
-            Payer outcome: <strong>{outcome}</strong>
-          </div>
-        )}
-        {ambiguous && (
-          <div style={{ fontSize: "13px", marginTop: "6px", color: "var(--warning)", fontWeight: 700 }}>
-            Verify — the payer signal does not corroborate this approval.
-          </div>
-        )}
-        {/* Decision provenance from the audit trail — the payer's own reason
-            codes, which code path classified it, and the raw NHCX workflow id.
-            Makes a mis-classification auditable at the banner, not just the log. */}
-        {provenance && (reasonCodes.length > 0 || provenance.classified_by || provenance.nhcx_workflow_id != null) && (
-          <div style={{ fontSize: "12px", marginTop: "6px", color: "var(--text-muted)", fontFamily: "monospace" }}>
-            {reasonCodes.length > 0 && <>reason={reasonCodes.join(",")} · </>}
-            {rawOutcome != null && <>outcome={rawOutcome} · </>}
-            {provenance.classified_by && <>classified_by={provenance.classified_by}</>}
-            {provenance.nhcx_workflow_id != null && <> · wf {provenance.nhcx_workflow_id}</>}
-          </div>
-        )}
-        {approvedAmount != null && !isCancelled && (
-          <div
-            style={{
-              color: "var(--text-muted)",
-              fontSize: "14px",
-              marginTop: "var(--space-1)",
-            }}
-          >
-            Approved Amount:{" "}
-            <strong style={{ color: "var(--success)", fontSize: "16px" }}>
-              {formatMoney(approvedAmount)}
-            </strong>
-          </div>
-        )}
-        {message && (
-          <div
-            style={{
-              fontSize: "13px",
-              marginTop: "6px",
-              color: "var(--text-main)",
-            }}
-          >
-            {message}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/**
  * Full-block loading indicator: spinner plus an optional status message.
  * `compact` drops the message layout for small inline uses (e.g. within a card).
  * @category Feedback
@@ -540,64 +426,6 @@ export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
     </table>
   </div>
 );
-
-const PERCENT_TOTALS = ["elig_percent", "eligpercent"];
-
-const amountValue = (v) => (v && typeof v === "object" ? v.value : v);
-
-const formatTotal = (k, v) => {
-  const raw = amountValue(v);
-  if (PERCENT_TOTALS.includes(k)) return formatPercent(raw);
-  return formatMoney(raw, { currency: currencySymbol(v && typeof v === "object" ? v.currency : null) });
-};
-
-/**
- * Grid of labeled currency totals (e.g. billed / approved / eligible amounts
- * from a claim adjudication). Each entry's key becomes the label; approved
- * and eligible amounts are tinted green.
- * @category Domain
- */
-export const AmountGrid = ({ totals }) => {
-  if (!totals) return null;
-  return (
-    <div className="grid-1-to-4" style={{ gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
-      {Object.entries(totals).map(([k, v]) => (
-        <div key={k} className="amount-grid-cell">
-          <div
-            style={{
-              fontSize: "11px",
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              marginBottom: "6px",
-              fontWeight: 700,
-            }}
-          >
-            {k.replace(/_/g, " ")}
-          </div>
-          <div
-            style={{
-              fontWeight: 800,
-              fontSize: "18px",
-              // Only the payable BENEFIT/approved figure is green. `eligible` is a
-              // pre-share figure (>= benefit) and must not read as the amount the
-              // payer will pay — tint it neutral so it isn't mistaken for approved.
-              color:
-                amountValue(v) === null || amountValue(v) === undefined
-                  ? "var(--text-muted)"
-                  : k === "approved" || k === "benefit"
-                    ? "var(--success)"
-                    : k === "copay" || k === "deductible"
-                      ? "var(--error)"
-                      : "var(--primary)",
-            }}
-          >
-            {formatTotal(k, v)}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 /**
  * Footer pager for a client-side paginated table: "Showing X–Y of N" plus
