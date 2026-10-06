@@ -94,6 +94,10 @@ export const humanize = (v, dash = DASH) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
+// Payer (FHIR) priority codes, labelled the same way everywhere.
+const PRIORITY_LABELS = { urgent: "Urgent", asap: "ASAP", stat: "Stat", routine: "Routine" };
+export const priorityLabel = (v) => (v ? PRIORITY_LABELS[String(v).toLowerCase()] || humanize(v) : "");
+
 const SAFE_LINK_SCHEMES = ["http:", "https:", "blob:"];
 const UNSAFE_DATA_TYPES = /^(text\/html|image\/svg\+xml|application\/xhtml\+xml|text\/xml|application\/xml)/i;
 

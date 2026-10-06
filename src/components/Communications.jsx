@@ -4,7 +4,7 @@ import { api } from "../api";
 import { Button, SkeletonTable, TablePagination } from "./Common";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
-import { formatDateTime, formatRelative } from "../format.js";
+import { formatDateTime, formatRelative, priorityLabel } from "../format.js";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
 import CommunicationDetailDrawer, {
   REASON_CONFIG,
@@ -203,7 +203,7 @@ export default function Communications({ allFacilitiesMode = false }) {
                         </span>
                         <span className="cm-item-preview">{preview || "No message body was sent with this notification."}</span>
                         <span className="cm-item-tags">
-                          {comm.priority && <span className={urgent ? "is-bad" : undefined}>{String(comm.priority).toUpperCase()}</span>}
+                          {comm.priority && <span className={urgent ? "is-bad" : undefined}>{priorityLabel(comm.priority)}</span>}
                           {reasonLabel && <span>{reasonLabel}</span>}
                           {hasAction && (
                             <span className="cm-item-task">

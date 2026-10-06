@@ -6,16 +6,19 @@ import { api } from "../api";
 import { resolveAction } from "../api/actionMap";
 import { Button, QueryResponseFields } from "./Common";
 import { Drawer } from "./Overlay";
-import { formatDateTime, safeHref } from "../format.js";
+import { formatDateTime, humanize, priorityLabel, safeHref } from "../format.js";
 import { buildActionBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
 import { useNavigate } from "react-router-dom";
 
 export const PRIORITY_CONFIG = {
-  urgent: { badge: "badge-error",   label: "URGENT"  },
-  asap:   { badge: "badge-error",   label: "ASAP"    },
-  stat:   { badge: "badge-error",   label: "STAT"    },
-  routine:{ badge: "badge-info",    label: "ROUTINE" },
+  urgent: { badge: "badge-error" },
+  asap:   { badge: "badge-error" },
+  stat:   { badge: "badge-error" },
+  routine:{ badge: "badge-info" },
 };
+
+// Two timestamps within a minute of each other are the same moment.
+const sameMoment = (a, b) => !!a && !!b && Math.abs(new Date(a) - new Date(b)) < 60_000;
 
 export const REASON_CONFIG = {
   tatquery:      { badge: "badge-warning", label: "TAT Dispute",      hint: "Time-sensitive - payer is disputing turnaround. Open the referenced claim and respond fast.", borderColor: "var(--warning)" },
@@ -64,8 +67,8 @@ export function parseDocumentsFromTaskInputs(taskInputs) {
 }
 
 export function priorityBadge(priority) {
-  const cfg = PRIORITY_CONFIG[priority?.toLowerCase()] ?? { badge: "badge-info", label: priority?.toUpperCase() ?? "-" };
-  return <span className={`badge-modern ${cfg.badge}`}>{cfg.label}</span>;
+  const cfg = PRIORITY_CONFIG[priority?.toLowerCase()] ?? { badge: "badge-info" };
+  return <span className={`badge-modern ${cfg.badge}`}>{priorityLabel(priority) || "-"}</span>;
 }
 
 function DetailField({ label, value }) {
@@ -122,6 +125,15 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const actionable = !!taskAction && taskAction.code !== "review_communication";
   const respondingDisabled =
     responding || allFacilitiesMode || (!respondMessage.trim() && respondDocs.length === 0);
+  // `acknowledged` is only the receipt the backend auto-sends to the payer; it
+  // says nothing about whether the hospital has replied. A query is answered
+  // once its review task is closed (or a reply was just sent from here).
+  const inbound = detail?.direction !== "outbound";
+  const answered =
+    respondResult?.success ||
+    (!reviewTask && !!detail?.completed_tasks?.some((t) => t.task_type === "review_communication"));
+  // A task with its own document action is answered through "Required action".
+  const canReply = inbound && !answered && !actionable;
   const requiredDocs = reviewTask?.required_documents?.length
     ? reviewTask.required_documents
     : parseDocumentsFromTaskInputs(detail?.task_inputs);
@@ -256,20 +268,31 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                     <DetailField label="Claim Reference" value={detail.claim_reference} />
                     <DetailField label="Subject" value={detail.subject} />
                     <DetailField label="Requested by" value={detail.task_requester} />
-                    <DetailField label="Sent" value={detail.sent_at ? formatDateTime(detail.sent_at) : null} />
-                    <DetailField label="Received" value={detail.received_at ? formatDateTime(detail.received_at) : null} />
-                    {detail.authored_on && <DetailField label="Task Created" value={formatDateTime(detail.authored_on)} />}
-                    {detail.comm_status && <DetailField label="Status" value={detail.comm_status} />}
-                    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-color)", marginTop: "var(--space-1)", flexWrap: "wrap" }}>
-                      <span className={`badge-modern badge-${detail.provider_read ? "success" : "warning"}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-                        {detail.provider_read ? <><CheckCircle2 size={11} /> Read</> : <><Circle size={11} /> Unread</>}
-                      </span>
-                      <span className={`badge-modern badge-${detail.acknowledged ? "success" : "warning"}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-                        {detail.acknowledged
-                          ? <><CheckCircle2 size={11} /> Answered</>
-                          : <><Circle size={11} /> Awaiting reply</>}
-                      </span>
-                      {detail.ack_correlation_id && <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>ACK: {detail.ack_correlation_id}</span>}
+                    <DetailField label="Received" value={formatDateTime(detail.received_at || detail.sent_at)} />
+                    {!sameMoment(detail.sent_at, detail.received_at) && detail.received_at && (
+                      <DetailField label="Sent by payer" value={formatDateTime(detail.sent_at)} />
+                    )}
+                    {detail.comm_status && <DetailField label="Message status" value={humanize(detail.comm_status)} />}
+                    {detail.authored_on && !sameMoment(detail.authored_on, detail.received_at || detail.sent_at) && (
+                      <DetailField label="Task created" value={formatDateTime(detail.authored_on)} />
+                    )}
+                    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-color)", marginTop: "var(--space-1)", flexWrap: "wrap", fontSize: "12.5px" }}>
+                      {inbound && reviewTask ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, color: "var(--warning)" }}>
+                          <Circle size={11} /> Awaiting your reply
+                        </span>
+                      ) : answered ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
+                          <CheckCircle2 size={12} color="var(--success)" /> Answered
+                        </span>
+                      ) : (
+                        <span style={{ fontWeight: 600 }}>{inbound ? "Reply optional" : "Sent to payer"}</span>
+                      )}
+                      {detail.acknowledged && (
+                        <span style={{ color: "var(--text-muted)" }} title={detail.ack_correlation_id ? `ACK ${detail.ack_correlation_id}` : undefined}>
+                          · Receipt acknowledged to payer{detail.acknowledged_at ? ` ${formatDateTime(detail.acknowledged_at)}` : ""}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -303,7 +326,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                     </div>
                   )}
 
-                  {detail?.direction !== "outbound" && !detail?.acknowledged && (
+                  {canReply && (
                     <div style={{ padding: "var(--space-4)", background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "10px" }}>
                       <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>
                         Reply To The Payer
