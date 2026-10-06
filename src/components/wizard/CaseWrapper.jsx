@@ -192,7 +192,7 @@ export default function CaseWrapper() {
   if (!patient) {
     return (
       <EmptyState title="Patient Not Found" description="The patient record you are looking for does not exist.">
-        <Button onClick={() => navigate("/registry")} className="mt-4">Back to Registry</Button>
+        <Button onClick={() => navigate("/registry")} className="mt-4">Back to patients</Button>
       </EmptyState>
     );
   }

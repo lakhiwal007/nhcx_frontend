@@ -292,7 +292,7 @@ export default function App() {
   const navItems = [
     { to: "/work-queue", icon: ListTodo, label: "Work Queue", badge: pendingTaskCount },
     { to: "/dashboard", icon: LayoutDashboard, label: "Cashless Cases" },
-    { to: "/registry", icon: Users, label: "Child Registry" },
+    { to: "/registry", icon: Users, label: "Patients" },
     { to: "/communications", icon: MessageSquare, label: "Communications", badge: unreadCommsCount, badgeTone: "info" },
     { to: "/payments", icon: CreditCard, label: "Payments" },
   ];
@@ -314,7 +314,7 @@ export default function App() {
     const map = {
       "work-queue": "Work Queue",
       dashboard: "Cashless Cases",
-      registry: "Child Registry",
+      registry: "Patients",
       communications: "Communications",
       payments: "Payments",
       settings: "Settings",

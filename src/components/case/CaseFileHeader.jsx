@@ -57,7 +57,7 @@ function CaseMoneyStrip({ ledger }) {
       {collect != null && (
         <div className="cx-ledger-collect">
           <span className="cx-ledger-key">
-            Collect from patient{ledger.patient_payable?.confidence ? ` · ${ledger.patient_payable.confidence}` : ""}
+            Patient payable{ledger.patient_payable?.confidence ? ` · ${ledger.patient_payable.confidence}` : ""}
           </span>
           <span className="cx-ledger-collect-val">{money(collect)}</span>
         </div>

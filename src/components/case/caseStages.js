@@ -5,7 +5,7 @@ const CORE = [
   { id: "payer", label: "Policy", path: "payer", hint: "Select the patient's active policy — its payer comes with it." },
   { id: "prep", label: "Eligibility", path: "prep", hint: "Confirm the plan covers this admission and resolve any missing patient details." },
   { id: "review", label: "Preauth", path: "review", hint: "Review the drafted preauth and submit it to the payer." },
-  { id: "status", label: "Decision", path: "status", hint: "Track the payer's decision and respond to any query." },
+  { id: "status", label: "Approval", path: "status", hint: "Track the payer's preauth decision and respond to any query." },
   { id: "claim", label: "Claim", path: "claim", hint: "Submit the discharge and final claim for the approved care." },
   { id: "payment", label: "Payment", path: "payment", hint: "Reconcile the payment received and close the case." },
 ];
@@ -54,7 +54,7 @@ export const STEP_FORWARD_ROUTE = {
 };
 
 export const STEP_FORWARD_LABEL = {
-  status: "Preauth Decision",
+  status: "Approval",
   claim: "Claim",
   payment: "Payment",
 };

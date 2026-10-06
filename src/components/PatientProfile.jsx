@@ -173,7 +173,7 @@ function PatientDetail({ patient }) {
               <Fields
                 cols={3}
                 rows={[
-                  { label: "Child ID", value: `#${patient.child_id}`, mono: true },
+                  { label: "Patient ID", value: `#${patient.child_id}`, mono: true },
                   { label: "Gender", value: gender },
                   { label: "Date of birth", value: patient.dob && formatDate(patient.dob), sub: age !== null ? `${age} yrs` : null },
                   { label: "Mobile", value: patient.mobile && formatPhone(patient.mobile), mono: true },

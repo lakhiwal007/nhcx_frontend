@@ -735,7 +735,7 @@ export default function PreauthDraft({ ctx }) {
       >
         <div className="pd-confirm">
           <p className="ep-muted">
-            To answer a payer query, resubmit after a rejection, or raise the approved amount, use the Decision screen
+            To answer a payer query, resubmit after a rejection, or raise the approved amount, use the Approval stage
             instead. A fresh preauth starts the payer's review over.
           </p>
           {submitError && <div className="ep-notice is-bad">{submitError}</div>}

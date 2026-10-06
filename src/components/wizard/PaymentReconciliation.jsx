@@ -141,7 +141,7 @@ export default function PaymentReconciliation({ ctx }) {
                   {toCollect > 0 && (
                     <div>
                       <dt>
-                        To collect from patient
+                        Patient payable
                         {ledger.patient_payable?.formula && <span className="ep-muted"> · {ledger.patient_payable.formula}</span>}
                       </dt>
                       <dd className="ep-mono">{formatMoney(toCollect)}</dd>

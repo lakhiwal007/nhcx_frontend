@@ -123,12 +123,12 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
         <Section id="en-none" title={preview ? "Enhancement not available" : "Could not load the enhancement"}>
           <p className="ds-empty">
             {!preview
-              ? "The enhancement preview didn't load. Try again from the Decision screen."
+              ? "The enhancement preview didn't load. Try again from the Approval stage."
               : preview.reason || "No new procedures or billing found since the approved preauth."}
           </p>
           <div className="ds-empty-actions">
             <Button variant="outline" size="small" onClick={close}>
-              {routed ? "Back to decision" : "Close"}
+              {routed ? "Back to approval" : "Close"}
             </Button>
           </div>
         </Section>
@@ -179,7 +179,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
         {submitting ? "Submitting…" : "Submit enhancement"}
       </Button>
       <button type="button" className="pd-text-btn" onClick={close}>
-        {routed ? "Back to decision" : "Cancel"}
+        {routed ? "Back to approval" : "Cancel"}
       </button>
     </>
   );
