@@ -4609,3 +4609,267 @@ code {
     color: var(--text-muted);
     margin: 0;
 }
+
+/* ─── Settings (Settings.jsx) ──────────────────────────────────────────────
+   Same case-file sections as the case steps: a facility picker table, a
+   two-row preferences list and a dense admin table. Colour only flags a
+   missing key, an inactive facility or a failed ABDM sync. */
+.st-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.st-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.st-notice {
+    margin: 12px 16px;
+}
+
+.st-warn {
+    color: var(--warning);
+}
+
+.st-table td {
+    vertical-align: middle;
+}
+
+.st-col-pick {
+    width: 36px;
+    padding-right: 0 !important;
+}
+
+.st-col-pick input {
+    margin: 0;
+    cursor: pointer;
+}
+
+.st-col-actions {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.st-row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.st-row-actions .ep-action {
+    min-width: 76px;
+    justify-content: center;
+}
+
+.st-pick-row {
+    cursor: pointer;
+}
+
+.st-pick-row:hover td {
+    background: var(--bg-main);
+}
+
+.st-pick-row.is-on td {
+    background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+
+.st-spinner {
+    width: 12px;
+    height: 12px;
+    border-width: 2px;
+}
+
+.st-admin-table {
+    min-width: 960px;
+}
+
+.st-admin-table th,
+.st-admin-table td {
+    padding-left: 12px;
+    padding-right: 12px;
+    white-space: nowrap;
+}
+
+.st-admin-table th:first-child,
+.st-admin-table td:first-child {
+    padding-left: 16px;
+}
+
+.st-sub {
+    display: block;
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.st-contact {
+    max-width: 220px;
+}
+
+.st-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.st-token {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.st-token .pd-input {
+    width: 260px;
+}
+
+/* Preferences: label beside a segmented switch */
+.st-prefs {
+    padding-bottom: 4px;
+}
+
+.st-prefs .ep-field {
+    align-items: center;
+}
+
+.st-prefs .ep-field:last-child {
+    border-bottom: none;
+}
+
+.st-seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-main);
+}
+
+.st-seg button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    border: none;
+    border-radius: calc(var(--radius-sm) - 3px);
+    background: none;
+    color: var(--text-muted);
+    font: var(--fw-medium) 12.5px var(--font-sans);
+    cursor: pointer;
+}
+
+.st-seg button:hover {
+    color: var(--text-main);
+}
+
+.st-seg button.is-on {
+    background: var(--bg-card);
+    color: var(--text-main);
+    box-shadow: 0 0 0 1px var(--border-color);
+}
+
+/* Facility form (drawer) */
+.st-group {
+    margin: 0;
+    padding: 0;
+    border: none;
+    min-width: 0;
+}
+
+.st-group-title {
+    width: 100%;
+    padding: 0 0 8px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 13px;
+    font-weight: var(--fw-semibold);
+    color: var(--text-main);
+}
+
+.st-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+}
+
+.st-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.st-field.is-wide {
+    grid-column: 1 / -1;
+}
+
+.st-field-label {
+    font-size: 12px;
+    font-weight: var(--fw-medium);
+    color: var(--text-muted);
+}
+
+.st-req {
+    color: var(--error);
+}
+
+.st-hint {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.st-error {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--error);
+}
+
+.st-footer-error {
+    flex: 1;
+}
+
+.st-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 4px 0;
+}
+
+.st-checks .pd-radio,
+.st-inline-check {
+    color: var(--text-main);
+    font-size: 13px;
+}
+
+.st-inline-check {
+    height: 32px;
+}
+
+.st-textarea {
+    width: 100%;
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+    .st-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .st-token {
+        margin-left: 0;
+        width: 100%;
+    }
+    .st-token .pd-input {
+        width: auto;
+        flex: 1;
+    }
+}

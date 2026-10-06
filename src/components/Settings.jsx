@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import {
   Building2,
   Plus,
@@ -7,24 +6,20 @@ import {
   Edit2,
   CheckCircle2,
   AlertTriangle,
-  Globe,
-  Mail,
-  Phone,
-  Lock,
-  Unlock,
   AlertCircle,
   Sun,
   Moon,
   PanelLeft,
   PanelTop,
-  Search,
   SearchX,
   Sparkles,
 } from "lucide-react";
 import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
 import { getDeepLinkClinicId } from "../sessionBootstrap";
-import { Button, Card, EmptyState, Input, LoadingBlock } from "./Common";
+import { Button, EmptyState, LoadingBlock } from "./Common";
 import { Drawer } from "./Overlay";
+import { Section } from "./case/CaseFile";
+import PageActions from "./PageActions";
 
 const ROLE_OPTIONS = [
   { value: "10001", label: "Provider" },
@@ -79,82 +74,37 @@ const EMPTY_FORM = {
   private_key_pem: "",
 };
 
-const facilityInlineActionStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "30px",
-  height: "30px",
-  border: "none",
-  background: "transparent",
-  color: "var(--text-muted)",
-  cursor: "pointer",
-  borderRadius: "var(--radius-sm)",
-};
+const PEM_PLACEHOLDER = "-----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n-----END RSA PRIVATE KEY-----";
 
-function FormField({ label, required, hint, children }) {
+function FormField({ label, required, hint, wide, children }) {
   return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: "12px",
-          fontWeight: 700,
-          color: "var(--text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.4px",
-          marginBottom: "6px",
-        }}
-      >
-        {label} {required && <span style={{ color: "var(--error)" }}>*</span>}
-      </label>
+    <label className={`st-field${wide ? " is-wide" : ""}`}>
+      <span className="st-field-label">
+        {label}
+        {required && <span className="st-req"> *</span>}
+      </span>
       {children}
-      {hint && (
-        <div
-          style={{
-            fontSize: "11px",
-            color: "var(--text-muted)",
-            marginTop: "var(--space-1)",
-          }}
-        >
-          {hint}
-        </div>
-      )}
-    </div>
+      {hint && <span className="st-hint">{hint}</span>}
+    </label>
   );
 }
 
-function TextInput({
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  disabled,
-  monospace,
-}) {
+function TextInput({ value, onChange, placeholder, type = "text", disabled, monospace }) {
   return (
     <input
-      className="input-modern"
+      className={`input-modern pd-input${monospace ? " ep-mono" : ""}`}
       type={type}
       value={value || ""}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       disabled={disabled}
-      style={{
-        fontFamily: monospace ? "monospace" : undefined,
-        opacity: disabled ? 0.6 : 1,
-      }}
     />
   );
 }
 
 function SelectInput({ value, onChange, options }) {
   return (
-    <select
-      className="input-modern"
-      value={value || ""}
-      onChange={(e) => onChange(e.target.value)}
-    >
+    <select className="input-modern pd-input" value={value || ""} onChange={(e) => onChange(e.target.value)}>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -165,40 +115,12 @@ function SelectInput({ value, onChange, options }) {
 }
 
 function MultiCheckbox({ options, value = [], onChange }) {
-  const toggle = (v) =>
-    onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+  const toggle = (v) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+    <div className="st-checks">
       {options.map((o) => (
-        <label
-          key={o.value}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "5px 10px",
-            border: `1px solid ${value.includes(o.value) ? "var(--primary)" : "var(--border-color)"}`,
-            borderRadius: "var(--radius-sm)",
-            cursor: "pointer",
-            fontSize: "12px",
-            fontWeight: 600,
-            background: value.includes(o.value)
-              ? "var(--primary-light)"
-              : "var(--bg-main)",
-            color: value.includes(o.value)
-              ? "var(--primary)"
-              : "var(--text-muted)",
-            userSelect: "none",
-            transition: "all 0.15s",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={value.includes(o.value)}
-            onChange={() => toggle(o.value)}
-            style={{ display: "none" }}
-          />
-          {value.includes(o.value) && <CheckCircle2 size={12} />}
+        <label key={o.value} className="pd-radio">
+          <input type="checkbox" checked={value.includes(o.value)} onChange={() => toggle(o.value)} />
           {o.label}
         </label>
       ))}
@@ -206,21 +128,32 @@ function MultiCheckbox({ options, value = [], onChange }) {
   );
 }
 
-function SectionHeader({ title }) {
+function FormGroup({ title, children }) {
   return (
-    <div
-      style={{
-        fontSize: "11px",
-        fontWeight: 800,
-        color: "var(--text-muted)",
-        textTransform: "uppercase",
-        letterSpacing: "0.6px",
-        paddingBottom: "10px",
-        borderBottom: "1px solid var(--border-color)",
-        marginTop: "var(--space-1)",
-      }}
-    >
-      {title}
+    <fieldset className="st-group">
+      <legend className="st-group-title">{title}</legend>
+      <div className="st-grid">{children}</div>
+    </fieldset>
+  );
+}
+
+// Two-option segmented switch used by Appearance.
+function Segmented({ value, options, onPick }) {
+  return (
+    <div className="st-seg" role="radiogroup">
+      {options.map(({ value: v, label, icon: Icon, title }) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          className={value === v ? "is-on" : ""}
+          title={title}
+          onClick={() => value !== v && onPick()}
+        >
+          <Icon size={14} /> {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -248,22 +181,19 @@ function GenerateKeypairButton({ facilityCode, facilityName, onGenerated }) {
   };
 
   return (
-    <div style={{ marginBottom: "var(--space-3)" }}>
-      <Button
-        variant="outline"
-        icon={done ? CheckCircle2 : Sparkles}
-        disabled={generating}
-        onClick={handleClick}
-      >
-        {generating ? "Generating…" : done ? "Generated" : "Generate a new key + certificate"}
-      </Button>
-      <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
-        Creates a 2048-bit RSA key and a self-signed certificate in your browser and fills in both fields below. Nothing leaves this tab except in the form submission itself.
+    <div className="st-field is-wide">
+      <div>
+        <Button variant="outline" size="small" icon={done ? CheckCircle2 : Sparkles} disabled={generating} onClick={handleClick}>
+          {generating ? "Generating…" : done ? "Generated" : "Generate a new key + certificate"}
+        </Button>
       </div>
+      <span className="st-hint">
+        Creates a 2048-bit RSA key and a self-signed certificate in your browser and fills in both fields. Nothing leaves this tab except in the form submission itself.
+      </span>
       {error && (
-        <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--error)", display: "flex", alignItems: "center", gap: "6px" }}>
-          <AlertTriangle size={14} /> {error}
-        </div>
+        <span className="st-error">
+          <AlertTriangle size={13} /> {error}
+        </span>
       )}
     </div>
   );
@@ -272,221 +202,98 @@ function GenerateKeypairButton({ facilityCode, facilityName, onGenerated }) {
 function FacilityForm({ form, onChange, isEdit }) {
   return (
     <>
-      <SectionHeader title="Identity" />
-      <div
-        className="grid-2-col" style={{ gap: "var(--space-4)" }}
-      >
+      <FormGroup title="Identity">
+        <FormField label="Facility code" required hint={isEdit ? "Cannot be changed after creation." : "Unique short code, e.g. HOSP-001"}>
+          <TextInput value={form.facility_code} onChange={(v) => onChange("facility_code", v)} placeholder="HOSP-001" disabled={isEdit} monospace />
+        </FormField>
+        <FormField label="Display name" required>
+          <TextInput value={form.name} onChange={(v) => onChange("name", v)} placeholder="City General Hospital" />
+        </FormField>
         <FormField
-          label="Facility Code"
-          required
+          label="HCX participant code"
+          required={isEdit}
+          wide
           hint={
             isEdit
-              ? "Cannot be changed after creation."
-              : "Unique short code, e.g. HOSP-001"
+              ? "ABDM participant_code, e.g. 1000099999@hcx"
+              : "Leave blank — ABDM's participant/create assigns this on registration. Only set it to re-link a participant code that already exists outside this wrapper."
           }
         >
           <TextInput
-            value={form.facility_code}
-            onChange={(v) => onChange("facility_code", v)}
-            placeholder="HOSP-001"
-            disabled={isEdit}
+            value={form.hcx_participant_code}
+            onChange={(v) => onChange("hcx_participant_code", v)}
+            placeholder={isEdit ? "1000099999@hcx" : "Auto-assigned by ABDM"}
             monospace
           />
         </FormField>
-        <FormField label="Display Name" required>
-          <TextInput
-            value={form.name}
-            onChange={(v) => onChange("name", v)}
-            placeholder="City General Hospital"
-          />
-        </FormField>
-      </div>
-
-      <FormField
-        label="HCX Participant Code"
-        required={isEdit}
-        hint={
-          isEdit
-            ? "ABDM participant_code, e.g. 1000099999@hcx"
-            : "Leave blank — ABDM's participant/create assigns this on registration. Only set it to re-link a participant code that already exists outside this wrapper."
-        }
-      >
-        <TextInput
-          value={form.hcx_participant_code}
-          onChange={(v) => onChange("hcx_participant_code", v)}
-          placeholder={isEdit ? "1000099999@hcx" : "Auto-assigned by ABDM"}
-          monospace
-        />
-      </FormField>
-
-      <div
-        className="grid-2-col" style={{ gap: "var(--space-4)" }}
-      >
         <FormField label="Registry ID" required hint="ABDM registryid / Client ID">
-          <TextInput
-            value={form.registry_id}
-            onChange={(v) => onChange("registry_id", v)}
-            placeholder="DEMO_CLIENT or HFR-12345"
-          />
+          <TextInput value={form.registry_id} onChange={(v) => onChange("registry_id", v)} placeholder="DEMO_CLIENT or HFR-12345" />
         </FormField>
-        <FormField label="Scheme Code" required hint="e.g. PMJAY">
-          <TextInput
-            value={form.scheme_code}
-            onChange={(v) => onChange("scheme_code", v)}
-            placeholder="PMJAY"
-          />
+        <FormField label="Scheme code" required hint="e.g. PMJAY">
+          <TextInput value={form.scheme_code} onChange={(v) => onChange("scheme_code", v)} placeholder="PMJAY" />
         </FormField>
-      </div>
-
-      <div
-        className="grid-2-col" style={{ gap: "var(--space-4)" }}
-      >
         <FormField label="Environment">
-          <SelectInput
-            value={form.environment}
-            onChange={(v) => onChange("environment", v)}
-            options={ENVIRONMENT_OPTIONS}
-          />
+          <SelectInput value={form.environment} onChange={(v) => onChange("environment", v)} options={ENVIRONMENT_OPTIONS} />
         </FormField>
-        <FormField label="Active">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-3)",
-              height: "44px",
-            }}
-          >
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-2)",
-                cursor: "pointer",
-                fontSize: "14px",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={!!form.active}
-                onChange={(e) => onChange("active", e.target.checked)}
-              />
-              <span>{form.active ? "Active" : "Inactive"}</span>
-            </label>
-          </div>
+        <FormField label="Status">
+          <span className="pd-radio st-inline-check">
+            <input type="checkbox" checked={!!form.active} onChange={(e) => onChange("active", e.target.checked)} />
+            Active
+          </span>
         </FormField>
-      </div>
+      </FormGroup>
 
-      <SectionHeader title="ABDM Registration" />
-
-      <FormField label="Participant Roles" required>
-        <MultiCheckbox
-          options={ROLE_OPTIONS}
-          value={form.roles || []}
-          onChange={(v) => onChange("roles", v)}
-        />
-      </FormField>
-
-      <FormField label="Linked Registry Codes" required hint="At least one - ABDM rejects an empty list">
-        <MultiCheckbox
-          options={LINKED_REGISTRY_OPTIONS}
-          value={form.linked_registry_codes || []}
-          onChange={(v) => onChange("linked_registry_codes", v)}
-        />
-      </FormField>
-
-      <div
-        className="grid-2-col" style={{ gap: "var(--space-4)" }}
-      >
+      <FormGroup title="ABDM registration">
+        <FormField label="Participant roles" required wide>
+          <MultiCheckbox options={ROLE_OPTIONS} value={form.roles || []} onChange={(v) => onChange("roles", v)} />
+        </FormField>
+        <FormField label="Linked registry codes" required wide hint="At least one — ABDM rejects an empty list">
+          <MultiCheckbox options={LINKED_REGISTRY_OPTIONS} value={form.linked_registry_codes || []} onChange={(v) => onChange("linked_registry_codes", v)} />
+        </FormField>
         <FormField label="State" required>
-          <TextInput
-            value={form.state}
-            onChange={(v) => onChange("state", v)}
-            placeholder="AndhraPradesh"
-          />
+          <TextInput value={form.state} onChange={(v) => onChange("state", v)} placeholder="AndhraPradesh" />
         </FormField>
         <FormField label="District" required>
-          <TextInput
-            value={form.district}
-            onChange={(v) => onChange("district", v)}
-            placeholder="Krishna"
-          />
+          <TextInput value={form.district} onChange={(v) => onChange("district", v)} placeholder="Krishna" />
         </FormField>
-      </div>
+      </FormGroup>
 
-      <SectionHeader title="Contact & Endpoints" />
-
-      <FormField
-        label="Endpoint / Callback URL"
-        required
-        hint="Bridge URL for NHCX callbacks"
-      >
-        <TextInput
-          value={form.endpoint_url}
-          onChange={(v) => onChange("endpoint_url", v)}
-          placeholder="https://hospital.example/hcx/callback"
-          type="url"
-        />
-      </FormField>
-
-      <div
-        className="grid-2-col" style={{ gap: "var(--space-4)" }}
-      >
-        <FormField label="Primary Email" required>
-          <TextInput
-            value={form.primary_email}
-            onChange={(v) => onChange("primary_email", v)}
-            placeholder="hcx@hospital.example"
-            type="email"
-          />
+      <FormGroup title="Contact & endpoints">
+        <FormField label="Endpoint / callback URL" required wide hint="Bridge URL for NHCX callbacks">
+          <TextInput value={form.endpoint_url} onChange={(v) => onChange("endpoint_url", v)} placeholder="https://hospital.example/hcx/callback" type="url" />
         </FormField>
-        <FormField
-          label="Primary Mobile"
-          required
-          hint="10 digits, no country code or spaces - ABDM rejects anything else"
-        >
+        <FormField label="Primary email" required>
+          <TextInput value={form.primary_email} onChange={(v) => onChange("primary_email", v)} placeholder="hcx@hospital.example" type="email" />
+        </FormField>
+        <FormField label="Primary mobile" required hint="10 digits, no country code or spaces">
           <TextInput
             value={form.primary_mobile}
             onChange={(v) => onChange("primary_mobile", v.replace(/\D/g, "").slice(0, 10))}
             placeholder="9876543210"
+            monospace
           />
         </FormField>
-      </div>
-
-      <FormField
-        label="Signing Certificate Path (URL)"
-        hint="Forwarded to ABDM at registration - not stored locally"
-      >
-        <TextInput
-          value={form.signing_cert_path}
-          onChange={(v) => onChange("signing_cert_path", v)}
-          placeholder="https://hospital.example/certs/signing.crt"
-          type="url"
-        />
-      </FormField>
-
-      <FormField
-        label="Encryption Certificate (Base64)"
-        required
-        hint="Base64-encoded public certificate - ABDM rejects registration without it"
-      >
-        <textarea
-          className="input-modern"
-          style={{
-            fontFamily: "monospace",
-            fontSize: "11px",
-            height: "80px",
-            resize: "vertical",
-          }}
-          placeholder="TUlJQzJqQ0NBY0tnQXdJQkFnSUJBVEFOQmdrcWhraUc5dzBCQVFzRkFEQVlNUll3..."
-          value={form.encryption_cert || ""}
-          onChange={(e) => onChange("encryption_cert", e.target.value)}
-        />
-      </FormField>
+        <FormField label="Signing certificate path (URL)" wide hint="Forwarded to ABDM at registration — not stored locally">
+          <TextInput
+            value={form.signing_cert_path}
+            onChange={(v) => onChange("signing_cert_path", v)}
+            placeholder="https://hospital.example/certs/signing.crt"
+            type="url"
+          />
+        </FormField>
+        <FormField label="Encryption certificate (Base64)" required wide hint="Base64-encoded public certificate — ABDM rejects registration without it">
+          <textarea
+            className="input-modern st-textarea"
+            rows={4}
+            placeholder="TUlJQzJqQ0NBY0tnQXdJQkFnSUJBVEFOQmdrcWhraUc5dzBCQVFzRkFEQVlNUll3..."
+            value={form.encryption_cert || ""}
+            onChange={(e) => onChange("encryption_cert", e.target.value)}
+          />
+        </FormField>
+      </FormGroup>
 
       {!isEdit && (
-        <>
-          <SectionHeader title="RSA Private Key (optional at creation)" />
+        <FormGroup title="RSA private key (optional at creation)">
           <GenerateKeypairButton
             facilityCode={form.facility_code}
             facilityName={form.name}
@@ -496,25 +303,19 @@ function FacilityForm({ form, onChange, isEdit }) {
             }}
           />
           <FormField
-            label="Private Key PEM"
-            hint="Paste the full RSA private key including -----BEGIN ... KEY----- headers. Can also be uploaded separately after creation."
+            label="Private key PEM"
+            wide
+            hint="Paste the full RSA private key including the -----BEGIN ... KEY----- headers. Can also be uploaded after creation."
           >
             <textarea
-              className="input-modern"
-              style={{
-                fontFamily: "monospace",
-                fontSize: "11px",
-                height: "120px",
-                resize: "vertical",
-              }}
-              placeholder={
-                "-----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n-----END RSA PRIVATE KEY-----"
-              }
+              className="input-modern st-textarea"
+              rows={6}
+              placeholder={PEM_PLACEHOLDER}
               value={form.private_key_pem || ""}
               onChange={(e) => onChange("private_key_pem", e.target.value)}
             />
           </FormField>
-        </>
+        </FormGroup>
       )}
     </>
   );
@@ -555,62 +356,28 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
       stack
       open={open}
       onClose={onClose}
-      title={`Upload RSA Key - ${facility?.name || facility?.facility_code}`}
-      subtitle="The key is used to decrypt inbound NHCX callbacks. It is stored securely and never returned by the API."
+      title={`Upload RSA key — ${facility?.name || facility?.facility_code}`}
+      subtitle="The key decrypts inbound NHCX callbacks. It is stored securely and never returned by the API."
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            icon={Key}
-            disabled={!pem.trim() || saving}
-            onClick={handleUpload}
-          >
-            {saving ? "Uploading…" : "Upload Key"}
+          <Button variant="primary" icon={Key} disabled={!pem.trim() || saving} onClick={handleUpload}>
+            {saving ? "Uploading…" : "Upload key"}
           </Button>
         </>
       }
     >
       <FormField
-        label="RSA Private Key PEM"
+        label="RSA private key PEM"
         required
         hint="Both traditional RSA (BEGIN RSA PRIVATE KEY) and PKCS#8 (BEGIN PRIVATE KEY) formats are accepted."
       >
-        <textarea
-          className="input-modern"
-          style={{
-            fontFamily: "monospace",
-            fontSize: "11px",
-            height: "200px",
-            resize: "vertical",
-          }}
-          placeholder={
-            "-----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n-----END RSA PRIVATE KEY-----"
-          }
-          value={pem}
-          onChange={(e) => setPem(e.target.value)}
-        />
+        <textarea className="input-modern st-textarea" rows={10} placeholder={PEM_PLACEHOLDER} value={pem} onChange={(e) => setPem(e.target.value)} />
       </FormField>
       {error && (
-        <div
-          style={{
-            display: "flex",
-            gap: "var(--space-2)",
-            alignItems: "flex-start",
-            padding: "10px 14px",
-            background: "rgba(239,68,68,0.06)",
-            border: "1px solid var(--error)",
-            borderRadius: "var(--radius-sm)",
-            fontSize: "13px",
-            color: "var(--error)",
-          }}
-        >
-          <AlertTriangle
-            size={16}
-            style={{ flexShrink: 0, marginTop: "1px" }}
-          />{" "}
+        <div className="ep-notice is-bad">
           {error}
         </div>
       )}
@@ -618,207 +385,15 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
   );
 }
 
-function FacilityCard({
-  facility,
-  onEdit,
-  onUploadKey,
-}) {
-  const abdmOk = facility.abdm_registration?.success;
-  return (
-    <motion.div
-      whileHover={{ y: -2 }}
-      style={{
-        background: "var(--bg-card)",
-        border: "1.5px solid var(--border-color)",
-        borderRadius: "var(--radius-lg)",
-        padding: "20px 24px",
-        boxShadow: "var(--shadow)",
-        transition: "all 0.2s",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "14px",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              marginBottom: "var(--space-1)",
-              flexWrap: "wrap",
-            }}
-          >
-            <code
-              style={{
-                fontSize: "13px",
-                fontWeight: 800,
-                color: "var(--primary)",
-                background: "var(--primary-light)",
-                padding: "2px 8px",
-                borderRadius: "var(--radius-xs)",
-              }}
-            >
-              {facility.facility_code}
-            </code>
-            <span
-              className={`badge-modern badge-${facility.environment === "production" ? "success" : "info"}`}
-            >
-              {facility.environment === "production" ? "Production" : "Sandbox"}
-            </span>
-            <span
-              className={`badge-modern badge-${facility.active ? "success" : "error"}`}
-            >
-              {facility.active ? "Active" : "Inactive"}
-            </span>
-          </div>
-          <div
-            style={{ fontSize: "16px", fontWeight: 700, marginBottom: "2px" }}
-          >
-            {facility.name}
-          </div>
-          <code style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-            {facility.hcx_participant_code}
-          </code>
-        </div>
-      </div>
+// Key and ABDM status: plain text when fine, colour only when something is wrong.
+function KeyStatus({ set }) {
+  return set ? <span className="ep-muted">Uploaded</span> : <span className="is-bad">Missing</span>;
+}
 
-      <div
-        className="grid-2-col"
-        style={{
-          gap: "10px",
-          marginBottom: "var(--space-4)",
-          fontSize: "12px",
-        }}
-      >
-        {facility.registry_id && (
-          <div>
-            <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>
-              Registry ID:{" "}
-            </span>
-            {facility.registry_id}
-          </div>
-        )}
-        {facility.scheme_code && (
-          <div>
-            <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>
-              Scheme:{" "}
-            </span>
-            {facility.scheme_code}
-          </div>
-        )}
-        {facility.state && (
-          <div>
-            <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>
-              State:{" "}
-            </span>
-            {facility.state}
-            {facility.district ? `, ${facility.district}` : ""}
-          </div>
-        )}
-        {facility.primary_email && (
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-            <Mail size={11} color="var(--text-muted)" />
-            {facility.primary_email}
-          </div>
-        )}
-        {facility.primary_mobile && (
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-            <Phone size={11} color="var(--text-muted)" />
-            {facility.primary_mobile}
-          </div>
-        )}
-        {facility.endpoint_url && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-1)",
-              gridColumn: "1 / -1",
-            }}
-          >
-            <Globe size={11} color="var(--text-muted)" />
-            {facility.endpoint_url}
-          </div>
-        )}
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          paddingTop: "14px",
-          borderTop: "1px solid var(--border-color)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            fontSize: "12px",
-            fontWeight: 600,
-            color: facility.private_key_set ? "var(--success)" : "var(--error)",
-          }}
-        >
-          {facility.private_key_set ? <Lock size={13} /> : <Unlock size={13} />}
-          {facility.private_key_set ? "Key Uploaded" : "No RSA Key"}
-        </div>
-        {!abdmOk && abdmOk !== undefined && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-1)",
-              fontSize: "11px",
-              color: "var(--warning)",
-              fontWeight: 600,
-            }}
-          >
-            <AlertTriangle size={11} /> ABDM sync failed
-          </div>
-        )}
-        {abdmOk && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-1)",
-              fontSize: "11px",
-              color: "var(--success)",
-              fontWeight: 600,
-            }}
-          >
-            <CheckCircle2 size={11} /> ABDM registered
-          </div>
-        )}
-        <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-2)" }}>
-          <Button
-            size="small"
-            variant="outline"
-            icon={Key}
-            onClick={() => onUploadKey(facility)}
-          >
-            {facility.private_key_set ? "Rotate Key" : "Upload Key"}
-          </Button>
-          <Button
-            size="small"
-            variant="outline"
-            icon={Edit2}
-            onClick={() => onEdit(facility)}
-          >
-            Edit
-          </Button>
-        </div>
-      </div>
-    </motion.div>
-  );
+function AbdmStatus({ registration }) {
+  const ok = registration?.success;
+  if (ok === undefined) return <span className="ep-muted">—</span>;
+  return ok ? <span className="ep-muted">Registered</span> : <span className="st-warn">Sync failed</span>;
 }
 
 export default function Settings({
@@ -835,9 +410,7 @@ export default function Settings({
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [adminToken, setAdminToken] = useState(
-    () => localStorage.getItem(ADMIN_TOKEN_KEY) || "",
-  );
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem(ADMIN_TOKEN_KEY) || "");
 
   const [showFacilityDrawer, setShowFacilityDrawer] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
@@ -852,21 +425,13 @@ export default function Settings({
   const facilitySearchQuery = facilitySearch.trim().toLowerCase();
   const filteredFacilities = facilitySearchQuery
     ? facilities.filter((f) =>
-        [
-          f.name,
-          f.facility_code,
-          f.hcx_participant_code,
-          f.state,
-          f.district,
-          f.registry_id,
-          f.environment,
-        ]
+        [f.name, f.facility_code, f.hcx_participant_code, f.state, f.district, f.registry_id, f.environment]
           .filter(Boolean)
           .some((field) => field.toLowerCase().includes(facilitySearchQuery)),
       )
     : facilities;
 
-  // The "Facility Management" Card below (register/edit/upload key) is
+  // The "Facility management" section below (register/edit/upload key) is
   // rendered only for isAdmin, since GET /facilities lists every facility in
   // the system, not just the caller's own. It's still loaded read-only for
   // the `needsFallbackPicker` case below - a `skip_auth` sandbox with no real
@@ -936,15 +501,12 @@ export default function Settings({
     }
   };
 
-  const handleFormChange = (key, value) =>
-    setForm((p) => ({ ...p, [key]: value }));
+  const handleFormChange = (key, value) => setForm((p) => ({ ...p, [key]: value }));
 
   const handleSave = async () => {
     if (!form.facility_code || !form.name || (editingFacility && !form.hcx_participant_code)) {
       setFormError(
-        editingFacility
-          ? "Facility Code, Name, and HCX Participant Code are required."
-          : "Facility Code and Name are required.",
+        editingFacility ? "Facility Code, Name, and HCX Participant Code are required." : "Facility Code and Name are required.",
       );
       return;
     }
@@ -1012,302 +574,284 @@ export default function Settings({
     else localStorage.removeItem(ADMIN_TOKEN_KEY);
   };
 
+  const isActiveFacility = (f) => !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
+  const hasSessionFacilities = sessionFacilities?.length > 0;
+  // The fallback picker reuses the admin list, so it has no per-facility edit/key actions.
+  const pickerFacilities = hasSessionFacilities ? sessionFacilities : needsFallbackPicker ? facilities : [];
+
   return (
-    <div>
-      {sessionFacilities && (
-        <Card title="Active Facility" className="mb-6">
-          {sessionFacilities.length === 0 ? (
-            needsFallbackPicker && facilities.length > 0 ? (
-              <div>
-                <div className="inline-error-banner" style={{ margin: "0 0 var(--space-3)" }}>
-                  <AlertCircle size={16} />
-                  No facility is linked to your session. Pick one below to continue.
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
-                  {facilities.map((f) => {
-                    const isActive = !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
-                    return (
-                      <button
-                        key={f.facility_code}
-                        onClick={() => handleSelectSessionFacility(f)}
-                        className={`badge-modern ${isActive ? "badge-success" : "badge-info"}`}
-                        style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px" }}
-                      >
-                        {isActive && <CheckCircle2 size={13} />}
-                        {f.name || f.facility_code}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="inline-error-banner" style={{ margin: "0 0 var(--space-3)" }}>
-                  <AlertCircle size={16} />
-                  No cashless-enabled facility is linked to your account. If you're the clinic
-                  owner, register it below - otherwise, ask your clinic's owner to register it.
-                </div>
-                <Button
-                  variant="primary"
-                  icon={Plus}
-                  onClick={() => openCreate({ facility_code: getDeepLinkClinicId() || "" })}
-                >
-                  Register This Facility
-                </Button>
-              </div>
-            )
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", alignItems: "center" }}>
-                {sessionFacilities.map((f) => {
-                  const isActive = !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
-                  return (
-                    <div
-                      key={f.facility_code}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "2px",
-                        border: `1px solid ${isActive ? "var(--primary)" : "var(--border-color)"}`,
-                        borderRadius: "var(--radius-pill)",
-                        padding: "2px 4px 2px 2px",
-                        background: "var(--bg-card)",
-                      }}
-                    >
-                      <button
-                        onClick={() => handleSelectSessionFacility(f)}
-                        title={isActive ? "Active facility" : "Switch to this facility"}
-                        className={`badge-modern ${isActive ? "badge-success" : "badge-info"}`}
-                        style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "7px 12px" }}
-                      >
-                        {isActive && <CheckCircle2 size={13} />}
-                        {f.name || f.facility_code}
-                      </button>
-                      <button
-                        onClick={() => openEditByCode(f.facility_code)}
-                        disabled={editLoadingCode === f.facility_code}
-                        title="Edit facility — callback URL, contact, roles, encryption cert"
-                        style={facilityInlineActionStyle}
-                      >
-                        {editLoadingCode === f.facility_code
-                          ? <span className="spinner" style={{ width: "13px", height: "13px" }} />
-                          : <Edit2 size={14} />}
-                      </button>
-                      <button
-                        onClick={() => setKeyDrawerFacility(f)}
-                        title="Upload or rotate the facility's RSA key"
-                        style={facilityInlineActionStyle}
-                      >
-                        <Key size={14} />
-                      </button>
-                    </div>
-                  );
-                })}
-                {isAdmin && (
-                  <button
-                    onClick={handleEnableAllFacilities}
-                    className={`badge-modern ${allFacilitiesMode ? "badge-success" : "badge-info"}`}
-                    style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px" }}
-                    title="Read-only view spanning every facility - no single facility is acted as"
-                  >
-                    {allFacilitiesMode ? <CheckCircle2 size={13} /> : <Globe size={13} />}
-                    View All Facilities (read-only)
-                  </button>
-                )}
-              </div>
-              <div>
-                <Button
-                  variant="outline"
-                  size="small"
-                  icon={Plus}
-                  onClick={() => openCreate()}
-                >
-                  Register another facility
-                </Button>
-                <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "6px" }}>
-                  Editing re-syncs the facility to ABDM. To change your NHCX callback URL, edit the facility and update the Endpoint / Callback URL field.
-                </div>
-              </div>
-            </div>
-          )}
-        </Card>
+    <div className="ep-screen st-screen">
+      {(isAdmin || hasSessionFacilities) && (
+        <PageActions>
+          <Button variant="outline" size="small" icon={Plus} onClick={() => openCreate()}>
+            Register facility
+          </Button>
+        </PageActions>
       )}
 
-      <Card title="Appearance" className="mb-6">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "28px" }}>
-          <div>
-            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "var(--space-2)" }}>
-              Theme
+      {sessionFacilities && (
+        <Section
+          id="st-active"
+          title="Active facility"
+          meta={hasSessionFacilities && "Editing re-syncs the facility to ABDM, including the NHCX callback URL."}
+        >
+          {pickerFacilities.length === 0 ? (
+            <div className="ep-pad st-stack">
+              <div className="ep-notice is-bad">
+                No cashless-enabled facility is linked to your account. If you're the clinic owner, register it here — otherwise, ask
+                your clinic's owner to register it.
+              </div>
+              <div>
+                <Button variant="primary" icon={Plus} onClick={() => openCreate({ facility_code: getDeepLinkClinicId() || "" })}>
+                  Register this facility
+                </Button>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button
-                onClick={() => theme !== "light" && onToggleTheme?.()}
-                className={`badge-modern ${theme === "light" ? "badge-success" : "badge-info"}`}
-                style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <Sun size={13} /> Light
-              </button>
-              <button
-                onClick={() => theme !== "dark" && onToggleTheme?.()}
-                className={`badge-modern ${theme === "dark" ? "badge-success" : "badge-info"}`}
-                style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <Moon size={13} /> Dark
-              </button>
-            </div>
+          ) : (
+            <>
+              {!hasSessionFacilities && (
+                <div className="ep-notice is-warn st-notice">No facility is linked to your session. Pick one to continue.</div>
+              )}
+              <div className="ep-table-wrap">
+                <table className="ep-table st-table">
+                  <thead>
+                    <tr>
+                      <th className="st-col-pick" aria-label="Active" />
+                      <th>Facility</th>
+                      <th>Participant code</th>
+                      <th className="st-col-actions" aria-label="Actions" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pickerFacilities.map((f) => {
+                      const on = isActiveFacility(f);
+                      return (
+                        <tr key={f.facility_code} className={`st-pick-row${on ? " is-on" : ""}`} onClick={() => handleSelectSessionFacility(f)}>
+                          <td className="st-col-pick">
+                            <input
+                              type="radio"
+                              name="st-active-facility"
+                              checked={on}
+                              onChange={() => handleSelectSessionFacility(f)}
+                              aria-label={`Act as ${f.name || f.facility_code}`}
+                            />
+                          </td>
+                          <td>
+                            <span className="ep-strong">{f.name || f.facility_code}</span>
+                            <span className="ep-field-sub">{f.facility_code}</span>
+                          </td>
+                          <td className="ep-mono">{f.hcx_participant_code || "—"}</td>
+                          <td className="st-col-actions" onClick={(e) => e.stopPropagation()}>
+                            {hasSessionFacilities && (
+                              <div className="st-row-actions">
+                                <button
+                                  type="button"
+                                  className="ep-action"
+                                  disabled={editLoadingCode === f.facility_code}
+                                  title="Edit facility — callback URL, contact, roles, encryption cert"
+                                  onClick={() => openEditByCode(f.facility_code)}
+                                >
+                                  {editLoadingCode === f.facility_code ? <span className="spinner st-spinner" /> : <Edit2 size={13} />}
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ep-action"
+                                  title="Upload or rotate the facility's RSA key"
+                                  onClick={() => setKeyDrawerFacility(f)}
+                                >
+                                  <Key size={13} /> Key
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {isAdmin && hasSessionFacilities && (
+                      <tr className={`st-pick-row${allFacilitiesMode ? " is-on" : ""}`} onClick={handleEnableAllFacilities}>
+                        <td className="st-col-pick">
+                          <input
+                            type="radio"
+                            name="st-active-facility"
+                            checked={allFacilitiesMode}
+                            onChange={handleEnableAllFacilities}
+                            aria-label="View all facilities"
+                          />
+                        </td>
+                        <td>
+                          <span className="ep-strong">All facilities</span>
+                          <span className="st-sub">Read-only — no single facility is acted as</span>
+                        </td>
+                        <td className="ep-muted">—</td>
+                        <td />
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </Section>
+      )}
+
+      <Section id="st-appearance" title="Appearance">
+        <dl className="ep-fields cols-1 st-prefs">
+          <div className="ep-field">
+            <dt>Theme</dt>
+            <dd>
+              <Segmented
+                value={theme}
+                onPick={() => onToggleTheme?.()}
+                options={[
+                  { value: "light", label: "Light", icon: Sun },
+                  { value: "dark", label: "Dark", icon: Moon },
+                ]}
+              />
+            </dd>
           </div>
-          <div>
-            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "var(--space-2)" }}>
-              Navigation Layout
-            </div>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button
-                onClick={() => layoutDirection !== "A" && onToggleLayoutDirection?.()}
-                title="Sidebar navigation on the left"
-                className={`badge-modern ${layoutDirection === "A" ? "badge-success" : "badge-info"}`}
-                style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <PanelLeft size={13} /> Rail Sidebar
-              </button>
-              <button
-                onClick={() => layoutDirection !== "B" && onToggleLayoutDirection?.()}
-                title="Dark top command-bar with horizontal nav"
-                className={`badge-modern ${layoutDirection === "B" ? "badge-success" : "badge-info"}`}
-                style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <PanelTop size={13} /> Top Bar
-              </button>
-            </div>
+          <div className="ep-field">
+            <dt>Navigation</dt>
+            <dd>
+              <Segmented
+                value={layoutDirection}
+                onPick={() => onToggleLayoutDirection?.()}
+                options={[
+                  { value: "A", label: "Sidebar", icon: PanelLeft, title: "Sidebar navigation on the left" },
+                  { value: "B", label: "Top bar", icon: PanelTop, title: "Top command bar with horizontal navigation" },
+                ]}
+              />
+            </dd>
           </div>
-        </div>
-      </Card>
+        </dl>
+      </Section>
 
       {isAdmin && (
-        <Card
-          title={
-            facilitySearchQuery
-              ? `Facility Management (${filteredFacilities.length} of ${facilities.length})`
-              : `Facility Management${facilities.length ? ` (${facilities.length})` : ""}`
-          }
-          headerAction={
-            <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
-              <div style={{ width: "260px" }}>
-                <Input
-                  icon={Search}
-                  placeholder="Search name, code, participant…"
-                  value={facilitySearch}
-                  onChange={(e) => setFacilitySearch(e.target.value)}
-                />
-              </div>
-              <Button variant="primary" icon={Plus} onClick={openCreate}>
-                Register Facility
-              </Button>
-            </div>
-          }
+        <Section
+          id="st-facilities"
+          title="Facility management"
+          meta={facilities.length > 0 && (facilitySearchQuery ? `${filteredFacilities.length} of ${facilities.length}` : `${facilities.length} registered`)}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-3)",
-              paddingBottom: "var(--space-4)",
-              marginBottom: "var(--space-4)",
-              borderBottom: "1px solid var(--border-color)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-              <Lock size={16} color="var(--primary)" />
-              Admin Token
-            </div>
+          <div className="ep-toolbar">
             <input
-              type="password"
-              className="input-modern"
-              style={{ maxWidth: "320px" }}
-              placeholder="Deployment admin token (for facility mutations)"
-              value={adminToken}
-              onChange={(e) => handleAdminTokenChange(e.target.value)}
+              className="input-modern ep-search"
+              placeholder="Search name, code, participant…"
+              value={facilitySearch}
+              onChange={(e) => setFacilitySearch(e.target.value)}
             />
-            <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
-              Required to register or edit facilities and upload RSA keys.
-            </span>
+            <label className="st-token">
+              <span className="ep-muted">Admin token</span>
+              <input
+                type="password"
+                className="input-modern pd-input"
+                placeholder="Required to register, edit or upload keys"
+                value={adminToken}
+                onChange={(e) => handleAdminTokenChange(e.target.value)}
+              />
+            </label>
           </div>
 
-          {loadError && (
-            <div className="inline-error-banner">
-              <AlertCircle size={16} />
-              Could not load facilities. Showing the last known results, if any.
-            </div>
-          )}
+          {loadError && <div className="ep-notice is-bad st-notice">Could not load facilities. Showing the last known results, if any.</div>}
 
           {loading ? (
             <LoadingBlock text="Loading facilities…" />
           ) : facilities.length === 0 ? (
             <EmptyState
               icon={Building2}
-              iconSize={52}
+              iconSize={44}
               iconOpacity={0.25}
-              title="No Facilities Registered"
+              title="No facilities registered"
               description="Register your hospital's HCX facility to enable preauth, claims, and eligibility workflows."
-            >
-              <Button
-                variant="primary"
-                icon={Plus}
-                onClick={openCreate}
-                style={{ marginTop: "var(--space-5)" }}
-              >
-                Register First Facility
-              </Button>
-            </EmptyState>
+            />
           ) : filteredFacilities.length === 0 ? (
             <EmptyState
               icon={SearchX}
               iconSize={44}
               iconOpacity={0.25}
-              title="No Matching Facilities"
-              description={`Nothing matches "${facilitySearch.trim()}". Try a different name, code, or participant ID.`}
+              title="No matching facilities"
+              description={`Nothing matches "${facilitySearch.trim()}".`}
             >
-              <Button
-                variant="outline"
-                onClick={() => setFacilitySearch("")}
-                style={{ marginTop: "var(--space-4)" }}
-              >
-                Clear Search
+              <Button variant="outline" size="small" onClick={() => setFacilitySearch("")}>
+                Clear search
               </Button>
             </EmptyState>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fill, minmax(min(100%, 560px), 1fr))",
-                gap: "var(--space-4)",
-              }}
-            >
-              {filteredFacilities.map((f) => (
-                <FacilityCard
-                  key={f.facility_code}
-                  facility={f}
-                  onEdit={openEdit}
-                  onUploadKey={setKeyDrawerFacility}
-                />
-              ))}
-            </motion.div>
+            <div className="ep-table-wrap">
+              <table className="ep-table st-table st-admin-table">
+                <thead>
+                  <tr>
+                    <th>Facility</th>
+                    <th>Participant · Registry</th>
+                    <th>Scheme · Env</th>
+                    <th>Region</th>
+                    <th>Contact</th>
+                    <th>RSA key</th>
+                    <th>ABDM</th>
+                    <th className="st-col-actions" aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredFacilities.map((f) => (
+                    <tr key={f.facility_code}>
+                      <td>
+                        <span className="ep-strong">{f.name}</span>
+                        <span className="ep-field-sub">
+                          {f.facility_code}
+                          {!f.active && <span className="is-bad"> · Inactive</span>}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="ep-mono">{f.hcx_participant_code || "—"}</span>
+                        {f.registry_id && <span className="ep-field-sub">{f.registry_id}</span>}
+                      </td>
+                      <td>
+                        {f.scheme_code || "—"}
+                        <span className="st-sub">{f.environment === "production" ? "Production" : "Sandbox"}</span>
+                      </td>
+                      <td>
+                        {f.state || "—"}
+                        {f.district && <span className="st-sub">{f.district}</span>}
+                      </td>
+                      <td className="st-contact">
+                        {f.primary_email || "—"}
+                        {f.primary_mobile && <span className="ep-field-sub">{f.primary_mobile}</span>}
+                        {f.endpoint_url && (
+                          <span className="ep-field-sub st-ellipsis" title={f.endpoint_url}>
+                            {f.endpoint_url}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <KeyStatus set={f.private_key_set} />
+                      </td>
+                      <td>
+                        <AbdmStatus registration={f.abdm_registration} />
+                      </td>
+                      <td className="st-col-actions">
+                        <div className="st-row-actions">
+                          <button type="button" className="ep-action" onClick={() => openEdit(f)}>
+                            <Edit2 size={13} /> Edit
+                          </button>
+                          <button type="button" className="ep-action" onClick={() => setKeyDrawerFacility(f)}>
+                            <Key size={13} /> {f.private_key_set ? "Rotate" : "Upload"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </Card>
+        </Section>
       )}
 
       <Drawer
-      width={620}
-      stack
+        width={620}
+        stack
         open={showFacilityDrawer}
         onClose={() => setShowFacilityDrawer(false)}
-        title={
-          editingFacility
-            ? `Edit ${editingFacility.name || editingFacility.facility_code}`
-            : "Register New Facility"
-        }
+        title={editingFacility ? `Edit ${editingFacility.name || editingFacility.facility_code}` : "Register new facility"}
         subtitle={
           editingFacility
             ? `Code ${editingFacility.facility_code} · updates sync to ABDM.`
@@ -1316,47 +860,20 @@ export default function Settings({
         footer={
           <>
             {formError && (
-              <div
-                style={{
-                  flex: 1,
-                  fontSize: "12px",
-                  color: "var(--error)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                <AlertTriangle size={14} /> {formError}
-              </div>
+              <span className="st-error st-footer-error">
+                <AlertCircle size={14} /> {formError}
+              </span>
             )}
-            <Button
-              variant="outline"
-              onClick={() => setShowFacilityDrawer(false)}
-            >
+            <Button variant="outline" onClick={() => setShowFacilityDrawer(false)}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              icon={saving ? undefined : CheckCircle2}
-              disabled={saving}
-              onClick={handleSave}
-            >
-              {saving
-                ? editingFacility
-                  ? "Updating…"
-                  : "Registering…"
-                : editingFacility
-                  ? "Save Changes"
-                  : "Register Facility"}
+            <Button variant="primary" icon={saving ? undefined : CheckCircle2} disabled={saving} onClick={handleSave}>
+              {saving ? (editingFacility ? "Updating…" : "Registering…") : editingFacility ? "Save changes" : "Register facility"}
             </Button>
           </>
         }
       >
-        <FacilityForm
-          form={form}
-          onChange={handleFormChange}
-          isEdit={!!editingFacility}
-        />
+        <FacilityForm form={form} onChange={handleFormChange} isEdit={!!editingFacility} />
       </Drawer>
 
       <KeyUploadDrawer
