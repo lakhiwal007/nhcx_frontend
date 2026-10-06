@@ -16,18 +16,6 @@ import PayerName from "./PayerName";
 
 const CLAIMS_PAGE_SIZE = 20;
 
-// Headline numbers from the stats endpoint. Read-only: filtering the list is
-// done by the status tabs, whose counts come from the loaded rows themselves.
-const KPIS = [
-  { key: "total",           label: "Total cases",           color: "var(--primary)", value: (s) => s.claims?.total },
-  { key: "preauth_pending", label: "Preauth pending",       color: "var(--info)",    value: (s) => s.claims?.preauth_pending },
-  { key: "pending",         label: "In adjudication",       color: "var(--warning)", value: (s) => s.claims?.pending },
-  { key: "partial",         label: "Partially approved",    color: "var(--accent)",  value: (s) => s.claims?.partial },
-  { key: "complete",        label: "Approved / complete",   color: "var(--success)", value: (s) => s.claims?.complete },
-  { key: "failed",          label: "Failed / rejected",     color: "var(--error)",   value: (s) => s.claims?.failed },
-  { key: "children",        label: "Children with claims",  color: "var(--text-muted)", value: (s) => s.children?.with_claims },
-];
-
 // The four stages of the journey, and which `current_step` values belong to
 // each. `current_step` is the authoritative journey position; a row's
 // `status` only rolls up eligibility prep (its "complete" does not mean the
@@ -58,8 +46,12 @@ function stageIndex(claim) {
 
 const isSettled = (c) => caseStep(c) === "settled";
 
+// The strip at the top is both the headline numbers and the filter: each cell
+// counts the loaded cases by journey stage (`current_step`), so a figure always
+// matches the rows it opens. (The stats endpoint's pending/complete/failed are
+// the eligibility-prep roll-up, not the journey, so they aren't shown here.)
 const STATUS_TABS = [
-  { key: "all",       label: "All",          match: () => true },
+  { key: "all",       label: "All cases",    match: () => true, dot: "var(--text-muted)" },
   { key: "attention", label: "Needs action", match: (c) => needsAttention(c), dot: "var(--warning)" },
   { key: "preauth",   label: "Pre-auth",     match: (c) => stageIndex(c) <= 1, dot: "var(--info)" },
   { key: "claim",     label: "Claim",        match: (c) => stageIndex(c) === 2, dot: "var(--accent)" },
@@ -386,6 +378,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [stats, setStats] = useState(null);
+  const [totalCount, setTotalCount] = useState(null);
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -417,6 +410,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         ]);
         setStats(statsData);
         setClaims(claimsData?.claims || []);
+        setTotalCount(claimsData?.total_count ?? null);
       } catch (_) {
         setLoadError(true);
       } finally {
@@ -521,28 +515,36 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         </div>
       )}
 
-      {loading ? (
-        <div className="cc-kpis" aria-hidden="true">
-          {KPIS.map((k) => (
-            <div key={k.key} className="cc-kpi">
-              <span className="skeleton-line" style={{ width: "70%", height: 10 }} />
+      <div className="cc-kpis" role="tablist" aria-label="Case stage">
+        {STATUS_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={statusTab === t.key}
+            className={`cc-kpi cc-kpi-btn${statusTab === t.key ? " is-on" : ""}`}
+            onClick={() => {
+              setStatusTab(t.key);
+              setClaimsPage(0);
+            }}
+          >
+            <span className="cc-kpi-label">
+              <span className="cc-kpi-dot" style={{ background: t.dot }} />
+              {t.label}
+            </span>
+            {loading ? (
               <span className="skeleton-line" style={{ width: 36, height: 22, marginTop: 8 }} />
-            </div>
-          ))}
-        </div>
-      ) : stats && (
-        <div className="cc-kpis">
-          {KPIS.map((k) => (
-            <div key={k.key} className="cc-kpi">
-              <div className="cc-kpi-label">
-                <span className="cc-kpi-dot" style={{ background: k.color }} />
-                {k.label}
-              </div>
-              <div className="cc-kpi-value">{k.value(stats) ?? 0}</div>
-            </div>
-          ))}
-        </div>
-      )}
+            ) : (
+              <span className="cc-kpi-value">
+                {tabCounts[t.key]}
+                {t.key === "all" && !q && totalCount > claims.length && (
+                  <span className="cc-kpi-of"> of {totalCount}</span>
+                )}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
       {allFacilitiesMode && stats?.by_facility?.length > 0 && (
         <div className="wq-panel">
@@ -588,25 +590,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
               setClaimsPage(0);
             }}
           />
-          <div className="wq-chips" role="tablist" aria-label="Case status">
-            {STATUS_TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={statusTab === t.key}
-                className={`wq-chip${statusTab === t.key ? " is-on" : ""}`}
-                onClick={() => {
-                  setStatusTab(t.key);
-                  setClaimsPage(0);
-                }}
-              >
-                {t.dot && <span className="wq-chip-dot" style={{ "--wq-dot": t.dot }} />}
-                {t.label}
-                <span className="wq-chip-count">{loading ? "–" : tabCounts[t.key]}</span>
-              </button>
-            ))}
-          </div>
           <div className="wq-toolbar-spacer" />
           <div style={{ width: "170px" }}>
             <Dropdown

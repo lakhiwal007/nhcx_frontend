@@ -4095,6 +4095,40 @@ code {
     flex-shrink: 0;
 }
 
+/* Each figure is also the stage filter for the table below. */
+.cc-kpi-btn {
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cc-kpi-btn:hover {
+    background: var(--bg-main);
+}
+
+.cc-kpi-btn.is-on {
+    background: var(--primary-light);
+    box-shadow: -1px 0 0 var(--border-color), 0 -1px 0 var(--border-color), inset 0 -2px 0 var(--primary);
+}
+
+.cc-kpi-btn.is-on .cc-kpi-label {
+    color: var(--primary);
+}
+
+.cc-kpi-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+.cc-kpi-of {
+    font-size: var(--text-sm);
+    font-weight: var(--fw-regular);
+    color: var(--text-muted);
+}
+
 .cc-kpi-value {
     margin-top: 4px;
     font-family: var(--font-mono);
