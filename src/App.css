@@ -4875,3 +4875,138 @@ code {
     justify-content: flex-end;
     gap: 10px;
 }
+
+/* ─── Audit trail (CaseTimeline.jsx) ───────────────────────────────────── */
+.tl-select {
+    width: auto;
+    min-width: 160px;
+}
+
+.tl-failures {
+    margin-left: auto;
+    color: var(--text-main);
+    font-size: 13px;
+}
+
+.tl-empty {
+    padding-bottom: 14px;
+}
+
+.ep-table.tl-table {
+    min-width: 860px;
+}
+
+.tl-table th,
+.tl-table td {
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.tl-table th:first-child,
+.tl-table td:first-child {
+    padding-left: 16px;
+}
+
+.tl-table tr.is-failed td:first-child {
+    box-shadow: inset 3px 0 0 var(--error);
+}
+
+.tl-when {
+    font-size: 12px;
+}
+
+.tl-event {
+    min-width: 320px;
+    font-size: 12.5px;
+}
+
+.tl-event .ep-strong {
+    font-size: 13px;
+}
+
+.tl-line {
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+}
+
+.tl-line .ep-mono {
+    font-size: 11.5px;
+}
+
+.tl-ids {
+    font-size: 11px;
+}
+
+.tl-notes {
+    margin: 4px 0 0;
+    padding-left: 16px;
+    color: var(--text-muted);
+}
+
+.tl-actor {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tl-actor svg {
+    color: var(--text-muted);
+}
+
+/* ─── FHIR bundle (FhirBundleModal.jsx) ─────────────────────────────────── */
+.fb-sides {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.fb-side {
+    min-width: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    overflow: hidden;
+}
+
+.fb-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 8px 0 14px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12.5px;
+}
+
+.fb-copy {
+    margin-left: auto;
+}
+
+.fb-json {
+    max-height: 420px;
+    margin: 0;
+    padding: 12px 14px;
+    overflow: auto;
+    background: var(--bg-main);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.fb-empty {
+    padding: 14px;
+}
+
+.fb-state {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+@media (max-width: 760px) {
+    .fb-sides {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

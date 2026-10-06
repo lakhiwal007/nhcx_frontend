@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
-import {
-  RefreshCw, ChevronDown, ChevronRight, AlertTriangle, ArrowUpRight, ArrowDownLeft,
-  Cpu, Building2, Landmark, ShieldAlert, FileJson,
-} from "lucide-react";
+import { RefreshCw, ArrowUpRight, ArrowDownLeft, FileJson } from "lucide-react";
 import { api } from "../../api";
-import { Card, Button, LoadingBlock, EmptyState } from "../Common";
+import { Button, LoadingBlock, EmptyState } from "../Common";
 import { formatMoney, formatDateTime } from "../../format.js";
+import { Section } from "../case/CaseFile";
+import PageActions from "../PageActions";
 import FhirBundleModal from "../FhirBundleModal";
 
 const BUNDLE_WORKFLOWS = new Set([
@@ -17,247 +15,116 @@ const BUNDLE_WORKFLOWS = new Set([
 
 const BUNDLE_TRANSACTION_TYPE = { eligibility: "coverage_eligibility" };
 
-// Fixed actor palette — who drove the event. Hospital (blue), payer (violet),
-// system/auto (grey). Kept distinct so a payer callback never reads as a
-// hospital action at a glance.
-const ACTOR_CONFIG = {
-  hospital: { label: "Hospital", color: "#2563eb", bg: "rgba(37,99,235,0.12)", icon: Building2 },
-  payer: { label: "Payer", color: "#7c3aed", bg: "rgba(124,58,237,0.12)", icon: Landmark },
-  system: { label: "System", color: "#64748b", bg: "rgba(100,116,139,0.12)", icon: Cpu },
-};
+const ACTORS = [
+  { value: "", label: "All" },
+  { value: "hospital", label: "Hospital" },
+  { value: "payer", label: "Payer" },
+  { value: "system", label: "System" },
+];
 
-const SEVERITY_COLOR = {
-  success: "var(--success)",
-  info: "var(--primary)",
-  warning: "var(--warning)",
-  error: "var(--error)",
-};
+const ACTOR_LABELS = { hospital: "Hospital", payer: "Payer", system: "System" };
 
 const WORKFLOW_LABELS = {
   case: "Case",
-  insurance_plan: "Insurance Plan",
+  insurance_plan: "Insurance plan",
   eligibility: "Eligibility",
   preauth: "Preauth",
-  preauth_cancellation: "Preauth Cancellation",
-  preauth_release: "Preauth Release",
-  preauth_nullification: "Preauth Nullification",
+  preauth_cancellation: "Preauth cancellation",
+  preauth_release: "Preauth release",
+  preauth_nullification: "Preauth nullification",
   claim: "Claim",
-  claim_search: "Claim Search",
+  claim_search: "Claim search",
   reprocess: "Reprocess",
   payment: "Payment",
   communication: "Communication",
 };
 
 const money = (v) => (v == null ? null : formatMoney(v));
+const isFailed = (e) => e.status === "failed" || !!e.error;
 
-function ActorBadge({ actor }) {
-  const cfg = ACTOR_CONFIG[actor?.kind] || ACTOR_CONFIG.system;
-  const Icon = cfg.icon;
+// Everything the event carries, inline under its title: the payer's raw signal
+// next to the classified verdict, the error, process notes and identifiers.
+function EventDetail({ event }) {
+  const d = event.decision;
+  // The headline figure is already in the Amount column.
+  const snapshot = Object.entries(event.money?.snapshot || {}).filter(([k]) => k !== event.money?.field);
   return (
-    <span
-      title={actor?.name || cfg.label}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px",
-        borderRadius: "var(--radius-pill)", fontSize: "11px", fontWeight: 700,
-        color: cfg.color, background: cfg.bg, whiteSpace: "nowrap",
-      }}
-    >
-      <Icon size={11} /> {actor?.name || cfg.label}
-    </span>
-  );
-}
-
-// The raw-vs-classified decision block. Shows the payer's own signal next to
-// the wrapper's derived verdict so a mis-classification can't hide behind a
-// confident label; flags ambiguous derivations for staff to verify.
-function DecisionDetail({ decision }) {
-  if (!decision) return null;
-  const ambiguous = decision.ambiguous;
-  return (
-    <div
-      style={{
-        marginTop: "8px", padding: "8px 10px", borderRadius: "8px", fontSize: "12px",
-        background: ambiguous ? "rgba(245,158,11,0.08)" : "var(--bg-main)",
-        border: `1px solid ${ambiguous ? "var(--warning)" : "var(--border-color)"}`,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-        <strong style={{ fontSize: "12px" }}>{decision.derived_decision || "UNKNOWN"}</strong>
-        {ambiguous && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", color: "var(--warning)", fontWeight: 700 }}>
-            <ShieldAlert size={12} /> Verify — payer signal is ambiguous
+    <>
+      {event.summary && <div className="ep-muted">{event.summary}</div>}
+      {d && (
+        <div className={`tl-line${d.ambiguous ? " st-warn" : ""}`}>
+          <span className="ep-strong ep-cap">{String(d.derived_decision || "unknown").replace(/_/g, " ").toLowerCase()}</span>
+          <span className="ep-mono ep-muted">
+            {" "}outcome={d.raw_outcome ?? "—"}
+            {d.reason_codes?.length ? ` · reason=${d.reason_codes.join(",")}` : ""}
+            {d.classified_by ? ` · classified_by=${d.classified_by}` : ""}
           </span>
-        )}
-      </div>
-      <div style={{ marginTop: "4px", fontFamily: "monospace", fontSize: "11px", color: "var(--text-muted)" }}>
-        outcome={decision.raw_outcome ?? "—"}
-        {decision.reason_codes?.length ? ` · reason=${decision.reason_codes.join(",")}` : ""}
-        {` · classified_by=${decision.classified_by}`}
-      </div>
-    </div>
-  );
-}
-
-function EventRow({ event, cashlessCaseId }) {
-  const [open, setOpen] = useState(false);
-  const [showBundle, setShowBundle] = useState(false);
-  const isFailure = event.status === "failed" || !!event.error;
-  const tint = SEVERITY_COLOR[event.severity] || "var(--border-color)";
-  const DirIcon = event.direction === "outbound" ? ArrowUpRight : event.direction === "inbound" ? ArrowDownLeft : null;
-  const expandable = !!(event.detail || event.error || event.decision || event.correlation_id);
-
-  return (
-    <div
-      style={{
-        borderLeft: `3px solid ${isFailure ? "var(--error)" : tint}`,
-        background: "var(--bg-card)", borderRadius: "var(--radius-md)",
-        border: "1px solid var(--border-color)", borderLeftWidth: "3px", marginBottom: "8px",
-      }}
-    >
-      <button
-        onClick={() => expandable && setOpen((o) => !o)}
-        style={{
-          width: "100%", textAlign: "left", background: "none", border: "none",
-          cursor: expandable ? "pointer" : "default", padding: "10px 14px",
-          display: "flex", gap: "12px", alignItems: "flex-start",
-        }}
-      >
-        <div style={{ flexShrink: 0, marginTop: "2px", color: "var(--text-muted)" }}>
-          {expandable ? (open ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : <span style={{ width: 16, display: "inline-block" }} />}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 700, fontSize: "13px" }}>{event.title}</span>
-            {isFailure && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "11px", color: "var(--error)", fontWeight: 700 }}>
-                <AlertTriangle size={11} /> {event.direction === "outbound" ? "never sent to payer" : "failed"}
-              </span>
-            )}
-            <span className="badge-modern badge-info" style={{ fontSize: "10px" }}>{WORKFLOW_LABELS[event.workflow] || event.workflow}</span>
-          </div>
-          {event.summary && <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>{event.summary}</div>}
-          <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
-            <ActorBadge actor={event.actor} />
-            {DirIcon && <DirIcon size={13} style={{ color: "var(--text-muted)" }} />}
-            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{formatDateTime(event.ts)}</span>
-            {event.nhcx_workflow_id != null && (
-              <span style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "monospace" }}>wf {event.nhcx_workflow_id}</span>
-            )}
-          </div>
-        </div>
-        {event.money?.value != null && (
-          <div style={{ flexShrink: 0, textAlign: "right" }}>
-            <div style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>{event.money.field}</div>
-            <div style={{ fontSize: "15px", fontWeight: 800 }}>{money(event.money.value)}</div>
-          </div>
-        )}
-      </button>
-
-      {open && (
-        <div style={{ padding: "0 14px 12px 42px" }}>
-          <DecisionDetail decision={event.decision} />
-          {event.error && (
-            <div style={{ marginTop: "8px", padding: "8px 10px", borderRadius: "8px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", fontSize: "12px" }}>
-              <strong style={{ color: "var(--error)" }}>{event.error.phase} error{event.error.code ? ` (${event.error.code})` : ""}</strong>
-              {event.error.message && <div style={{ color: "var(--text-muted)", marginTop: "2px" }}>{event.error.message}</div>}
-            </div>
-          )}
-          {event.money?.snapshot && (
-            <div style={{ marginTop: "8px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              {Object.entries(event.money.snapshot).map(([k, v]) => (
-                <span key={k} style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                  <span style={{ textTransform: "uppercase", fontWeight: 700 }}>{k}</span> {money(v)}
-                </span>
-              ))}
-            </div>
-          )}
-          {event.detail?.process_notes?.length > 0 && (
-            <ul style={{ margin: "8px 0 0", paddingLeft: "18px", fontSize: "12px", color: "var(--text-muted)" }}>
-              {event.detail.process_notes.map((n, i) => <li key={i}>{n}</li>)}
-            </ul>
-          )}
-          {event.correlation_id && (
-            <div style={{ marginTop: "8px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "monospace" }}>
-              correlation {event.correlation_id}
-            </div>
-          )}
-          {BUNDLE_WORKFLOWS.has(event.workflow) && (
-            <div style={{ marginTop: "8px" }}>
-              <Button variant="outline" size="small" icon={FileJson} onClick={() => setShowBundle(true)}>
-                View FHIR bundle
-              </Button>
-            </div>
-          )}
+          {d.ambiguous && <span> · Verify — the payer signal is ambiguous</span>}
         </div>
       )}
-
-      <FhirBundleModal
-        open={showBundle}
-        onClose={() => setShowBundle(false)}
-        cashlessCaseId={cashlessCaseId}
-        transactionType={BUNDLE_TRANSACTION_TYPE[event.workflow] || event.workflow}
-        correlationId={event.correlation_id}
-      />
-    </div>
+      {event.error && (
+        <div className="tl-line is-bad">
+          {event.error.phase} error{event.error.code ? ` (${event.error.code})` : ""}
+          {event.error.message && `: ${event.error.message}`}
+        </div>
+      )}
+      {snapshot.length > 0 && (
+        <div className="tl-line ep-muted">
+          {snapshot.map(([k, v], i) => (
+            <span key={k}>
+              {i > 0 && " · "}
+              <span className="ep-cap">{k.replace(/_/g, " ")}</span> <span className="ep-mono">{money(v)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {event.detail?.process_notes?.length > 0 && (
+        <ul className="tl-notes">
+          {event.detail.process_notes.map((n, i) => (
+            <li key={i}>{n}</li>
+          ))}
+        </ul>
+      )}
+      {(event.correlation_id || event.nhcx_workflow_id != null) && (
+        <div className="tl-line ep-mono ep-muted tl-ids">
+          {event.correlation_id}
+          {event.nhcx_workflow_id != null && `${event.correlation_id ? " · " : ""}wf ${event.nhcx_workflow_id}`}
+        </div>
+      )}
+    </>
   );
 }
 
-// The persistent money ledger — billed → authorized → approved → patient payable
-// → settled, plus the one number the discharge desk needs: collect-from-patient.
-function MoneyLedger({ ledger }) {
+// Reconciliation figures the case header's money strip doesn't carry.
+function Reconciliation({ ledger }) {
   if (!ledger) return null;
-  const cells = [
-    { label: "Billed", value: ledger.billed?.value },
-    { label: "Authorized", value: ledger.authorized_ceiling?.value, hint: ledger.authorized_ceiling?.cumulative ? "cumulative" : null },
-    { label: "Approved", value: ledger.approved?.value, color: "var(--success)" },
-    { label: "Copay", value: ledger.copay?.value },
-    { label: "Disallowed", value: ledger.disallowed?.value, color: "var(--error)" },
-    { label: "Settled (net)", value: ledger.settlement?.net, color: "var(--success)" },
-  ].filter((c) => c.value != null);
-
-  const collect = ledger.reconciliation?.to_collect_from_patient;
-  const overCeiling = ledger.reconciliation?.variance_vs_authorized;
+  const components = ledger.authorized_ceiling?.components || [];
+  const rows = [
+    ...components.map((c) => ({ label: `Authorized · ${c.ref || "auth"}`, value: money(c.value) })),
+    ledger.copay?.value != null && { label: "Copay", value: money(ledger.copay.value) },
+    ledger.disallowed?.value != null && { label: "Disallowed", value: money(ledger.disallowed.value), bad: true },
+    ledger.patient_payable?.formula && {
+      label: `Patient payable${ledger.patient_payable.confidence ? ` · ${ledger.patient_payable.confidence}` : ""}`,
+      value: ledger.patient_payable.formula,
+    },
+  ].filter(Boolean);
+  const short = ledger.settlement?.short_payment;
+  if (!rows.length && !short) return null;
 
   return (
-    <Card title="Money Ledger" className="mb-6">
-      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-        {cells.map((c) => (
-          <div key={c.label} style={{ flex: "1 1 110px", padding: "10px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", textAlign: "center" }}>
-            <div style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>{c.label}</div>
-            <div style={{ fontSize: "18px", fontWeight: 800, color: c.color || "var(--text-main)" }}>{money(c.value)}</div>
-            {c.hint && <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>{c.hint}</div>}
-          </div>
-        ))}
-      </div>
-
-      {(collect != null || (overCeiling != null && overCeiling > 0)) && (
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "12px" }}>
-          {collect != null && (
-            <div style={{ flex: "1 1 200px", padding: "12px 16px", background: "rgba(37,99,235,0.06)", border: "1px solid var(--primary)", borderRadius: "var(--radius-md)" }}>
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>
-                Collect from patient{ledger.patient_payable?.confidence ? ` (${ledger.patient_payable.confidence})` : ""}
-              </div>
-              <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>{money(collect)}</div>
-              {ledger.patient_payable?.formula && <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{ledger.patient_payable.formula}</div>}
+    <Section id="tl-money" title="Reconciliation">
+      {rows.length > 0 && (
+        <dl className="ds-statement">
+          {rows.map((r) => (
+            <div key={r.label}>
+              <dt>{r.label}</dt>
+              <dd className={`ep-mono${r.bad ? " is-bad" : ""}`}>{r.value}</dd>
             </div>
-          )}
-          {overCeiling != null && overCeiling > 0 && (
-            <div style={{ flex: "1 1 200px", padding: "12px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--warning)", borderRadius: "var(--radius-md)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "var(--warning)", fontWeight: 700, textTransform: "uppercase" }}>
-                <AlertTriangle size={12} /> Over authorized ceiling
-              </div>
-              <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--warning)" }}>{money(overCeiling)}</div>
-              <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>billed above the sanctioned amount</div>
-            </div>
-          )}
-        </div>
+          ))}
+        </dl>
       )}
-      {ledger.settlement?.short_payment && (
-        <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "8px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-          Short payment — settled net is below the approved amount.
-        </div>
-      )}
-    </Card>
+      {short && <div className="ep-notice is-bad ds-notice-in">Short payment — the settled net is below the approved amount.</div>}
+    </Section>
   );
 }
 
@@ -271,6 +138,7 @@ export default function CaseTimeline({ ctx }) {
   const [actorFilter, setActorFilter] = useState("");
   const [workflowFilter, setWorkflowFilter] = useState("");
   const [failuresOnly, setFailuresOnly] = useState(false);
+  const [bundleEvent, setBundleEvent] = useState(null);
 
   const load = useCallback(async () => {
     if (!cashlessCaseId) { setLoading(false); return; }
@@ -294,50 +162,132 @@ export default function CaseTimeline({ ctx }) {
   if (loading) return <LoadingBlock text="Loading audit trail…" />;
   if (error) {
     return (
-      <EmptyState title="Could not load timeline" description="The case audit trail is temporarily unavailable.">
+      <EmptyState title="Could not load the audit trail" description="The case audit trail is temporarily unavailable.">
         <Button variant="outline" icon={RefreshCw} onClick={load} className="mt-4">Retry</Button>
       </EmptyState>
     );
   }
 
-  const events = (data?.events || []).filter((e) => {
+  const all = data?.events || [];
+  const events = all.filter((e) => {
     if (actorFilter && e.actor?.kind !== actorFilter) return false;
     if (workflowFilter && e.workflow !== workflowFilter) return false;
-    if (failuresOnly && e.status !== "failed" && !e.error) return false;
+    if (failuresOnly && !isFailed(e)) return false;
     return true;
   });
-
-  const workflows = [...new Set((data?.events || []).map((e) => e.workflow))];
+  const workflows = [...new Set(all.map((e) => e.workflow))];
+  const failureCount = all.filter(isFailed).length;
+  const actorCount = (kind) => (kind ? all.filter((e) => (e.actor?.kind || "system") === kind).length : all.length);
 
   return (
-    <div className="wizard-step">
-      <MoneyLedger ledger={data?.money_ledger} />
+    <div className="wizard-step ep-screen">
+      <PageActions>
+        <Button variant="outline" size="small" icon={RefreshCw} onClick={load}>
+          Refresh
+        </Button>
+      </PageActions>
 
-      <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-4)", flexWrap: "wrap", alignItems: "center" }}>
-        <select className="input-modern" style={{ width: "auto", minWidth: "150px" }} value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
-          <option value="">All actors</option>
-          <option value="hospital">Hospital</option>
-          <option value="payer">Payer</option>
-          <option value="system">System</option>
-        </select>
-        <select className="input-modern" style={{ width: "auto", minWidth: "150px" }} value={workflowFilter} onChange={(e) => setWorkflowFilter(e.target.value)}>
-          <option value="">All workflows</option>
-          {workflows.map((w) => <option key={w} value={w}>{WORKFLOW_LABELS[w] || w}</option>)}
-        </select>
-        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
-          <input type="checkbox" checked={failuresOnly} onChange={(e) => setFailuresOnly(e.target.checked)} />
-          Failures only
-        </label>
-        <Button variant="outline" size="small" icon={RefreshCw} onClick={load} style={{ marginLeft: "auto" }}>Refresh</Button>
-      </div>
+      <Reconciliation ledger={data?.money_ledger} />
 
-      {events.length === 0 ? (
-        <EmptyState title="No events" description="No timeline events match the current filters." />
-      ) : (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          {events.map((e) => <EventRow key={e.id} event={e} cashlessCaseId={cashlessCaseId} />)}
-        </motion.div>
-      )}
+      <Section
+        id="tl-events"
+        title="Events"
+        meta={failureCount > 0 && <span className="is-bad">{failureCount} failed</span>}
+      >
+        <div className="ep-toolbar">
+          <div className="wq-chips">
+            {ACTORS.map((a) => (
+              <button
+                key={a.value}
+                type="button"
+                className={`wq-chip${actorFilter === a.value ? " is-on" : ""}`}
+                onClick={() => setActorFilter(a.value)}
+              >
+                {a.label} <span className="wq-chip-count">{actorCount(a.value)}</span>
+              </button>
+            ))}
+          </div>
+          <select className="input-modern pd-input tl-select" value={workflowFilter} onChange={(e) => setWorkflowFilter(e.target.value)}>
+            <option value="">All workflows</option>
+            {workflows.map((w) => (
+              <option key={w} value={w}>
+                {WORKFLOW_LABELS[w] || w}
+              </option>
+            ))}
+          </select>
+          <label className="pd-radio tl-failures">
+            <input type="checkbox" checked={failuresOnly} onChange={(e) => setFailuresOnly(e.target.checked)} />
+            Failures only
+          </label>
+        </div>
+
+        {events.length === 0 ? (
+          <p className="ds-empty tl-empty">No events match these filters.</p>
+        ) : (
+          <div className="ep-table-wrap">
+            <table className="ep-table tl-table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Event</th>
+                  <th>Workflow</th>
+                  <th>By</th>
+                  <th className="ep-num">Amount</th>
+                  <th aria-label="FHIR bundle" />
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((e) => {
+                  const failed = isFailed(e);
+                  const DirIcon = e.direction === "outbound" ? ArrowUpRight : e.direction === "inbound" ? ArrowDownLeft : null;
+                  return (
+                    <tr key={e.id} className={failed ? "is-failed" : undefined}>
+                      <td className="ep-nowrap ep-muted tl-when">{formatDateTime(e.ts)}</td>
+                      <td className="tl-event">
+                        <div className="ep-strong">
+                          {e.title}
+                          {failed && <span className="is-bad"> · {e.direction === "outbound" ? "never sent to payer" : "failed"}</span>}
+                        </div>
+                        <EventDetail event={e} />
+                      </td>
+                      <td className="ep-nowrap">{WORKFLOW_LABELS[e.workflow] || e.workflow}</td>
+                      <td className="ep-nowrap">
+                        <span className="tl-actor" title={e.direction ? `${e.direction} message` : undefined}>
+                          {DirIcon && <DirIcon size={13} />}
+                          {e.actor?.name || ACTOR_LABELS[e.actor?.kind] || "System"}
+                        </span>
+                      </td>
+                      <td className="ep-num">
+                        {e.money?.value != null && (
+                          <>
+                            <span className="ep-mono">{money(e.money.value)}</span>
+                            <span className="ep-field-sub ep-cap">{String(e.money.field || "").replace(/_/g, " ")}</span>
+                          </>
+                        )}
+                      </td>
+                      <td className="st-col-actions">
+                        {BUNDLE_WORKFLOWS.has(e.workflow) && (
+                          <button type="button" className="ep-action" onClick={() => setBundleEvent(e)} title="What was sent to and received from the payer">
+                            <FileJson size={13} /> Bundle
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+
+      <FhirBundleModal
+        open={!!bundleEvent}
+        onClose={() => setBundleEvent(null)}
+        cashlessCaseId={cashlessCaseId}
+        transactionType={bundleEvent ? BUNDLE_TRANSACTION_TYPE[bundleEvent.workflow] || bundleEvent.workflow : null}
+        correlationId={bundleEvent?.correlation_id}
+      />
     </div>
   );
 }
