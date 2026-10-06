@@ -794,7 +794,7 @@ const mock = {
     const name = params.name?.toLowerCase();
     const children = all.filter(
       (c) =>
-        (params.child_id == null || c.child_id === params.child_id) &&
+        (params.child_id == null || String(c.child_id) === String(params.child_id)) &&
         (!params.mobile || c.mobile === params.mobile) &&
         (!name || c.name.toLowerCase().includes(name)),
     );
