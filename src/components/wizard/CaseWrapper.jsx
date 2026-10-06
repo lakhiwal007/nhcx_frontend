@@ -36,10 +36,17 @@ export default function CaseWrapper() {
   // Resume: load by cashless_case_id passed in nav state; new case: skip stale child_id save
   const childSaved = loadWorkflow(id);
   const resumeCaseId = location.state?.cashless_case_id ?? (location.state?.newCase ? null : childSaved?.cashless_case_id) ?? null;
+  // The patient-level save points at whichever case was opened last; only
+  // reuse it for the case being opened, or another case's decision and
+  // payment leak into this one.
+  const childSavedForCase =
+    childSaved && (!childSaved.cashless_case_id || String(childSaved.cashless_case_id) === String(resumeCaseId))
+      ? childSaved
+      : null;
   const saved = location.state?.newCase
     ? null
     : resumeCaseId
-      ? loadWorkflow(resumeCaseId) || childSaved
+      ? loadWorkflow(resumeCaseId) || childSavedForCase
       : childSaved;
 
   const isNewCase = !!location.state?.newCase || (!!saved && !saved.cashless_case_id);
@@ -61,6 +68,8 @@ export default function CaseWrapper() {
     dischargeCorrelationId: null,
     draftData: null,
     ...saved,
+    // A Work Queue task knows the exact payer request it is about.
+    ...(location.state?.preauthCorrelationId ? { preauthCorrelationId: location.state.preauthCorrelationId } : {}),
   });
 
   const [cashlessCase, setCashlessCase] = useState(null);

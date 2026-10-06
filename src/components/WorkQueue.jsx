@@ -608,6 +608,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       state: {
         claim_id: task.claim_id,
         cashless_case_id: task.cashless_case_id,
+        preauthCorrelationId: task.workflow === "preauth" ? task.correlation_id : undefined,
         openAction:
           task.task_type === "resubmit_preauth" ? "resubmit_preauth" :
           task.task_type === "resubmit_enhancement" ? "resubmit_enhancement" :
