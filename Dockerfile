@@ -1,5 +1,6 @@
-# ── Build stage ──────────────────────────────────────────────────────────────
+# Build stage
 FROM node:20-alpine AS builder
+
 WORKDIR /app
 
 COPY package*.json ./
@@ -9,20 +10,26 @@ COPY . .
 
 ARG VITE_BASE_URL=/nhcx/api/v1/insurance
 ARG VITE_USE_MOCK=false
-ENV VITE_BASE_URL=$VITE_BASE_URL
-ENV VITE_USE_MOCK=$VITE_USE_MOCK
+
+ENV VITE_BASE_URL=${VITE_BASE_URL}
+ENV VITE_USE_MOCK=${VITE_USE_MOCK}
 
 RUN npm run build
 
 
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html/nhcx/service
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Production stage - without Nginx
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN npm install --global serve
+
+COPY --from=builder /app/dist ./dist
+
+# Preserve the existing health-check URL.
+RUN mkdir -p ./dist/nhcx/service \
+    && cp ./dist/index.html ./dist/nhcx/service/index.html
 
 EXPOSE 80
 
-ENV FRAME_ANCESTORS="'self'"
-
-CMD ["/bin/sh", "-c", \
-  "envsubst '${BACKEND_URL} ${FRAME_ANCESTORS}' < /etc/nginx/templates/default.conf.template \
-   > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+CMD ["serve", "-s", "dist", "-l", "80"]
