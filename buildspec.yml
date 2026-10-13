@@ -2,41 +2,27 @@ version: 0.2
 
 env:
   variables:
-    AWS_DEFAULT_REGION: "ap-south-1"
-    AWS_ACCOUNT_ID: "166848326970"
-    ECR_REPOSITORY: "abdm-nhcx-frontend"
-    CONTAINER_NAME: "Main"
     VITE_BASE_URL: "/nhcx/api/v1/insurance"
     VITE_USE_MOCK: "false"
 
 phases:
-  pre_build:
+  install:
+    runtime-versions:
+      nodejs: 22
     commands:
-      - echo "Logging in to Amazon ECR..."
-      - aws --version
-      - export REPOSITORY_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPOSITORY}"
-      - export COMMIT_HASH=$(echo "${CODEBUILD_RESOLVED_SOURCE_VERSION}" | cut -c 1-7)
-      - export IMAGE_TAG="${COMMIT_HASH:-latest}"
-      - aws ecr get-login-password --region "${AWS_DEFAULT_REGION}" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-      - echo "Pulling previous image for Docker cache..."
-      - docker pull "${REPOSITORY_URI}:latest" || true
+      - echo "Installing NHCX frontend dependencies..."
+      - node --version
+      - npm --version
+      - npm ci
 
   build:
     commands:
-      - echo "Building NHCX frontend..."
-      - export DOCKER_BUILDKIT=1
-      - docker build --cache-from="${REPOSITORY_URI}:latest" --build-arg VITE_BASE_URL="${VITE_BASE_URL}" --build-arg VITE_USE_MOCK="${VITE_USE_MOCK}" -f Dockerfile -t "${REPOSITORY_URI}:${IMAGE_TAG}" .
-      - docker tag "${REPOSITORY_URI}:${IMAGE_TAG}" "${REPOSITORY_URI}:latest"
-
-  post_build:
-    commands:
-      - echo "Pushing frontend image to ECR..."
-      - docker push "${REPOSITORY_URI}:${IMAGE_TAG}"
-      - docker push "${REPOSITORY_URI}:latest"
-      - echo "Generating ECS image definitions..."
-      - printf '[{"name":"%s","imageUri":"%s"}]' "${CONTAINER_NAME}" "${REPOSITORY_URI}:${IMAGE_TAG}" > imagedefinitions.json
-      - cat imagedefinitions.json
+      - echo "Building NHCX frontend for production..."
+      - npm run build
+      - test -f dist/index.html
+      - echo "Frontend build completed successfully"
 
 artifacts:
+  base-directory: dist
   files:
-    - imagedefinitions.json
+    - "**/*"
