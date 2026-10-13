@@ -19,7 +19,7 @@ migrateWorkflows()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter basename="/nhcx/service/">
+    <BrowserRouter basename="/">
       <App />
     </BrowserRouter>
   </StrictMode>,
