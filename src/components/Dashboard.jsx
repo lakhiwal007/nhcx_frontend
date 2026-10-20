@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Inbox, AlertCircle, LayoutGrid, List, MoreVertical, Radio, Plus,
+  Inbox, AlertCircle, LayoutGrid, List, MoreVertical, Plus,
 } from "lucide-react";
 import { api } from "../api";
 import { resolveCaseStatus } from "../caseStatus.js";
@@ -11,7 +11,6 @@ import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { formatMoney, formatDate, formatRelative, formatCaseRef } from "../format.js";
 import { useNavigate, useLocation } from "react-router-dom";
-import ClaimSearchModal from "./ClaimSearchModal";
 import PayerName from "./PayerName";
 
 const CLAIMS_PAGE_SIZE = 20;
@@ -390,7 +389,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
   const [navigating, setNavigating] = useState({});
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("dash_viewMode") || "table");
   const [sortBy, setSortBy] = useState("newest");
-  const [showSearchModal, setShowSearchModal] = useState(false);
   const isNarrow = useSyncExternalStore(subscribeNarrow, getNarrow);
   const effectiveView = isNarrow ? "grid" : viewMode;
 
@@ -478,16 +476,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
   return (
     <div className="dashboard-screen cc-screen">
       <PageActions>
-        <Button
-          variant="outline"
-          size="small"
-          icon={Radio}
-          disabled={allFacilitiesMode}
-          title={allFacilitiesMode ? "Select a facility in Settings to search the gateway" : "Look up a claim on the NHCX gateway"}
-          onClick={() => setShowSearchModal(true)}
-        >
-          Search NHCX Gateway
-        </Button>
         <Button
           variant="primary"
           size="small"
@@ -735,11 +723,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         )}
       </div>
 
-      <ClaimSearchModal
-        open={showSearchModal}
-        onClose={() => setShowSearchModal(false)}
-        claims={claims}
-      />
     </div>
   );
 }

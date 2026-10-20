@@ -525,7 +525,10 @@ export default function ClaimsScreen({ ctx }) {
   const attachedDocs = docs.filter((d) => d.url).length;
   const dischargeRejected = dischargeStatus?.decision === "REJECTED";
   const dischargeFailed = dischargeStatus?.status === "failed";
-  const dischargeDone = !!dischargeCorrelationId && !dischargeRejected && !dischargeFailed;
+  const dischargeIntimation = cashlessCase?.discharge_intimation !== false;
+  const dischargeDone = dischargeIntimation
+    ? !!dischargeCorrelationId && !dischargeRejected && !dischargeFailed
+    : !hasMissingDocs;
   const claimDecided = claimStatus?.status === "complete" && !!claimDecision;
   const claimTotals = claimStatus?.totals || {};
   const claimApproved = claimStatus?.approved_amount ?? claimTotals.benefit?.value ?? claimTotals.approved?.value ?? null;
@@ -550,14 +553,16 @@ export default function ClaimsScreen({ ctx }) {
     { label: "Patient details", ok: patientContextMissing.length === 0, note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null },
     { label: "Clinical & billing records", ok: hisBlockers.length === 0 },
     { label: "Discharge documents", ok: !hasMissingDocs, note: docs.length ? `${attachedDocs} of ${docs.length}` : null },
-    { label: "Discharge claim sent", ok: dischargeDone, bad: dischargeRejected || dischargeFailed, note: dischargeRejected ? "rejected" : dischargeFailed ? "failed" : dischargePolling ? "awaiting payer" : null },
+    dischargeIntimation && { label: "Discharge claim sent", ok: dischargeDone, bad: dischargeRejected || dischargeFailed, note: dischargeRejected ? "rejected" : dischargeFailed ? "failed" : dischargePolling ? "awaiting payer" : null },
     { label: "Final claim sent", ok: !!finalCorrelationId },
-  ];
+  ].filter(Boolean);
 
   // One primary action for the part being viewed.
   let primary = null;
   if (activeTab === "draft") {
     primary = { label: "Continue to discharge documents", onClick: () => setActiveTab("discharge"), disabled: !hasPreauthRef || hasMissingFields, icon: ArrowRight };
+  } else if (activeTab === "discharge" && !dischargeIntimation) {
+    primary = { label: "Continue to final claim", onClick: () => setActiveTab("final"), disabled: hasMissingDocs, icon: ArrowRight };
   } else if (activeTab === "discharge") {
     primary = dischargeRejected
       ? { label: "Resubmit discharge claim", onClick: () => setShowDischargeResubmitDrawer(true) }
