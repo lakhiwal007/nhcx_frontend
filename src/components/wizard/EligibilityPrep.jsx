@@ -9,6 +9,7 @@ import { Section, Fields } from "../case/CaseFile";
 import { formatDate, formatMoney } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
 import PayrErrorList from "../PayrErrorList";
+import { eligibilityBeneficiaries } from "../../caseStatus";
 
 const POLL_INTERVAL_MS = 7000;
 const TERMINAL_STATUSES = ["complete", "failed"];
@@ -315,6 +316,60 @@ function CheckDetail({ id, check, inforce, coverage }) {
   );
 }
 
+const photoSrc = (photo) =>
+  !photo ? null : /^https?:/i.test(photo) ? photo : `data:image/${photo.startsWith("iVBOR") ? "png" : "jpeg"};base64,${photo}`;
+
+function Members({ members, chosenId, choosing, onChoose, canChoose }) {
+  return (
+    <div className="ep-table-wrap">
+      <table className="ep-table">
+        <thead>
+          <tr>
+            <th className="ep-col-name">Member</th>
+            <th>Member ID</th>
+            <th>Relationship</th>
+            <th>Gender · born</th>
+            <th>ABHA</th>
+            <th>In the bed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {members.map((m) => (
+            <tr key={m.member_id || `${m.name}|${m.dob}`} className={chosenId && chosenId === m.member_id ? "is-planned" : undefined}>
+              <td className="ep-col-name">
+                <div className="ep-pkg-name">
+                  {photoSrc(m.photo) && <img src={photoSrc(m.photo)} alt="" width={28} height={28} />}
+                  {m.name || "—"}
+                  {m.checked && <span className="ep-label">Checked</span>}
+                </div>
+                {m.address && <div className="ep-muted">{m.address}</div>}
+              </td>
+              <td className="ep-mono ep-nowrap">{m.member_id || "—"}</td>
+              <td className="ep-cap">{m.relationship || "—"}</td>
+              <td className="ep-nowrap">
+                <span className="ep-cap">{m.gender || "—"}</span>
+                {m.dob ? ` · ${formatDate(m.dob)}` : ""}
+              </td>
+              <td className="ep-mono ep-nowrap">{m.abha_number || "—"}</td>
+              <td className="ep-nowrap">
+                {chosenId && chosenId === m.member_id ? (
+                  "This patient"
+                ) : canChoose && m.member_id ? (
+                  <button type="button" className="ep-action" disabled={!!choosing} onClick={() => onChoose(m)}>
+                    {choosing === m.member_id ? "Saving…" : "This is the patient"}
+                  </button>
+                ) : (
+                  "—"
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const CATALOGUE_PAGE = 12;
 
 function PackageCatalogue({ correlationId, categories, packageCount, plannedCodes }) {
@@ -456,6 +511,8 @@ export default function EligibilityPrep({ ctx }) {
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
   const [movedOn, setMovedOn] = useState(null);
   const [activeCheck, setActiveCheck] = useState("validation");
+  const [choosing, setChoosing] = useState(null);
+  const [memberError, setMemberError] = useState(null);
 
   const hasInitialized = useRef(false);
 
@@ -556,6 +613,24 @@ export default function EligibilityPrep({ ctx }) {
     intervalMs: POLL_INTERVAL_MS,
     immediate: false, // init() already fetched fresh status; wait one interval
   });
+
+  const handleChooseMember = async (member) => {
+    if (!caseData?.cashless_case_id) return;
+    setChoosing(member.member_id);
+    setMemberError(null);
+    try {
+      const patient_context = Object.fromEntries(
+        Object.entries({ member_id: member.member_id, name: member.name, gender: member.gender, dob: member.dob, abha: member.abha_number })
+          .filter(([, v]) => v),
+      );
+      await api.patchCashlessPatientContext(caseData.cashless_case_id, { patient_context });
+      updateCaseState({ beneficiaryMemberId: member.member_id });
+    } catch (err) {
+      setMemberError(err.message || "Could not record the patient.");
+    } finally {
+      setChoosing(null);
+    }
+  };
 
   const manualRefresh = () => {
     if (!polling && caseData?.cashless_case_id) setPolling(true);
@@ -751,6 +826,8 @@ export default function EligibilityPrep({ ctx }) {
   });
 
   const activeDef = CHECKS.find((c) => c.id === activeCheck) || CHECKS[0];
+  const members = eligibilityBeneficiaries(ce);
+  const chosenMemberId = caseState.beneficiaryMemberId || (members.length === 1 ? members[0].member_id : null);
 
   return (
     <div className="wizard-step ep-screen">
@@ -801,6 +878,26 @@ export default function EligibilityPrep({ ctx }) {
             { label: "Coverage reference", value: checks?.coverage?.coverage, mono: true },
           ]}
         />
+        {members.length > 0 && (
+          <>
+            <div className="ep-detail-title">
+              {members.length > 1 ? `Members on the card (${members.length}) — choose who is admitted` : "Member on the card"}
+            </div>
+            {memberError && <div className="ep-notice is-bad">{memberError}</div>}
+            {members.length > 1 && !chosenMemberId && (
+              <div className="ep-notice is-warn">
+                The payer answered with every member on this family card. Choose the one who is admitted before the pre-auth.
+              </div>
+            )}
+            <Members
+              members={members}
+              chosenId={chosenMemberId}
+              choosing={choosing}
+              onChoose={handleChooseMember}
+              canChoose={members.length > 1 && !caseClosed && !!caseData?.cashless_case_id}
+            />
+          </>
+        )}
       </Section>
 
       <Section

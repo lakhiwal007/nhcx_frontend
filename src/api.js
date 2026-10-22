@@ -1120,6 +1120,11 @@ const mock = {
           disposition: "Eligible",
           inforce: true,
           wallet: { sum_insured: 500000, used: 36270, balance: 463730, currency: "INR" },
+          beneficiaries: [
+            { member_id: "100217", name: "Ramesh Kumar", gender: "male", dob: "1978-03-14", relationship: "self", abha_number: "91-7112-3456-7890", policy_code: "POL-91711234567890-2026", plan_name: "ChirayuEx HR PX", checked: true },
+            { member_id: "100218", name: "Sunita Devi", gender: "female", dob: "1982-07-02", relationship: "spouse", policy_code: "POL-91711234567890-2026", plan_name: "ChirayuEx HR PX", checked: false },
+            { member_id: "100219", name: "Aarav Kumar", gender: "male", dob: "2012-11-20", relationship: "child", policy_code: "POL-91711234567890-2026", plan_name: "ChirayuEx HR PX", checked: false },
+          ],
           insurance_items: [
             {
               coverage: "Coverage/POL-91711234567890-2026",

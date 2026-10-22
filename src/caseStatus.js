@@ -72,3 +72,18 @@ export const resolveCaseStatus = (claim) => {
 
   return CLAIM_STATUS_CONFIG[claim.status] ?? CLAIM_STATUS_CONFIG.draft;
 };
+
+const ceAnswers = (ce) => [ce?.validation, ce?.benefits, ce?.auth_requirements].filter(Boolean);
+
+// Every member on the card, across the three checks, once per member id.
+export const eligibilityBeneficiaries = (ce) => {
+  const seen = new Map();
+  ceAnswers(ce)
+    .flatMap((sub) => sub.beneficiaries || [])
+    .forEach((b) => {
+      const key = b.member_id || `${b.name}|${b.dob}`;
+      const prev = seen.get(key);
+      seen.set(key, prev ? { ...prev, ...b, checked: prev.checked || b.checked } : b);
+    });
+  return [...seen.values()];
+};

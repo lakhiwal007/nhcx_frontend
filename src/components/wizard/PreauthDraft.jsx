@@ -9,6 +9,7 @@ import { Section, Fields } from "../case/CaseFile";
 import { Modal } from "../Overlay";
 import FhirBundleModal from "../FhirBundleModal";
 import PayerName from "../PayerName";
+import { eligibilityBeneficiaries } from "../../caseStatus";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -320,6 +321,8 @@ export default function PreauthDraft({ ctx }) {
   const canSubmit = !hasMissingFields && !hasMissingDocs && !submitting;
 
   const docs = draft?.supporting_documents || [];
+  const cardMembers = eligibilityBeneficiaries(cashlessCase?.coverage_eligibility);
+  const memberUnchosen = cardMembers.length > 1 && !caseState.beneficiaryMemberId;
   const requiredDocs = docs.filter((d) => !d.optional);
   const attachedRequired = requiredDocs.filter((d) => d.url).length;
   const eligibility = draft?.eligibility;
@@ -369,6 +372,14 @@ export default function PreauthDraft({ ctx }) {
       {eligibility && eligibility.status !== "complete" && (
         <div className="ep-notice is-warn">
           Eligibility is incomplete. The draft was built from the eligibility data available so far.
+        </div>
+      )}
+      {memberUnchosen && !preauthAlreadyLive && (
+        <div className="ep-notice is-warn">
+          The payer's card has {cardMembers.length} members and none is chosen as the patient yet.
+          <button type="button" className="pd-inline-link" onClick={() => navigate("../prep")}>
+            Choose the member on Eligibility →
+          </button>
         </div>
       )}
 
