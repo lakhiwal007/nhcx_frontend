@@ -1740,12 +1740,12 @@ const mock = {
     };
   },
 
-  resubmitClaim: async () => {
+  requestClaimRelease: async () => {
     await delay(800);
     return {
-      correlation_id: "abc123-claim-resubmit",
+      correlation_id: "abc123-claim-release",
       status: "submitted",
-      message: "Claim resubmitted",
+      message: "Balance release request sent to the payer.",
     };
   },
 
@@ -2801,7 +2801,7 @@ const real = {
   respondClaimQuery: (data) =>
     http.post("/cashless/claims/query-response", data),
 
-  resubmitClaim: (data) => http.post("/cashless/claims/resubmit", data),
+  requestClaimRelease: (data) => http.post("/cashless/claims/release", data),
   resubmitDischargeClaim: (data) => http.post("/cashless/claims/discharge/resubmit", data),
 
   getClaimStatus: (correlation_id, signal) =>

@@ -114,8 +114,11 @@ export default function ClaimsScreen({ ctx }) {
   const [submitError, setSubmitError] = useState(null);
 
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
-  const [showResubmitDrawer, setShowResubmitDrawer] = useState(false);
-  // Separate from showResubmitDrawer: corrects a rejected *discharge*
+  const [showReleaseDrawer, setShowReleaseDrawer] = useState(false);
+  const [releaseMessage, setReleaseMessage] = useState("");
+  const [releaseAmount, setReleaseAmount] = useState("");
+  const [releaseNote, setReleaseNote] = useState("");
+  // Corrects a rejected *discharge*
   // (interim, wf=14) claim via DC01, not the final claim (workflow 16) —
   // no reprocess option applies since no final claim exists yet.
   const [showDischargeResubmitDrawer, setShowDischargeResubmitDrawer] = useState(false);
@@ -237,10 +240,10 @@ export default function ClaimsScreen({ ctx }) {
   // Seed resubmit drawer items when either the final-claim or discharge-claim
   // resubmit drawer opens.
   useEffect(() => {
-    if (showResubmitDrawer || showDischargeResubmitDrawer) {
+    if (showDischargeResubmitDrawer) {
       setResubmitEditItems(claimDraft?.items?.map((it) => ({ ...it })) ?? []);
     }
-  }, [showResubmitDrawer, showDischargeResubmitDrawer]);
+  }, [showDischargeResubmitDrawer]);
 
   const handleUpload = (doc, uploaded) => {
     setClaimDraft((prev) => ({
@@ -363,32 +366,23 @@ export default function ClaimsScreen({ ctx }) {
     }
   };
 
-  const handleResubmitClaim = async () => {
+  const handleRequestRelease = async () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const body = {
-        ...(resolvedClaimId ? { claim_id: resolvedClaimId } : {}),
-        ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
-        ...(payerId ? { payer_id: payerId } : {}),
-      };
-      if (resubmitEditItems?.length > 0) {
-        const total = resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0);
-        body.items = resubmitEditItems;
-        body.total_amount = total;
-      }
-      const res = await api.resubmitClaim(body);
+      const res = await api.requestClaimRelease({
+        claim_id: resolvedClaimId,
+        amount: Number(releaseAmount),
+        ...(releaseNote.trim() ? { note: releaseNote.trim() } : {}),
+      });
       if (res.status === "failed") {
-        setSubmitError(res.message || res.error?.message || "Claim resubmission failed. Please try again.");
+        setSubmitError(res.message || res.error?.message || "The balance request could not be sent. Please try again.");
         return;
       }
-      setShowResubmitDrawer(false);
-      setFinalCorrelationId(res.correlation_id);
-      updateCaseState({ claimCorrelationId: res.correlation_id });
-      setActiveTab("decision");
-      setPolling(true);
+      setShowReleaseDrawer(false);
+      setReleaseMessage(res.message || "Balance release request sent to the payer.");
     } catch (err) {
-      setSubmitError(err.message || "Claim resubmission failed. Please try again.");
+      setSubmitError(err.message || "The balance request could not be sent. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -485,8 +479,8 @@ export default function ClaimsScreen({ ctx }) {
       setShowDischargeResubmitDrawer(true);
       return;
     }
-    if (action !== "resubmit_claim" && action !== "respond_claim_query") return;
-    if (isClaimQueried || isClaimRejected || isPartialApproval) {
+    if (action !== "request_claim_release" && action !== "respond_claim_query") return;
+    if (isClaimQueried || isClaimApproved || isPartialApproval) {
       if (resolvedCashlessCaseId && !caseState.cashless_case_id) {
         updateCaseState({ cashless_case_id: resolvedCashlessCaseId });
       }
@@ -494,13 +488,13 @@ export default function ClaimsScreen({ ctx }) {
         updateCaseState({ claim_id: resolvedClaimId });
       }
       setActiveTab("decision");
-      if (action === "resubmit_claim") {
-        setShowResubmitDrawer(true);
-      } else if (action === "respond_claim_query") {
+      if (action === "request_claim_release" && (isClaimApproved || isPartialApproval)) {
+        setShowReleaseDrawer(true);
+      } else if (action === "respond_claim_query" && isClaimQueried) {
         setShowQueryDrawer(true);
       }
     }
-  }, [location.state?.openAction, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimRejected, isPartialApproval, updateCaseState]);
+  }, [location.state?.openAction, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimApproved, isPartialApproval, updateCaseState]);
 
   if (loading) {
     return <LoadingBlock text="Building claim draft…" />;
@@ -579,15 +573,22 @@ export default function ClaimsScreen({ ctx }) {
       : isClaimQueried
         ? { label: "Respond to query", onClick: () => setShowQueryDrawer(true) }
         : isClaimRejected
-          ? { label: "Resubmit claim", onClick: () => setShowResubmitDrawer(true) }
+          ? { label: "Ask for a reprocess", onClick: () => navigate("../reprocess") }
           : null;
   }
+
+  const openReleaseDrawer = () => {
+    const owed = claimRequested != null && claimApproved != null ? claimRequested - claimApproved : null;
+    setReleaseAmount(owed > 0 ? String(owed) : "");
+    setReleaseNote("");
+    setSubmitError(null);
+    setShowReleaseDrawer(true);
+  };
 
   const secondary = [];
   if (activeTab === "final" && overCeiling) secondary.push({ label: "File an enhancement", onClick: () => navigate("../enhancement") });
   if (activeTab === "decision" && claimDecided) {
-    if (isClaimQueried || isPartialApproval) secondary.push({ label: "Resubmit claim", onClick: () => setShowResubmitDrawer(true) });
-    if (isClaimRejected || isPartialApproval) secondary.push({ label: "Appeal / reprocess", onClick: () => navigate("../reprocess") });
+    if (isClaimApproved || isPartialApproval) secondary.push({ label: "Ask for the balance", onClick: openReleaseDrawer });
     if ((isClaimQueried || isClaimRejected || isPartialApproval) && OUTBOUND_COMMUNICATIONS_ENABLED)
       secondary.push({ label: "Message payer", icon: Send, onClick: () => setShowSendModal(true) });
   }
@@ -957,6 +958,7 @@ export default function ClaimsScreen({ ctx }) {
                   ))}
                 </ul>
               )}
+              {releaseMessage && <div className="ep-muted">{releaseMessage}</div>}
             </div>
           </section>
         </aside>
@@ -987,74 +989,39 @@ export default function ClaimsScreen({ ctx }) {
         </Button>
       </Drawer>
 
-      {/* ── Resubmit Drawer (editable items) ── */}
-      <Drawer open={showResubmitDrawer} onClose={() => setShowResubmitDrawer(false)} title="Resubmit Claim">
+      {/* ── Balance release drawer ── */}
+      <Drawer open={showReleaseDrawer} onClose={() => setShowReleaseDrawer(false)} title="Ask for the balance">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
-          Correct clinical or billing data. Only the fields you change are sent; everything else is re-derived from the hospital DB.
+          A decided claim is not sent again. Ask the payer to release what is still owed on it instead.
         </p>
-        {resubmitEditItems?.length > 0 && (
-          <div style={{ marginBottom: "var(--space-5)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Line Items</div>
-              <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "11px", color: "var(--primary)" }}><Edit2 size={11} /> Editable</span>
-            </div>
-            <div className="table-responsive-wrapper">
-              <table className="table-modern" style={{ fontSize: "13px" }}>
-                <thead>
-                  <tr>
-                    <th>Service</th>
-                    <th>Qty</th>
-                    <th>Unit Price</th>
-                    <th style={{ textAlign: "right" }}>Net Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resubmitEditItems.map((item, i) => (
-                    <tr key={i}>
-                      <td>{item.service_name}</td>
-                      <td>
-                        <input
-                          className="input-modern"
-                          style={{ width: "60px", fontSize: "12px", padding: "4px 6px" }}
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateResubmitItem(i, "quantity", e.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="input-modern"
-                          style={{ width: "90px", fontSize: "12px", padding: "4px 6px" }}
-                          type="number"
-                          min="0"
-                          value={item.unit_price}
-                          onChange={(e) => updateResubmitItem(i, "unit_price", e.target.value)}
-                        />
-                      </td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(item.net_amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan="3" style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
-                    <td style={{ textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>
-                      {formatMoney(resubmitEditItems.reduce((s, it) => s + (Number(it.net_amount) || 0), 0))}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        )}
+        <div style={{ marginBottom: "14px" }}>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Amount still owed (INR)</label>
+          <input
+            className="input-modern"
+            type="number"
+            min="0"
+            step="0.01"
+            value={releaseAmount}
+            onChange={(e) => setReleaseAmount(e.target.value)}
+          />
+        </div>
+        <div style={{ marginBottom: "var(--space-5)" }}>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Note to the payer (optional)</label>
+          <textarea
+            className="input-modern"
+            style={{ height: "80px", resize: "vertical" }}
+            placeholder="Why the balance is owed…"
+            value={releaseNote}
+            onChange={(e) => setReleaseNote(e.target.value)}
+          />
+        </div>
         {submitError && (
           <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
             {submitError}
           </div>
         )}
-        <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitClaim} style={{ justifyContent: "center" }}>
-          {submitting ? "Resubmitting…" : "Resubmit Claim"}
+        <Button variant="primary" className="w-full" disabled={submitting || !(Number(releaseAmount) > 0)} onClick={handleRequestRelease} style={{ justifyContent: "center" }}>
+          {submitting ? "Sending…" : "Send to payer"}
         </Button>
       </Drawer>
 

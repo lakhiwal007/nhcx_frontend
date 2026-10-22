@@ -16,14 +16,19 @@ const POLL_INTERVAL_MS = 7000;
 const SOFT_WARNING_MS = 120_000;
 const GATEWAY_RECOVERY_MS = 300_000;
 const CANCEL_REASONS = [
-  { value: "treatmentplanchanged", label: "Treatment plan changed" },
-  { value: "patientrequest", label: "Patient request" },
+  { value: "treatmentplanchanged", label: "Treatment plan changed during hospitalization" },
+  { value: "patientrequest", label: "Patient requested cancellation" },
   { value: "financialconstraints", label: "Financial constraints" },
-  { value: "alternativetreatment", label: "Alternative treatment" },
-  { value: "duplicateclaim", label: "Duplicate claim" },
+  { value: "alternativetreatment", label: "Alternative treatment chosen" },
+  { value: "duplicateclaim", label: "Duplicate claim / preauth" },
   { value: "administrativeerror", label: "Administrative error" },
-  { value: "other", label: "Other" },
+  { value: "other", label: "Other reason" },
 ];
+const CLAIM_WITH_PAYER = ["submitting", "queried", "approved", "partial", "rejected"];
+const CLAIM_DECIDED = ["approved", "partial", "rejected"];
+const CANCELLABLE_PREAUTH = ["submitting", "approved", "partial", "queried"];
+const READ_ONLY_NOTICE =
+  "The claim has gone to the payer, so the pre-authorisation is read only: no enhancement or change can be made. It can only be cancelled while the payer is deciding the claim.";
 
 function netAmountOf(claimItem, adj) {
   if (claimItem?.net_amount != null) return claimItem.net_amount;
@@ -55,7 +60,7 @@ export default function PreauthStatus({ ctx }) {
   const [queryError, setQueryError] = useState(null);
   const [resubmitItems, setResubmitItems] = useState([]);
   const [resubmitError, setResubmitError] = useState(null);
-  const [cancelReason, setCancelReason] = useState("treatmentplanchanged");
+  const [cancelReason, setCancelReason] = useState("");
   const [cancelDesc, setCancelDesc] = useState("");
   const [cancelError, setCancelError] = useState(null);
 
@@ -293,7 +298,6 @@ export default function PreauthStatus({ ctx }) {
   // Payer acknowledged a preauth/cancel — the preauth is void; only Refresh
   // is offered (no claim/enhancement/reprocess/re-cancel actions).
   const isCancelled = decision === "CANCELLED";
-  const hasClaimContext = Boolean(claim_id || statusData?.claim_id || cashlessCase?.claim_id || caseState.draftData?.claim_id);
 
   // Must run unconditionally on every render (Rules of Hooks) — the early
   // "no correlationId" return below happens after this, so this effect can't
@@ -383,7 +387,6 @@ export default function PreauthStatus({ ctx }) {
     else if (id === "refresh") restartPoll(correlationId);
     else if (id === "gateway") handleGatewayStatus();
     else if (id === "enhance") setShowEnhancement(true);
-    else if (id === "reprocess") navigate("../reprocess");
     else if (id === "message") setShowSendModal(true);
     else if (id === "recheck") handleRecheckEligibility();
     else if (id === "cancel") setShowCancelModal(true);
@@ -400,16 +403,16 @@ export default function PreauthStatus({ ctx }) {
           ? { id: "resubmit", label: "Resubmit preauth" }
           : { id: "refresh", label: "Refresh decision", icon: RefreshCw };
 
+  const legs = cashlessCase?.legs;
+  const preauthReadOnly = CLAIM_WITH_PAYER.includes(legs?.claim);
+
   const secondary = [];
   if (!isComplete && !isFailed) {
     secondary.push({ id: "refresh", label: "Refresh now", icon: RefreshCw });
     if (showGatewayRecovery) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
   }
   if (isComplete) {
-    if ((isApproved || isPartial) && !caseClosed) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
-    if (isQueried) secondary.push({ id: "resubmit", label: "Resubmit with corrections" });
-    if (isPartial && !caseClosed) secondary.push({ id: "resubmit", label: "Resubmit preauth" });
-    if ((isRejected || isPartial) && hasClaimContext) secondary.push({ id: "reprocess", label: "Appeal / reprocess" });
+    if ((isApproved || isPartial) && !caseClosed && !preauthReadOnly) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
     if ((isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED)
       secondary.push({ id: "message", label: "Message payer", icon: Send });
     if (isUnknown) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
@@ -423,7 +426,10 @@ export default function PreauthStatus({ ctx }) {
       title: "Refresh sum-insured/coverage data from the payer without affecting the preauth decision",
     });
   }
-  const canCancel = isComplete && (isApproved || isPartial) && !caseClosed;
+  const canCancel = legs
+    ? CANCELLABLE_PREAUTH.includes(legs.preauth) && !CLAIM_DECIDED.includes(legs.claim) && !caseClosed
+    : isComplete && (isApproved || isPartial) && !caseClosed;
+  const cancelNeedsNote = cancelReason === "other" && !cancelDesc.trim();
 
   // Requested → approved, as a statement.
   const notEligible = requestedValue != null && totals.eligible?.value != null ? requestedValue - totals.eligible.value : null;
@@ -455,6 +461,10 @@ export default function PreauthStatus({ ctx }) {
           </button>
         </div>
       )}
+      {preauthReadOnly && <div className="ep-notice">{READ_ONLY_NOTICE}</div>}
+      {(location.state?.preauthWarnings || []).map((w) => (
+        <div key={w} className="ep-notice is-warn">{w}</div>
+      ))}
       {ambiguous && isComplete && (
         <div className="ep-notice is-warn">
           Verify this approval: the payer's raw outcome ({outcome}) does not corroborate it.
@@ -796,13 +806,14 @@ export default function PreauthStatus({ ctx }) {
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
           >
+            <option value="" disabled>Choose a reason</option>
             {CANCEL_REASONS.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>
         </div>
         <div style={{ marginBottom: "var(--space-5)" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Description (optional)</label>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>{cancelReason === "other" ? "Reason (the payer reads only this)" : "Description (optional)"}</label>
           <textarea
             className="input-modern"
             style={{ height: "80px", resize: "vertical" }}
@@ -818,7 +829,7 @@ export default function PreauthStatus({ ctx }) {
         )}
         <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
           <Button variant="outline" onClick={() => { setShowCancelModal(false); setCancelError(null); }}>Keep Preauth</Button>
-          <Button variant="primary" className="ds-danger-btn" disabled={submitting} onClick={handleCancelSubmit}>
+          <Button variant="primary" className="ds-danger-btn" disabled={submitting || !cancelReason || cancelNeedsNote} onClick={handleCancelSubmit}>
             {submitting ? "Cancelling…" : "Confirm Cancellation"}
           </Button>
         </div>

@@ -9,14 +9,8 @@ import { Section, Fields } from "../case/CaseFile";
 
 const POLL_INTERVAL_MS = 7000;
 const REASON_CODES = [
-  { value: "claimrejected", label: "Claim Rejected" },
-  { value: "partialpayment", label: "Partial Payment Dispute" },
-  { value: "rejectiondisputed", label: "Rejection Disputed" },
-  { value: "improvedoc", label: "Submitting Additional Documents" },
-  { value: "clinicaleva", label: "Disputing Clinical Evaluation" },
-  { value: "pricingquery", label: "Pricing Disagreement" },
-  { value: "adminappeal", label: "Administrative Appeal" },
-  { value: "other", label: "Other" },
+  { value: "claimrejected", label: "Reprocess request due to claim rejected by payer" },
+  { value: "rejectiondisputed", label: "Rejection disputed, additional evidence provided" },
 ];
 
 export default function ReprocessScreen({ ctx }) {
@@ -25,7 +19,7 @@ export default function ReprocessScreen({ ctx }) {
 
   const claimId = caseState.claim_id || caseState.draftData?.claim_id;
 
-  const [reasonCode, setReasonCode] = useState("other");
+  const [reasonCode, setReasonCode] = useState("claimrejected");
   const [description, setDescription] = useState("");
   const [supportingDocs, setSupportingDocs] = useState([
     { category: "attachment", name: "Justification / Supporting Document", code: "ATTACHMENT", url: null },

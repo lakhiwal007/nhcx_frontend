@@ -302,7 +302,7 @@ export default function PreauthDraft({ ctx }) {
         claim_id: draft.claim_id || claim_id,
         draftData: null,
       });
-      navigate("../status");
+      navigate("../status", { state: { preauthWarnings: res.warnings || [] } });
     } catch (err) {
       setSubmitError(err.message || "Preauthorization submission failed. Please try again.");
     } finally {

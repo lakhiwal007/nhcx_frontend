@@ -18,6 +18,7 @@ export const ACTION_MAP = {
   submit_discharge_claim:          { method: "POST", path: "/cashless/claims/discharge" },
   submit_final_claim:              { method: "POST", path: "/cashless/claims/submit" },
   submit_reprocess:                { method: "POST", path: "/cashless/reprocess/submit" },
+  request_claim_release:           { method: "POST", path: "/cashless/claims/release" },
   acknowledge_payment:             { method: "POST", path: "/cashless/payment/acknowledge" },
   review_communication:            { method: "GET",  path: "/cashless/communication/status" },
   attach_eligibility_documents:    { method: "POST", path: "/cashless/coverage_eligibility/check" },

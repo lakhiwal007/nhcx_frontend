@@ -76,6 +76,7 @@ const TASK_TYPE_SHORT = {
   respond_claim_query: "Claim query",
   resubmit_claim: "Resubmit",
   submit_reprocess: "Reprocess",
+  request_claim_release: "Balance",
   acknowledge_payment: "Payment",
   review_payment_ack_failure: "Payment",
   review_communication: "Message",
@@ -118,6 +119,7 @@ const TASK_TYPE_OPTIONS = [
   { value: "respond_claim_query", label: "Respond Claim Query" },
   { value: "resubmit_claim", label: "Resubmit Claim" },
   { value: "submit_reprocess", label: "Submit Reprocess" },
+  { value: "request_claim_release", label: "Ask for the Balance" },
   { value: "acknowledge_payment", label: "Acknowledge Payment" },
   { value: "review_payment_ack_failure", label: "Payment Ack Failure" },
   { value: "review_communication", label: "Review Communication" },
@@ -618,7 +620,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
           task.task_type === "resubmit_preauth" ? "resubmit_preauth" :
           task.task_type === "resubmit_enhancement" ? "resubmit_enhancement" :
           task.task_type === "respond_preauth_query" ? "respond_preauth_query" :
-          task.task_type === "resubmit_claim" ? "resubmit_claim" :
+          task.task_type === "request_claim_release" ? "request_claim_release" :
           task.task_type === "respond_claim_query" ? "respond_claim_query" :
           task.task_type === "resubmit_discharge_claim" ? "resubmit_discharge_claim" :
           undefined,

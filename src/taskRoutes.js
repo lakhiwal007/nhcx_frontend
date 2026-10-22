@@ -12,6 +12,7 @@ export const TASK_STEPS = {
   respond_claim_query: 'claim',
   resubmit_claim: 'claim',
   submit_reprocess: 'reprocess',
+  request_claim_release: 'claim',
   acknowledge_payment: 'payment',
   review_payment_ack_failure: 'payment',
 };
