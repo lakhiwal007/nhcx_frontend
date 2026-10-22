@@ -67,6 +67,8 @@ export default function PreauthStatus({ ctx }) {
   const [submitting, setSubmitting] = useState(false);
   const [recheckingEligibility, setRecheckingEligibility] = useState(false);
   const [recheckMessage, setRecheckMessage] = useState("");
+  const [enquiry, setEnquiry] = useState(null);
+  const [enquiryError, setEnquiryError] = useState(null);
 
   const correlationId = preauthCorrelationId;
   const startTimeRef = useRef(Date.now());
@@ -251,11 +253,32 @@ export default function PreauthStatus({ ctx }) {
     }
   };
 
+  const enquiryId = caseState.statusEnquiry?.leg === correlationId ? caseState.statusEnquiry.id : null;
+
   const handleGatewayStatus = async () => {
+    setEnquiryError(null);
     try {
-      await api.requestGatewayStatus({ correlation_id: correlationId, claim_id, use_case: "preauth" });
-    } catch (_) {}
+      const res = await api.requestGatewayStatus({ correlation_id: correlationId, claim_id, use_case: "preauth" });
+      if (res.status === "failed" || !res.enquiry_correlation_id) {
+        setEnquiryError(res.message || res.error?.message || res.error || "The status enquiry could not be sent.");
+        return;
+      }
+      setEnquiry(null);
+      updateCaseState({ statusEnquiry: { leg: correlationId, id: res.enquiry_correlation_id, asked_at: new Date().toISOString() } });
+    } catch (err) {
+      setEnquiryError(err.message || "The status enquiry could not be sent.");
+    }
   };
+
+  const enquirySettled = enquiry?.status === "complete" || enquiry?.status === "failed" || enquiry?.status === "not_found";
+  usePoll(
+    async (signal) => {
+      try {
+        setEnquiry(await api.getReprocessStatus(enquiryId, signal));
+      } catch (_) {}
+    },
+    { active: enquiryId && !enquirySettled ? enquiryId : null, intervalMs: POLL_INTERVAL_MS },
+  );
 
   const resolvedCashlessCaseId = cashless_case_id || location.state?.cashless_case_id || statusData?.cashless_case_id || cashlessCase?.cashless_case_id || caseState.draftData?.cashless_case_id || null;
 
@@ -404,18 +427,19 @@ export default function PreauthStatus({ ctx }) {
           : { id: "refresh", label: "Refresh decision", icon: RefreshCw };
 
   const legs = cashlessCase?.legs;
+  const canEnquire = cashlessCase?.answers_status_enquiry !== false;
   const preauthReadOnly = CLAIM_WITH_PAYER.includes(legs?.claim);
 
   const secondary = [];
   if (!isComplete && !isFailed) {
     secondary.push({ id: "refresh", label: "Refresh now", icon: RefreshCw });
-    if (showGatewayRecovery) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
+    if (showGatewayRecovery && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
   }
   if (isComplete) {
     if ((isApproved || isPartial) && !caseClosed && !preauthReadOnly) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
     if ((isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED)
       secondary.push({ id: "message", label: "Message payer", icon: Send });
-    if (isUnknown) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
+    if (isUnknown && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
   }
   if (resolvedCashlessCaseId && (isComplete || isFailed) && !caseClosed) {
     secondary.push({
@@ -462,6 +486,7 @@ export default function PreauthStatus({ ctx }) {
         </div>
       )}
       {preauthReadOnly && <div className="ep-notice">{READ_ONLY_NOTICE}</div>}
+      {enquiryError && <div className="ep-notice is-bad">{enquiryError}</div>}
       {(location.state?.preauthWarnings || []).map((w) => (
         <div key={w} className="ep-notice is-warn">{w}</div>
       ))}
@@ -498,6 +523,29 @@ export default function PreauthStatus({ ctx }) {
                   Queue when it arrives.
                 </div>
               )}
+            </Section>
+          )}
+
+          {enquiryId && (
+            <Section id="ds-enquiry" title="Status enquiry">
+              {enquiry?.status === "failed" && (
+                <div className="ep-notice is-bad">
+                  The payer refused the enquiry. {enquiry.error_message || enquiry.errors?.[0]?.message || ""}
+                </div>
+              )}
+              <Fields
+                cols={2}
+                rows={[
+                  { label: "Asked", value: caseState.statusEnquiry?.asked_at ? formatDateTime(caseState.statusEnquiry.asked_at) : null },
+                  {
+                    label: "Payer's answer",
+                    value: enquiry?.answer || (enquirySettled ? null : "Waiting for the payer"),
+                  },
+                  { label: "Detail", value: enquiry?.detail },
+                  { label: "Answered", value: enquiry?.answered_at ? formatDateTime(enquiry.answered_at) : null },
+                  { label: "Enquiry ID", value: enquiryId, mono: true },
+                ]}
+              />
             </Section>
           )}
 

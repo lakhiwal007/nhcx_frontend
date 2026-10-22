@@ -1802,6 +1802,16 @@ const mock = {
 
   getReprocessStatus: async (correlation_id) => {
     await delay(1200);
+    if (String(correlation_id).startsWith("mock-enquiry-")) {
+      return {
+        correlation_id,
+        workflow: "status_enquiry",
+        status: "complete",
+        answer: "queued",
+        detail: "Under medical review; stage: preauth; outcome: queued",
+        answered_at: new Date().toISOString(),
+      };
+    }
     return {
       correlation_id,
       claim_id: 101,
@@ -2586,8 +2596,9 @@ const mock = {
     await delay(500);
     return {
       correlation_id: data.correlation_id,
+      enquiry_correlation_id: `mock-enquiry-${Date.now()}`,
       status: "submitted",
-      message: "NHCX gateway status request submitted",
+      message: "Status enquiry sent to the payer.",
     };
   },
 
