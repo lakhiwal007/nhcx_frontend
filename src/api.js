@@ -1564,7 +1564,22 @@ const mock = {
   // ─── Specific Coverage Eligibility APIs ─────────────────────────────────────
   requestInsurancePlan: async (data) => {
     await delay(800);
-    return { correlation_id: "mock-ins-plan-123", status: "submitted" };
+    if (!data.refresh) {
+      return {
+        correlation_id: "mock-ins-plan-123",
+        status: "complete",
+        reused: true,
+        reused_from: "550e8400-e29b-41d4-a716-446655440000",
+        message: "Using the package master already held for this policy - Fetch again asks the payer for a new one.",
+      };
+    }
+    return {
+      correlation_id: "mock-ins-plan-123",
+      status: "refused",
+      pending_correlation_id: "550e8400-e29b-41d4-a716-446655440000",
+      error: { code: "PAYR-1406", message: "A package master request for this policy is already being fetched." },
+      message: "A package master request for this policy is already being fetched.",
+    };
   },
   getInsurancePlanStatus: async (correlation_id) => {
     await delay(800);
@@ -2837,7 +2852,7 @@ const real = {
 
   // ─── Specific Coverage Eligibility APIs ─────────────────────────────────────
   requestInsurancePlan: (data) =>
-    http.post("/cashless/insurance_plan/request", data),
+    http.post("/cashless/insurance_plan/request", data, { acceptStatuses: [409] }),
 
   getInsurancePlanForms: (correlation_id, url) =>
     http.get(`/cashless/insurance_plan/${correlation_id}/forms`, url ? { url } : {}),

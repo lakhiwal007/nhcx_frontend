@@ -596,6 +596,7 @@ export default function EligibilityPrep({ ctx }) {
   const [openForm, setOpenForm] = useState(null);
   const [choosing, setChoosing] = useState(null);
   const [memberError, setMemberError] = useState(null);
+  const [planFetch, setPlanFetch] = useState(null);
 
   const hasInitialized = useRef(false);
 
@@ -713,6 +714,43 @@ export default function EligibilityPrep({ ctx }) {
       setMemberError(err.message || "Could not record the patient.");
     } finally {
       setChoosing(null);
+    }
+  };
+
+  const fetchPlanAgain = async () => {
+    const childId = caseData?.child_id || patient?.child_id;
+    const payerId = caseData?.payer_id || payer?.code;
+    const policyNumber = caseData?.policy_number || policy?.policy_number;
+    if (!childId || !payerId || !policyNumber) return;
+    setPlanFetch({ state: "sending" });
+    try {
+      const res = await api.requestInsurancePlan({
+        child_id: childId,
+        payer_id: payerId,
+        policy_number: policyNumber,
+        ...(caseData?.cashless_case_id ? { cashless_case_id: caseData.cashless_case_id } : {}),
+        refresh: true,
+      });
+      if (res.status === "refused") {
+        setPlanFetch({
+          state: "refused",
+          code: res.error?.code || "PAYR-1406",
+          message: `${res.error?.message || res.message || "The payer is still preparing this policy's package master."} Nothing was sent; the earlier request (${res.pending_correlation_id || "pending"}) is still being fetched. Try again once it arrives.`,
+        });
+        return;
+      }
+      if (res.status === "failed") {
+        setPlanFetch({ state: "failed", message: res.message || res.error?.message || "The plan request could not be sent." });
+        return;
+      }
+      setPlanFetch({ state: res.status === "complete" ? "reused" : "sent", message: res.message, id: res.correlation_id });
+      if (caseData?.cashless_case_id) {
+        const fresh = await api.getCashlessStatus(caseData.cashless_case_id);
+        setCaseData(fresh);
+        if (res.status !== "complete" && !STEP_FORWARD_ROUTE[fresh.current_step]) setPolling(true);
+      }
+    } catch (err) {
+      setPlanFetch({ state: "failed", message: err.message || "The plan request could not be sent." });
     }
   };
 
@@ -1006,6 +1044,20 @@ export default function EligibilityPrep({ ctx }) {
       >
         {planError && <div className="ep-notice is-bad">{plan?.error_code ? `${plan.error_code}: ` : ""}{planError}</div>}
         {planEmpty && plan?.error_message && <div className="ep-notice is-warn">{plan.error_message}</div>}
+        {planFetch?.message && (
+          <div className={`ep-notice${planFetch.state === "refused" ? " is-warn" : planFetch.state === "failed" ? " is-bad" : ""}`}>
+            {planFetch.code ? `${planFetch.code}: ` : ""}
+            {planFetch.message}
+          </div>
+        )}
+        {!caseClosed && plan && plan.status !== "pending" && (
+          <div className="ep-toolbar">
+            <button type="button" className="ep-action" disabled={planFetch?.state === "sending"} onClick={fetchPlanAgain}>
+              <RefreshCw size={13} />
+              {planFetch?.state === "sending" ? "Asking the payer…" : "Fetch plan again"}
+            </button>
+          </div>
+        )}
         {!plan || plan.status === "pending" ? (
           <>
             {plan?.message && <div className="ep-notice is-warn">{plan.message}</div>}
