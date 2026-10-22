@@ -134,7 +134,9 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
     respondResult?.success ||
     (!reviewTask && !!detail?.completed_tasks?.some((t) => t.task_type === "review_communication"));
   // A task with its own document action is answered through "Required action".
-  const canReply = inbound && !answered && !actionable;
+  // Only a query takes an answer; a notification is acknowledged, a note is read.
+  const isQuery = !detail?.kind || detail.kind === "query";
+  const canReply = inbound && isQuery && !answered && !actionable;
   const requiredDocs = reviewTask?.required_documents?.length
     ? reviewTask.required_documents
     : parseDocumentsFromTaskInputs(detail?.task_inputs);
