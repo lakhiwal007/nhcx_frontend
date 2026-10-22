@@ -2675,6 +2675,7 @@ const mock = {
       private_key_set: !!data.private_key_pem,
       environment: data.environment || "sandbox",
       registry_id: data.registry_id || null,
+      hfr_id: data.hfr_id || null,
       abdm_registration: {
         success: true,
         response: { participant_code },

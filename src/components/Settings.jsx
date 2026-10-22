@@ -59,6 +59,7 @@ const EMPTY_FORM = {
   name: "",
   hcx_participant_code: "",
   registry_id: "",
+  hfr_id: "",
   scheme_code: "PMJAY",
   environment: "sandbox",
   state: "",
@@ -228,6 +229,9 @@ function FacilityForm({ form, onChange, isEdit }) {
         </FormField>
         <FormField label="Registry ID" required hint="ABDM registryid / Client ID">
           <TextInput value={form.registry_id} onChange={(v) => onChange("registry_id", v)} placeholder="DEMO_CLIENT or HFR-12345" />
+        </FormField>
+        <FormField label="HFR ID" hint="Health Facility Registry id the payer knows the hospital by">
+          <TextInput value={form.hfr_id} onChange={(v) => onChange("hfr_id", v)} placeholder="IN1910000151" monospace />
         </FormField>
         <FormField label="Scheme code" required hint="e.g. PMJAY">
           <TextInput value={form.scheme_code} onChange={(v) => onChange("scheme_code", v)} placeholder="PMJAY" />
@@ -472,6 +476,7 @@ export default function Settings({
       name: facility.name,
       hcx_participant_code: facility.hcx_participant_code,
       registry_id: facility.registry_id || "",
+      hfr_id: facility.hfr_id || "",
       scheme_code: facility.scheme_code || "PMJAY",
       environment: facility.environment || "sandbox",
       state: facility.state || "",
