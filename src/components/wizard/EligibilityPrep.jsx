@@ -488,7 +488,7 @@ export default function EligibilityPrep({ ctx }) {
           res = await api.prepareCashless({
             child_id: patient.child_id,
             payer_id: payer.code,
-            policy_number: policy.policyNumber || policy.policy_number,
+            policy_number: policy.policy_number,
             ...(admission_id && { admission_id }),
           });
         }
@@ -576,7 +576,7 @@ export default function EligibilityPrep({ ctx }) {
         : await api.prepareCashless({
             child_id: patient.child_id,
             payer_id: payer.code,
-            policy_number: policy.policyNumber || policy.policy_number,
+            policy_number: policy.policy_number,
             ...(admission_id && { admission_id }),
             force_refresh: true,
           });
@@ -715,6 +715,9 @@ export default function EligibilityPrep({ ctx }) {
 
   const cd = checks?.coverage?.coverage_details || {};
   const bp = checks?.coverage?.benefit_period;
+  const ce = caseData?.coverage_eligibility;
+  const wallet = ce?.validation?.wallet || ce?.benefits?.wallet || ce?.auth_requirements?.wallet || null;
+  const sumInsured = wallet?.sum_insured ?? (cd.sum_insured ? Number(cd.sum_insured) : null);
   const details = plan?.plan_details || {};
   const summary = plan?.plan || {};
   const packageCount = plan?.benefit_count || 0;
@@ -785,11 +788,13 @@ export default function EligibilityPrep({ ctx }) {
         <Fields
           cols={3}
           rows={[
-            { label: "Policy number", value: caseData?.policy_number || policy?.policy_number || policy?.policyNumber, mono: true },
+            { label: "Policy number", value: caseData?.policy_number || policy?.policy_number, mono: true },
             { label: "Payer", value: caseState.payer?.name || caseData?.payer_id, sub: caseState.payer?.name && caseData?.payer_id ? caseData.payer_id : null },
             { label: "Member ID", value: cd.member_id || policy?.member_id, mono: true },
             { label: "Coverage plan", value: cd.plan_name || cd.plan },
-            { label: "Sum insured", value: cd.sum_insured ? formatMoney(Number(cd.sum_insured)) : null, mono: true },
+            { label: "Sum insured", value: sumInsured != null ? formatMoney(sumInsured) : null, mono: true },
+            wallet && { label: "Used so far", value: formatMoney(wallet.used), mono: true },
+            wallet && { label: "Balance", value: formatMoney(wallet.balance), mono: true, tone: wallet.balance <= 0 ? "bad" : undefined },
             { label: "Benefit period", value: period(bp?.start, bp?.end) },
             { label: "Coverage status", value: cd.status && <span className="ep-cap">{cd.status}</span>, tone: cd.status && !/active/i.test(cd.status) ? "bad" : undefined },
             { label: "In force", value: inforce == null ? (checks?.validation.state === "pending" ? "Awaiting insurer" : null) : inforce ? "Yes" : "No", tone: inforce === false ? "bad" : undefined },

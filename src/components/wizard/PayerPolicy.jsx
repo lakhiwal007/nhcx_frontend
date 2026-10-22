@@ -19,14 +19,13 @@ const IDENTIFIER_OPTIONS = [
   { value: "MobileNo", label: IDENTIFIER_TYPE_LABELS.MobileNo },
 ];
 
-const field = (policy, snake, camel) => policy?.[snake] ?? policy?.[camel];
-const policyNumberOf = (policy) => field(policy, "policy_number", "policyNumber");
-const sumInsuredOf = (policy) => field(policy, "sum_insured", "sumInsured");
+const policyNumberOf = (policy) => policy?.policy_number;
+const sumInsuredOf = (policy) => policy?.sum_insured;
 
 const payerFromPolicy = (policy) => {
-  const code = field(policy, "payer_id", "payerId");
+  const code = policy?.payer_id;
   if (!code) return null;
-  return { code, name: field(policy, "payer_name", "payerName") || code };
+  return { code, name: policy?.payer_name || code };
 };
 
 export default function PayerPolicy({ ctx }) {
@@ -354,9 +353,9 @@ export default function PayerPolicy({ ctx }) {
               const policyNumber = policyNumberOf(policy);
               const sumInsured = sumInsuredOf(policy);
               const policyPayer = payerFromPolicy(policy);
-              const memberNo = field(policy, "member_id", "memberId");
-              const effectiveFrom = field(policy, "effective_from", "effectiveFrom");
-              const effectiveTo = field(policy, "effective_to", "effectiveTo");
+              const memberNo = policy?.member_id;
+              const effectiveFrom = policy?.effective_from;
+              const effectiveTo = policy?.effective_to;
               const isSelected = selectedNumber === policyNumber;
               const status = policy.status || (!policy.fetched_at ? "active" : null);
               return (
@@ -377,7 +376,7 @@ export default function PayerPolicy({ ctx }) {
                   <span className="pp-radio" aria-hidden="true" />
                   <div className="pp-row-main">
                     <div className="pp-row-title">
-                      <span className="pp-product">{field(policy, "product_name", "productName") || "Policy"}</span>
+                      <span className="pp-product">{policy?.product_name || "Policy"}</span>
                       {status && (
                         <span className={`pp-status${/active|in.?force/i.test(status) ? " is-active" : ""}`}>
                           {status.replace(/_/g, " ")}
@@ -429,7 +428,7 @@ export default function PayerPolicy({ ctx }) {
               <>
                 <CheckCircle2 size={14} className="pp-footer-ok" />
                 <span>
-                  <strong>{field(selectedPolicy, "product_name", "productName") || selectedNumber}</strong>
+                  <strong>{selectedPolicy?.product_name || selectedNumber}</strong>
                   {" · "}
                   {effectivePayer.name}
                 </span>

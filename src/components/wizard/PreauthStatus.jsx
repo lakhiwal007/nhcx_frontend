@@ -43,7 +43,7 @@ export default function PreauthStatus({ ctx }) {
   const { caseState, updateCaseState, cashlessCase, setCashlessCase, timelineEvents, caseClosed } = ctx;
   const { preauthCorrelationId, claim_id, cashless_case_id, draftData } = caseState;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
-  const policyNumber = caseState.policy?.policyNumber || caseState.policy?.policy_number || cashlessCase?.policy_number || "";
+  const policyNumber = caseState.policy?.policy_number || cashlessCase?.policy_number || "";
 
   const [statusData, setStatusData] = useState(null);
   const [polling, setPolling] = useState(true);
@@ -205,7 +205,7 @@ export default function PreauthStatus({ ctx }) {
         ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
         ...(claim_id ? { claim_id } : {}),
         ...(payerId ? { payer_id: payerId } : {}),
-        ...(policyNumber ? { policy_number: policyNumber, policyNumber } : {}),
+        ...(policyNumber ? { policy_number: policyNumber } : {}),
         ...(statusData?.preauth_ref ? { preauth_ref: statusData.preauth_ref } : {}),
         total_amount: totalAmount,
         items: editableItems,

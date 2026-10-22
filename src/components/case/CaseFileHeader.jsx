@@ -70,7 +70,6 @@ function CaseMoneyStrip({ ledger }) {
 // stage. Replaces the old left-rail chart card; carries the same data inline.
 export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, approvedAmount, moneyLedger }) {
   const policyNumber =
-    caseState.policy?.policyNumber ||
     caseState.policy?.policy_number ||
     effectiveCase.policy_number;
   const payerName = caseState.payer?.name;

@@ -134,7 +134,7 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
   const paymentStarted = (paymentSummary?.total_events ?? 0) > 0 || !!utr;
 
   const policyNumber =
-    caseState.policy?.policyNumber || caseState.policy?.policy_number || effectiveCase.policy_number;
+    caseState.policy?.policy_number || effectiveCase.policy_number;
 
   // per-stage { done, note, tone }
   const meta = {

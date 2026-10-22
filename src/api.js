@@ -1116,6 +1116,7 @@ const mock = {
           outcome: "complete",
           disposition: "Eligible",
           inforce: true,
+          wallet: { sum_insured: 500000, used: 36270, balance: 463730, currency: "INR" },
           insurance_items: [
             {
               coverage: "Coverage/POL-91711234567890-2026",
