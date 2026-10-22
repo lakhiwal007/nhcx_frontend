@@ -95,6 +95,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const [respondDocs, setRespondDocs] = useState([]);
   const [responding, setResponding] = useState(false);
   const [respondResult, setRespondResult] = useState(null);
+  const [acking, setAcking] = useState(false);
 
   useEffect(() => {
     if (!open || !correlationId) return;
@@ -189,6 +190,24 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       setRespondResult({ success: false, message: err.message });
     } finally {
       setResponding(false);
+    }
+  };
+
+  const handleAcknowledge = async () => {
+    setAcking(true);
+    try {
+      const res = await api.acknowledgeCommunication(correlationId);
+      setDetail((prev) => ({
+        ...prev,
+        acknowledged: !!res?.acknowledged,
+        acknowledged_at: res?.acknowledged_at ?? prev?.acknowledged_at,
+        ack_correlation_id: res?.ack_correlation_id ?? prev?.ack_correlation_id,
+        ack_error: res?.acknowledged ? null : res?.ack_error || res?.message || prev?.ack_error,
+      }));
+    } catch (err) {
+      setDetail((prev) => ({ ...prev, ack_error: err.message || prev?.ack_error }));
+    } finally {
+      setAcking(false);
     }
   };
 
@@ -294,6 +313,16 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                         <span style={{ color: "var(--text-muted)" }} title={detail.ack_correlation_id ? `ACK ${detail.ack_correlation_id}` : undefined}>
                           · Receipt acknowledged to payer{detail.acknowledged_at ? ` ${formatDateTime(detail.acknowledged_at)}` : ""}
                         </span>
+                      )}
+                      {!detail.acknowledged && detail.ack_error && (
+                        <>
+                          <span style={{ color: "var(--error)" }}>· Acknowledgement to payer failed: {detail.ack_error}</span>
+                          {inbound && detail.kind === "notification" && !allFacilitiesMode && (
+                            <Button variant="outline" size="small" disabled={acking} onClick={handleAcknowledge}>
+                              {acking ? "Acknowledging…" : "Acknowledge again"}
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

@@ -205,7 +205,7 @@ const http = {
       throw err;
     }
   },
-  post: async (path, body = {}) => {
+  post: async (path, body = {}, opts = {}) => {
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
@@ -213,6 +213,9 @@ const http = {
         headers: buildHeaders(path, "POST"),
         body: JSON.stringify(merged),
       });
+      if (!res.ok && opts.acceptStatuses?.includes(res.status)) {
+        return await res.json();
+      }
       if (!res.ok) {
         const info = await extractErrorMessage(res);
         throw new ApiError(info.message, info.kind);
@@ -2574,6 +2577,21 @@ const mock = {
     };
   },
 
+  acknowledgeCommunication: async (correlation_id) => {
+    await delay(800);
+    return {
+      correlation_id,
+      kind: "notification",
+      direction: "inbound",
+      acknowledged: true,
+      ack_error: null,
+      acknowledged_at: new Date().toISOString(),
+      ack_correlation_id: correlation_id,
+      status: "complete",
+      message: "Communication acknowledged",
+    };
+  },
+
   // ─── Escape hatch for Work Queue task actions ────────────────────────────────
   rawPost: async (fullPath, body = {}) => {
     await delay(800);
@@ -2857,6 +2875,9 @@ const real = {
 
   respondToCommunication: (correlation_id, data) =>
     http.post(`/cashless/communication/${correlation_id}/respond`, data),
+
+  acknowledgeCommunication: (correlation_id) =>
+    http.post(`/cashless/communication/${correlation_id}/acknowledge`, {}, { acceptStatuses: [422] }),
 
   requestGatewayStatus: (data) => http.post("/cashless/status/request", data),
 
