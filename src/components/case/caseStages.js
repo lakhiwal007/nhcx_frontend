@@ -78,10 +78,18 @@ export function landingStage(effectiveCase = {}) {
 // Project it in one place: a screen that refetches the case must merge this
 // rather than store the raw response, or every flat key below goes undefined
 // and the downstream stages lose their note, tone and clickability at once.
+export const caseRules = (full) => ({
+  legs: full?.legs ?? null,
+  discharge_intimation: full?.discharge_intimation,
+  answers_status_enquiry: full?.answers_status_enquiry,
+  coverage_eligibility: full?.coverage_eligibility ?? null,
+});
+
 export function projectCaseStatus(full) {
   if (!full) return {};
 
   return {
+    ...caseRules(full),
     cashless_case_id: full.cashless_case_id,
     claim_id: full.claim?.claim_id ?? full.claim_id ?? null,
     status: full.status,

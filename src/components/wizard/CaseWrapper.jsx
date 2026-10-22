@@ -11,7 +11,7 @@ import CaseCommsBar from "../case/CaseCommsBar";
 import CaseNotesDrawer, { PinnedNoteStrip } from "../case/CaseNotes";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, projectCaseStatus, landingStage, stageInfo } from "../case/caseStages";
+import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo } from "../case/caseStages";
 import "../case/case-workspace.css";
 
 import PayerPolicy from "./PayerPolicy";
@@ -171,6 +171,13 @@ export default function CaseWrapper() {
               cashless_case_id: resumeCaseId ?? prior.cashless_case_id ?? caseState.cashless_case_id,
               claim_id: location.state?.claim_id ?? prior.claim_id ?? null,
             });
+            const priorCaseId = resumeCaseId ?? prior.cashless_case_id;
+            if (priorCaseId) {
+              api
+                .getCashlessStatus(priorCaseId)
+                .then((full) => full && setCashlessCase((prev) => ({ ...prev, ...caseRules(full) })))
+                .catch(() => {});
+            }
           } else if (resumeCaseId) {
             const full = await api.getCashlessStatus(resumeCaseId);
             if (full) {
