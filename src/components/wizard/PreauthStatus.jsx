@@ -541,7 +541,7 @@ export default function PreauthStatus({ ctx }) {
                           const notes = [
                             adj.eligible?.reason,
                             adj.benefit?.reason,
-                            adj.reason?.raw,
+                            adj.reason?.text || adj.reason?.raw,
                             ...(item.notes || []).map((n) => (notesByNumber[n] ? `Note ${n}` : null)),
                           ].filter((v, idx, a) => v && a.indexOf(v) === idx);
                           return (
