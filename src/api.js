@@ -331,32 +331,16 @@ const http = {
 // Where each mock case sits on the journey. Keyed by cashless_case_id so mock
 // mode can exercise a case that has moved past eligibility (read-only prep with
 // a re-run), an undecided claim, and a settled payment — not just a fresh case.
-// ─── PMJAY-shaped InsurancePlan mock ───────────────────────────────────────
-// Mirrors what the backend's InsurancePlanParser produces from a PMJAY
-// InsurancePlan bundle (see nhcx-docs `nhcx.fhir.pmjay-insurance-plan`):
-// one coverage per specialty, one benefit per package with its rate in
-// `limits`, Claim-Condition rules and Claim-SupportingInfoRequirement docs.
-const CC = "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Claim-Condition";
-const SIR = "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Claim-SupportingInfoRequirement";
-
-const mockConditions = (rules) => [
-  { url: CC, values: Object.entries(rules).map(([k, v]) => ({ url: `${CC}/${k}`, value: v })) },
-];
-
-const mockDoc = (category, catDisplay, code, display) => ({
-  url: SIR,
-  values: [
-    { url: "category", code: category, display: catDisplay },
-    { url: "code", code, display },
-  ],
+// ─── PMJAY-shaped package master mock ──────────────────────────────────────
+// Mirrors the backend's plan summary (case payload) and the benefit rows of
+// GET insurance_plan/{correlation_id}/benefits, as PackageMasterReader
+// stores them from a PMJAY InsurancePlan bundle.
+const mockDoc = (category, categoryDisplay, code, display, stage = "pre") => ({
+  category, category_display: categoryDisplay, code, display, form: null, stage,
 });
 
-const mockPackage = (code, display, rate, rules, docs = []) => ({
-  id: code,
-  type: { system: "https://nrces.in/ndhm/fhir/r4/ValueSet/ndhm-productorservice", code, display },
-  limits: [{ code: { code }, value: { value: String(rate), unit: "INR" } }],
-  claim_conditions: mockConditions(rules),
-  document_requirements: docs,
+const mockPackage = (code, display, rate, conditions, supportingInfo = []) => ({
+  code, display, rate, conditions, supporting_info: supportingInfo,
 });
 
 const MOCK_PMJAY_SPECIALTIES = [
@@ -413,49 +397,52 @@ const MOCK_PMJAY_SPECIALTIES = [
   },
 ];
 
+const MOCK_PMJAY_BENEFITS = MOCK_PMJAY_SPECIALTIES.flatMap((s) =>
+  s.packages.map((p, i) => ({
+    id: `${s.code}-${i + 1}`,
+    seq: i + 1,
+    category_code: s.code,
+    category_display: s.display,
+    kind: "Procedure",
+    currency: "INR",
+    cost_type: "Procedure",
+    requirement: null,
+    extras: [],
+    ...p,
+  })),
+);
+
 const MOCK_PMJAY_PLAN = {
+  plan_status: "ready",
+  plan: {
+    plan_identifier: "PMJAY-KA-2026-01",
+    plan_title: "PMJAY - Universal Health Policy",
+    plan_type: "Universal Health Policy",
+    sum_insured: 500000,
+    policy_code: "POL-91711234567890-2026",
+    proof_of_presence_required: true,
+  },
   plan_details: {
     id: "PMJAY-UHP-2026",
     name: "PMJAY - Universal Health Policy",
     status: "active",
-    type: { system: "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-insuranceplan-type", code: "07", display: "Universal Health Policy" },
     identifier: "POL-91711234567890-2026",
-    identifiers: [
-      { value: "POL-91711234567890-2026", type: { code: "NH", display: "Policy number" } },
-      { value: "PMJAY-KA-2026-01", type: { code: "XV", display: "Plan ID" } },
-    ],
-    networks: [{ display: "PMJAY empanelled hospitals — Karnataka" }],
     period: { start: "2026-01-01", end: "2026-12-31" },
   },
-  inclusions: MOCK_PMJAY_SPECIALTIES.flatMap((s) => s.packages),
-  exclusions: [
-    { id: "EXC-COS", type: { code: "EXC-COS", display: "Cosmetic and aesthetic procedures" }, limits: [] },
-    { id: "EXC-OPD", type: { code: "EXC-OPD", display: "Out-patient care without admission" }, limits: [] },
-    { id: "EXC-DRUG", type: { code: "EXC-DRUG", display: "Drug and alcohol induced illness" }, limits: [] },
-  ],
-  coverage_benefits: MOCK_PMJAY_SPECIALTIES.map((s) => ({
-    id: s.code,
-    type: { system: "https://nrces.in/ndhm/fhir/r4/ValueSet/ndhm-benefitcategory", code: s.code, display: s.display },
-    benefits: s.packages.map((p) => ({ ...p, excluded: false })),
-  })),
-  pricing: [],
-  claim_conditions: [],
-  document_requirements: [
+  policy_documents: [
     mockDoc("POI", "Proof of identity", "ADN", "Aadhaar / PMJAY e-card"),
-    { link_id: "admission-details", text: "Admission details", type: "group", required: true, code: "ODN", display: "Admission Details" },
-    { link_id: "discharge-information", text: "Discharge information", type: "group", required: true, code: "ODN", display: "Discharge Information" },
-    { link_id: "authentication-consent", text: "Beneficiary authentication consent", type: "group", required: true, code: "ODN", display: "Authentication Consent" },
+    mockDoc("ODN", "Other documents", "ODN", "Admission Details"),
+    mockDoc("ODN", "Other documents", "ODN", "Authentication Consent"),
+    mockDoc("ODN", "Other documents", "ODN", "Discharge Information", "post"),
   ],
-  raw_payload: {
-    resourceType: "InsurancePlan",
-    id: "PMJAY-UHP-2026",
-    plan: [
-      {
-        type: { coding: [{ code: "03", display: "Group" }] },
-        generalCost: [{ cost: { value: 500000, currency: "INR" } }],
-      },
-    ],
-  },
+  categories: MOCK_PMJAY_SPECIALTIES.map((s) => ({ code: s.code, display: s.display, count: s.packages.length })),
+  benefit_count: MOCK_PMJAY_BENEFITS.length,
+  form_count: 3,
+  requested_at: "2026-05-04T10:40:12+05:30",
+  fetched_at: "2026-05-04T10:41:00+05:30",
+  error_message: null,
+  reused_from: null,
+  errors: [],
 };
 
 const MOCK_CASE_JOURNEYS = {
@@ -1120,13 +1107,6 @@ const mock = {
         status: "complete",
         correlation_id: "550e8400-e29b-41d4-a716-446655440000",
         ...MOCK_PMJAY_PLAN,
-        stored_record: {
-          id: 7,
-          request_id: "550e8400-e29b-41d4-a716-446655440000",
-          child_id: 12,
-          payer_id: "1518@hcx",
-          updated_at: "2026-05-04T10:41:00+05:30",
-        },
       },
       coverage_eligibility: {
         status: "complete",
@@ -1549,6 +1529,24 @@ const mock = {
   getInsurancePlanStatus: async (correlation_id) => {
     await delay(800);
     return { correlation_id, status: "complete" };
+  },
+  getInsurancePlanBenefits: async (correlation_id, { category, q, limit = 50, offset = 0 } = {}) => {
+    await delay(300);
+    const term = String(q || "").trim().toLowerCase();
+    const rows = MOCK_PMJAY_BENEFITS.filter(
+      (b) =>
+        (!category || b.category_code === category) &&
+        (term.length < 2 || b.code.toLowerCase().includes(term) || b.display.toLowerCase().includes(term)),
+    );
+    return {
+      correlation_id,
+      plan_status: "ready",
+      categories: MOCK_PMJAY_PLAN.categories,
+      total: rows.length,
+      limit,
+      offset,
+      benefits: rows.slice(offset, offset + limit),
+    };
   },
   checkCoverage: async (data) => {
     await delay(800);
@@ -2769,6 +2767,8 @@ const real = {
     http.post("/cashless/insurance_plan/request", data),
   getInsurancePlanStatus: (correlation_id) =>
     http.get(`/cashless/insurance_plan/status/${correlation_id}`),
+  getInsurancePlanBenefits: (correlation_id, params = {}, signal) =>
+    http.get(`/cashless/insurance_plan/${correlation_id}/benefits`, params, { signal }),
 
   checkCoverage: (data) =>
     http.post("/cashless/coverage_eligibility/check", data),

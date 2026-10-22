@@ -23,61 +23,22 @@ const shouldStopPolling = (res) =>
   TERMINAL_STATUSES.includes(res?.status) ||
   (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
 
-// Doc requirements arrive either as a flat {name}/{type:{display}} shape, or as
-// a raw FHIR extension: {url, values: [{url: "category", display}, {url: "code", display}]}.
-function describeDocRequirement(d) {
-  if (d.name) return { label: d.name };
-  if (!d.values && (d.display || d.text)) return { label: d.display || d.text, code: d.code };
-  if (d.type?.display) return { label: d.type.display, code: d.type.code };
-  const values = d.values || [];
-  const category = values.find((v) => v.url === "category");
-  const code = values.find((v) => v.url === "code");
-  if (category || code) {
-    return {
-      label: [category?.display, code?.display].filter(Boolean).join(" — "),
-      code: category?.code,
-    };
-  }
-  return { label: "Document requirement" };
-}
+// ─── The payer's package master ───────────────────────────────────────────
+// The case payload carries only the plan summary; packages are paged from
+// GET insurance_plan/{correlation_id}/benefits.
+const docLabel = (d) => ({ label: d.display || d.code || "Document", code: d.display && d.code !== d.display ? d.code : null });
 
-// ─── Normalisers for the parsed InsurancePlan ─────────────────────────────
-// Plan entries arrive flat ({code, name}) or FHIR-shaped from the backend's
-// InsurancePlanParser ({type: {code, display}, limits, claim_conditions,
-// document_requirements}).
-function planEntry(e) {
-  if (!e || typeof e !== "object") return { label: String(e ?? ""), code: null };
-  const rawCode = e.type?.code ?? e.code;
-  const code = typeof rawCode === "string" ? rawCode : rawCode?.code ?? null;
-  const label =
-    e.type?.display || e.name || e.display || e.description || e.code?.display || e.text || code || "Unnamed";
-  return { label, code: code && code !== label ? code : null };
-}
-
-// Claim-Condition extensions → { ProcedureType: "Surgical", ApprovalNotRequired: "N", … }
-function conditionsOf(entry) {
-  const out = {};
-  for (const c of entry?.claim_conditions || []) {
-    for (const v of c.values || [c]) {
-      const key = String(v.url || "").split("/").pop();
-      const value = v.value ?? v.display ?? v.code;
-      if (key && value != null) out[key] = String(value).trim();
-    }
-  }
-  return out;
-}
-
-// Per-package documents: the document name alone (the category is implied).
-const docsOf = (entry) =>
-  (entry?.document_requirements || []).map((d) => {
-    const doc = describeDocRequirement(d);
-    return { ...doc, label: doc.label.split(" — ").pop() };
-  });
-
-const rateOf = (entry) => {
-  const v = entry?.limits?.[0]?.value;
-  const n = Number(v?.value ?? v);
-  return Number.isFinite(n) && n > 0 ? n : null;
+const packageRow = (b) => {
+  const rate = Number(b.rate);
+  return {
+    key: b.id ?? `${b.category_code || ""}:${b.code}`,
+    code: b.code || null,
+    name: b.display || b.code || "Unnamed",
+    specialty: b.category_display || b.category_code || null,
+    rate: Number.isFinite(rate) && rate > 0 ? rate : null,
+    rules: Object.fromEntries(Object.entries(b.conditions || {}).map(([k, v]) => [k, v == null ? v : String(v).trim()])),
+    docs: (b.supporting_info || []).map(docLabel).filter((d, i, a) => a.findIndex((x) => x.label === d.label) === i),
+  };
 };
 
 const yn = (v) => (v == null ? null : /^y/i.test(v) ? "Yes" : /^n/i.test(v) ? "No" : v);
@@ -95,42 +56,27 @@ const ruleNotes = (r) =>
     r.QuantityAllowed && `Qty ≤ ${r.QuantityAllowed}`,
   ].filter(Boolean);
 
-// The package list: from coverage_benefits (grouped by specialty) when the
-// plan has it, else from inclusions.
-function packageCatalogue(plan) {
-  const fromBenefits = (plan?.coverage_benefits || []).flatMap((cov) =>
-    (cov.benefits || [])
-      .filter((b) => !b.excluded)
-      .map((b) => ({ entry: b, specialty: cov.type?.display || cov.type?.code || null })),
-  );
-  const rows = fromBenefits.length
-    ? fromBenefits
-    : (plan?.inclusions || []).map((entry) => ({ entry, specialty: null }));
-  return rows.map(({ entry, specialty }, i) => {
-    const { label, code } = planEntry(entry);
-    const rules = conditionsOf(entry);
-    return {
-      key: `${specialty || ""}:${code || label}:${i}`,
-      code: code || entry.id || null,
-      name: label,
-      specialty,
-      rate: rateOf(entry),
-      rules,
-      docs: docsOf(entry),
+// Planned procedures matched to their packages, one lookup per code.
+function usePlannedPackages(correlationId, codes) {
+  const [byCode, setByCode] = useState({});
+  const key = codes.join("|");
+  useEffect(() => {
+    if (!correlationId || !key) return;
+    let live = true;
+    Promise.all(
+      key.split("|").map((code) =>
+        api
+          .getInsurancePlanBenefits(correlationId, { q: code, limit: 20 })
+          .then((res) => [code, (res?.benefits || []).find((b) => String(b.code) === code) || null])
+          .catch(() => [code, null]),
+      ),
+    ).then((pairs) => live && setByCode(Object.fromEntries(pairs.map(([c, b]) => [c, b && packageRow(b)]))));
+    return () => {
+      live = false;
     };
-  });
+  }, [correlationId, key]);
+  return byCode;
 }
-
-const identifierOf = (details, typeCode) =>
-  (details?.identifiers || []).find((i) => i?.type?.code === typeCode)?.value || null;
-
-const familySumInsured = (plan) => {
-  const cost = plan?.raw_payload?.plan?.[0]?.generalCost?.[0]?.cost;
-  if (cost?.value != null) return Number(cost.value);
-  const pricing = Array.isArray(plan?.pricing) ? plan.pricing : plan?.pricing ? [plan.pricing] : [];
-  const flat = pricing.find((p) => p?.sum_insured != null)?.sum_insured;
-  return flat != null ? Number(flat) : null;
-};
 
 const period = (start, end) => (start || end ? `${formatDate(start)} – ${formatDate(end)}` : null);
 
@@ -371,20 +317,41 @@ function CheckDetail({ id, check, inforce, coverage }) {
 
 const CATALOGUE_PAGE = 12;
 
-function PackageCatalogue({ rows, plannedCodes }) {
+function PackageCatalogue({ correlationId, categories, packageCount, plannedCodes }) {
   const [query, setQuery] = useState("");
   const [specialty, setSpecialty] = useState("");
   const [page, setPage] = useState(0);
-  const specialties = [...new Set(rows.map((r) => r.specialty).filter(Boolean))].sort();
-  const q = query.trim().toLowerCase();
-  const filtered = rows.filter(
-    (r) =>
-      (!specialty || r.specialty === specialty) &&
-      (!q || r.name.toLowerCase().includes(q) || String(r.code || "").toLowerCase().includes(q)),
-  );
-  const pageRows = filtered.slice(page * CATALOGUE_PAGE, (page + 1) * CATALOGUE_PAGE);
+  const [result, setResult] = useState({ key: null, rows: [], total: 0, error: null });
+  const q = query.trim();
+  const term = q.length >= 2 ? q : "";
+  const requestKey = [correlationId, specialty, term, page].join("|");
 
-  if (!rows.length) return <div className="ep-muted ep-pad">The insurer's plan lists no packages.</div>;
+  useEffect(() => {
+    if (!correlationId || !packageCount) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      api
+        .getInsurancePlanBenefits(
+          correlationId,
+          { category: specialty || undefined, q: term || undefined, limit: CATALOGUE_PAGE, offset: page * CATALOGUE_PAGE },
+          controller.signal,
+        )
+        .then((res) => setResult({ key: requestKey, rows: (res?.benefits || []).map(packageRow), total: res?.total ?? 0, error: null }))
+        .catch((err) => {
+          if (err?.name !== "AbortError") setResult({ key: requestKey, rows: [], total: 0, error: err?.message || "Could not load packages." });
+        });
+    }, term ? 300 : 0);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [correlationId, packageCount, specialty, term, page, requestKey]);
+
+  if (!packageCount) return <div className="ep-muted ep-pad">The insurer's plan lists no packages.</div>;
+
+  const loading = result.key !== requestKey;
+  const pageRows = loading ? [] : result.rows;
+  const specialties = categories.filter((c) => c.code);
 
   return (
     <>
@@ -405,7 +372,10 @@ function PackageCatalogue({ rows, plannedCodes }) {
               compact
               ariaLabel="Specialty"
               value={specialty}
-              options={[{ value: "", label: "All specialties" }, ...specialties.map((s) => ({ value: s, label: s }))]}
+              options={[
+                { value: "", label: "All specialties" },
+                ...specialties.map((s) => ({ value: s.code, label: `${s.display || s.code} (${s.count})` })),
+              ]}
               onChange={(v) => {
                 setSpecialty(v);
                 setPage(0);
@@ -414,9 +384,10 @@ function PackageCatalogue({ rows, plannedCodes }) {
           </div>
         )}
         <span className="ep-muted ep-toolbar-count">
-          {filtered.length} of {rows.length} packages
+          {loading ? "Loading…" : `${result.total} of ${packageCount} packages`}
         </span>
       </div>
+      {!loading && result.error && <div className="ep-notice is-bad">{result.error}</div>}
       <div className="ep-table-wrap">
         <table className="ep-table">
           <thead>
@@ -455,7 +426,7 @@ function PackageCatalogue({ rows, plannedCodes }) {
                 </tr>
               );
             })}
-            {!pageRows.length && (
+            {!pageRows.length && !loading && (
               <tr>
                 <td colSpan={8} className="ep-muted">
                   No packages match this search.
@@ -466,7 +437,7 @@ function PackageCatalogue({ rows, plannedCodes }) {
         </table>
       </div>
       <div className="ep-pager">
-        <TablePagination page={page} pageSize={CATALOGUE_PAGE} total={filtered.length} onPageChange={setPage} label="packages" />
+        <TablePagination page={page} pageSize={CATALOGUE_PAGE} total={result.total} onPageChange={setPage} label="packages" />
       </div>
     </>
   );
@@ -487,6 +458,12 @@ export default function EligibilityPrep({ ctx }) {
   const [activeCheck, setActiveCheck] = useState("validation");
 
   const hasInitialized = useRef(false);
+
+  const planCorrelationId = caseData?.insurance_plan?.plan_status === "ready" ? caseData.insurance_plan.correlation_id : null;
+  const plannedPackages = usePlannedPackages(
+    planCorrelationId,
+    (caseData?.procedures?.items || []).map((p) => String(p.code ?? "")).filter((c) => c.length >= 2),
+  );
 
   useEffect(() => {
     // Must have patient. If no existing case, also need payer + policy to prepare one.
@@ -739,22 +716,22 @@ export default function EligibilityPrep({ ctx }) {
   const cd = checks?.coverage?.coverage_details || {};
   const bp = checks?.coverage?.benefit_period;
   const details = plan?.plan_details || {};
-  const catalogue = packageCatalogue(plan);
-  const specialtyCount = new Set(catalogue.map((r) => r.specialty).filter(Boolean)).size;
-  const planDocs = (plan?.document_requirements || []).map(describeDocRequirement);
-  const exclusions = (plan?.exclusions || []).map(planEntry);
-  const planConditions = (plan?.claim_conditions || []).flatMap((c) =>
-    (c.values || [c]).map((v) => ({ label: `${String(v.url || "").split("/").pop() || "Condition"}: ${v.value ?? v.display ?? ""}` })),
-  );
-  const planError = plan?.error_message || plan?.errors?.map((e) => e.message || e.code).join(" · ");
-  const planCategory = plan?.raw_payload?.plan?.[0]?.type?.coding?.[0]?.display;
-  const familySI = familySumInsured(plan);
+  const summary = plan?.plan || {};
+  const packageCount = plan?.benefit_count || 0;
+  const categories = plan?.categories || [];
+  const planDocs = (plan?.policy_documents || []).filter((d) => d.stage !== "post").map(docLabel);
+  const claimDocs = (plan?.policy_documents || []).filter((d) => d.stage === "post").map(docLabel);
+  const planEmpty = plan?.plan_status === "empty";
+  const planError =
+    !planEmpty && (plan?.plan_status === "error" || plan?.errors?.length)
+      ? plan?.error_message || plan?.errors?.map((e) => e.message || e.code).join(" · ")
+      : null;
 
   // Planned procedures, each matched to its package and to the payer's lines.
   const procedures = caseData?.procedures?.items || [];
   const plannedCodes = new Set(procedures.map((p) => String(p.code)));
   const treatment = procedures.map((proc) => {
-    const pkg = catalogue.find((r) => String(r.code) === String(proc.code)) || null;
+    const pkg = plannedPackages[String(proc.code)] || null;
     const benefitLine = checks?.benefits.items.find((it) => String(it.product_or_service?.code) === String(proc.code));
     const authLine = checks?.auth.items.find((it) => String(it.product_or_service?.code) === String(proc.code));
     const preauth =
@@ -827,8 +804,9 @@ export default function EligibilityPrep({ ctx }) {
         meta={
           plan
             ? [
-                plan.status && <span key="s" className="ep-cap">{plan.status}</span>,
-                plan.stored_record?.updated_at && <span key="u">Updated {formatDate(plan.stored_record.updated_at)}</span>,
+                (plan.plan_status || plan.status) && <span key="s" className="ep-cap">{plan.plan_status || plan.status}</span>,
+                plan.fetched_at && <span key="u">Fetched {formatDate(plan.fetched_at)}</span>,
+                plan.reused_from && <span key="c">Reused from an earlier fetch</span>,
                 plan.correlation_id && (
                   <span key="r" className="ep-mono" title={plan.correlation_id}>
                     {plan.correlation_id.slice(0, 8)}
@@ -839,34 +817,36 @@ export default function EligibilityPrep({ ctx }) {
         }
       >
         {planError && <div className="ep-notice is-bad">{plan?.error_code ? `${plan.error_code}: ` : ""}{planError}</div>}
+        {planEmpty && plan?.error_message && <div className="ep-notice is-warn">{plan.error_message}</div>}
         {!plan || plan.status === "pending" ? (
-          <div className="ep-muted ep-pad">Waiting for the insurer to return the plan.</div>
+          <>
+            {plan?.message && <div className="ep-notice is-warn">{plan.message}</div>}
+            <div className="ep-muted ep-pad">Waiting for the insurer to return the plan.</div>
+          </>
         ) : (
           <>
             <Fields
               cols={3}
               rows={[
-                { label: "Plan", value: details.name },
-                { label: "Plan type", value: details.type?.display || details.type?.code },
-                { label: "Plan category", value: planCategory },
-                { label: "Plan ID", value: identifierOf(details, "XV") || details.id, mono: true },
-                { label: "Policy number on plan", value: identifierOf(details, "NH"), mono: true },
-                { label: "Family sum insured", value: familySI != null ? formatMoney(familySI) : null, mono: true },
+                { label: "Plan", value: summary.plan_title || details.name },
+                { label: "Plan type", value: summary.plan_type },
+                { label: "Plan ID", value: summary.plan_identifier || details.id, mono: true },
+                { label: "Policy number on plan", value: details.identifier || summary.policy_code, mono: true },
+                { label: "Family sum insured", value: summary.sum_insured != null ? formatMoney(summary.sum_insured) : null, mono: true },
                 { label: "Plan period", value: period(details.period?.start, details.period?.end) },
                 { label: "Plan status", value: details.status && <span className="ep-cap">{details.status}</span>, tone: details.status && !/active/i.test(details.status) ? "bad" : undefined },
-                { label: "Network", value: (details.networks || []).map((n) => n.display || n.reference).filter(Boolean).join(", ") },
+                { label: "Beneficiary verification", value: summary.proof_of_presence_required ? "Required" : null },
                 {
                   label: "Coverage",
-                  value: catalogue.length
-                    ? `${catalogue.length} package${catalogue.length === 1 ? "" : "s"}${specialtyCount ? ` across ${specialtyCount} specialt${specialtyCount === 1 ? "y" : "ies"}` : ""}`
+                  value: packageCount
+                    ? `${packageCount} package${packageCount === 1 ? "" : "s"}${categories.length ? ` across ${categories.length} specialt${categories.length === 1 ? "y" : "ies"}` : ""}`
                     : null,
                 },
               ]}
             />
             <div className="ep-sublists">
               <SubList title="Required for every case" items={planDocs} empty="No plan-level documents listed." />
-              <SubList title="Exclusions" items={exclusions} empty="No exclusions listed." />
-              {planConditions.length > 0 && <SubList title="Plan conditions" items={planConditions} empty="" />}
+              <SubList title="Required at claim" items={claimDocs} empty="No claim-stage documents listed." />
             </div>
           </>
         )}
@@ -932,7 +912,7 @@ export default function EligibilityPrep({ ctx }) {
                       <div className="ep-strong">{proc.name}</div>
                       <div className="ep-muted">
                         {[proc.code, pkg?.specialty || proc.category].filter(Boolean).join(" · ")}
-                        {!pkg && catalogue.length > 0 && " · not in the plan's package list"}
+                        {!pkg && packageCount > 0 && String(proc.code) in plannedPackages && " · not in the plan's package list"}
                       </div>
                       {pkg && ruleNotes(pkg.rules).length > 0 && <div className="ep-muted">{ruleNotes(pkg.rules).join(" · ")}</div>}
                     </td>
@@ -961,7 +941,12 @@ export default function EligibilityPrep({ ctx }) {
       </Section>
 
       <Section id="ep-packages" title="Package catalogue" meta="Every package the plan allows at this hospital">
-        <PackageCatalogue rows={catalogue} plannedCodes={plannedCodes} />
+        <PackageCatalogue
+          correlationId={planCorrelationId}
+          categories={categories}
+          packageCount={planCorrelationId ? packageCount : 0}
+          plannedCodes={plannedCodes}
+        />
       </Section>
 
       <div className="ep-footer">
