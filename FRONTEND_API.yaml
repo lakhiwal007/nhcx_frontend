@@ -1,12 +1,37 @@
 openapi: 3.0.3
 info:
   title: NHCX Wrapper Frontend API
-  version: 1.7.0
+  version: 1.9.0
   description: >
     Minimal frontend-facing API contract for payer discovery, policy fetch,
     cashless preparation, and preauthorization. These endpoints are hospital UI
     APIs exposed by the wrapper; the frontend does not call NHCX or granular
     workflow APIs directly.
+
+
+    **v1.9.0 (non-breaking):** `GET /cashless/{cashless_case_id}/bundles/{transaction_type}`
+    now supports every submission type, not just `preauth`/`claim`/`communication`/`payment`:
+    `preauth_cancellation`, `preauth_release`, `preauth_nullification`,
+    `coverage_eligibility`, `insurance_plan`, `claim_search`, and `reprocess` are
+    now valid `transaction_type` values. `preauth` itself now always resolves to
+    the actual preauth submission even when a cancellation/release/nullification
+    happened more recently against it — those are separate transaction types with
+    their own bundles, not variants of the preauth one. `timeline` now also
+    surfaces `preauth_cancellation`/`preauth_release`/`preauth_nullification`/
+    `claim_search` submissions as their own events (same 4 new values are now
+    legal on the `workflow` filter param and in each event's `workflow` field) —
+    previously these submissions existed in the backend but never appeared in
+    the timeline at all.
+
+
+    **v1.8.0 (non-breaking):** new `GET /cashless/{cashless_case_id}/bundles/{transaction_type}`
+    returns the raw FHIR bundle(s) exchanged with the payer for one transaction
+    (`preauth`, `claim`, `communication`, or `payment`) — what was actually sent
+    (`outbound`) and what was actually received (`inbound`). Defaults to the
+    latest transaction of that type on the case; pass `correlation_id` to pick a
+    specific historical one. Either side may be `null` (no resubmit yet, or the
+    payer hasn't responded yet). For debugging/audit use, not case-wide history —
+    see `timeline` for that.
 
 
     **v1.7.0 (non-breaking):** new `GET /cashless/{cashless_case_id}/timeline`
@@ -58,8 +83,8 @@ info:
     a missing or wrong token returns `403 WRAPPER-ERROR:1014`.
 
 
-    **`requestId` is required on POST/PATCH endpoints.** The frontend must send a
-    client-generated `requestId` (a UUID is recommended) on each mutating call so
+    **`request_id` is required on POST/PATCH endpoints.** The frontend must send a
+    client-generated `request_id` (a UUID is recommended) on each mutating call so
     the request is traceable end-to-end and de-dupable. It may be supplied as the
     `request_id` query parameter (see the shared `RequestIdParam`) or as the
     `request_id` field in the JSON body. A POST/PATCH request without it is
@@ -694,6 +719,16 @@ paths:
         policy. This is optional for most frontend flows because
         `/cashless/prepare` already triggers InsurancePlan and
         CoverageEligibility internally.
+
+
+        **The package master is held per hospital + payer + policy.** When a
+        `ready` master is already held, no request is sent: it is copied onto
+        this case and the answer is 200 with `status: complete`, `reused: true`
+        and `reused_from` (the correlation id of the fetch it came from). Pass
+        `refresh: true` to ask the payer for a new one. For a gov (PMJAY) payer,
+        a second request for the same policy while one is still `fetching`
+        (under 60 minutes old) is refused with 409, `status: refused`,
+        `pending_correlation_id` and `error.code: PAYR-1406`; nothing is sent.
       requestBody:
         required: true
         content:
@@ -721,7 +756,30 @@ paths:
                     policy_number: "13010034242800000257"
                     provider_id: "1000003599@hcx"
                     status: "submitted"
-                    message: "InsurancePlan request submitted"
+                    message: "Insurance plan requested from the payer."
+        "200":
+          description: A held package master was reused; nothing was sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsurancePlanRequestResponse"
+              examples:
+                reused:
+                  value:
+                    correlation_id: "7c2f1d1e-3b8a-4f5e-9a51-0c6a2d4b8e10"
+                    request_id: "7c2f1d1e-3b8a-4f5e-9a51-0c6a2d4b8e10"
+                    policy_number: "13010034242800000257"
+                    provider_id: "1000003599@hcx"
+                    status: "complete"
+                    reused: true
+                    reused_from: "550e8400-e29b-41d4-a716-446655440000"
+                    message: "Using the package master already held for this policy - Fetch again asks the payer for a new one."
+        "409":
+          description: A gov payer's package master is already being fetched for this policy (PAYR-1406); nothing was sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsurancePlanRequestResponse"
         "400":
           description: Invalid request or NHCX gateway error
           content:
@@ -749,6 +807,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InsurancePlanStatusResponse"
+
+  /cashless/insurance_plan/{correlation_id}/benefits:
+    get:
+      tags: [Cashless Preparation]
+      operationId: listInsurancePlanBenefits
+      summary: Page through the packages of a package master
+      description: >
+        A PMJAY package master can hold thousands of packages, so the case
+        payload carries only the plan summary (`benefit_count`, `categories`)
+        and the packages are paged here. Without `kind`, only quotable rows
+        (`Procedure`, `Implant`) are listed. `q` (2 characters or more) matches
+        the package code or name, case-insensitively.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: correlation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: Benefit category (specialty) code, from `categories[].code`.
+          schema:
+            type: string
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [Procedure, Implant, Benefit]
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: One page of packages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsurancePlanBenefitsResponse"
+        "404":
+          description: No package master with this correlation id is visible to this provider
+
+  /cashless/insurance_plan/{correlation_id}/forms:
+    get:
+      tags: [Cashless Preparation]
+      operationId: listInsurancePlanForms
+      summary: List the payer's forms (questionnaires), or fetch one by url
+      description: >
+        Without `url`, lists every form the package master carries, with its
+        item count. With `url` (a `supporting_info[].form` or
+        `policy_documents[].form` value), returns that form with its flattened
+        `items`.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: correlation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: url
+          in: query
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        "200":
+          description: >
+            The form list (`{correlation_id, forms: [{url, form_id, title, kind,
+            stage, item_count}]}`), or one form (`{url, form_id, title, kind,
+            stage, items}`) when `url` is given
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: No package master, or no form with this `url`, visible to this provider
 
   /cashless/coverage_eligibility/check:
     post:
@@ -780,6 +928,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CoverageEligibilityAcceptedResponse"
+        "422":
+          description: >
+            The eligibility check was refused before it reached the payer (gateway or certificate
+            error). The body is the same shape as the 202 with `status: failed`, plus
+            the error message.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlation_id: { type: string }
+                  status: { type: string, example: failed }
+                  message: { type: string }
 
   /cashless/coverage_eligibility/validation:
     post:
@@ -945,29 +1106,25 @@ paths:
                           name: "Laparoscopic cholecystectomy"
                     insurance_plan:
                       status: "pending"
+                      plan_status: "fetching"
                       correlation_id: "550e8400-e29b-41d4-a716-446655440000"
-                      plan_details:
-                        name: "GeneralHealth-2026"
-                        status: "active"
-                      inclusions:
-                        - code: "ROOM"
-                          name: "Room rent"
-                      exclusions:
-                        - code: "COSMETIC"
-                          name: "Cosmetic surgery"
-                      pricing:
-                        sum_insured: 500000
-                        currency: "INR"
-                      document_requirements:
-                        - name: "Admission note"
-                      raw_payload:
-                        resourceType: "InsurancePlan"
-                      stored_record:
-                        id: 7
-                        request_id: "550e8400-e29b-41d4-a716-446655440000"
-                        child_id: 12
-                        payer_id: "1518@hcx"
-                        updated_at: "2026-05-04T10:41:00+05:30"
+                      plan:
+                        plan_identifier: null
+                        plan_title: null
+                        plan_type: null
+                        sum_insured: null
+                        policy_code: "POL-91711234567890-2026"
+                        proof_of_presence_required: false
+                      policy_documents: []
+                      categories: []
+                      benefit_count: 0
+                      form_count: 0
+                      requested_at: "2026-05-04T10:40:12+05:30"
+                      fetched_at: null
+                      error_message: null
+                      reused_from: null
+                      plan_details: {}
+                      errors: []
                     coverage_eligibility:
                       status: "pending"
                       validation:
@@ -1062,20 +1219,38 @@ paths:
                           name: "Laparoscopic cholecystectomy"
                     insurance_plan:
                       status: "complete"
+                      plan_status: "ready"
                       correlation_id: "550e8400-e29b-41d4-a716-446655440000"
-                      plan_details: {}
-                      inclusions: []
-                      exclusions: []
-                      pricing: []
-                      document_requirements: []
-                      raw_payload:
-                        resourceType: "InsurancePlan"
-                      stored_record:
-                        id: 7
-                        request_id: "550e8400-e29b-41d4-a716-446655440000"
-                        child_id: 12
-                        payer_id: "1518@hcx"
-                        updated_at: "2026-05-04T10:41:00+05:30"
+                      plan:
+                        plan_identifier: "PMJAY-KA-2026-01"
+                        plan_title: "PMJAY - Universal Health Policy"
+                        plan_type: "Universal Health Policy"
+                        sum_insured: 500000
+                        policy_code: "POL-91711234567890-2026"
+                        proof_of_presence_required: true
+                      policy_documents:
+                        - category: "POI"
+                          category_display: "Proof of identity"
+                          code: "ADN"
+                          display: "Aadhaar / PMJAY e-card"
+                          form: null
+                          stage: "pre"
+                      categories:
+                        - code: "SG"
+                          display: "General Surgery"
+                          count: 412
+                      benefit_count: 1949
+                      form_count: 3
+                      requested_at: "2026-05-04T10:40:12+05:30"
+                      fetched_at: "2026-05-04T10:41:00+05:30"
+                      error_message: null
+                      reused_from: null
+                      plan_details:
+                        id: "PMJAY-UHP-2026"
+                        name: "PMJAY - Universal Health Policy"
+                        status: "active"
+                        identifier: "POL-91711234567890-2026"
+                      errors: []
                     coverage_eligibility:
                       status: "complete"
                       validation:
@@ -1283,7 +1458,9 @@ paths:
           required: false
           description: >-
             Filter to one workflow lane: `case`, `insurance_plan`, `eligibility`,
-            `preauth`, `claim`, `reprocess`, `payment`, `communication`.
+            `preauth`, `preauth_cancellation`, `preauth_release`,
+            `preauth_nullification`, `claim`, `claim_search`, `reprocess`,
+            `payment`, `communication`, `note`.
           schema:
             type: string
         - name: actor
@@ -1374,6 +1551,78 @@ paths:
                         refs: { preauth_ref: "PA-2026-00001" }
         "404":
           description: Cashless case not found (or not visible to this provider)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cashless/{cashless_case_id}/bundles/{transaction_type}:
+    get:
+      tags: [Cashless Preparation]
+      operationId: getCaseBundle
+      summary: Raw FHIR bundle(s) for one transaction on the case
+      description: >
+        Returns the actual FHIR bundle sent to the payer (`outbound`) and the
+        actual bundle received back (`inbound`) for one transaction on the case.
+        Unlike `timeline`, this is not a case-wide history — it defaults to the
+        latest transaction of the given `transaction_type`; pass `correlation_id`
+        to look up a specific historical one instead (e.g. a prior resubmit).
+        `outbound.bundle` is captured verbatim at the moment it was dispatched to
+        the payer (not reconstructed from current data), so it reflects exactly
+        what was sent even if the underlying case/claim data has since changed.
+        `inbound.bundle` is the decrypted payer callback payload. Either side may
+        be `null` — e.g. `inbound` is null until the payer responds, `outbound`
+        is null for `payment` unless an acknowledgement has been sent yet (the
+        payer's notice arrives first for that transaction type).
+
+
+        `preauth_cancellation`/`preauth_release`/`preauth_nullification` are
+        separate transaction types from `preauth` itself — a cancellation is a
+        distinct `Task`/`TaskResponse` submission against an existing preauth,
+        not a variant of the original `Claim`/`ClaimResponse` bundle, so
+        `preauth` always resolves to the actual preauth submission even if a
+        cancellation happened more recently.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: transaction_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [preauth, preauth_cancellation, preauth_release, preauth_nullification, coverage_eligibility, insurance_plan, claim, claim_search, reprocess, communication, payment]
+        - name: correlation_id
+          in: query
+          required: false
+          description: Pick a specific historical transaction instead of the latest.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The outbound/inbound bundle pair for the resolved transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseBundleResponse"
+              examples:
+                success:
+                  value:
+                    cashless_case_id: 4
+                    transaction_type: "preauth"
+                    correlation_id: "5c2a6db0-b4c1-47e2-bf6d-3db2ed6e8f11"
+                    outbound:
+                      bundle: { resourceType: "Bundle", type: "collection", entry: [] }
+                      captured_at: "2026-05-01T11:55:00+05:30"
+                    inbound:
+                      bundle: { resourceType: "Bundle", type: "collection", entry: [] }
+                      captured_at: "2026-05-01T12:00:00+05:30"
+        "404":
+          description: Cashless case not found, not visible to this provider, or no matching transaction for that type
           content:
             application/json:
               schema:
@@ -1510,6 +1759,25 @@ paths:
         Asynchronous NHCX workflow 12. The frontend submits the selected or
         edited preauth draft. The wrapper builds the FHIR Claim preauthorization
         bundle, encrypts it, and sends it to NHCX.
+
+
+        **The send kind is worked out from where the pre-authorisation stands**, whichever of
+        `preauth/submit`, `preauth/resubmit` or `preauth/query-response` is called: nothing
+        sent, cancelled, refused at the door or rejected sends a fresh pre-authorisation (12);
+        queried sends the query answer (19, or 131 after an enhancement round); an approved or
+        part-approved pre-authorisation takes only `preauth/enhancement` (13). Refusals come back
+        as 400 with one of these messages:
+        "The claim has gone to the payer, so the pre-authorisation is read only: no enhancement
+        or change can be made. It can only be cancelled while the payer is deciding the claim."
+        (once the claim is with the payer or decided); "The pre-authorisation is with the payer;
+        wait for its answer before sending again."; "The pre-authorisation is already decided;
+        add a line to ask for an enhancement."; "Submit a preauth only after the payer has
+        confirmed the policy is eligible." (the eligibility check said not in force).
+
+
+        **Eligibility (soft gate):** when no eligibility verdict has arrived yet, a fresh
+        pre-authorisation is still sent, and the 202 carries
+        `warnings: ["The payer has not yet confirmed the policy is eligible."]` to show the user.
       requestBody:
         required: true
         content:
@@ -1929,6 +2197,15 @@ paths:
         Calling this without a stored `preauth_ref` will return a 400 error.
 
 
+        **Refusals (400):** "There is no pre-authorisation to cancel."; "A pre-authorisation
+        that is `<state>` cannot be cancelled." (only one that is with the payer, approved,
+        part-approved or queried can be); "The payer has decided the claim; the
+        pre-authorisation can no longer be cancelled."; "Choose why the pre-authorisation is
+        being cancelled." (`reason` is required, one of the seven below); and with `reason:
+        other` and no `description`: "Describe the reason, with “Other reason” the note is the
+        only thing the payer can read."
+
+
         **After the payer acknowledges the cancellation**, `preauth/status` reports
         `decision: CANCELLED` and the case's `preauth_status` becomes `CANCELLED`
         (`current_step` returns to `preauth_decided`). Any `submit_discharge_claim` /
@@ -2283,6 +2560,14 @@ paths:
       parameters:
         - $ref: "#/components/parameters/ProviderIdHeader"
       description: >
+        **A decided claim is never sent again.** The kind is worked out from where the claim
+        stands: a draft or a claim refused at the door sends the claim (15); a queried claim
+        sends the query answer (151). Refusals (400): "The payer has decided this claim; it
+        goes back for another look as a reprocess request, not as a claim sent again."
+        (approved, part-approved or rejected) and "The claim is with the payer; wait for its
+        answer before sending again."
+
+
         Use after the discharge claim is settled and the final invoice is ready.
         Sends the UC4 final claim (wf=15/16) for adjudication. Requires
         `preauth_ref` on the claim. Items, diagnoses, care team, and
@@ -2362,14 +2647,14 @@ paths:
     post:
       tags: [Claims]
       operationId: resubmitClaim
-      summary: Resubmit final claim
+      summary: Resubmit final claim (same as claims/submit)
+      deprecated: true
       parameters:
         - $ref: "#/components/parameters/ProviderIdHeader"
       description: >
-        Use after `claims/status` returns `decision: QUERIED` or `REJECTED`
-        when correcting clinical/billing data (not answering a payer
-        questionnaire — use `query-response` for that). Pass only the fields
-        being corrected; everything else is re-derived from DB.
+        Kept for older screens; it behaves exactly like `claims/submit`, with the same
+        derived kind and the same refusals. A rejected claim is refused here too: it goes
+        back as `reprocess/submit`. The work queue no longer raises `resubmit_claim` tasks.
       requestBody:
         required: true
         content:
@@ -2446,6 +2731,53 @@ paths:
                     errors: []
                     process_notes: []
 
+  /cashless/claims/release:
+    post:
+      tags: [Claims]
+      operationId: requestClaimRelease
+      summary: Ask the payer for the unpaid balance of a decided claim
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+      description: >
+        Sends a release Task (workflow 36, reason `partialpayment`) asking the payer to pay the
+        balance of an approved or part-approved claim. The amount is what the hospital says is
+        still owed. When the payer takes it, the claim goes back to `submitting` and the new
+        verdict arrives on the claim's own thread. Refusals (400): "Only a decided claim can
+        have its balance asked for."; "A claim that has been paid in full has no balance.";
+        "Say how much of the claim is still owed." (blank, zero or negative `amount`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, claim_id, amount]
+              properties:
+                request_id:
+                  type: string
+                claim_id:
+                  type: integer
+                amount:
+                  type: number
+                  description: The balance still owed, in INR. Sent rounded to 2 decimals.
+                note:
+                  type: string
+                  nullable: true
+                  description: Shown to the payer; defaults to "Release the balance amount for claim <claim number>".
+      responses:
+        "202":
+          description: Release request sent to the payer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlation_id: { type: string }
+                  status: { type: string, example: submitted }
+                  message: { type: string, example: "Balance release request sent to the payer." }
+        "422":
+          description: "The gateway refused the send; same shape with `status: failed` and the message."
+
   /cashless/reprocess/submit:
     post:
       tags: [Claims]
@@ -2454,15 +2786,14 @@ paths:
       parameters:
         - $ref: "#/components/parameters/ProviderIdHeader"
       description: >
-        Use to appeal or request reprocessing after a rejection or partial
-        approval. Eligible when either `preauth_status` is REJECTED, QUERIED,
-        or PARTIALLY_APPROVED, OR `claim_decision` is REJECTED or
-        PARTIALLY_APPROVED (calling on any other state returns 400).
-        `reason_code` should reflect why the hospital is appealing —
-        use `claimrejected` for outright rejections, `partialpayment` for
-        partial approvals, `clinicaleva` for clinical evaluation disputes,
-        `improvedoc` when submitting additional documents.
-        Attach supporting documents that justify the appeal.
+        Asks the payer to look again at a claim it **rejected** (Task, workflow 36). Only a
+        rejected claim can be reprocessed; a part-approved claim asks for its balance with
+        `claims/release` instead. Refusals (422, `status: failed`, message): "Only a claim the
+        payer has rejected can be sent back for reprocessing."; "A claim that has been paid in
+        full cannot be reprocessed."; "Say why the claim should be looked at again."
+        (`description` is required); "Choose why the claim is being sent back." (`reason_code`
+        must be `claimrejected` or `rejectiondisputed`). Attach supporting documents that
+        justify the appeal.
       requestBody:
         required: true
         content:
@@ -2473,7 +2804,7 @@ paths:
               appeal:
                 value:
                   claim_id: 101
-                  reason_code: "other"
+                  reason_code: "rejectiondisputed"
                   description: "Additional clinical justification attached"
       responses:
         "202":
@@ -2559,6 +2890,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaymentAcknowledgeResponse"
+        "422":
+          description: >
+            The acknowledgement was refused before it reached the payer (gateway or certificate
+            error). The body is the same shape as the 202 with `status: failed`, plus
+            the error message.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlation_id: { type: string }
+                  status: { type: string, example: failed }
+                  message: { type: string }
 
   /cashless/payment/status:
     get:
@@ -2654,9 +2998,13 @@ paths:
         - name: status
           in: query
           required: false
+          description: >-
+            Omit to return tasks in every status. Callers rendering an
+            actionable list must pass `pending` explicitly — there is no
+            default filter.
           schema:
             type: string
-            enum: [pending, completed]
+            enum: [pending, held, completed]
         - name: claim_id
           in: query
           required: false
@@ -2685,7 +3033,7 @@ paths:
           description: Filter by task type. Useful for Work Queue views that only show one category (e.g. all review_communication tasks).
           schema:
             type: string
-            enum: [review_insurance_plan_documents, attach_eligibility_documents, fix_eligibility_error, submit_preauth, respond_preauth_query, resubmit_preauth, submit_discharge_claim, submit_final_claim, respond_claim_query, resubmit_claim, resubmit_discharge_claim, submit_reprocess, acknowledge_payment, review_payment_ack_failure, review_communication]
+            enum: [review_insurance_plan_documents, attach_eligibility_documents, fix_eligibility_error, submit_preauth, respond_preauth_query, resubmit_preauth, submit_discharge_claim, submit_final_claim, respond_claim_query, resubmit_claim, resubmit_discharge_claim, submit_reprocess, request_claim_release, acknowledge_payment, review_payment_ack_failure, review_communication]
         - name: limit
           in: query
           required: false
@@ -2881,6 +3229,111 @@ paths:
                   correlation_id: { type: string }
                   status: { type: string, example: submitted }
                   message: { type: string }
+        "422":
+          description: >
+            The communication was refused before it reached the payer (gateway or certificate
+            error). The body is the same shape as the 202 with `status: failed`, plus
+            the error message.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlation_id: { type: string }
+                  status: { type: string, example: failed }
+                  message: { type: string }
+
+  /cashless/communication/{correlation_id}/respond:
+    post:
+      tags: [Communication]
+      summary: Answer a payer communication
+      description: >
+        Replies to an inbound payer query on its own thread (`communication/on_request`),
+        with a message and/or documents. A notification is acknowledged automatically on
+        arrival and needs no reply.
+
+
+        The reply bundle (NHA F12) carries our Task and Communication, the payer's
+        request echoed as it arrived, and the case (Claim, Patient, Organizations,
+        Coverage and what they reference) lifted from the last claim or pre-auth we
+        sent on the case. Refusals (400): "That message is not a question: a
+        notification is acknowledged and a note is read, neither takes an answer."
+        (`kind` is `notification` or `note`) and "Write a reply or attach a document,
+        an empty answer tells the payer nothing."
+      parameters:
+        - name: correlation_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { type: string }
+                documents:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title: { type: string }
+                      content_type: { type: string }
+                      data: { type: string, description: Base64 file content }
+      responses:
+        "202":
+          description: Reply sent to the payer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlation_id: { type: string }
+                  status: { type: string, example: submitted }
+                  message: { type: string }
+        "422":
+          description: >
+            The reply was refused before it reached the payer (gateway or certificate
+            error). The body is the same shape as the 202 with `status: failed`, plus
+            the error message.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlation_id: { type: string }
+                  status: { type: string, example: failed }
+                  message: { type: string }
+
+  /cashless/communication/{correlation_id}/acknowledge:
+    post:
+      tags: [Communication]
+      summary: Acknowledge a payer notification again
+      description: >
+        Re-sends the acknowledgement of an inbound payer notification whose automatic
+        acknowledgement failed (`ack_error` set, `acknowledged: false`), echoing the
+        workflow id it arrived on. An already acknowledged notification is not sent
+        again. Refused (400) for a query or a note: "Only a payer notification is
+        acknowledged; a query takes a reply and a note takes nothing."
+      parameters:
+        - name: correlation_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "202":
+          description: Acknowledged; the communication's summary with `status: complete`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationStatusResponse"
+        "422":
+          description: The acknowledgement failed again; same shape with `status: failed`, `message` and `ack_error` set to the reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationStatusResponse"
 
   /cashless/communication/status/{correlation_id}:
     get:
@@ -2947,13 +3400,17 @@ paths:
       operationId: requestNhcxGatewayStatus
       summary: Request NHCX gateway status
       description: >
-        Use when a prior workflow (preauth, claim, reprocess, coverage eligibility)
-        is stuck in `status: pending` and the payer has not responded. Sends a
-        UC5 `/v1/status` probe to the NHCX gateway for the given `correlation_id`.
-        The gateway delivers the async result via the `/v1/on_status` callback
-        (not through the original workflow callback path).
-        Pass the `correlation_id` from any prior `submit`/`check` response.
-        `workflow_id` is auto-resolved from the stored transaction when omitted.
+        Use when a prior workflow (preauth, claim, reprocess) is stuck in
+        `status: pending` and the payer has not responded. Sends a status Task
+        (code `status`, the leg's claim number) on `/v1/task/submit` under workflow
+        id `1`, on a correlation id of its own (`enquiry_correlation_id`); the
+        payer's answer arrives on `/v1/task/on_submit` and is stored on that
+        enquiry's transaction. Pass the `correlation_id` of the leg being asked
+        about. A government scheme payer (PMJAY / SHA) answers no status enquiry,
+        so the request is refused before sending with `status: failed`. Read the
+        answer by polling `reprocess/status/{enquiry_correlation_id}` until
+        `status: complete`; it carries `answer`, `detail` and `answered_at`.
+        `workflow_id` is ignored.
       requestBody:
         required: true
         content:
@@ -3029,26 +3486,6 @@ paths:
         If ABDM registration fails and no `hcx_participant_code` was supplied,
         no local record is created — the response is a `422` with
         `abdm_registration` showing the failure. Retry the request.
-
-
-        `primary_mobile` must be exactly 10 digits (no country code, spaces,
-        or separators) — ABDM rejects anything else with `primaryMobile
-        size==10`, surfaced here as a `422` (see the `invalid_mobile` example).
-        Validate this client-side before submitting.
-
-
-        None of `registry_id`, `scheme_code`, `state`, `district`,
-        `endpoint_url`, `primary_email`, `primary_mobile`, `roles`,
-        `linked_registry_codes`, or `encryption_cert` are enforced as
-        required by the wrapper API itself (only `facility_code` and `name`
-        are) — but the reference frontend's facility form requires all of
-        them, defaulting `scheme_code` to `PMJAY` and `linked_registry_codes`
-        to `["10001"]` (HFR), since a missing, empty, or malformed value
-        routinely causes ABDM to reject the registration (see the
-        `invalid_mobile`, `empty_linked_registry_codes`, and
-        `missing_encryption_cert` examples). `signing_cert_path` is genuinely
-        optional per ABDM's own participant/create spec and is not required
-        by the frontend either.
       requestBody:
         required: true
         content:
@@ -3135,33 +3572,6 @@ paths:
                     abdm_registration:
                       success: false
                       error: "ABDM gateway timeout"
-                invalid_mobile:
-                  summary: primary_mobile is missing or not exactly 10 digits
-                  value:
-                    error:
-                      code: "WRAPPER-ERROR:4223"
-                      message: "ABDM did not return a participant_code and none was supplied"
-                    abdm_registration:
-                      success: false
-                      error: "{\"error\":{\"code\":\"400\",\"message\":\"primaryMobile size==10\"}}"
-                empty_linked_registry_codes:
-                  summary: linked_registry_codes was omitted or sent as an empty array
-                  value:
-                    error:
-                      code: "WRAPPER-ERROR:4223"
-                      message: "ABDM did not return a participant_code and none was supplied"
-                    abdm_registration:
-                      success: false
-                      error: "{\"error\":{\"code\":\"400\",\"message\":\"linked registry : size > 1\"}}"
-                missing_encryption_cert:
-                  summary: encryption_cert was omitted
-                  value:
-                    error:
-                      code: "WRAPPER-ERROR:4223"
-                      message: "ABDM did not return a participant_code and none was supplied"
-                    abdm_registration:
-                      success: false
-                      error: "{\"error\":{\"code\":\"400\",\"message\":\"must not be null\"}}"
 
   /facilities/{facility_code}:
     get:
@@ -3335,119 +3745,6 @@ paths:
                       code: "WRAPPER-ERROR:4222"
                       message: "Invalid PEM: Neither PUB key nor PRIV key: nested asn1 error"
 
-  /facility_access_requests:
-    get:
-      tags: [Facility Management]
-      operationId: listFacilityAccessRequests
-      security:
-        - BearerAuth: []
-          AdminTokenAuth: []
-      summary: List facility access requests (admin)
-      description: >
-        Requests submitted by users whose session resolved zero facilities —
-        see `POST /facility_access_requests`. Defaults to every request;
-        pass `status` to filter to `pending`, `resolved`, or `dismissed`.
-      parameters:
-        - $ref: "#/components/parameters/RequestIdParam"
-        - name: status
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [pending, resolved, dismissed]
-      responses:
-        "200":
-          description: Facility access request list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FacilityAccessRequestListResponse"
-    post:
-      tags: [Facility Management]
-      operationId: createFacilityAccessRequest
-      summary: Request a new NHCX facility be onboarded
-      description: >
-        For a user whose session resolves zero facilities (a genuinely new
-        hospital/clinic not yet onboarded, or an existing one that's been
-        misconfigured). Does **not** create or register a facility — it only
-        queues a request an admin reviews and actions manually via
-        `POST /facilities` (which still requires `X-Admin-Token`). Available
-        to any authenticated user regardless of facility access, since that's
-        exactly what's missing here.
-      parameters:
-        - $ref: "#/components/parameters/RequestIdParam"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/FacilityAccessRequestCreate"
-            examples:
-              new_clinic:
-                value:
-                  request_id: "550e8400-e29b-41d4-a716-446655440001"
-                  facility_name: "City General Hospital - Annex Wing"
-                  facility_code: "HOSP-002"
-                  notes: "New IPD wing opening 2026-08-01, needs its own NHCX participant"
-      responses:
-        "201":
-          description: Request queued
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FacilityAccessRequest"
-        "422":
-          description: Missing facility_name
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /facility_access_requests/{id}:
-    patch:
-      tags: [Facility Management]
-      operationId: updateFacilityAccessRequest
-      security:
-        - BearerAuth: []
-          AdminTokenAuth: []
-      summary: Mark a facility access request resolved or dismissed (admin)
-      description: >
-        Does not itself create a facility — an admin still onboards it
-        separately via `POST /facilities` (or `db:seed` for the first
-        facility in a deployment). This just closes out the request once
-        that's been done, or dismisses one that doesn't need action.
-      parameters:
-        - $ref: "#/components/parameters/RequestIdParam"
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [status]
-              properties:
-                status:
-                  type: string
-                  enum: [resolved, dismissed]
-      responses:
-        "200":
-          description: Request updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FacilityAccessRequest"
-        "404":
-          description: Request not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
 security:
   - BearerAuth: []
 
@@ -3504,7 +3801,7 @@ components:
         example: "1000099999@hcx"
   responses:
     MissingRequestId:
-      description: requestId was not supplied.
+      description: request_id was not supplied.
       content:
         application/json:
           schema:
@@ -3512,7 +3809,7 @@ components:
           example:
             error:
               code: "WRAPPER-ERROR:1010"
-              message: requestId is required
+              message: request_id is required
   schemas:
     SessionResponse:
       type: object
@@ -3563,6 +3860,13 @@ components:
           type: string
           nullable: true
           description: ABDM registryid / Client Id (e.g. DEMO_CLIENT).
+        hfr_id:
+          type: string
+          nullable: true
+          description: >
+            The facility's Health Facility Registry id (e.g. IN1910000151). Sent as the
+            provider Organization's NPI identifier in every bundle (NHA F17); when
+            empty, a `registry_id` in HFR form is used, else the participant code.
         scheme_code:
           type: string
           nullable: true
@@ -3607,18 +3911,7 @@ components:
         primary_mobile:
           type: string
           nullable: true
-          pattern: '^\d{10}$'
-          description: >
-            Primary mobile number (ABDM primaryMobile and phone[]). Must be
-            exactly 10 digits, no country code, spaces, or separators - ABDM
-            rejects anything else with `primaryMobile size==10`.
-        encryption_cert:
-          type: string
-          nullable: true
-          description: >
-            Base64-encoded public certificate (ABDM encryption_cert),
-            returned as stored. Required by ABDM's participant/create -
-            omitting it fails registration with `must not be null`.
+          description: Primary mobile number (ABDM primaryMobile and phone[]).
         abdm_registered:
           type: boolean
           description: True when ABDM participant/create or participant/update was last called successfully.
@@ -3665,30 +3958,27 @@ components:
         registry_id:
           type: string
           nullable: true
+          description: ABDM registryid / Client Id (e.g. DEMO_CLIENT).
+        hfr_id:
+          type: string
+          nullable: true
           description: >
-            ABDM registryid / Client Id (e.g. DEMO_CLIENT). Nullable at the API
-            level, but the reference frontend's facility form requires it.
+            The facility's Health Facility Registry id (e.g. IN1910000151). Sent as the
+            provider Organization's NPI identifier in every bundle (NHA F17); when
+            empty, a `registry_id` in HFR form is used, else the participant code.
         scheme_code:
           type: string
           nullable: true
-          default: PMJAY
-          description: >
-            ABDM scheme code (e.g. PMJAY). Nullable at the API level, but the
-            reference frontend's facility form requires it and defaults new
-            facilities to PMJAY.
+          description: ABDM scheme code (e.g. PMJAY).
           example: PMJAY
         state:
           type: string
           nullable: true
-          description: >
-            State of the facility (e.g. AndhraPradesh). Nullable at the API
-            level, but the reference frontend's facility form requires it.
+          description: State of the facility (e.g. AndhraPradesh).
         district:
           type: string
           nullable: true
-          description: >
-            District of the facility (e.g. Krishna). Nullable at the API
-            level, but the reference frontend's facility form requires it.
+          description: District of the facility (e.g. Krishna).
         roles:
           type: array
           nullable: true
@@ -3700,8 +3990,6 @@ components:
             10001 = PROVIDER, 10002 = PAYER, 10003 = AGENCY_TPA,
             10004 = AGENCY_REGULATOR, 10005 = RESEARCH,
             10006 = MEMBER_ISNP, 10007 = AGENCY_SPONSOR, 10008 = HIE_HIO_HCX.
-            Nullable at the API level, but ABDM rejects an empty list and the
-            reference frontend's facility form requires at least one.
           example: ["10001"]
         linked_registry_codes:
           type: array
@@ -3712,48 +4000,31 @@ components:
           description: >
             Linked registry codes:
             10001 = HFR, 10002 = NIN, 10003 = ROHINI, 10004 = PAYER.
-            Nullable at the API level, but ABDM rejects an empty list (400
-            "linked registry : size > 1") and the reference frontend's
-            facility form requires at least one, defaulting to HFR.
           example: ["10001"]
         endpoint_url:
           type: string
           nullable: true
-          description: >
-            Bridge/callback URL of the participant. Nullable at the API level,
-            but the reference frontend's facility form requires it.
+          description: Bridge/callback URL of the participant.
         primary_email:
           type: string
           nullable: true
-          description: >
-            Primary contact email (ABDM primaryEmail). Nullable at the API
-            level, but the reference frontend's facility form requires it.
+          description: Primary contact email (ABDM primaryEmail).
         primary_mobile:
           type: string
           nullable: true
-          pattern: '^\d{10}$'
-          description: >
-            Primary mobile number (ABDM primaryMobile and phone[]). Must be
-            exactly 10 digits, no country code, spaces, or separators - ABDM
-            rejects anything else with `primaryMobile size==10`. Not enforced
-            by the wrapper's own validation, but required for ABDM registration
-            to succeed, so the frontend should validate it before submitting.
+          description: Primary mobile number (ABDM primaryMobile and phone[]).
         signing_cert_path:
           type: string
           nullable: true
           description: >
             URL to the signing certificate (ABDM signing_cert_path). Forwarded
-            to ABDM at registration time but NOT stored in the DB. Optional
-            per ABDM's participant/create spec.
+            to ABDM at registration time but NOT stored in the DB.
         encryption_cert:
           type: string
           nullable: true
           description: >
-            Base64-encoded public certificate (ABDM encryption_cert).
-            Stored in nhcx_facilities.encryption_cert and returned on
-            subsequent reads. Required by ABDM's participant/create -
-            omitting it fails registration with `must not be null`. The
-            reference frontend's facility form requires it.
+            Base64-encoded encryption certificate (ABDM encryption_cert).
+            Stored in nhcx_facilities.encryption_cert.
         signing_cert:
           type: string
           nullable: true
@@ -3790,59 +4061,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Facility"
-
-    FacilityAccessRequestCreate:
-      type: object
-      required: [request_id, facility_name]
-      properties:
-        request_id:
-          type: string
-          description: Mandatory client-generated request id (UUID recommended).
-        facility_name:
-          type: string
-        facility_code:
-          type: string
-          nullable: true
-          description: The requester may not know this yet — the admin assigns/confirms it during onboarding.
-        notes:
-          type: string
-          nullable: true
-
-    FacilityAccessRequest:
-      type: object
-      properties:
-        id:
-          type: integer
-        requested_by_name:
-          type: string
-          nullable: true
-        facility_name:
-          type: string
-        facility_code:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-        status:
-          type: string
-          enum: [pending, resolved, dismissed]
-        created_at:
-          type: string
-          format: date-time
-          nullable: true
-        resolved_at:
-          type: string
-          format: date-time
-          nullable: true
-
-    FacilityAccessRequestListResponse:
-      type: object
-      properties:
-        requests:
-          type: array
-          items:
-            $ref: "#/components/schemas/FacilityAccessRequest"
 
     FacilityPrivateKeyRequest:
       type: object
@@ -4450,9 +4668,26 @@ components:
           type: string
         status:
           type: string
-          enum: [submitted, failed]
+          enum: [submitted, complete, refused, failed]
+          description: "`complete` = a held master was reused; `refused` = PAYR-1406, nothing sent."
         message:
           type: string
+        reused:
+          type: boolean
+        reused_from:
+          type: string
+          description: Correlation id of the fetch the reused master came from.
+        pending_correlation_id:
+          type: string
+          description: With `refused`, the correlation id of the request still being fetched.
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "PAYR-1406"
+            message:
+              type: string
 
     InsurancePlanStatusResponse:
       type: object
@@ -4483,10 +4718,48 @@ components:
         result:
           type: object
           nullable: true
+        plan_status:
+          type: string
+          enum: [fetching, ready, empty, error]
+          description: >
+            The package master's own state. `empty` = the payer answered with no
+            InsurancePlan or no packages (`error_message` says which); `status` is
+            then `complete`. Absent on rows stored before the package master, which
+            carry the legacy fields below instead.
+        plan:
+          $ref: "#/components/schemas/InsurancePlanSummary"
+        policy_documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanDocument"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanCategory"
+        benefit_count:
+          type: integer
+          description: Number of packages and benefit lines; page them from `insurance_plan/{correlation_id}/benefits`.
+        form_count:
+          type: integer
+        requested_at:
+          type: string
+          format: date-time
+          nullable: true
+        fetched_at:
+          type: string
+          format: date-time
+          nullable: true
+        reused_from:
+          type: string
+          nullable: true
+          description: Correlation id of the fetch this master was copied from, when it was reused.
         plan_details:
           type: object
+          description: "`{id, name, status, identifier, period}` of the InsurancePlan."
         inclusions:
           type: array
+          deprecated: true
+          description: Legacy rows only (before the package master); the packages are now paged from `benefits`.
           items:
             type: object
         exclusions:
@@ -4515,6 +4788,150 @@ components:
           type: object
           nullable: true
           description: Raw decrypted FHIR Bundle from the NHCX InsurancePlan callback. Present only when status is complete.
+
+    InsurancePlanSummary:
+      type: object
+      properties:
+        plan_identifier:
+          type: string
+          nullable: true
+        plan_title:
+          type: string
+          nullable: true
+        plan_type:
+          type: string
+          nullable: true
+        sum_insured:
+          type: number
+          nullable: true
+        policy_code:
+          type: string
+        proof_of_presence_required:
+          type: boolean
+          description: True when the plan asks for an Aadhaar (`ADN`) proof of presence.
+
+    PlanDocument:
+      type: object
+      properties:
+        category:
+          type: string
+          nullable: true
+        category_display:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        display:
+          type: string
+          nullable: true
+        form:
+          type: string
+          nullable: true
+          description: Url of the payer's form (Questionnaire) to fill; fetch it from `insurance_plan/{correlation_id}/forms?url=`.
+        stage:
+          type: string
+          enum: [pre, post]
+          description: "`pre` = needed for pre-authorisation, `post` = needed at claim."
+
+    PlanCategory:
+      type: object
+      properties:
+        code:
+          type: string
+        display:
+          type: string
+          nullable: true
+        count:
+          type: integer
+
+    InsurancePlanBenefit:
+      type: object
+      properties:
+        id:
+          type: integer
+        seq:
+          type: integer
+          nullable: true
+        category_code:
+          type: string
+          nullable: true
+        category_display:
+          type: string
+          nullable: true
+        code:
+          type: string
+        display:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [Procedure, Implant, Benefit]
+        rate:
+          type: number
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        cost_type:
+          type: string
+          nullable: true
+        requirement:
+          type: string
+          nullable: true
+        conditions:
+          type: object
+          additionalProperties: true
+          description: 'Claim-Condition rules by name, e.g. `{ProcedureType: "Surgical", ApprovalNotRequired: "N", IsDayCare: "N"}`.'
+        extras:
+          type: array
+          description: Implant, stratification and limit lines priced alongside the package.
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              code:
+                type: string
+                nullable: true
+              label:
+                type: string
+                nullable: true
+              rate:
+                type: number
+                nullable: true
+              currency:
+                type: string
+                nullable: true
+        supporting_info:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanDocument"
+
+    InsurancePlanBenefitsResponse:
+      type: object
+      properties:
+        correlation_id:
+          type: string
+        plan_status:
+          type: string
+          enum: [fetching, ready, empty, error]
+        categories:
+          type: array
+          description: Quotable rows per category, for the filter.
+          items:
+            $ref: "#/components/schemas/PlanCategory"
+        total:
+          type: integer
+          description: Rows matching the filters, across all pages.
+        limit:
+          type: integer
+        offset:
+          type: integer
+        benefits:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsurancePlanBenefit"
 
     CashlessPrepareRequest:
       type: object
@@ -4610,6 +5027,29 @@ components:
           items:
             type: string
             enum: [refresh, retry, resubmit, prepare_preauth]
+        discharge_intimation:
+          type: boolean
+          description: >-
+            Whether this case's payer takes a separate discharge claim (wf 14)
+            before the final claim. `false` for a government scheme payer
+            (PMJAY / SHA), whose discharge rides on the claim itself: skip the
+            discharge send and go straight to the final claim.
+        answers_status_enquiry:
+          type: boolean
+          description: >-
+            Whether this case's payer answers a status enquiry (`status/request`).
+            `false` for a government scheme payer (PMJAY / SHA): hide the action.
+        legs:
+          type: object
+          description: >-
+            Where each leg stands, as the backend's send rules read it. Screens use it to
+            offer only allowed actions. preauth is one of none, submitting, cancelling,
+            queried, approved, partial, rejected, cancelled, error. claim is one of draft,
+            submitting, queried, approved, partial, rejected, error. The pre-authorisation is
+            read only while claim is submitting, queried, approved, partial or rejected.
+          properties:
+            preauth: { type: string }
+            claim: { type: string }
         prepare_error:
           type: object
           nullable: true
@@ -4628,6 +5068,14 @@ components:
               format: date-time
         pending_tasks:
           type: array
+          items:
+            $ref: "#/components/schemas/FrontendTask"
+        held_tasks:
+          type: array
+          description: >-
+            Tasks suspended while a preauth cancellation awaits the payer. Not
+            actionable, but shown so the desk can see what the cancellation is
+            blocking.
           items:
             $ref: "#/components/schemas/FrontendTask"
         completed_tasks:
@@ -4687,6 +5135,34 @@ components:
           items:
             $ref: "#/components/schemas/TimelineEvent"
 
+    CaseBundleResponse:
+      type: object
+      properties:
+        cashless_case_id:
+          type: integer
+        transaction_type:
+          type: string
+          enum: [preauth, preauth_cancellation, preauth_release, preauth_nullification, coverage_eligibility, insurance_plan, claim, claim_search, reprocess, communication, payment]
+        correlation_id:
+          type: string
+        outbound:
+          $ref: "#/components/schemas/CaseBundleSide"
+          nullable: true
+        inbound:
+          $ref: "#/components/schemas/CaseBundleSide"
+          nullable: true
+
+    CaseBundleSide:
+      type: object
+      nullable: true
+      properties:
+        bundle:
+          type: object
+          description: Raw FHIR Bundle JSON, exactly as sent or received.
+        captured_at:
+          type: string
+          format: date-time
+
     TimelineEvent:
       type: object
       properties:
@@ -4713,7 +5189,7 @@ components:
           nullable: true
         workflow:
           type: string
-          enum: [case, insurance_plan, eligibility, preauth, claim, reprocess, payment, communication]
+          enum: [case, insurance_plan, eligibility, preauth, preauth_cancellation, preauth_release, preauth_nullification, claim, claim_search, reprocess, payment, communication]
         stage:
           type: string
           description: Sub-stage within the workflow (submitted, decided, settled, received, failed, …).
@@ -5058,7 +5534,9 @@ components:
         auth_required:
           type: boolean
           nullable: true
-          description: True if any item in insurance_items has authorization_required=true.
+          description: >
+            True if any item states authorization_required=true, false if items
+            state it and none says true, null when no item states it.
         coverage_reference:
           type: string
           nullable: true
@@ -5067,6 +5545,40 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CoverageEligibilityInsurance"
+        wallet:
+          type: object
+          nullable: true
+          description: >
+            The policy's balance, from the admission line (305056002) or a line
+            naming no product whose benefit is typed `benefit` or `30`; a
+            package's rate is never read as the wallet. Null when the answer
+            carries no wallet row (a benefits or auth-requirements answer often
+            does not): read it from the check that has one.
+          properties:
+            sum_insured:
+              type: number
+              description: balance + used.
+            used:
+              type: number
+            balance:
+              type: number
+              description: What is left (the payer's allowedMoney).
+            currency:
+              type: string
+              nullable: true
+        beneficiaries:
+          type: array
+          description: >
+            Every member on the card the payer answered with (one Patient and
+            Coverage per member); the request's own patient is left out.
+            `checked` marks the one the answer is about.
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityBeneficiary"
+        requirements:
+          type: array
+          description: The documents and forms the payer asks for, across items, de-duplicated on (kind, code, form_url).
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityRequirement"
         errors:
           type: array
           description: >
@@ -5402,9 +5914,100 @@ components:
           description: Whether this item requires preauthorization before treatment.
         authorization_supporting:
           type: array
-          description: Documents required by the payer before issuing preauth for this item.
+          description: Documents and forms the payer asks for on this item.
+          items:
+            $ref: "#/components/schemas/CoverageEligibilityRequirement"
+        modifier:
+          type: array
           items:
             $ref: "#/components/schemas/CodedValue"
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        network:
+          $ref: "#/components/schemas/CodedValue"
+        unit:
+          $ref: "#/components/schemas/CodedValue"
+        term:
+          $ref: "#/components/schemas/CodedValue"
+        authorization_url:
+          type: string
+          nullable: true
+        wallet:
+          type: boolean
+          description: True on the row the policy balance is answered under, so screens can set it apart from packages.
+
+    CoverageEligibilityRequirement:
+      type: object
+      description: >
+        One `authorizationSupporting` entry. PMJAY writes its meaning in the
+        text: `fullUrl: <url>` is a form (Questionnaire) to answer, `Type:
+        <stage>` says when a document is due, `Procedure Code: <code>` names
+        the package.
+      properties:
+        code:
+          type: string
+          nullable: true
+        display:
+          type: string
+          nullable: true
+        text:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [document, form]
+        form_url:
+          type: string
+          nullable: true
+        stage:
+          type: string
+          enum: [pre, post]
+        for_code:
+          type: string
+          nullable: true
+        at_preauth:
+          type: boolean
+
+    CoverageEligibilityBeneficiary:
+      type: object
+      properties:
+        member_id:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+        dob:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        abha_number:
+          type: string
+          nullable: true
+        photo:
+          type: string
+          nullable: true
+          description: Base64 of a JPEG or PNG (PMJAY's double encoding peeled), or a url.
+        relationship:
+          type: string
+          nullable: true
+        policy_code:
+          type: string
+          nullable: true
+        plan_name:
+          type: string
+          nullable: true
+        checked:
+          type: boolean
 
     CoverageEligibilityBenefit:
       type: object
@@ -6144,7 +6747,12 @@ components:
             - duplicateclaim
             - administrativeerror
             - other
-          default: treatmentplanchanged
+          description: >
+            Required. Displays: treatmentplanchanged "Treatment plan changed during
+            hospitalization"; patientrequest "Patient requested cancellation";
+            financialconstraints "Financial constraints"; alternativetreatment "Alternative
+            treatment chosen"; duplicateclaim "Duplicate claim / preauth"; administrativeerror
+            "Administrative error"; other "Other reason" (then `description` is required).
         description:
           type: string
           nullable: true
@@ -6253,6 +6861,46 @@ components:
           $ref: "#/components/schemas/PreauthMoney"
         deductible:
           $ref: "#/components/schemas/PreauthMoney"
+        elig_percent:
+          type: number
+          nullable: true
+        quantity:
+          type: number
+          nullable: true
+          description: Eligible quantity (`eligquant`).
+        status:
+          type: string
+          nullable: true
+          description: The item's own adjudication status as the payer wrote it, e.g. `Approved`, `Queried`, `Rejected`.
+        reason:
+          type: object
+          nullable: true
+          description: >
+            The payer's remarks on the item. PMJAY writes them as `piece|piece`,
+            a piece often being `USER~datetime~type~comment~trust`; empty pieces
+            (`null`, `.`, `none`, `-`) are dropped. Show `text`.
+          properties:
+            raw:
+              type: string
+            text:
+              type: string
+              nullable: true
+              description: The kept pieces, the comment alone for a `~` piece, joined with " · ".
+            trail:
+              type: array
+              items:
+                type: object
+                properties:
+                  text:
+                    type: string
+                  user:
+                    type: string
+                  date:
+                    type: string
+                  type:
+                    type: string
+                  trust:
+                    type: string
 
     PreauthTotals:
       type: object
@@ -6295,6 +6943,10 @@ components:
 
     PreauthProcessNote:
       type: object
+      description: >
+        The payer's `processNote[]` entries, followed by one `type: query` entry
+        for each remark in the items' query trail that is not already a process
+        note (with `by` and `at` when the payer named them).
       properties:
         number:
           type: integer
@@ -6306,6 +6958,12 @@ components:
           type: string
           nullable: true
         language:
+          type: string
+          nullable: true
+        by:
+          type: string
+          nullable: true
+        at:
           type: string
           nullable: true
 
@@ -6636,17 +7294,13 @@ components:
           description: Provider/HFR/NPI id used as the JWE `x-hcx-sender_code`. Defaults to configured provider id when omitted.
         reason_code:
           type: string
-          enum: [claimrejected, partialpayment, rejectiondisputed, improvedoc, clinicaleva, pricingquery, adminappeal, other]
-          default: other
+          enum: [claimrejected, rejectiondisputed]
           description: >
-            claimrejected — claim was fully rejected; partialpayment — partial
-            approval disputed; improvedoc — submitting missing/additional documents;
-            clinicaleva — disputing clinical evaluation; pricingquery — pricing
-            disagreement; rejectiondisputed — general rejection dispute;
-            adminappeal — administrative appeal; other — catch-all.
+            Required. claimrejected "Reprocess request due to claim rejected by payer";
+            rejectiondisputed "Rejection disputed, additional evidence provided".
         description:
           type: string
-          nullable: true
+          description: Required. Why the claim should be looked at again, in words.
         supporting_documents:
           type: array
           items:
@@ -6708,6 +7362,18 @@ components:
           nullable: true
           enum: [claimrejected, partialpayment, rejectiondisputed, improvedoc, clinicaleva, pricingquery, adminappeal, other, null]
           description: The reason code submitted with the reprocess request.
+        answer:
+          type: string
+          nullable: true
+          description: On a status enquiry's thread, where the payer says the leg stands (its entity status, the Task's claimStatus, or `not-found`).
+        detail:
+          type: string
+          nullable: true
+          description: On a status enquiry's thread, the payer's description and stage, outcome and totals.
+        answered_at:
+          type: string
+          format: date-time
+          nullable: true
         fhir_bundle:
           type: object
           nullable: true
@@ -7061,12 +7727,18 @@ components:
             - resubmit_claim
             - resubmit_discharge_claim
             - submit_reprocess
+            - request_claim_release
             - acknowledge_payment
             - review_payment_ack_failure
             - review_communication
         status:
           type: string
-          enum: [pending, completed]
+          enum: [pending, held, completed]
+          description: >-
+            `held` means the task is suspended while a preauth cancellation is
+            awaiting the payer. Held tasks are excluded from `pending_tasks` and
+            returned under `held_tasks`. They return to `pending` if the payer
+            refuses the cancellation, and are completed if it is accomplished.
         title:
           type: string
         description:
@@ -7138,6 +7810,7 @@ components:
                 - submit_discharge_claim
                 - submit_final_claim
                 - submit_reprocess
+                - request_claim_release
                 - acknowledge_payment
                 - review_communication
                 - attach_eligibility_documents
@@ -7352,10 +8025,21 @@ components:
           type: string
           nullable: true
           description: Same as task_code — the workflow type for this communication.
-        # Acknowledgement (payer-facing, auto-sent on receipt)
+        kind:
+          type: string
+          nullable: true
+          enum: [query, notification, note]
+          description: >
+            How the payer's message was classified, by the payer's adapter. A query waits
+            for a reply from the hospital. A notification is acknowledged automatically on
+            receipt. A note (a Communication with no Task) takes no answer. Null on rows
+            received before classification existed.
+        # Acknowledgement (payer-facing)
         acknowledged:
           type: boolean
-          description: Whether the backend has sent an acknowledgement to the payer.
+          description: >
+            Whether the payer has been answered: the hospital's reply to a query, or the
+            automatic acknowledgement of a notification.
         acknowledged_at:
           type: string
           format: date-time
@@ -7363,6 +8047,10 @@ components:
         ack_correlation_id:
           type: string
           nullable: true
+        ack_error:
+          type: string
+          nullable: true
+          description: Why the automatic acknowledgement of a notification failed; null when it went or was never due.
         # Provider read tracking (hospital inbox)
         provider_read:
           type: boolean
@@ -7417,6 +8105,10 @@ components:
       properties:
         correlation_id:
           type: string
+          description: The leg that was asked about
+        enquiry_correlation_id:
+          type: string
+          description: The status enquiry's own thread; poll its transaction for the answer
         status:
           type: string
           example: submitted
