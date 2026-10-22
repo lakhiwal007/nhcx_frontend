@@ -9,7 +9,7 @@ import { Section, Fields } from "../case/CaseFile";
 import { Modal } from "../Overlay";
 import FhirBundleModal from "../FhirBundleModal";
 import PayerName from "../PayerName";
-import { eligibilityBeneficiaries } from "../../caseStatus";
+import { eligibilityBeneficiaries, eligibilityRequirements } from "../../caseStatus";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -321,6 +321,7 @@ export default function PreauthDraft({ ctx }) {
   const canSubmit = !hasMissingFields && !hasMissingDocs && !submitting;
 
   const docs = draft?.supporting_documents || [];
+  const payerAsks = eligibilityRequirements(cashlessCase?.coverage_eligibility).filter((r) => r.at_preauth || r.stage === "pre");
   const cardMembers = eligibilityBeneficiaries(cashlessCase?.coverage_eligibility);
   const memberUnchosen = cardMembers.length > 1 && !caseState.beneficiaryMemberId;
   const requiredDocs = docs.filter((d) => !d.optional);
@@ -631,6 +632,14 @@ export default function PreauthDraft({ ctx }) {
             title="Supporting documents"
             meta={requiredDocs.length ? `${attachedRequired} of ${requiredDocs.length} required attached` : null}
           >
+            {payerAsks.length > 0 && (
+              <div className="ep-notice">
+                The payer asked for these at pre-auth:{" "}
+                {payerAsks
+                  .map((r) => `${r.display || r.code || r.text}${r.kind === "form" ? " (form)" : ""}${r.for_code ? ` for ${r.for_code}` : ""}`)
+                  .join(" · ")}
+              </div>
+            )}
             <div className="pd-docs">
               <DocumentChecklist
                 documents={draft?.supporting_documents}

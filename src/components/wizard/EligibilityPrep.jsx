@@ -9,7 +9,8 @@ import { Section, Fields } from "../case/CaseFile";
 import { formatDate, formatMoney } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
 import PayrErrorList from "../PayrErrorList";
-import { eligibilityBeneficiaries } from "../../caseStatus";
+import { Drawer } from "../Overlay";
+import { eligibilityBeneficiaries, eligibilityRequirements } from "../../caseStatus";
 
 const POLL_INTERVAL_MS = 7000;
 const TERMINAL_STATUSES = ["complete", "failed"];
@@ -145,6 +146,7 @@ const SECTIONS = [
   { id: "ep-policy", label: "Policy & member" },
   { id: "ep-plan", label: "Insurance plan" },
   { id: "ep-eligibility", label: "Eligibility checks" },
+  { id: "ep-requirements", label: "Payer requirements" },
   { id: "ep-treatment", label: "Planned treatment" },
   { id: "ep-packages", label: "Package catalogue" },
 ];
@@ -370,6 +372,86 @@ function Members({ members, chosenId, choosing, onChoose, canChoose }) {
   );
 }
 
+const STAGE_LABEL = { pre: "Pre-auth", post: "Claim" };
+
+function FormDrawer({ correlationId, url, onClose }) {
+  const [form, setForm] = useState({ url: null, data: null, error: null });
+  useEffect(() => {
+    if (!correlationId || !url) return;
+    let live = true;
+    api
+      .getInsurancePlanForms(correlationId, url)
+      .then((res) => live && setForm({ url, data: res, error: res ? null : "The payer's plan holds no such form." }))
+      .catch((err) => live && setForm({ url, data: null, error: err?.message || "Could not load the form." }));
+    return () => {
+      live = false;
+    };
+  }, [correlationId, url]);
+  const loaded = form.url === url;
+  const data = loaded ? form.data : null;
+  return (
+    <Drawer
+      open={!!url}
+      onClose={onClose}
+      width={720}
+      title={data?.title || "Payer form"}
+      subtitle={data ? [data.form_id, STAGE_LABEL[data.stage]].filter(Boolean).join(" · ") : url}
+    >
+      {!loaded ? (
+        <LoadingBlock text="Loading the payer's form…" />
+      ) : form.error ? (
+        <div className="ep-notice is-bad">{form.error}</div>
+      ) : (
+        <div className="ep-table-wrap">
+          <table className="ep-table">
+            <thead>
+              <tr>
+                <th className="ep-col-name">Question</th>
+                <th>Answer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.items || []).map((it) => (
+                <tr key={it.linkId}>
+                  <td className="ep-col-name" style={{ paddingLeft: `${12 + (it.depth || 0) * 16}px` }}>
+                    <div className={it.type === "group" ? "ep-strong" : undefined}>{it.text || it.linkId}</div>
+                    {it.options?.length > 0 && (
+                      <div className="ep-muted">
+                        {it.options.join(" · ")}
+                        {it.initial ? ` (default ${it.initial})` : ""}
+                      </div>
+                    )}
+                  </td>
+                  <td className="ep-nowrap">
+                    <span className="ep-cap">{it.type === "group" ? "Section" : it.type || "—"}</span>
+                    {it.type !== "group" && it.required ? " · required" : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
+function usePlanForms(correlationId, formCount) {
+  const [forms, setForms] = useState({ key: null, rows: [] });
+  useEffect(() => {
+    if (!correlationId || !formCount) return;
+    let live = true;
+    api
+      .getInsurancePlanForms(correlationId)
+      .then((res) => live && setForms({ key: correlationId, rows: res?.forms || [] }))
+      .catch(() => live && setForms({ key: correlationId, rows: [] }));
+    return () => {
+      live = false;
+    };
+  }, [correlationId, formCount]);
+  return forms.key === correlationId ? forms.rows : [];
+}
+
 const CATALOGUE_PAGE = 12;
 
 function PackageCatalogue({ correlationId, categories, packageCount, plannedCodes }) {
@@ -511,12 +593,14 @@ export default function EligibilityPrep({ ctx }) {
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
   const [movedOn, setMovedOn] = useState(null);
   const [activeCheck, setActiveCheck] = useState("validation");
+  const [openForm, setOpenForm] = useState(null);
   const [choosing, setChoosing] = useState(null);
   const [memberError, setMemberError] = useState(null);
 
   const hasInitialized = useRef(false);
 
   const planCorrelationId = caseData?.insurance_plan?.plan_status === "ready" ? caseData.insurance_plan.correlation_id : null;
+  const planForms = usePlanForms(planCorrelationId, caseData?.insurance_plan?.form_count);
   const plannedPackages = usePlannedPackages(
     planCorrelationId,
     (caseData?.procedures?.items || []).map((p) => String(p.code ?? "")).filter((c) => c.length >= 2),
@@ -827,7 +911,9 @@ export default function EligibilityPrep({ ctx }) {
 
   const activeDef = CHECKS.find((c) => c.id === activeCheck) || CHECKS[0];
   const members = eligibilityBeneficiaries(ce);
+  const requirements = eligibilityRequirements(ce);
   const chosenMemberId = caseState.beneficiaryMemberId || (members.length === 1 ? members[0].member_id : null);
+  const formTitle = (url) => planForms.find((f) => f.url === url)?.title;
 
   return (
     <div className="wizard-step ep-screen">
@@ -950,6 +1036,42 @@ export default function EligibilityPrep({ ctx }) {
               <SubList title="Required for every case" items={planDocs} empty="No plan-level documents listed." />
               <SubList title="Required at claim" items={claimDocs} empty="No claim-stage documents listed." />
             </div>
+            {planForms.length > 0 && (
+              <>
+                <div className="ep-detail-title">Payer forms ({planForms.length})</div>
+                <div className="ep-table-wrap">
+                  <table className="ep-table">
+                    <thead>
+                      <tr>
+                        <th className="ep-col-name">Form</th>
+                        <th>Kind</th>
+                        <th>Due at</th>
+                        <th className="ep-num">Questions</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {planForms.map((f) => (
+                        <tr key={f.url}>
+                          <td className="ep-col-name">
+                            <div className="ep-strong">{f.title || f.form_id || f.url}</div>
+                            {f.form_id && f.title && <div className="ep-muted ep-mono">{f.form_id}</div>}
+                          </td>
+                          <td className={f.kind === "stg" ? undefined : "ep-cap"}>{f.kind === "stg" ? "STG" : f.kind || "—"}</td>
+                          <td>{STAGE_LABEL[f.stage] || "—"}</td>
+                          <td className="ep-num ep-mono">{f.item_count ?? "—"}</td>
+                          <td className="ep-nowrap">
+                            <button type="button" className="ep-action" onClick={() => setOpenForm(f.url)}>
+                              View questions
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </>
         )}
       </Section>
@@ -985,6 +1107,48 @@ export default function EligibilityPrep({ ctx }) {
           </div>
         ) : (
           <div className="ep-muted ep-pad">Eligibility has not been requested yet.</div>
+        )}
+      </Section>
+
+      <Section id="ep-requirements" title="Payer requirements" meta="Documents and forms the payer asked for in its eligibility answer">
+        {requirements.length ? (
+          <div className="ep-table-wrap">
+            <table className="ep-table">
+              <thead>
+                <tr>
+                  <th className="ep-col-name">Requirement</th>
+                  <th>Kind</th>
+                  <th>Due at</th>
+                  <th>For package</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {requirements.map((r, i) => (
+                  <tr key={i}>
+                    <td className="ep-col-name">
+                      <div className="ep-strong">{r.display || formTitle(r.form_url) || r.code || r.text || "—"}</div>
+                      {r.code && r.display && <div className="ep-muted ep-mono">{r.code}</div>}
+                    </td>
+                    <td className="ep-cap">{r.kind || "—"}</td>
+                    <td>{r.at_preauth ? "Pre-auth" : STAGE_LABEL[r.stage] || "—"}</td>
+                    <td className="ep-mono">{r.for_code || "Every package"}</td>
+                    <td className="ep-nowrap">
+                      {r.form_url && planCorrelationId ? (
+                        <button type="button" className="ep-action" onClick={() => setOpenForm(r.form_url)}>
+                          View questions
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="ep-muted ep-pad">
+            {checks ? "The payer asked for no documents or forms." : "Eligibility has not been requested yet."}
+          </div>
         )}
       </Section>
 
@@ -1050,6 +1214,8 @@ export default function EligibilityPrep({ ctx }) {
           plannedCodes={plannedCodes}
         />
       </Section>
+
+      <FormDrawer correlationId={planCorrelationId} url={openForm} onClose={() => setOpenForm(null)} />
 
       <div className="ep-footer">
         <Button variant="text" onClick={() => navigate("../payer")}>

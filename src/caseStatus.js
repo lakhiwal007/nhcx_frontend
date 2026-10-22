@@ -87,3 +87,15 @@ export const eligibilityBeneficiaries = (ce) => {
     });
   return [...seen.values()];
 };
+
+// The documents and forms the payer asks for, across the three checks.
+export const eligibilityRequirements = (ce) => {
+  const seen = new Map();
+  ceAnswers(ce)
+    .flatMap((sub) => sub.requirements || [])
+    .forEach((r) => {
+      const key = [r.kind, r.code, r.form_url, r.for_code].join("|");
+      if (!seen.has(key)) seen.set(key, r);
+    });
+  return [...seen.values()];
+};

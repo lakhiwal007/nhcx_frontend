@@ -415,6 +415,32 @@ const MOCK_PMJAY_BENEFITS = MOCK_PMJAY_SPECIALTIES.flatMap((s) =>
   })),
 );
 
+const MOCK_PLAN_FORMS = [
+  {
+    url: "https://nha.gov.in/fhir/Questionnaire/STG-SG039",
+    form_id: "STG-SG039",
+    title: "Cholecystectomy STG questionnaire",
+    kind: "stg",
+    stage: "pre",
+    items: [
+      { linkId: "1", type: "group", text: "Clinical indication", required: false, depth: 0, options: [], initial: null },
+      { linkId: "1.1", type: "choice", text: "USG shows calculi", required: true, depth: 1, options: ["Yes", "No"], initial: null },
+      { linkId: "1.2", type: "date", text: "Date of USG", required: true, depth: 1, options: [], initial: null },
+      { linkId: "2", type: "attachment", text: "USG report", required: true, depth: 0, options: [], initial: null },
+    ],
+  },
+  {
+    url: "https://nha.gov.in/fhir/Questionnaire/DISCHARGE",
+    form_id: "DISCHARGE",
+    title: "Discharge information",
+    kind: "form",
+    stage: "post",
+    items: [
+      { linkId: "1", type: "choice", text: "Discharge type", required: true, depth: 0, options: ["Normal", "LAMA", "Death"], initial: "Normal" },
+    ],
+  },
+];
+
 const MOCK_PMJAY_PLAN = {
   plan_status: "ready",
   plan: {
@@ -1125,6 +1151,11 @@ const mock = {
             { member_id: "100218", name: "Sunita Devi", gender: "female", dob: "1982-07-02", relationship: "spouse", policy_code: "POL-91711234567890-2026", plan_name: "ChirayuEx HR PX", checked: false },
             { member_id: "100219", name: "Aarav Kumar", gender: "male", dob: "2012-11-20", relationship: "child", policy_code: "POL-91711234567890-2026", plan_name: "ChirayuEx HR PX", checked: false },
           ],
+          requirements: [
+            { kind: "document", code: "MAND0601", display: "USG abdomen report", text: "Type: pre; Procedure Code: 47562", stage: "pre", for_code: "47562", at_preauth: true, form_url: null },
+            { kind: "form", code: "STG-SG039", display: "Cholecystectomy STG questionnaire", text: "fullUrl: https://nha.gov.in/fhir/Questionnaire/STG-SG039", stage: "pre", for_code: "47562", at_preauth: true, form_url: "https://nha.gov.in/fhir/Questionnaire/STG-SG039" },
+            { kind: "document", code: "ODN", display: "Discharge summary", text: "Type: post", stage: "post", for_code: null, at_preauth: false, form_url: null },
+          ],
           insurance_items: [
             {
               coverage: "Coverage/POL-91711234567890-2026",
@@ -1538,6 +1569,12 @@ const mock = {
   getInsurancePlanStatus: async (correlation_id) => {
     await delay(800);
     return { correlation_id, status: "complete" };
+  },
+  getInsurancePlanForms: async (correlation_id, url) => {
+    await delay(300);
+    const forms = MOCK_PLAN_FORMS.map(({ items, ...f }) => ({ ...f, item_count: items.length }));
+    if (!url) return { correlation_id, forms };
+    return MOCK_PLAN_FORMS.find((f) => f.url === url) || null;
   },
   getInsurancePlanBenefits: async (correlation_id, { category, q, limit = 50, offset = 0 } = {}) => {
     await delay(300);
@@ -2801,6 +2838,9 @@ const real = {
   // ─── Specific Coverage Eligibility APIs ─────────────────────────────────────
   requestInsurancePlan: (data) =>
     http.post("/cashless/insurance_plan/request", data),
+
+  getInsurancePlanForms: (correlation_id, url) =>
+    http.get(`/cashless/insurance_plan/${correlation_id}/forms`, url ? { url } : {}),
   getInsurancePlanStatus: (correlation_id) =>
     http.get(`/cashless/insurance_plan/status/${correlation_id}`),
   getInsurancePlanBenefits: (correlation_id, params = {}, signal) =>
