@@ -1,0 +1,28 @@
+version: 0.2
+
+env:
+  variables:
+    VITE_BASE_URL: "/nhcx/api/v1/insurance"
+    VITE_USE_MOCK: "false"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - echo "Installing NHCX frontend dependencies..."
+      - node --version
+      - npm --version
+      - npm ci
+
+  build:
+    commands:
+      - echo "Building NHCX frontend for production..."
+      - npm run build
+      - test -f dist/index.html
+      - echo "Frontend build completed successfully"
+
+artifacts:
+  base-directory: dist
+  files:
+    - "**/*"
