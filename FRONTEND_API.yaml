@@ -51,11 +51,20 @@ info:
 
     **BREAKING (v1.4.0): `/facilities/*` endpoints are now authenticated.**
     Reads require the session bearer token (a facility does not need to exist
-    yet, so first-time onboarding still works). Mutating calls
-    (`POST /facilities`, `PUT /facilities/{code}`,
-    `PUT /facilities/{code}/private_key`) additionally require the
-    `X-Admin-Token` header matching the deployment's `NHCX_ADMIN_TOKEN`;
-    a missing or wrong token returns `403 WRAPPER-ERROR:1014`.
+    yet, so first-time onboarding still works) and return the facilities of
+    the user's own clinics, or every facility for a global admin. Mutating
+    calls (`POST /facilities`, `PUT /facilities/{code}`,
+    `PUT /facilities/{code}/private_key`) are open only to a **clinic admin**
+    (HIS role `NHCX_FACILITY_ADMIN_ROLE_IDS`, default 10) whose clinics include
+    that `facility_code`; anyone else gets `403 WRAPPER-ERROR:1014`. The
+    `X-Admin-Token` header is no longer read.
+
+
+    **Roles come from the HIS `users.role_id`, and only on a verified token.**
+    A **global admin** (`NHCX_GLOBAL_ADMIN_ROLE_IDS`, default 3) sees every
+    facility and changes nothing: every request other than GET/HEAD returns
+    `403 WRAPPER-ERROR:1015`. A role grants nothing when the deployment does not
+    verify token signatures (no `NHCX_JWT_SECRET` / `NHCX_JWT_PUBLIC_KEY`).
 
 
     **`requestId` is required on POST/PATCH endpoints.** The frontend must send a
@@ -79,13 +88,12 @@ info:
 
     **Login flow.** After obtaining the parent-HIS session token, call
     `GET /session` to learn the user + the facilities they may act as, then pick
-    one (its `hcx_participant_code` becomes `X-Provider-Id`). A **polyclinic
-    admin** (`is_admin: true` in the `/session` response) who sends **no**
-    `X-Provider-Id` enters a **read-only cross-facility view**: dashboard, claims,
+    one (its `hcx_participant_code` becomes `X-Provider-Id`). A **global
+    admin** (`is_admin: true` and `read_only: true` in the `/session` response)
+    is always in the **read-only cross-facility view**: dashboard, claims,
     communications, tasks and `*/status` reads span *all* facilities (each row
-    carries `facility_name`). An admin who *does* send `X-Provider-Id` acts as
-    that single facility like any other user. Write endpoints always require a
-    single facility, so an admin must select one to submit/acknowledge.
+    carries `facility_name`), and `X-Provider-Id` is ignored. It never acts as a
+    facility, so every write returns `403 WRAPPER-ERROR:1015`.
 servers:
   - url: http://localhost:8082/nhcx/api/v1/insurance
     description: Local wrapper API. All paths below are relative to `/nhcx/api/v1/insurance`.
@@ -119,13 +127,14 @@ paths:
       description: >
         Call this right after login (with the parent-HIS bearer token) to learn
         the logged-in user and the facilities they may act as. The frontend then:
-        if `is_admin` is true, offers a "View all facilities" (read-only) option;
-        else if `facilities` has more than one entry, shows a selector; else
-        auto-selects the single facility. The chosen facility's
+        if `read_only` is true, opens the all-facilities view and offers no
+        writes; else if `facilities` has more than one entry, shows a selector;
+        else auto-selects the single facility. The chosen facility's
         `hcx_participant_code` becomes the `X-Provider-Id` header on later calls.
         Requires the bearer token but NOT a resolved facility, so it works before
-        any facility is chosen. An admin sees every active facility; a non-admin
-        sees only the facilities linked to their clinics.
+        any facility is chosen. A global admin sees every active facility and
+        needs no clinic of its own; everyone else sees only the facilities
+        linked to their clinics.
       responses:
         "200":
           description: Session context
@@ -138,6 +147,9 @@ paths:
                   value:
                     user: { id: 42, name: "Dr Admin", is_admin: true }
                     is_admin: true
+                    read_only: true
+                    manageable_facility_codes: []
+                    manages_any_facility: false
                     facilities:
                       - facility_code: "931"
                         hcx_participant_code: "1000004185@hcx"
@@ -151,6 +163,9 @@ paths:
                   value:
                     user: { id: 7, name: "Billing Desk", is_admin: false }
                     is_admin: false
+                    read_only: false
+                    manageable_facility_codes: ["931"]
+                    manages_any_facility: false
                     facilities:
                       - facility_code: "931"
                         hcx_participant_code: "1000004185@hcx"
@@ -2789,7 +2804,8 @@ paths:
       operationId: listFacilities
       summary: List registered HCX facilities
       description: >
-        Returns all registered NHCX facility participants. Each record shows
+        Returns the registered NHCX facility participants of the user's own
+        clinics (every facility for a global admin). Each record shows
         whether a decryption key is stored (`private_key_set: true/false`) but
         never exposes the PEM itself. Use before uploading a key to confirm
         the `facility_code` for the target facility.
@@ -2818,7 +2834,6 @@ paths:
       operationId: createFacility
       security:
         - BearerAuth: []
-          AdminTokenAuth: []
       summary: Register a new HCX facility (proxies to ABDM)
       description: >
         Proxies a participant/create call to the ABDM sandbox
@@ -3009,7 +3024,6 @@ paths:
       operationId: updateFacility
       security:
         - BearerAuth: []
-          AdminTokenAuth: []
       summary: Update facility and sync to ABDM
       description: >
         Updates the local facility record and proxies a participant/update call
@@ -3081,7 +3095,6 @@ paths:
       operationId: uploadFacilityPrivateKey
       security:
         - BearerAuth: []
-          AdminTokenAuth: []
       summary: Upload or replace the RSA private key for a facility
       description: >
         Stores the facility's RSA private key PEM in `nhcx_facilities.private_key_pem`.
@@ -3150,119 +3163,6 @@ paths:
                       code: "WRAPPER-ERROR:4222"
                       message: "Invalid PEM: Neither PUB key nor PRIV key: nested asn1 error"
 
-  /facility_access_requests:
-    get:
-      tags: [Facility Management]
-      operationId: listFacilityAccessRequests
-      security:
-        - BearerAuth: []
-          AdminTokenAuth: []
-      summary: List facility access requests (admin)
-      description: >
-        Requests submitted by users whose session resolved zero facilities —
-        see `POST /facility_access_requests`. Defaults to every request;
-        pass `status` to filter to `pending`, `resolved`, or `dismissed`.
-      parameters:
-        - $ref: "#/components/parameters/RequestIdParam"
-        - name: status
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [pending, resolved, dismissed]
-      responses:
-        "200":
-          description: Facility access request list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FacilityAccessRequestListResponse"
-    post:
-      tags: [Facility Management]
-      operationId: createFacilityAccessRequest
-      summary: Request a new NHCX facility be onboarded
-      description: >
-        For a user whose session resolves zero facilities (a genuinely new
-        hospital/clinic not yet onboarded, or an existing one that's been
-        misconfigured). Does **not** create or register a facility — it only
-        queues a request an admin reviews and actions manually via
-        `POST /facilities` (which still requires `X-Admin-Token`). Available
-        to any authenticated user regardless of facility access, since that's
-        exactly what's missing here.
-      parameters:
-        - $ref: "#/components/parameters/RequestIdParam"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/FacilityAccessRequestCreate"
-            examples:
-              new_clinic:
-                value:
-                  request_id: "550e8400-e29b-41d4-a716-446655440001"
-                  facility_name: "City General Hospital - Annex Wing"
-                  facility_code: "HOSP-002"
-                  notes: "New IPD wing opening 2026-08-01, needs its own NHCX participant"
-      responses:
-        "201":
-          description: Request queued
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FacilityAccessRequest"
-        "422":
-          description: Missing facility_name
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /facility_access_requests/{id}:
-    patch:
-      tags: [Facility Management]
-      operationId: updateFacilityAccessRequest
-      security:
-        - BearerAuth: []
-          AdminTokenAuth: []
-      summary: Mark a facility access request resolved or dismissed (admin)
-      description: >
-        Does not itself create a facility — an admin still onboards it
-        separately via `POST /facilities` (or `db:seed` for the first
-        facility in a deployment). This just closes out the request once
-        that's been done, or dismisses one that doesn't need action.
-      parameters:
-        - $ref: "#/components/parameters/RequestIdParam"
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [status]
-              properties:
-                status:
-                  type: string
-                  enum: [resolved, dismissed]
-      responses:
-        "200":
-          description: Request updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FacilityAccessRequest"
-        "404":
-          description: Request not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
 security:
   - BearerAuth: []
 
@@ -3277,16 +3177,6 @@ components:
         `NhcxFacility` from the clinic ID. Obtain the token from the parent HIS
         login response and include it on every request as
         `Authorization: Bearer <token>`.
-    AdminTokenAuth:
-      type: apiKey
-      in: header
-      name: X-Admin-Token
-      description: >
-        Deployment admin token (`NHCX_ADMIN_TOKEN` env on the wrapper). Required
-        in addition to the bearer token on facility mutating endpoints
-        (`POST /facilities`, `PUT /facilities/{code}`,
-        `PUT /facilities/{code}/private_key`). A missing or mismatched value
-        returns `403 WRAPPER-ERROR:1014`.
 
   parameters:
     RequestIdParam:
@@ -3341,10 +3231,20 @@ components:
             is_admin: { type: boolean }
         is_admin:
           type: boolean
-          description: True for a polyclinic admin — enables the read-only cross-facility view.
+          description: True for a global admin, who sees every facility (also true under NHCX_SKIP_AUTH).
+        read_only:
+          type: boolean
+          description: True for a global admin, who is always in the all-facilities view and may change nothing.
+        manageable_facility_codes:
+          type: array
+          items: { type: string }
+          description: Facility codes a clinic admin may register or change (its own clinics); empty for everyone else.
+        manages_any_facility:
+          type: boolean
+          description: True only under NHCX_SKIP_AUTH, where any facility may be registered or changed.
         facilities:
           type: array
-          description: Facilities the user may select (an admin sees all active facilities).
+          description: Facilities the user may select (a global admin sees all active facilities).
           items:
             type: object
             properties:
@@ -3605,59 +3505,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Facility"
-
-    FacilityAccessRequestCreate:
-      type: object
-      required: [request_id, facility_name]
-      properties:
-        request_id:
-          type: string
-          description: Mandatory client-generated request id (UUID recommended).
-        facility_name:
-          type: string
-        facility_code:
-          type: string
-          nullable: true
-          description: The requester may not know this yet — the admin assigns/confirms it during onboarding.
-        notes:
-          type: string
-          nullable: true
-
-    FacilityAccessRequest:
-      type: object
-      properties:
-        id:
-          type: integer
-        requested_by_name:
-          type: string
-          nullable: true
-        facility_name:
-          type: string
-        facility_code:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-        status:
-          type: string
-          enum: [pending, resolved, dismissed]
-        created_at:
-          type: string
-          format: date-time
-          nullable: true
-        resolved_at:
-          type: string
-          format: date-time
-          nullable: true
-
-    FacilityAccessRequestListResponse:
-      type: object
-      properties:
-        requests:
-          type: array
-          items:
-            $ref: "#/components/schemas/FacilityAccessRequest"
 
     FacilityPrivateKeyRequest:
       type: object

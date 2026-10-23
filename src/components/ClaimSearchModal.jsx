@@ -196,7 +196,7 @@ export default function ClaimSearchModal({ open, onClose, claims = [] }) {
                   </div>
                 )}
 
-                <Button variant="primary" icon={Search} disabled={!canSubmit} onClick={handleSubmit} style={{ justifyContent: "center", marginTop: "6px" }}>
+                <Button write variant="primary" icon={Search} disabled={!canSubmit} onClick={handleSubmit} style={{ justifyContent: "center", marginTop: "6px" }}>
                   {submitting ? "Submitting…" : "Search"}
                 </Button>
               </div>

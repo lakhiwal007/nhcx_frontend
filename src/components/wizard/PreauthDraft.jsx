@@ -120,7 +120,7 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
                   />
                 </div>
               ))}
-              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
+              <Button write variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
                 {saving ? "Saving…" : "Save & Refresh"}
               </Button>
             </div>
@@ -350,7 +350,7 @@ export default function PreauthDraft({ ctx }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-            <Button
+            <Button write
               variant="outline"
               size="small"
               icon={Send}
@@ -773,7 +773,7 @@ export default function PreauthDraft({ ctx }) {
               </div>
             )}
 
-            <Button
+            <Button write
               variant="primary"
               className="w-full"
               icon={Send}
@@ -796,7 +796,7 @@ export default function PreauthDraft({ ctx }) {
           <Button variant="secondary" icon={Save} onClick={handleSaveDraft}>
             Save Draft
           </Button>
-          <Button
+          <Button write
             variant="primary"
             icon={Send}
             disabled={!canSubmit}

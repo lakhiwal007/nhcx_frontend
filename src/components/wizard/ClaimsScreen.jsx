@@ -112,7 +112,7 @@ function PatientContextForm({ claimId, onResolved }) {
                   />
                 </div>
               ))}
-              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
+              <Button write variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
                 {saving ? "Saving…" : "Save & Refresh"}
               </Button>
             </div>
@@ -761,7 +761,7 @@ export default function ClaimsScreen({ ctx }) {
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-6)" }}>
             <Button variant="text" onClick={() => setActiveTab("draft")}>Back</Button>
             <div style={{ display: "flex", gap: "var(--space-3)" }}>
-              <Button
+              <Button write
                 variant="primary"
                 disabled={!canSubmit || !!dischargeCorrelationId}
                 onClick={handleSubmitDischarge}
@@ -855,7 +855,7 @@ export default function ClaimsScreen({ ctx }) {
           )}
 
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <Button
+            <Button write
               variant="primary"
               size="large"
               icon={Send}
@@ -987,7 +987,7 @@ export default function ClaimsScreen({ ctx }) {
             {submitError}
           </div>
         )}
-        <Button variant="primary" className="w-full" disabled={!queryAnswer || submitting} onClick={handleQuerySubmit} style={{ justifyContent: "center" }}>
+        <Button write variant="primary" className="w-full" disabled={!queryAnswer || submitting} onClick={handleQuerySubmit} style={{ justifyContent: "center" }}>
           {submitting ? "Submitting…" : "Submit Response"}
         </Button>
       </Drawer>
@@ -1058,7 +1058,7 @@ export default function ClaimsScreen({ ctx }) {
             {submitError}
           </div>
         )}
-        <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitClaim} style={{ justifyContent: "center" }}>
+        <Button write variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitClaim} style={{ justifyContent: "center" }}>
           {submitting ? "Resubmitting…" : "Resubmit Claim"}
         </Button>
       </Drawer>
@@ -1131,7 +1131,7 @@ export default function ClaimsScreen({ ctx }) {
             {dischargeSubmitError}
           </div>
         )}
-        <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>
+        <Button write variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>
           {submitting ? "Resubmitting…" : "Resubmit Discharge Claim"}
         </Button>
       </Drawer>

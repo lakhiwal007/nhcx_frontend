@@ -927,7 +927,7 @@ export default function EligibilityPrep({ ctx }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-            <Button
+            <Button write
               variant="outline"
               size="small"
               icon={RefreshCw}
@@ -995,7 +995,7 @@ export default function EligibilityPrep({ ctx }) {
               </Button>
             )}
             {!polling && (isComplete || isFailed || needsResubmit) && (
-              <Button
+              <Button write
                 variant="outline"
                 size="small"
                 icon={RefreshCw}
@@ -1079,7 +1079,7 @@ export default function EligibilityPrep({ ctx }) {
                 : "This won't resolve on its own - re-run the eligibility check to retry."}
             </span>
           </div>
-          <Button
+          <Button write
             variant="primary"
             size="small"
             icon={RefreshCw}
@@ -1102,7 +1102,7 @@ export default function EligibilityPrep({ ctx }) {
                 "The eligibility submission couldn't be completed."}
             </span>
           </div>
-          <Button
+          <Button write
             variant="primary"
             size="small"
             icon={RefreshCw}

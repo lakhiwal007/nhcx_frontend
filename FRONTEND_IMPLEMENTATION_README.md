@@ -85,8 +85,8 @@ Keep this header visible across eligibility, preauth, claims, reprocess, payment
 | Header | Required | Value | Purpose |
 |---|---|---|---|
 | `Authorization` | Yes — on all endpoints | `Bearer <session_token>` | Parent HIS session token. The wrapper decodes it, resolves `clinics_users`, and derives the active `NhcxFacility`. Missing or expired → `401 WRAPPER-ERROR:1012`. Valid user with no matching facility → `403 WRAPPER-ERROR:1013`. **Breaking (v1.4.0): `/facilities/*` now requires this token too** (facility resolution is skipped there, so first-time onboarding still works). |
-| `X-Admin-Token` | Only on facility mutations, and only if the caller isn't the clinic owner (see **Facility administration / ownership** below) | Deployment admin token (`NHCX_ADMIN_TOKEN`) | On `POST /facilities`, `PUT /facilities/{code}`, and `PUT /facilities/{code}/private_key`, the backend accepts **either** this header **or** clinic ownership derived from the bearer token. Both missing/invalid → `403 WRAPPER-ERROR:1014`. |
-| `X-Provider-Id` | Required for multi-clinic users (a polyclinic admin may omit it for the read-only all-facilities view) | `hcx_participant_code` of the facility (e.g. `1000099999@hcx`) | Disambiguates which facility to act as when the user's token maps to more than one `NhcxFacility`. Single-clinic users can omit it — the facility is resolved automatically from the token. **Multi-facility non-admin users omitting it get `400 WRAPPER-ERROR:1011`.** An admin omitting it enters the cross-facility read view (see "Cross-facility admin view"); an admin may act as any facility by naming it. |
+| ~~`X-Admin-Token`~~ | Never — no longer read | — | Removed. Facility mutations are gated by the caller's HIS role instead (see **Roles** below); a stray header is ignored. |
+| `X-Provider-Id` | Required for multi-clinic users | `hcx_participant_code` of the facility (e.g. `1000099999@hcx`) | Disambiguates which facility to act as when the user's token maps to more than one `NhcxFacility`. Single-clinic users can omit it — the facility is resolved automatically from the token. **Multi-facility users omitting it get `400 WRAPPER-ERROR:1011`.** Ignored for a global admin, who is always in the cross-facility read view (see "Cross-facility admin view"). |
 
 ### Session token
 
@@ -142,6 +142,9 @@ GET /nhcx/api/v1/insurance/session   (Authorization: Bearer <parent token>)
 ```json
 { "user": { "id": 42, "name": "Dr Admin", "is_admin": true },
   "is_admin": true,
+  "read_only": true,
+  "manageable_facility_codes": [],
+  "manages_any_facility": false,
   "facilities": [ { "facility_code": "931", "hcx_participant_code": "1000004185@hcx",
                     "name": "City Hospital", "environment": "sandbox" } ] }
 ```
@@ -150,42 +153,45 @@ GET /nhcx/api/v1/insurance/session   (Authorization: Bearer <parent token>)
 
 | Response | Frontend behavior |
 |---|---|
-| `is_admin: true` | Offer a **"View all facilities"** (read-only) mode *and* a facility selector. In all-facilities mode, send **no** `X-Provider-Id`. |
+| `read_only: true` (global admin) | Open the **all-facilities** view straight away and send **no** `X-Provider-Id`; offer no facility selector and no write action. |
 | `facilities.length > 1` (non-admin), deep link had `clinic_id` | **Do not prompt.** Match `facilities[].facility_code === String(clinic_id)` and use that entry's `hcx_participant_code`. This is the same `facility_code` the backend matches on when resolving the token, so the pre-selection cannot disagree with what it will accept. |
 | `facilities.length > 1` (non-admin), no `clinic_id` | Show a facility selector; store the chosen `hcx_participant_code` and send it as `X-Provider-Id`. |
 | `facilities.length > 1`, `clinic_id` matches nothing | Surface an error ("you don't have access to this clinic") rather than silently falling back to a selector — the deep link and the user's clinic assignments disagree, and picking another facility would open the wrong one. |
 | `facilities.length == 1` | Auto-select it; send its `hcx_participant_code` as `X-Provider-Id`. |
 | `facilities: []` | User has no cashless-enabled facility — block the workspace with a clear message. |
 
-Prefer `/session` over `GET /facilities` for the selector — `/facilities` is a management endpoint gated by `X-Admin-Token` **or** clinic ownership (below), whereas `/session` returns exactly the facilities *this user* may act as.
+Prefer `/session` over `GET /facilities` for the selector — `/facilities` is the facility-management endpoint (it also lists inactive facilities), whereas `/session` returns exactly the active facilities *this user* may act as.
 
-> **No Settings/facility-management screen, no persisted "default facility."** The facility selector above is the entire self-service surface for a regular user — it is transient app state re-derived from `/session` on every login, not a setting saved anywhere on the backend. Facility *editing* (name, ABDM registration, RSA key upload) is a separate surface gated by `X-Admin-Token` **or** clinic ownership (see **Facility administration / ownership** immediately below) — for an admin it is not scoped to "the facility this user is logged into," but for a clinic owner it is scoped to exactly the one facility they own, and it is otherwise out of scope for the cashless desk UI.
+**Recovering mid-session.** Treat these two as "re-bootstrap", not as page-level errors:
 
-### Facility administration / ownership
+| Response | Meaning | Do |
+|---|---|---|
+| `400 WRAPPER-ERROR:1011` | The call needed a single facility and the header was missing or unusable | Re-fetch `/session`, re-resolve the facility, retry once. If it recurs, show the selector. |
+| `401 WRAPPER-ERROR:1012` | Token missing, malformed, or expired | Send the user back to the parent HIS to re-issue a deep link. There is no refresh endpoint here — nhcx does not mint tokens. |
 
-`POST /facilities`, `PUT /facilities/{code}`, and `PUT /facilities/{code}/private_key` accept **either**:
+Note that a token with no `exp` claim never expires as far as this service is concerned, so don't build the session UI around a countdown; drive it off `401` responses instead.
 
-- `X-Admin-Token` (the deployment-wide ops secret), or
-- **clinic ownership**: the caller's user id (from the bearer token) has an active `clinics_users` row for that exact clinic with `is_owner: true`. This is re-derived server-side per request from the `facility_code` in the URL/body — an owner of clinic 5 gets `403 WRAPPER-ERROR:1014` trying to touch clinic 2's facility, same as anyone else without the admin token.
+> **No persisted "default facility" on the backend.** The facility selector above is transient app state re-derived from `/session` on every login, not a setting saved anywhere on the backend.
 
-So a clinic owner can call these endpoints with just their normal session bearer token — no `X-Admin-Token` header needed. A non-owner without the admin token still gets `403`.
+### Roles
 
-> **`GET /session` does not currently expose `is_owner`.** There is no way to know ahead of a call whether the logged-in user can self-serve `POST /facilities` for a given clinic — the frontend has to attempt it and branch on the response (`201` = they were the owner, `403 WRAPPER-ERROR:1014` = they weren't). Showing a "Register Facility" action conditionally (rather than always offering it and letting a non-owner's attempt fail) would need a backend addition first — e.g. an `is_owner` flag per facility on `/session`.
+Roles come from the HIS `users.role_id`, re-read on every request, and only count on a token whose signature the wrapper verified (`NHCX_JWT_SECRET` / `NHCX_JWT_PUBLIC_KEY` set); on an unverified token every user is a plain clinic member.
 
-**`facilities: []` — offer self-serve registration; no request queue.** An earlier version of this flow offered a "Request Access" form backed by `POST /facility_access_requests`, queuing a request for an admin to review. That's been cut: nothing actually surfaced those requests to anyone in practice (`GET /facility_access_requests?status=pending` needs both `is_admin` *and* the separate, unrelated `X-Admin-Token` — an intersection nobody reliably sits in — and there was no notification of any kind on top). Now that a clinic owner can self-serve `POST /facilities` directly (above), the request-queue's remaining scope shrank to "a non-owner with literally no one else to ask," which isn't worth a silent black hole. Current behavior:
+| Role | HIS role id (env) | May |
+|---|---|---|
+| Global admin | `NHCX_GLOBAL_ADMIN_ROLE_IDS`, default `3` | See every facility and every case; change nothing. Needs no `clinics_users` row. Every request other than GET/HEAD returns `403 WRAPPER-ERROR:1015`. |
+| Clinic admin | `NHCX_FACILITY_ADMIN_ROLE_IDS`, default `10` | Everything a clinic member may, plus register a facility, edit it and upload its key — only for the clinics in its own `clinics_users` rows (`manageable_facility_codes` in `/session`). |
+| Clinic member | anything else | Work the cases of its own clinics' facilities. `clinics_users.is_owner` and `users.is_polyclinic_admin` grant nothing. |
 
-- Offer the full "Register Facility" form (same fields as the admin drawer: name, `registry_id`, `state`, `district`, `scheme_code`, `primary_mobile`, roles, linked registry codes) and submit via `POST /facilities` with no `X-Admin-Token` — if the user turns out to be the clinic's owner, this just succeeds and they're onboarded immediately.
-- On `403`, there is no fallback request flow — show a static message ("ask your clinic's owner to register this facility") rather than offering an action that doesn't reliably reach anyone. The `facility_access_requests` backend endpoints still exist but are no longer called from the frontend.
-
-> **Fixed 2026-07-22 — a `clinic_id` mismatch used to hard-block the entire app, even for admins.** A deep-link `clinic_id` that didn't match any entry in `facilities[]` used to render a full-page "No access to this clinic" screen with no way to reach Settings at all, before `isAdmin` was ever checked. This is fixed: `facilities: []` (with or without a `clinic_id` on the URL) now always falls through to the self-serve flow above instead of hard-blocking, and an admin (`is_admin: true`) whose `facilities` don't match `clinic_id` now still lands in the app (routed to `/settings` via the existing no-provider-selected redirect) instead of the shell being replaced entirely — so they can reach Facility Management and fix it for the next user. A non-admin whose `facilities` don't match `clinic_id` still correctly sees the hard block; that case is a real access error with no self-serve fix.
+**`facilities: []` — no self-serve for a clinic member.** `POST /facilities`, `PUT /facilities/{code}`, and `PUT /facilities/{code}/private_key` succeed only for a clinic admin whose clinics include that `facility_code`; anyone else gets `403 WRAPPER-ERROR:1014`. A facility's `facility_code` never changes on update, and no two facilities may share an `hcx_participant_code` (`422`). Show a static message to anyone else — e.g. "ask your clinic admin to register this facility."
 
 ### Cross-facility admin view (read-only)
 
-A polyclinic admin (`is_admin: true`) who sends **no** `X-Provider-Id` sees **all facilities at once**, read-only:
+A global admin (`read_only: true`) sees **all facilities at once**, read-only, whatever `X-Provider-Id` it sends:
 
 - `dashboard/stats` (adds a `by_facility` breakdown), `dashboard/claims`, `communications`, `tasks`, and every `*/status` read span all facilities.
 - Every row carries a `facility_name` so the admin can tell facilities apart — surface it as a column/badge.
-- The admin **cannot** submit/acknowledge in all-facilities mode: write endpoints still require a single facility, so an admin who tries to act without selecting one gets `400 WRAPPER-ERROR:1011`. To act, the admin selects a facility (sends its `X-Provider-Id`) and then behaves like a normal single-facility user — and an admin may act as **any** facility, not only their own clinics.
+- The admin **never** submits, acknowledges, replies or edits: every request other than GET/HEAD returns `403 WRAPPER-ERROR:1015`, so hide or disable write actions for it.
 
 ### X-Provider-Id
 
@@ -198,15 +204,6 @@ Required only when the user has access to more than one NHCX facility (an admin 
 | **Prep reads** — `*/prepare`, `policies/fetch`, `payers/search`, `payers/{id}` | Accepted for tracing; not required. |
 
 > **The `provider_id` body field is deprecated.** The acting facility is resolved from the `Authorization` token + optional `X-Provider-Id` header. A `provider_id` field in the JSON body is ignored.
-
-**Recovering mid-session.** Treat these two as "re-bootstrap", not as page-level errors:
-
-| Response | Meaning | Do |
-|---|---|---|
-| `400 WRAPPER-ERROR:1011` | The call needed a single facility and the header was missing or unusable | Re-fetch `/session`, re-resolve the facility, retry once. If it recurs, show the selector. |
-| `401 WRAPPER-ERROR:1012` | Token missing, malformed, or expired | Send the user back to the parent HIS to re-issue a deep link. There is no refresh endpoint here — nhcx does not mint tokens. |
-
-Note that a token with no `exp` claim never expires as far as this service is concerned, so don't build the session UI around a countdown; drive it off `401` responses instead.
 
 ---
 
@@ -1884,11 +1881,12 @@ API errors use:
 | `WRAPPER-ERROR:1011` | 400 | `X-Provider-Id` header missing (or a multi-facility user omitted it) | Send the active facility's participant code as `X-Provider-Id` |
 | `WRAPPER-ERROR:1012` | 401 | Unauthorized — session token missing/expired/invalid | Re-authenticate; redirect to login |
 | `WRAPPER-ERROR:1013` | 403 | Authenticated, but the user has no matching NHCX facility | Show "No cashless-enabled clinic for this user"; not retryable |
-| `WRAPPER-ERROR:1014` | 403 | Facility mutation with neither a valid `X-Admin-Token` nor clinic ownership of that `facility_code` | Admin/owner-only surface; supply the deployment admin token, or have the clinic owner call it with just their session token. Not seen on the cashless desk flow. |
+| `WRAPPER-ERROR:1014` | 403 | Facility mutation by anyone but a clinic admin of that `facility_code`'s clinic | Show "Only a clinic admin of this facility can change it." Not seen on the cashless desk flow. |
+| `WRAPPER-ERROR:1015` | 403 | A global admin (read-only role) sent a write | Show "This account can view only."; hide write actions for `read_only` sessions. |
 
 > **Submit endpoints** (`preauth/submit`, `claims/submit`, …) return **422 with `{ "status": "failed", "error": {...} }`** — not a `WRAPPER-ERROR` envelope — when the gateway *synchronously* rejects the request (e.g. an `NHCX-1018` invalid ABHA number). Surface `error.message`; the embedded code is an `NHCX-*`/`PAYR-*` code (see below), not a wrapper code.
 >
-> Facility admin endpoints (`/facilities/*`) use a separate `WRAPPER-ERROR:4xxx` series (`4040` not found, `4220`/`4222` validation) — not relevant to the cashless frontend. Facility mutations additionally return `403 WRAPPER-ERROR:1014` when the caller has neither the `X-Admin-Token` header nor clinic ownership of the `facility_code` being touched.
+> Facility admin endpoints (`/facilities/*`) use a separate `WRAPPER-ERROR:4xxx` series (`4040` not found, `4220`/`4222` validation) — not relevant to the cashless frontend. Facility mutations additionally return `403 WRAPPER-ERROR:1014` when the caller is not a clinic admin of the `facility_code` being touched.
 
 Frontend behavior:
 
@@ -1963,9 +1961,9 @@ Facility administration (not part of the cashless desk flow — an admin/owner s
 
 | Method | Path | Use |
 |---|---|---|
-| GET | `/facilities` / `/facilities/{code}` | List/read facilities (session token required; lists **every** facility system-wide, not just the caller's — there is no owner-scoped list endpoint) |
-| POST | `/facilities` | Register a facility + ABDM onboarding (session token, **plus** `X-Admin-Token` **or** ownership of that `facility_code`'s clinic) |
-| PUT | `/facilities/{code}` | Update facility + ABDM sync (session token, **plus** `X-Admin-Token` **or** ownership) |
-| PUT | `/facilities/{code}/private_key` | Upload/replace the RSA decryption key (session token, **plus** `X-Admin-Token` **or** ownership) |
+| GET | `/facilities` / `/facilities/{code}` | List/read facilities (session token required; the caller's own clinics' facilities, or every facility for a global admin) |
+| POST | `/facilities` | Register a facility + ABDM onboarding (clinic admin of that `facility_code`'s clinic) |
+| PUT | `/facilities/{code}` | Update facility + ABDM sync (clinic admin of that clinic) |
+| PUT | `/facilities/{code}/private_key` | Upload/replace the RSA decryption key (clinic admin of that clinic) |
 
 On `POST /facilities`, don't collect `hcx_participant_code` in the create form — ABDM's `participant/create` assigns it, and the wrapper returns it in the response (`hcx_participant_code`, also under `abdm_registration.response.participant_code`). Only pass it in the request body for the rare case of re-linking a participant code that already exists outside this wrapper. If ABDM registration fails on create and no code was supplied, the wrapper returns `422` and no facility record is created — surface the error and let the admin retry rather than treating the facility as partially created.

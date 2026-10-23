@@ -176,7 +176,7 @@ export default function PaymentReconciliation({ ctx }) {
                             ) : (
                               <div>
                                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                                  <Button
+                                  <Button write
                                     size="small"
                                     variant="outline"
                                     disabled={isAcknowledging}

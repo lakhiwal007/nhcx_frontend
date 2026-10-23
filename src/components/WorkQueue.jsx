@@ -499,7 +499,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                   case — so retry leads and the case link plays second. */}
               {isCallbackFailure ? (
                 <>
-                  <Button
+                  <Button write
                     variant="primary"
                     disabled={running || allFacilitiesMode || task.metadata?.retryable === false}
                     title={
@@ -518,7 +518,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 </>
               ) : isSupersededCancel ? (
                 <>
-                  <Button
+                  <Button write
                     variant="primary"
                     disabled={running || allFacilitiesMode}
                     onClick={handleCancelPreauth}
@@ -535,7 +535,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                   <Button
                     variant="primary"
                     disabled={allFacilitiesMode}
-                    title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
+                    title={allFacilitiesMode ? "This account can view only" : undefined}
                     onClick={handleNavigate}
                     style={{ flex: 1, justifyContent: "center" }}
                   >
@@ -544,7 +544,7 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                 )
               )}
               {task.task_type === "acknowledge_payment" && (
-                <Button
+                <Button write
                   variant="outline"
                   disabled={completing || allFacilitiesMode}
                   onClick={handleComplete}
@@ -840,7 +840,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
                   handleRetryAck(task);
                 }}
                 disabled={!!retrying[taskId] || allFacilitiesMode}
-                title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
+                title={allFacilitiesMode ? "This account can view only" : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",

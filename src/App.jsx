@@ -28,7 +28,8 @@ import {
   Globe,
 } from "lucide-react";
 import "./App.css";
-import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY, clearSessionToken } from "./api";
+import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY, clearSessionToken, setReadOnlySession } from "./api";
+import { ReadOnlyContext } from "./readOnly";
 import { getDeepLinkClinicId } from "./sessionBootstrap";
 
 import WorkQueue from "./components/WorkQueue";
@@ -78,7 +79,9 @@ export default function App() {
   const [providerId, setProviderId] = useState(
     () => localStorage.getItem("nhcx_default_provider_id") || "",
   );
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [readOnly, setReadOnly] = useState(false);
+  const [manageableFacilityCodes, setManageableFacilityCodes] = useState([]);
+  const [managesAnyFacility, setManagesAnyFacility] = useState(false);
   const [sessionFacilities, setSessionFacilities] = useState(null);
   const [sessionUserId, setSessionUserId] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -111,20 +114,36 @@ export default function App() {
   // else — it's the facility_code the backend itself matches on, so honoring
   // it can never disagree with what the backend will accept, and a mismatch
   // is an access error rather than something to silently fall back from. A
-  // lone facility auto-selects; a polyclinic admin who hasn't chosen
-  // anything yet is left to pick (or explicitly enter all-facilities view)
-  // in Settings, so nothing here forces a default onto them.
+  // lone facility auto-selects. A read-only global admin always works in the
+  // all-facilities view, and no one else may be in it.
   // Shared by the initial bootstrap and by a manual re-fetch after a
   // self-serve facility registration succeeds (see Settings' onSessionRefresh)
-  // - both need the same is_admin/facilities/auto-select handling.
+  // - both need the same role/facilities/auto-select handling.
   const applySessionResult = (res) => {
-    setIsAdmin(!!res?.is_admin);
+    const isReadOnly = !!res?.read_only;
+    setReadOnlySession(isReadOnly);
+    setReadOnly(isReadOnly);
+    setManageableFacilityCodes((res?.manageable_facility_codes || []).map(String));
+    setManagesAnyFacility(!!res?.manages_any_facility);
     setSessionUserId(res?.user?.id ?? null);
     const facilities = res?.facilities || [];
     setSessionFacilities(facilities);
-    const hasChosen = !!localStorage.getItem("nhcx_default_provider_id");
     const inAllMode = localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true";
-    if (hasChosen || inAllMode) return;
+    if (isReadOnly) {
+      if (!inAllMode) {
+        localStorage.setItem(ALL_FACILITIES_MODE_KEY, "true");
+        localStorage.removeItem("nhcx_default_provider_id");
+        localStorage.removeItem("nhcx_default_facility_name");
+        window.dispatchEvent(new Event("provider-changed"));
+      }
+      return;
+    }
+    if (inAllMode) {
+      localStorage.removeItem(ALL_FACILITIES_MODE_KEY);
+      window.dispatchEvent(new Event("provider-changed"));
+    }
+    const hasChosen = !!localStorage.getItem("nhcx_default_provider_id");
+    if (hasChosen) return;
 
     const clinicId = getDeepLinkClinicId();
     if (clinicId) {
@@ -133,14 +152,14 @@ export default function App() {
         localStorage.setItem("nhcx_default_provider_id", match.hcx_participant_code);
         localStorage.setItem("nhcx_default_facility_name", match.name || "");
         window.dispatchEvent(new Event("provider-changed"));
-      } else if (facilities.length > 0 && !res?.is_admin) {
+      } else if (facilities.length > 0 && !res?.manages_any_facility && !(res?.manageable_facility_codes || []).map(String).includes(String(clinicId))) {
         // A real access error only when this user has *some* facilities but
         // none match - and they have no self-service way to fix it. Two
         // cases fall through instead of hard-blocking: `facilities: []`
         // (same underlying problem as the Request Access flow in Settings,
-        // regardless of `clinic_id`), and admins, who need to reach
-        // Settings to onboard the facility or resolve a pending request
-        // rather than being stuck on a dead end.
+        // regardless of `clinic_id`), and a clinic admin of that clinic, who
+        // needs to reach Settings to register its facility rather than being
+        // stuck on a dead end.
         setClinicAccessError(clinicId);
       }
       return;
@@ -426,7 +445,7 @@ export default function App() {
                   !hasProvider
                     ? "No facility selected"
                     : allFacilitiesMode
-                      ? "Viewing all facilities (read-only) - click to select one"
+                      ? "Viewing all facilities (read-only)"
                       : `Active facility: ${facilityLabel} - click to switch`
                 }
               >
@@ -521,7 +540,7 @@ export default function App() {
         {hasProvider && (
           <button
             onClick={() => navigate("/settings")}
-            title={allFacilitiesMode ? "Viewing all facilities (read-only) - click to select one" : `Active facility: ${facilityLabel} - click to switch`}
+            title={allFacilitiesMode ? "Viewing all facilities (read-only)" : `Active facility: ${facilityLabel} - click to switch`}
             className="sidebar-facility"
             style={{
               padding: isSidebarCollapsed ? "9px 0" : "9px 11px",
@@ -633,7 +652,7 @@ export default function App() {
             {hasProvider && (
               <button
                 onClick={() => navigate("/settings")}
-                title={allFacilitiesMode ? "Viewing all facilities (read-only) - click to select one" : `Active facility: ${facilityLabel}${facilityName && providerId ? ` · ${providerId}` : ""} - click to switch`}
+                title={allFacilitiesMode ? "Viewing all facilities (read-only)" : `Active facility: ${facilityLabel}${facilityName && providerId ? ` · ${providerId}` : ""} - click to switch`}
                 style={{
                   display: "flex", alignItems: "center", gap: "7px",
                   maxWidth: "260px",
@@ -692,6 +711,7 @@ export default function App() {
         </header>
 
         <div className="main-view">
+          <ReadOnlyContext.Provider value={readOnly}>
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname.split("/")[1]}>
               <Route path="/" element={<Navigate to="/work-queue" replace />} />
@@ -699,7 +719,9 @@ export default function App() {
                 path="/settings"
                 element={
                   <SettingsPage
-                    isAdmin={isAdmin}
+                    readOnly={readOnly}
+                    manageableFacilityCodes={manageableFacilityCodes}
+                    managesAnyFacility={managesAnyFacility}
                     sessionFacilities={sessionFacilities}
                     sessionUserId={sessionUserId}
                     onSessionRefresh={refreshSession}
@@ -722,6 +744,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/work-queue" replace />} />
             </Routes>
           </AnimatePresence>
+          </ReadOnlyContext.Provider>
         </div>
       </main>
       </div>

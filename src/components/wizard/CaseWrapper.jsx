@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from "re
 import { motion, AnimatePresence } from "framer-motion";
 import { History } from "lucide-react";
 import { api } from "../../api";
+import { useReadOnly } from "../../readOnly";
 import { Button, EmptyState, LoadingBlock } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
 import CaseFileHeader from "../case/CaseFileHeader";
@@ -25,6 +26,7 @@ import CaseTimeline from "./CaseTimeline";
 const COMMS_POLL_MS = 60_000;
 
 export default function CaseWrapper() {
+  const readOnly = useReadOnly();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -231,6 +233,12 @@ export default function CaseWrapper() {
             approvedAmount={approvedAmount}
             moneyLedger={timeline?.money_ledger || null}
           />
+
+          {readOnly && (
+            <div className="inline-error-banner">
+              View only — this account can see the case but not send, answer or change anything on it.
+            </div>
+          )}
 
           <CaseCommsBar communications={communications} onOpen={setOpenCommId} />
 

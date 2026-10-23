@@ -449,7 +449,7 @@ export default function PreauthStatus({ ctx }) {
             </div>
             <div style={{ display: "flex", gap: "var(--space-2)" }}>
               {showGatewayRecovery && (
-                <Button variant="outline" size="small" icon={Wifi} onClick={handleGatewayStatus}>
+                <Button write variant="outline" size="small" icon={Wifi} onClick={handleGatewayStatus}>
                   Request Gateway Status
                 </Button>
               )}
@@ -677,7 +677,7 @@ export default function PreauthStatus({ ctx }) {
                   <Button variant="outline" icon={RefreshCw} onClick={() => restartPoll(correlationId)}>
                     Refresh
                   </Button>
-                  <Button variant="outline" icon={Wifi} onClick={handleGatewayStatus}>
+                  <Button write variant="outline" icon={Wifi} onClick={handleGatewayStatus}>
                     Request Gateway Status
                   </Button>
                 </>
@@ -717,7 +717,7 @@ export default function PreauthStatus({ ctx }) {
             {queryError}
           </div>
         )}
-        <Button
+        <Button write
           variant="primary"
           className="w-full"
           disabled={!queryAnswer || submitting}
@@ -801,7 +801,7 @@ export default function PreauthStatus({ ctx }) {
             {resubmitError}
           </div>
         )}
-        <Button
+        <Button write
           variant="primary"
           className="w-full"
           disabled={submitting}
@@ -848,7 +848,7 @@ export default function PreauthStatus({ ctx }) {
         )}
         <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
           <Button variant="outline" onClick={() => { setShowCancelModal(false); setCancelError(null); }}>Keep Preauth</Button>
-          <Button variant="primary" disabled={submitting} onClick={handleCancelSubmit}
+          <Button write variant="primary" disabled={submitting} onClick={handleCancelSubmit}
             style={{ background: "var(--error)", borderColor: "var(--error)" }}>
             {submitting ? "Cancelling…" : "Confirm Cancellation"}
           </Button>

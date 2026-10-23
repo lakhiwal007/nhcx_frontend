@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Building2, FileText, ArrowRight, AlertTriangle } from "lucide-react";
 import { api } from "../../api";
+import { useReadOnly } from "../../readOnly";
 import { Card, Button, Input, StatusBadge } from "../Common";
 import { formatMoney, formatDate } from "../../format.js";
 
@@ -23,6 +24,7 @@ const payerFromPolicy = (policy) => {
 
 export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
+  const readOnly = useReadOnly();
   const { patient, caseState, updateCaseState } = ctx;
 
   const [payers, setPayers] = useState([]);
@@ -81,7 +83,7 @@ export default function PayerPolicy({ ctx }) {
   };
 
   useEffect(() => {
-    if (!patient?.child_id || policies.length || selectedPolicy) return;
+    if (readOnly || !patient?.child_id || policies.length || selectedPolicy) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       if (!cancelled) fetchPolicies("");
@@ -281,7 +283,11 @@ export default function PayerPolicy({ ctx }) {
               </div>
             )}
 
-            {loadingPolicies ? (
+            {readOnly ? (
+              <div className="text-center py-10 text-muted">
+                View only — looking up a patient's policies asks the payer, which this account cannot do.
+              </div>
+            ) : loadingPolicies ? (
               <div className="flex-center py-10 flex-col">
                 <div className="spinner mb-4" />
                 <p className="text-muted">Fetching policies...</p>

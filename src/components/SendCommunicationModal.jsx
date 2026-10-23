@@ -217,7 +217,7 @@ export default function SendCommunicationModal({
                   </div>
                 </div>
 
-                <Button variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit} style={{ justifyContent: "center", marginTop: "6px" }}>
+                <Button write variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit} style={{ justifyContent: "center", marginTop: "6px" }}>
                   {submitting ? "Sending…" : "Send to Payer"}
                 </Button>
               </div>

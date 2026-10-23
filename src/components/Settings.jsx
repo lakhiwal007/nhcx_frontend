@@ -22,7 +22,7 @@ import {
   SearchX,
   Sparkles,
 } from "lucide-react";
-import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
+import { api, ALL_FACILITIES_MODE_KEY } from "../api";
 import { getDeepLinkClinicId } from "../sessionBootstrap";
 import { Button, Card, EmptyState, Input, LoadingBlock } from "./Common";
 
@@ -906,31 +906,35 @@ function FacilityCard({
             <CheckCircle2 size={11} /> ABDM registered
           </div>
         )}
-        <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-2)" }}>
-          <Button
-            size="small"
-            variant="outline"
-            icon={Key}
-            onClick={() => onUploadKey(facility)}
-          >
-            {facility.private_key_set ? "Rotate Key" : "Upload Key"}
-          </Button>
-          <Button
-            size="small"
-            variant="outline"
-            icon={Edit2}
-            onClick={() => onEdit(facility)}
-          >
-            Edit
-          </Button>
-        </div>
+        {onEdit && (
+          <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-2)" }}>
+            <Button
+              size="small"
+              variant="outline"
+              icon={Key}
+              onClick={() => onUploadKey(facility)}
+            >
+              {facility.private_key_set ? "Rotate Key" : "Upload Key"}
+            </Button>
+            <Button
+              size="small"
+              variant="outline"
+              icon={Edit2}
+              onClick={() => onEdit(facility)}
+            >
+              Edit
+            </Button>
+          </div>
+        )}
       </div>
     </motion.div>
   );
 }
 
 export default function Settings({
-  isAdmin = false,
+  readOnly = false,
+  manageableFacilityCodes = [],
+  managesAnyFacility = false,
   sessionFacilities = null,
   sessionUserId = null,
   onSessionRefresh,
@@ -943,9 +947,6 @@ export default function Settings({
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [adminToken, setAdminToken] = useState(
-    () => localStorage.getItem(ADMIN_TOKEN_KEY) || "",
-  );
 
   const [showFacilityDrawer, setShowFacilityDrawer] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
@@ -974,14 +975,12 @@ export default function Settings({
       )
     : facilities;
 
-  // The "Facility Management" Card below (register/edit/upload key) is
-  // rendered only for isAdmin, since GET /facilities lists every facility in
-  // the system, not just the caller's own. It's still loaded read-only for
-  // the `needsFallbackPicker` case below - a `skip_auth` sandbox with no real
-  // token to derive a facility list from, where nothing else lets a dev pick
-  // one at all. A real (non-skip_auth) user with zero facilities of their own
-  // never hits that branch, even if unrelated facilities exist system-wide -
-  // see needsFallbackPicker.
+  // GET /facilities lists the caller's own clinics' facilities (every facility
+  // for a read-only global admin), inactive ones included. The "Facility
+  // Management" Card shows it to a global admin (view only) and to anyone who
+  // may manage a facility; it's also loaded for the `needsFallbackPicker` case
+  // below - a `skip_auth` sandbox with no real token to derive a facility list
+  // from, where nothing else lets a dev pick one at all.
   const loadFacilities = async () => {
     setLoading(true);
     setLoadError(false);
@@ -997,9 +996,21 @@ export default function Settings({
 
   const needsFallbackPicker = Array.isArray(sessionFacilities) && sessionFacilities.length === 0 && !sessionUserId;
 
+  // Only a clinic admin may register or change a facility, and only its own
+  // clinics' (WRAPPER-ERROR:1014 otherwise); skip_auth sandboxes may touch any.
+  const canManage = (code) => managesAnyFacility || manageableFacilityCodes.includes(String(code));
+  const registeredCodes = new Set([...(sessionFacilities || []), ...facilities].map((f) => String(f.facility_code)));
+  const unregisteredCodes = manageableFacilityCodes.filter((code) => !registeredCodes.has(code));
+  const canRegister = managesAnyFacility || unregisteredCodes.length > 0;
+  const showManagement = readOnly || managesAnyFacility || manageableFacilityCodes.length > 0;
+  const registerPrefill = () => {
+    const clinicId = getDeepLinkClinicId();
+    return { facility_code: (clinicId && canManage(clinicId) ? String(clinicId) : unregisteredCodes[0]) || "" };
+  };
+
   useEffect(() => {
-    if (isAdmin || needsFallbackPicker) loadFacilities();
-  }, [isAdmin, needsFallbackPicker]);
+    if (showManagement || needsFallbackPicker) loadFacilities();
+  }, [showManagement, needsFallbackPicker]);
 
   const openCreate = (prefill = {}) => {
     setEditingFacility(null);
@@ -1096,7 +1107,7 @@ export default function Settings({
 
   // Act as a specific facility from the session's own facility list (the set
   // this user may actually select, per GET /session - distinct from the
-  // admin-gated GET /facilities management list below).
+  // GET /facilities management list below).
   const handleSelectSessionFacility = (facility) => {
     localStorage.setItem("nhcx_default_provider_id", facility.hcx_participant_code);
     localStorage.setItem("nhcx_default_facility_name", facility.name || "");
@@ -1104,25 +1115,18 @@ export default function Settings({
     window.dispatchEvent(new CustomEvent("provider-changed"));
   };
 
-  // Admin-only: enter the read-only cross-facility view - no X-Provider-Id is
-  // sent, so every read spans all facilities; writes remain blocked until a
-  // single facility is selected again.
-  const handleEnableAllFacilities = () => {
-    localStorage.setItem(ALL_FACILITIES_MODE_KEY, "true");
-    localStorage.removeItem("nhcx_default_provider_id");
-    localStorage.removeItem("nhcx_default_facility_name");
-    window.dispatchEvent(new CustomEvent("provider-changed"));
-  };
-
-  const handleAdminTokenChange = (value) => {
-    setAdminToken(value);
-    if (value) localStorage.setItem(ADMIN_TOKEN_KEY, value);
-    else localStorage.removeItem(ADMIN_TOKEN_KEY);
-  };
-
   return (
     <div>
-      {sessionFacilities && (
+      {readOnly && (
+        <Card title="Active Facility" className="mb-6">
+          <div className="inline-error-banner" style={{ margin: 0 }}>
+            <Globe size={16} />
+            This account sees every facility at once and changes nothing — no case, payer reply or facility can be edited from it.
+          </div>
+        </Card>
+      )}
+
+      {sessionFacilities && !readOnly && (
         <Card title="Active Facility" className="mb-6">
           {sessionFacilities.length === 0 ? (
             needsFallbackPicker && facilities.length > 0 ? (
@@ -1152,16 +1156,15 @@ export default function Settings({
               <div>
                 <div className="inline-error-banner" style={{ margin: "0 0 var(--space-3)" }}>
                   <AlertCircle size={16} />
-                  No cashless-enabled facility is linked to your account. If you're the clinic
-                  owner, register it below - otherwise, ask your clinic's owner to register it.
+                  {canRegister
+                    ? "No cashless-enabled facility is linked to your account. As its clinic admin, register it below."
+                    : "No cashless-enabled facility is linked to your account. Ask your clinic admin to register it."}
                 </div>
-                <Button
-                  variant="primary"
-                  icon={Plus}
-                  onClick={() => openCreate({ facility_code: getDeepLinkClinicId() || "" })}
-                >
-                  Register This Facility
-                </Button>
+                {canRegister && (
+                  <Button variant="primary" icon={Plus} onClick={() => openCreate(registerPrefill())}>
+                    Register This Facility
+                  </Button>
+                )}
               </div>
             )
           ) : (
@@ -1191,51 +1194,48 @@ export default function Settings({
                         {isActive && <CheckCircle2 size={13} />}
                         {f.name || f.facility_code}
                       </button>
-                      <button
-                        onClick={() => openEditByCode(f.facility_code)}
-                        disabled={editLoadingCode === f.facility_code}
-                        title="Edit facility — callback URL, contact, roles, encryption cert"
-                        style={facilityInlineActionStyle}
-                      >
-                        {editLoadingCode === f.facility_code
-                          ? <span className="spinner" style={{ width: "13px", height: "13px" }} />
-                          : <Edit2 size={14} />}
-                      </button>
-                      <button
-                        onClick={() => setKeyDrawerFacility(f)}
-                        title="Upload or rotate the facility's RSA key"
-                        style={facilityInlineActionStyle}
-                      >
-                        <Key size={14} />
-                      </button>
+                      {canManage(f.facility_code) && (
+                        <>
+                          <button
+                            onClick={() => openEditByCode(f.facility_code)}
+                            disabled={editLoadingCode === f.facility_code}
+                            title="Edit facility — callback URL, contact, roles, encryption cert"
+                            style={facilityInlineActionStyle}
+                          >
+                            {editLoadingCode === f.facility_code
+                              ? <span className="spinner" style={{ width: "13px", height: "13px" }} />
+                              : <Edit2 size={14} />}
+                          </button>
+                          <button
+                            onClick={() => setKeyDrawerFacility(f)}
+                            title="Upload or rotate the facility's RSA key"
+                            style={facilityInlineActionStyle}
+                          >
+                            <Key size={14} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   );
                 })}
-                {isAdmin && (
-                  <button
-                    onClick={handleEnableAllFacilities}
-                    className={`badge-modern ${allFacilitiesMode ? "badge-success" : "badge-info"}`}
-                    style={{ cursor: "pointer", border: "none", fontSize: "13px", padding: "8px 14px" }}
-                    title="Read-only view spanning every facility - no single facility is acted as"
-                  >
-                    {allFacilitiesMode ? <CheckCircle2 size={13} /> : <Globe size={13} />}
-                    View All Facilities (read-only)
-                  </button>
-                )}
               </div>
-              <div>
-                <Button
-                  variant="outline"
-                  size="small"
-                  icon={Plus}
-                  onClick={() => openCreate()}
-                >
-                  Register another facility
-                </Button>
-                <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "6px" }}>
-                  Editing re-syncs the facility to ABDM. To change your NHCX callback URL, edit the facility and update the Endpoint / Callback URL field.
+              {(canRegister || sessionFacilities.some((f) => canManage(f.facility_code))) && (
+                <div>
+                  {canRegister && (
+                    <Button
+                      variant="outline"
+                      size="small"
+                      icon={Plus}
+                      onClick={() => openCreate(registerPrefill())}
+                    >
+                      Register another facility
+                    </Button>
+                  )}
+                  <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "6px" }}>
+                    Editing re-syncs the facility to ABDM. To change your NHCX callback URL, edit the facility and update the Endpoint / Callback URL field.
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </Card>
@@ -1290,7 +1290,7 @@ export default function Settings({
         </div>
       </Card>
 
-      {isAdmin && (
+      {showManagement && (
         <Card
           title={
             facilitySearchQuery
@@ -1307,39 +1307,14 @@ export default function Settings({
                   onChange={(e) => setFacilitySearch(e.target.value)}
                 />
               </div>
-              <Button variant="primary" icon={Plus} onClick={openCreate}>
-                Register Facility
-              </Button>
+              {canRegister && (
+                <Button variant="primary" icon={Plus} onClick={() => openCreate(registerPrefill())}>
+                  Register Facility
+                </Button>
+              )}
             </div>
           }
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-3)",
-              paddingBottom: "var(--space-4)",
-              marginBottom: "var(--space-4)",
-              borderBottom: "1px solid var(--border-color)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-              <Lock size={16} color="var(--primary)" />
-              Admin Token
-            </div>
-            <input
-              type="password"
-              className="input-modern"
-              style={{ maxWidth: "320px" }}
-              placeholder="Deployment admin token (for facility mutations)"
-              value={adminToken}
-              onChange={(e) => handleAdminTokenChange(e.target.value)}
-            />
-            <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
-              Required to register or edit facilities and upload RSA keys.
-            </span>
-          </div>
-
           {loadError && (
             <div className="inline-error-banner">
               <AlertCircle size={16} />
@@ -1357,14 +1332,16 @@ export default function Settings({
               title="No Facilities Registered"
               description="Register your hospital's HCX facility to enable preauth, claims, and eligibility workflows."
             >
-              <Button
-                variant="primary"
-                icon={Plus}
-                onClick={openCreate}
-                style={{ marginTop: "var(--space-5)" }}
-              >
-                Register First Facility
-              </Button>
+              {canRegister && (
+                <Button
+                  variant="primary"
+                  icon={Plus}
+                  onClick={() => openCreate(registerPrefill())}
+                  style={{ marginTop: "var(--space-5)" }}
+                >
+                  Register First Facility
+                </Button>
+              )}
             </EmptyState>
           ) : filteredFacilities.length === 0 ? (
             <EmptyState
@@ -1397,7 +1374,7 @@ export default function Settings({
                 <FacilityCard
                   key={f.facility_code}
                   facility={f}
-                  onEdit={openEdit}
+                  onEdit={canManage(f.facility_code) ? openEdit : undefined}
                   onUploadKey={setKeyDrawerFacility}
                 />
               ))}

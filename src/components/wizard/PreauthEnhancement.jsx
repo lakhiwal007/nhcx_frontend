@@ -207,7 +207,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
 
       <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
         <Button variant="outline" onClick={close}>Cancel</Button>
-        <Button
+        <Button write
           variant="primary"
           icon={Send}
           disabled={submitting}

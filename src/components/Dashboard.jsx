@@ -359,7 +359,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
     <Button
       variant="primary"
       disabled={allFacilitiesMode}
-      title={allFacilitiesMode ? "Select a facility in Settings to start a new case" : undefined}
+      title={allFacilitiesMode ? "This account can view only" : undefined}
       onClick={() => navigate("/registry")}
     >
       New Cashless Case
@@ -371,7 +371,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       {allFacilitiesMode && (
         <div className="inline-error-banner" style={{ background: "color-mix(in srgb, var(--info) 10%, var(--bg-card))", borderColor: "color-mix(in srgb, var(--info) 30%, transparent)", color: "var(--info)" }}>
           <AlertCircle size={16} />
-          Viewing all facilities (read-only). Select a facility in Settings to start or act on a case.
+          Viewing all facilities (read-only). This account can see every case but not start or act on one.
         </div>
       )}
 
@@ -510,7 +510,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                 variant="outline"
                 icon={Radio}
                 disabled={allFacilitiesMode}
-                title={allFacilitiesMode ? "Select a facility in Settings to search the gateway" : undefined}
+                title={allFacilitiesMode ? "This account can view only" : undefined}
                 onClick={() => setShowSearchModal(true)}
               >
                 Search via NHCX Gateway

@@ -215,7 +215,7 @@ export default function ReprocessScreen({ ctx }) {
                 {submitError}
               </div>
             )}
-            <Button
+            <Button write
               variant="primary"
               className="w-full"
               icon={Send}

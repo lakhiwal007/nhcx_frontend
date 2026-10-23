@@ -4,6 +4,7 @@ import {
   X, CheckCircle2, Paperclip, FileText, ExternalLink, Circle, Send,
 } from "lucide-react";
 import { api } from "../api";
+import { useReadOnly } from "../readOnly";
 import { resolveAction } from "../api/actionMap";
 import { Button, QueryResponseFields } from "./Common";
 import { formatDateTime, safeHref } from "../format.js";
@@ -86,6 +87,7 @@ function DetailField({ label, value }) {
 
 export default function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFacilitiesMode, showOpenCase = true }) {
   const navigate = useNavigate();
+  const readOnly = useReadOnly();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
@@ -111,7 +113,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
     api.getCommunicationStatus(correlationId)
       .then((res) => {
         setDetail(res);
-        if (!res.provider_read) {
+        if (!res.provider_read && !readOnly) {
           api.markCommunicationRead(correlationId)
             .then(() => onRead?.(correlationId))
             .catch(() => {});
@@ -321,11 +323,11 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                             documents={respondDocs}
                             onDocumentsChange={setRespondDocs}
                           />
-                          <Button
+                          <Button write
                             variant="primary"
                             icon={Send}
                             disabled={respondingDisabled}
-                            title={allFacilitiesMode ? "Select a facility in Settings to reply" : undefined}
+                            title={allFacilitiesMode ? "This account can view only" : undefined}
                             onClick={handleRespond}
                             style={{ justifyContent: "center" }}
                           >
@@ -360,10 +362,10 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                         />
                       )}
                       {!executeResult ? (
-                        <Button
+                        <Button write
                           variant="primary"
                           disabled={executing || allFacilitiesMode}
-                          title={allFacilitiesMode ? "Select a facility in Settings to act on this task" : undefined}
+                          title={allFacilitiesMode ? "This account can view only" : undefined}
                           onClick={handleExecuteAction}
                           style={{ justifyContent: "center" }}
                         >
@@ -395,14 +397,14 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
             <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border-color)", display: "flex", gap: "10px", flexWrap: "wrap" }}>
               {taskId && (
-                <Button
+                <Button write
                   variant="primary"
                   disabled={completing || allFacilitiesMode || (actionable && !executeResult?.success)}
                   onClick={handleMarkReviewed}
                   style={{ flex: 1, justifyContent: "center" }}
                   title={
                     allFacilitiesMode
-                      ? "Select a facility in Settings to act on this task"
+                      ? "This account can view only"
                       : actionable && !executeResult?.success
                         ? "Submit the required documents first"
                         : undefined
