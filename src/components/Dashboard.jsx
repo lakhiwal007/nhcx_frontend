@@ -5,45 +5,16 @@ import {
   Inbox, AlertCircle, LayoutGrid, List, MoreVertical, Plus,
 } from "lucide-react";
 import { api } from "../api";
-import { resolveCaseStatus } from "../caseStatus.js";
 import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { formatMoney, formatDate, formatRelative, formatCaseRef } from "../format.js";
 import { useNavigate, useLocation } from "react-router-dom";
 import PayerName from "./PayerName";
+import { stageIndex, isSettled, needsAttention } from "../caseStatus.js";
+import { CaseStatusChip, StageTrack } from "./caseJourney";
 
 const CLAIMS_PAGE_SIZE = 20;
-
-// The four stages of the journey, and which `current_step` values belong to
-// each. `current_step` is the authoritative journey position; a row's
-// `status` only rolls up eligibility prep (its "complete" does not mean the
-// preauth or claim is done), so nothing here reads `status`.
-const STAGES = [
-  { key: "eligibility", label: "Eligibility", steps: ["insurance_and_eligibility"] },
-  { key: "preauth",     label: "Pre-auth",    steps: ["preauth_ready", "preauth_submitted", "preauth_decided"] },
-  { key: "claim",       label: "Claim",       steps: ["claim_submitted", "claim_decided"] },
-  { key: "payment",     label: "Payment",     steps: ["payment_pending", "settled"] },
-];
-
-// `current_step` is nullable on the row; infer the closest step from the
-// decision/payment fields rather than leave the case unplaced.
-function caseStep(claim) {
-  if (claim.current_step) return claim.current_step;
-  if (/SETTLED/i.test(claim.payment_status || "")) return "settled";
-  if (claim.payment_status) return "payment_pending";
-  if (claim.claim_decision) return claim.use_type === "claim" ? "claim_decided" : "preauth_decided";
-  if (claim.preauth_status) return "preauth_decided";
-  return "insurance_and_eligibility";
-}
-
-function stageIndex(claim) {
-  const step = caseStep(claim);
-  const i = STAGES.findIndex((st) => st.steps.includes(step));
-  return i < 0 ? 0 : i;
-}
-
-const isSettled = (c) => caseStep(c) === "settled";
 
 // The strip at the top is both the headline numbers and the filter: each cell
 // counts the loaded cases by journey stage (`current_step`), so a figure always
@@ -116,15 +87,6 @@ function getActionOptions(claim) {
     options.push({ label: "Open Case", route: "" });
   }
   return options;
-}
-
-function needsAttention(claim) {
-  if (claim.pending_tasks?.length) return true;
-  const terminalQuery = /QUERIED|REJECTED/i;
-  return (
-    terminalQuery.test(String(claim.claim_decision || "")) ||
-    terminalQuery.test(String(claim.preauth_status || ""))
-  );
 }
 
 function ActionMenu({ options, onSelect, disabled, size = 32 }) {
@@ -219,40 +181,6 @@ function ActionMenu({ options, onSelect, disabled, size = 32 }) {
         document.body
       )}
     </>
-  );
-}
-
-function CaseStatusChip({ claim }) {
-  const cfg = resolveCaseStatus({ ...claim, current_step: caseStep(claim) });
-  return (
-    <span className={`badge-modern cc-status-chip ${cfg.badgeClass}`} title={cfg.label}>
-      {cfg.label}
-    </span>
-  );
-}
-
-// Four-segment journey tracker: done stages filled, the current one tinted by
-// how the case stands, later ones empty. Always has something to show.
-function StageTrack({ claim }) {
-  const idx = stageIndex(claim);
-  const settled = isSettled(claim);
-  const rejected = /REJECTED/i.test(`${claim.claim_decision || ""} ${claim.preauth_status || ""}`);
-  const tone = settled ? "is-done" : rejected ? "is-error" : needsAttention(claim) ? "is-warn" : "is-current";
-  return (
-    <div className="cc-stage" title={`${STAGES[idx].label} · stage ${idx + 1} of ${STAGES.length}`}>
-      <div className="cc-stage-track" aria-hidden="true">
-        {STAGES.map((st, i) => (
-          <span
-            key={st.key}
-            className={`cc-stage-seg${settled || i < idx ? " is-done" : i === idx ? ` ${tone}` : ""}`}
-          />
-        ))}
-      </div>
-      <div className="cc-stage-label">
-        {settled ? "Settled" : STAGES[idx].label}
-        <span className="cc-stage-count">{idx + 1}/{STAGES.length}</span>
-      </div>
-    </div>
   );
 }
 

@@ -8,7 +8,7 @@ import {
   Copy
 } from "lucide-react";
 import { api } from "../api";
-import { taskScreen } from "../taskRoutes";
+import { taskScreen, taskNavState } from "../taskRoutes";
 import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
@@ -611,26 +611,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     }
     if (!cid) return;
     const path = taskScreen(task.task_type, cid) || `/case/${cid}/`;
-    navigate(path, {
-      state: {
-        claim_id: task.claim_id,
-        cashless_case_id: task.cashless_case_id,
-        preauthCorrelationId: task.workflow === "preauth" ? task.correlation_id : undefined,
-        openAction:
-          task.task_type === "resubmit_preauth" ? "resubmit_preauth" :
-          task.task_type === "resubmit_enhancement" ? "resubmit_enhancement" :
-          task.task_type === "respond_preauth_query" ? "respond_preauth_query" :
-          task.task_type === "request_claim_release" ? "request_claim_release" :
-          task.task_type === "respond_claim_query" ? "respond_claim_query" :
-          task.task_type === "resubmit_discharge_claim" ? "resubmit_discharge_claim" :
-          undefined,
-        tab: task.task_type?.includes("discharge")
-          ? "discharge"
-          : task.task_type?.includes("final")
-            ? "final"
-            : undefined,
-      },
-    });
+    navigate(path, { state: taskNavState(task) });
   };
 
   const handleMarkDone = async () => {

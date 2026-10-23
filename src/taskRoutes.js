@@ -24,3 +24,21 @@ export const taskScreen = (taskType, childId) => {
   const step = TASK_STEPS[taskType];
   return step ? `/case/${childId}/${step}` : null;
 };
+
+const OPEN_ACTIONS = new Set([
+  'resubmit_preauth',
+  'resubmit_enhancement',
+  'respond_preauth_query',
+  'request_claim_release',
+  'respond_claim_query',
+  'resubmit_discharge_claim',
+]);
+
+// Router state that lands a task on its case step with the right drawer or tab open.
+export const taskNavState = (task) => ({
+  claim_id: task.claim_id,
+  cashless_case_id: task.cashless_case_id,
+  preauthCorrelationId: task.workflow === 'preauth' ? task.correlation_id : undefined,
+  openAction: OPEN_ACTIONS.has(task.task_type) ? task.task_type : undefined,
+  tab: task.task_type?.includes('discharge') ? 'discharge' : task.task_type?.includes('final') ? 'final' : undefined,
+});

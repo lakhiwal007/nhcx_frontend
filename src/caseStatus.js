@@ -99,3 +99,42 @@ export const eligibilityRequirements = (ce) => {
     });
   return [...seen.values()];
 };
+
+// The four stages of the journey, and which `current_step` values belong to
+// each. `current_step` is the authoritative journey position; a row's
+// `status` only rolls up eligibility prep (its "complete" does not mean the
+// preauth or claim is done), so nothing here reads `status`.
+export const STAGES = [
+  { key: "eligibility", label: "Eligibility", steps: ["insurance_and_eligibility"] },
+  { key: "preauth",     label: "Pre-auth",    steps: ["preauth_ready", "preauth_submitted", "preauth_decided"] },
+  { key: "claim",       label: "Claim",       steps: ["claim_submitted", "claim_decided"] },
+  { key: "payment",     label: "Payment",     steps: ["payment_pending", "settled"] },
+];
+
+// `current_step` is nullable on the row; infer the closest step from the
+// decision/payment fields rather than leave the case unplaced.
+export function caseStep(claim) {
+  if (claim.current_step) return claim.current_step;
+  if (/SETTLED/i.test(claim.payment_status || "")) return "settled";
+  if (claim.payment_status) return "payment_pending";
+  if (claim.claim_decision) return claim.use_type === "claim" ? "claim_decided" : "preauth_decided";
+  if (claim.preauth_status) return "preauth_decided";
+  return "insurance_and_eligibility";
+}
+
+export function stageIndex(claim) {
+  const step = caseStep(claim);
+  const i = STAGES.findIndex((st) => st.steps.includes(step));
+  return i < 0 ? 0 : i;
+}
+
+export const isSettled = (c) => caseStep(c) === "settled";
+
+export function needsAttention(claim) {
+  if (claim.pending_tasks?.length) return true;
+  const terminalQuery = /QUERIED|REJECTED/i;
+  return (
+    terminalQuery.test(String(claim.claim_decision || "")) ||
+    terminalQuery.test(String(claim.preauth_status || ""))
+  );
+}
