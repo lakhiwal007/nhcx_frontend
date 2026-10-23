@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, AlertCircle, RefreshCw } from "lucide-react";
 import { api } from "../../api";
+import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
 import { usePoll } from "../../hooks/usePoll";
 import { Card, Button, LoadingBlock, TablePagination } from "../Common";
 import Dropdown from "../Dropdown";
@@ -582,6 +583,7 @@ function PackageCatalogue({ correlationId, categories, packageCount, plannedCode
 
 export default function EligibilityPrep({ ctx }) {
   const navigate = useNavigate();
+  const readOnly = useReadOnly();
   const { patient, caseState, setCashlessCase, updateCaseState, caseClosed } = ctx;
   const { payer, policy, admission_id, cashless_case_id: existingCaseId } = caseState;
 
@@ -962,7 +964,7 @@ export default function EligibilityPrep({ ctx }) {
         <span className="ep-verdict-text">{verdict.text}</span>
         <span className="ep-verdict-actions">
           {caseClosed ? null : !polling && (isComplete || isFailed || needsResubmit) ? (
-            <button type="button" className="ep-action" disabled={!canRerun} title={rerunTitle} onClick={handleForceRefresh}>
+            <button type="button" className="ep-action" disabled={!canRerun || readOnly} title={readOnly ? READ_ONLY_TITLE : rerunTitle} onClick={handleForceRefresh}>
               <RefreshCw size={13} />
               {forceRefreshing ? "Re-running…" : needsRetry ? "Retry preparation" : "Re-run eligibility"}
             </button>
@@ -1018,7 +1020,7 @@ export default function EligibilityPrep({ ctx }) {
               chosenId={chosenMemberId}
               choosing={choosing}
               onChoose={handleChooseMember}
-              canChoose={members.length > 1 && !caseClosed && !!caseData?.cashless_case_id}
+              canChoose={members.length > 1 && !caseClosed && !readOnly && !!caseData?.cashless_case_id}
             />
           </>
         )}
@@ -1052,7 +1054,7 @@ export default function EligibilityPrep({ ctx }) {
         )}
         {!caseClosed && plan && plan.status !== "pending" && (
           <div className="ep-toolbar">
-            <button type="button" className="ep-action" disabled={planFetch?.state === "sending"} onClick={fetchPlanAgain}>
+            <button type="button" className="ep-action" disabled={planFetch?.state === "sending" || readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={fetchPlanAgain}>
               <RefreshCw size={13} />
               {planFetch?.state === "sending" ? "Asking the payer…" : "Fetch plan again"}
             </button>

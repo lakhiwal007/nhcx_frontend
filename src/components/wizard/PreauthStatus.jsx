@@ -3,6 +3,7 @@ import { usePoll } from "../../hooks/usePoll";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, RefreshCw, PlusCircle, X, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
+import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
 import { Button, QueryResponseFields, formatMoney } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
@@ -39,6 +40,7 @@ function netAmountOf(claimItem, adj) {
 
 export default function PreauthStatus({ ctx }) {
   const navigate = useNavigate();
+  const readOnly = useReadOnly();
   const location = useLocation();
   const { caseState, updateCaseState, cashlessCase, setCashlessCase, timelineEvents, caseClosed } = ctx;
   const { preauthCorrelationId, claim_id, cashless_case_id, draftData } = caseState;
@@ -433,13 +435,13 @@ export default function PreauthStatus({ ctx }) {
   const secondary = [];
   if (!isComplete && !isFailed) {
     secondary.push({ id: "refresh", label: "Refresh now", icon: RefreshCw });
-    if (showGatewayRecovery && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
+    if (showGatewayRecovery && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi, write: true });
   }
   if (isComplete) {
     if ((isApproved || isPartial) && !caseClosed && !preauthReadOnly) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
     if ((isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED)
       secondary.push({ id: "message", label: "Message payer", icon: Send });
-    if (isUnknown && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi });
+    if (isUnknown && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi, write: true });
   }
   if (resolvedCashlessCaseId && (isComplete || isFailed) && !caseClosed) {
     secondary.push({
@@ -707,7 +709,12 @@ export default function PreauthStatus({ ctx }) {
                 <ul className="ds-actions">
                   {secondary.map((a) => (
                     <li key={a.label}>
-                      <button type="button" disabled={a.disabled} title={a.title} onClick={() => runAction(a.id)}>
+                      <button
+                        type="button"
+                        disabled={a.disabled || (a.write && readOnly)}
+                        title={a.write && readOnly ? READ_ONLY_TITLE : a.title}
+                        onClick={() => runAction(a.id)}
+                      >
                         {a.icon && <a.icon size={14} />}
                         {a.label}
                       </button>
@@ -715,7 +722,7 @@ export default function PreauthStatus({ ctx }) {
                   ))}
                   {canCancel && (
                     <li>
-                      <button type="button" className="is-danger" onClick={() => runAction("cancel")}>
+                      <button type="button" className="is-danger" disabled={readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={() => runAction("cancel")}>
                         <X size={14} />
                         Cancel preauth
                       </button>
@@ -745,7 +752,7 @@ export default function PreauthStatus({ ctx }) {
             {queryError}
           </div>
         )}
-        <Button
+        <Button write
           variant="primary"
           className="w-full"
           disabled={!queryAnswer || submitting}
@@ -829,7 +836,7 @@ export default function PreauthStatus({ ctx }) {
             {resubmitError}
           </div>
         )}
-        <Button
+        <Button write
           variant="primary"
           className="w-full"
           disabled={submitting}
@@ -877,7 +884,7 @@ export default function PreauthStatus({ ctx }) {
         )}
         <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
           <Button variant="outline" onClick={() => { setShowCancelModal(false); setCancelError(null); }}>Keep Preauth</Button>
-          <Button variant="primary" className="ds-danger-btn" disabled={submitting || !cancelReason || cancelNeedsNote} onClick={handleCancelSubmit}>
+          <Button write variant="primary" className="ds-danger-btn" disabled={submitting || !cancelReason || cancelNeedsNote} onClick={handleCancelSubmit}>
             {submitting ? "Cancelling…" : "Confirm Cancellation"}
           </Button>
         </div>

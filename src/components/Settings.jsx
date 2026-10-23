@@ -14,7 +14,7 @@ import {
   SearchX,
   Sparkles,
 } from "lucide-react";
-import { api, ADMIN_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "../api";
+import { api, ALL_FACILITIES_MODE_KEY } from "../api";
 import { getDeepLinkClinicId } from "../sessionBootstrap";
 import { Button, EmptyState, LoadingBlock } from "./Common";
 import { Drawer } from "./Overlay";
@@ -401,7 +401,9 @@ function AbdmStatus({ registration }) {
 }
 
 export default function Settings({
-  isAdmin = false,
+  readOnly = false,
+  manageableFacilityCodes = [],
+  managesAnyFacility = false,
   sessionFacilities = null,
   sessionUserId = null,
   onSessionRefresh,
@@ -414,7 +416,6 @@ export default function Settings({
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [adminToken, setAdminToken] = useState(() => localStorage.getItem(ADMIN_TOKEN_KEY) || "");
 
   const [showFacilityDrawer, setShowFacilityDrawer] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
@@ -435,14 +436,12 @@ export default function Settings({
       )
     : facilities;
 
-  // The "Facility management" section below (register/edit/upload key) is
-  // rendered only for isAdmin, since GET /facilities lists every facility in
-  // the system, not just the caller's own. It's still loaded read-only for
-  // the `needsFallbackPicker` case below - a `skip_auth` sandbox with no real
-  // token to derive a facility list from, where nothing else lets a dev pick
-  // one at all. A real (non-skip_auth) user with zero facilities of their own
-  // never hits that branch, even if unrelated facilities exist system-wide -
-  // see needsFallbackPicker.
+  // GET /facilities lists the caller's own clinics' facilities (every facility
+  // for a read-only global admin), inactive ones included. The "Facility
+  // management" section shows it to a global admin (view only) and to anyone
+  // who may manage a facility; it's also loaded for the `needsFallbackPicker`
+  // case below - a `skip_auth` sandbox with no real token to derive a facility
+  // list from, where nothing else lets a dev pick one at all.
   const loadFacilities = async () => {
     setLoading(true);
     setLoadError(false);
@@ -458,9 +457,21 @@ export default function Settings({
 
   const needsFallbackPicker = Array.isArray(sessionFacilities) && sessionFacilities.length === 0 && !sessionUserId;
 
+  // Only a clinic admin may register or change a facility, and only its own
+  // clinics' (WRAPPER-ERROR:1014 otherwise); skip_auth sandboxes may touch any.
+  const canManage = (code) => managesAnyFacility || manageableFacilityCodes.includes(String(code));
+  const registeredCodes = new Set([...(sessionFacilities || []), ...facilities].map((f) => String(f.facility_code)));
+  const unregisteredCodes = manageableFacilityCodes.filter((code) => !registeredCodes.has(code));
+  const canRegister = managesAnyFacility || unregisteredCodes.length > 0;
+  const showManagement = readOnly || managesAnyFacility || manageableFacilityCodes.length > 0;
+  const registerPrefill = () => {
+    const clinicId = getDeepLinkClinicId();
+    return { facility_code: (clinicId && canManage(clinicId) ? String(clinicId) : unregisteredCodes[0]) || "" };
+  };
+
   useEffect(() => {
-    if (isAdmin || needsFallbackPicker) loadFacilities();
-  }, [isAdmin, needsFallbackPicker]);
+    if (showManagement || needsFallbackPicker) loadFacilities();
+  }, [showManagement, needsFallbackPicker]);
 
   const openCreate = (prefill = {}) => {
     setEditingFacility(null);
@@ -555,28 +566,12 @@ export default function Settings({
 
   // Act as a specific facility from the session's own facility list (the set
   // this user may actually select, per GET /session - distinct from the
-  // admin-gated GET /facilities management list below).
+  // GET /facilities management list below).
   const handleSelectSessionFacility = (facility) => {
     localStorage.setItem("nhcx_default_provider_id", facility.hcx_participant_code);
     localStorage.setItem("nhcx_default_facility_name", facility.name || "");
     localStorage.removeItem(ALL_FACILITIES_MODE_KEY);
     window.dispatchEvent(new CustomEvent("provider-changed"));
-  };
-
-  // Admin-only: enter the read-only cross-facility view - no X-Provider-Id is
-  // sent, so every read spans all facilities; writes remain blocked until a
-  // single facility is selected again.
-  const handleEnableAllFacilities = () => {
-    localStorage.setItem(ALL_FACILITIES_MODE_KEY, "true");
-    localStorage.removeItem("nhcx_default_provider_id");
-    localStorage.removeItem("nhcx_default_facility_name");
-    window.dispatchEvent(new CustomEvent("provider-changed"));
-  };
-
-  const handleAdminTokenChange = (value) => {
-    setAdminToken(value);
-    if (value) localStorage.setItem(ADMIN_TOKEN_KEY, value);
-    else localStorage.removeItem(ADMIN_TOKEN_KEY);
   };
 
   const isActiveFacility = (f) => !allFacilitiesMode && localStorage.getItem("nhcx_default_provider_id") === f.hcx_participant_code;
@@ -586,31 +581,44 @@ export default function Settings({
 
   return (
     <div className="ep-screen st-screen">
-      {(isAdmin || hasSessionFacilities) && (
+      {canRegister && (
         <PageActions>
-          <Button variant="outline" size="small" icon={Plus} onClick={() => openCreate()}>
+          <Button variant="outline" size="small" icon={Plus} onClick={() => openCreate(registerPrefill())}>
             Register facility
           </Button>
         </PageActions>
       )}
 
-      {sessionFacilities && (
+      {readOnly && (
+        <Section id="st-active" title="Active facility">
+          <div className="ep-pad">
+            <div className="ep-notice">
+              This account sees every facility at once and changes nothing — no case, payer reply or facility can be edited from it.
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {sessionFacilities && !readOnly && (
         <Section
           id="st-active"
           title="Active facility"
-          meta={hasSessionFacilities && "Editing re-syncs the facility to ABDM, including the NHCX callback URL."}
+          meta={hasSessionFacilities && sessionFacilities.some((f) => canManage(f.facility_code)) && "Editing re-syncs the facility to ABDM, including the NHCX callback URL."}
         >
           {pickerFacilities.length === 0 ? (
             <div className="ep-pad st-stack">
               <div className="ep-notice is-bad">
-                No cashless-enabled facility is linked to your account. If you're the clinic owner, register it here — otherwise, ask
-                your clinic's owner to register it.
+                {canRegister
+                  ? "No cashless-enabled facility is linked to your account. As its clinic admin, register it here."
+                  : "No cashless-enabled facility is linked to your account. Ask your clinic admin to register it."}
               </div>
-              <div>
-                <Button variant="primary" icon={Plus} onClick={() => openCreate({ facility_code: getDeepLinkClinicId() || "" })}>
-                  Register this facility
-                </Button>
-              </div>
+              {canRegister && (
+                <div>
+                  <Button variant="primary" icon={Plus} onClick={() => openCreate(registerPrefill())}>
+                    Register this facility
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -647,7 +655,7 @@ export default function Settings({
                           </td>
                           <td className="ep-mono">{f.hcx_participant_code || "—"}</td>
                           <td className="st-col-actions" onClick={(e) => e.stopPropagation()}>
-                            {hasSessionFacilities && (
+                            {hasSessionFacilities && canManage(f.facility_code) && (
                               <div className="st-row-actions">
                                 <button
                                   type="button"
@@ -673,25 +681,6 @@ export default function Settings({
                         </tr>
                       );
                     })}
-                    {isAdmin && hasSessionFacilities && (
-                      <tr className={`st-pick-row${allFacilitiesMode ? " is-on" : ""}`} onClick={handleEnableAllFacilities}>
-                        <td className="st-col-pick">
-                          <input
-                            type="radio"
-                            name="st-active-facility"
-                            checked={allFacilitiesMode}
-                            onChange={handleEnableAllFacilities}
-                            aria-label="View all facilities"
-                          />
-                        </td>
-                        <td>
-                          <span className="ep-strong">All facilities</span>
-                          <span className="st-sub">Read-only — no single facility is acted as</span>
-                        </td>
-                        <td className="ep-muted">—</td>
-                        <td />
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
@@ -731,7 +720,7 @@ export default function Settings({
         </dl>
       </Section>
 
-      {isAdmin && (
+      {showManagement && (
         <Section
           id="st-facilities"
           title="Facility management"
@@ -744,16 +733,6 @@ export default function Settings({
               value={facilitySearch}
               onChange={(e) => setFacilitySearch(e.target.value)}
             />
-            <label className="st-token">
-              <span className="ep-muted">Admin token</span>
-              <input
-                type="password"
-                className="input-modern pd-input"
-                placeholder="Required to register, edit or upload keys"
-                value={adminToken}
-                onChange={(e) => handleAdminTokenChange(e.target.value)}
-              />
-            </label>
           </div>
 
           {loadError && <div className="ep-notice is-bad st-notice">Could not load facilities. Showing the last known results, if any.</div>}
@@ -833,14 +812,16 @@ export default function Settings({
                         <AbdmStatus registration={f.abdm_registration} />
                       </td>
                       <td className="st-col-actions">
-                        <div className="st-row-actions">
-                          <button type="button" className="ep-action" onClick={() => openEdit(f)}>
-                            <Edit2 size={13} /> Edit
-                          </button>
-                          <button type="button" className="ep-action" onClick={() => setKeyDrawerFacility(f)}>
-                            <Key size={13} /> {f.private_key_set ? "Rotate" : "Upload"}
-                          </button>
-                        </div>
+                        {canManage(f.facility_code) && (
+                          <div className="st-row-actions">
+                            <button type="button" className="ep-action" onClick={() => openEdit(f)}>
+                              <Edit2 size={13} /> Edit
+                            </button>
+                            <button type="button" className="ep-action" onClick={() => setKeyDrawerFacility(f)}>
+                              <Key size={13} /> {f.private_key_set ? "Rotate" : "Upload"}
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

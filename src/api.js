@@ -14,9 +14,9 @@ const BASE_URL =
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// A polyclinic admin can deliberately enter the read-only cross-facility view
-// by sending no X-Provider-Id at all, even though a facility is still saved
-// in localStorage from a prior session - this flag suppresses it.
+// A read-only global admin works in the cross-facility view, sending no
+// X-Provider-Id at all even if a facility is still saved in localStorage from
+// a prior session - this flag suppresses it. App.jsx sets it from /session.
 export const ALL_FACILITIES_MODE_KEY = "nhcx_all_facilities_mode";
 
 // Which nav paradigm the shell renders: "A" (dark rail sidebar) or "B" (dark
@@ -69,32 +69,16 @@ export const clearSessionToken = () => {
   sessionStorage.removeItem(SESSION_TOKEN_KEY);
 };
 
-// Deployment admin token, required in addition to the bearer token on the
-// three facility-mutation endpoints (POST /facilities, PUT /facilities/{code},
-// PUT /facilities/{code}/private_key). Admin-only surface — entered once in
-// Settings and kept in localStorage, never the parent-HIS session token.
-export const ADMIN_TOKEN_KEY = "nhcx_admin_token";
-
-const getAdminHeader = () => {
-  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
-  return token ? { "X-Admin-Token": token } : {};
-};
-
 // Only /health is exempt from auth. /facilities/* used to be exempt too, but
 // v1.4.0 made the bearer token required there as well (facility resolution is
 // just skipped, so first-time onboarding still works without a chosen facility).
 const isAuthExempt = (path) => path === "/health";
 
-// The three facility-mutation endpoints that additionally require X-Admin-Token.
-const isAdminMutation = (path, method) =>
-  /^\/facilities(\/|$)/.test(path) && method !== "GET";
-
 // Compose request headers for a relative wrapper path.
-const buildHeaders = (path, method = "GET") => ({
+const buildHeaders = (path) => ({
   "Content-Type": "application/json",
   ...getProviderHeader(),
   ...(isAuthExempt(path) ? {} : getAuthHeader()),
-  ...(isAdminMutation(path, method) ? getAdminHeader() : {}),
 });
 
 /** RFC-4122 v4 UUID — mandatory request_id for every API call. */
@@ -127,16 +111,34 @@ class ApiError extends Error {
   }
 }
 
+// A global admin's session reads every facility but changes nothing. The
+// wrapper refuses its writes (WRAPPER-ERROR:1015); they are refused here too,
+// before anything leaves the browser.
+export const READ_ONLY_MESSAGE = "This account can view only.";
+let readOnlySession = false;
+export const setReadOnlySession = (value) => {
+  readOnlySession = !!value;
+};
+
+const refuseIfReadOnly = () => {
+  if (!readOnlySession) return;
+  const err = new ApiError(READ_ONLY_MESSAGE, "READ_ONLY");
+  dispatchError(err.message, err.kind);
+  throw err;
+};
+
 // Auth failures from the wrapper's session-token check get a plain-language
 // message — the raw "WRAPPER-ERROR:1012" means nothing to a billing user.
 const authMessage = (status, raw) => {
   const code = typeof raw === "string" ? raw : "";
   if (code.includes("WRAPPER-ERROR:1012") || status === 401)
     return { kind: "AUTH_EXPIRED", message: "Your session has expired. Please sign in again from the hospital system." };
-  // Check the specific admin-token code before the generic 403 fallback below,
-  // which would otherwise misreport it as "no facility linked".
+  // Check the specific 403 codes before the generic 403 fallback below, which
+  // would otherwise misreport them as "no facility linked".
   if (code.includes("WRAPPER-ERROR:1014"))
-    return { kind: "ADMIN_TOKEN", message: "Admin token is missing or incorrect. Enter the deployment admin token in Settings to manage facilities." };
+    return { kind: "FACILITY_ADMIN", message: "Only a clinic admin of this facility can register or change it." };
+  if (code.includes("WRAPPER-ERROR:1015"))
+    return { kind: "READ_ONLY", message: READ_ONLY_MESSAGE };
   if (code.includes("WRAPPER-ERROR:1013") || status === 403)
     return { kind: "NO_FACILITY", message: "No NHCX facility is linked to your account. Contact your administrator." };
   if (code.includes("WRAPPER-ERROR:1011"))
@@ -206,11 +208,12 @@ const http = {
     }
   },
   post: async (path, body = {}, opts = {}) => {
+    refuseIfReadOnly();
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
         method: "POST",
-        headers: buildHeaders(path, "POST"),
+        headers: buildHeaders(path),
         body: JSON.stringify(merged),
       });
       if (!res.ok && opts.acceptStatuses?.includes(res.status)) {
@@ -227,11 +230,12 @@ const http = {
     }
   },
   patch: async (path, body = {}) => {
+    refuseIfReadOnly();
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PATCH",
-        headers: buildHeaders(path, "PATCH"),
+        headers: buildHeaders(path),
         body: JSON.stringify(merged),
       });
       if (!res.ok) {
@@ -245,11 +249,12 @@ const http = {
     }
   },
   put: async (path, body = {}) => {
+    refuseIfReadOnly();
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
         method: "PUT",
-        headers: buildHeaders(path, "PUT"),
+        headers: buildHeaders(path),
         body: JSON.stringify(merged),
       });
       if (!res.ok) {
@@ -263,11 +268,12 @@ const http = {
     }
   },
   delete: async (path, body = {}) => {
+    refuseIfReadOnly();
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
         method: "DELETE",
-        headers: buildHeaders(path, "DELETE"),
+        headers: buildHeaders(path),
         body: JSON.stringify(merged),
       });
       if (!res.ok) {
@@ -282,6 +288,7 @@ const http = {
   },
   /** Fire an arbitrary POST to a full path (used by Work Queue task actions). */
   rawPost: async (fullPath, body = {}) => {
+    refuseIfReadOnly();
     const merged = { request_id: generateRequestId(), ...body };
     const url = fullPath.startsWith("http")
       ? fullPath
@@ -2790,6 +2797,9 @@ const mock = {
     return {
       user: { id: 42, name: "Dr Admin", is_admin: true },
       is_admin: true,
+      read_only: false,
+      manageable_facility_codes: [],
+      manages_any_facility: true,
       facilities: [
         { facility_code: "HOSP-001", hcx_participant_code: "1000099999@hcx", name: "City General Hospital", environment: "production" },
         { facility_code: "HOSP-002", hcx_participant_code: "1000088888@hcx", name: "District Paediatric Centre", environment: "sandbox" },

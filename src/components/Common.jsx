@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
+import { useReadOnly, READ_ONLY_TITLE } from "../readOnly";
 import {
   CheckCircle,
   AlertCircle,
@@ -52,7 +53,11 @@ export const Button = ({
   icon: Icon,
   size = "medium",
   title,
+  write = false,
 }) => {
+  const readOnly = useReadOnly();
+  const blocked = write && readOnly;
+  const off = disabled || blocked;
   const sizeClasses = {
     small: "py-1 px-3 text-xs",
     medium: "",
@@ -61,12 +66,12 @@ export const Button = ({
 
   return (
     <motion.button
-      whileHover={!disabled ? { scale: 1.02 } : {}}
-      whileTap={!disabled ? { scale: 0.98 } : {}}
+      whileHover={!off ? { scale: 1.02 } : {}}
+      whileTap={!off ? { scale: 0.98 } : {}}
       className={`btn-modern btn-${variant}-modern ${sizeClasses[size]} ${className}`}
       onClick={onClick}
-      disabled={disabled}
-      title={title}
+      disabled={off}
+      title={blocked ? READ_ONLY_TITLE : title}
     >
       {Icon && <Icon size={size === "small" ? 14 : 18} />}
       {children}

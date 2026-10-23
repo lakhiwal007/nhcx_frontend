@@ -409,7 +409,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           size="small"
           icon={Plus}
           disabled={allFacilitiesMode}
-          title={allFacilitiesMode ? "Select a facility in Settings to start a new case" : "New Cashless Case"}
+          title={allFacilitiesMode ? "This account can view only" : "New Cashless Case"}
           onClick={() => navigate("/registry")}
         >
           New Cashless Case
@@ -419,7 +419,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       {allFacilitiesMode && (
         <div className="inline-error-banner cc-info-banner">
           <AlertCircle size={16} />
-          Viewing all facilities (read-only). Select a facility in Settings to start or act on a case.
+          Viewing all facilities (read-only). This account can see every case but not start or act on one.
         </div>
       )}
 

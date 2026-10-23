@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Pin, PinOff, Trash2, StickyNote } from "lucide-react";
 import { api } from "../../api";
+import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
 import { Drawer } from "../Overlay";
 import { Button, LoadingBlock } from "../Common";
 import Dropdown from "../Dropdown";
@@ -36,6 +37,7 @@ export function PinnedNoteStrip({ notes, onOpen }) {
 }
 
 export default function CaseNotesDrawer({ open, onClose, cashlessCaseId, notes, loaded, loadError, onChanged }) {
+  const readOnly = useReadOnly();
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("general");
   const [saving, setSaving] = useState(false);
@@ -105,7 +107,7 @@ export default function CaseNotesDrawer({ open, onClose, cashlessCaseId, notes, 
         <div className="cn-compose-row">
           <Dropdown compact ariaLabel="Note category" value={category} options={NOTE_CATEGORIES} onChange={setCategory} />
           <span className="cn-count ep-muted">{body.length}/{MAX_LENGTH}</span>
-          <Button size="small" onClick={add} disabled={!body.trim() || saving}>
+          <Button write size="small" onClick={add} disabled={!body.trim() || saving}>
             {saving ? "Saving…" : "Add note"}
           </Button>
         </div>
@@ -136,13 +138,14 @@ export default function CaseNotesDrawer({ open, onClose, cashlessCaseId, notes, 
                 <button
                   type="button"
                   className="cn-action"
-                  disabled={busyId === note.id}
+                  disabled={busyId === note.id || readOnly}
+                  title={readOnly ? READ_ONLY_TITLE : undefined}
                   onClick={() => act(note, () => api.updateCaseNote(cashlessCaseId, note.id, { pinned: !note.pinned }))}
                 >
                   {note.pinned ? <PinOff size={13} aria-hidden="true" /> : <Pin size={13} aria-hidden="true" />}
                   {note.pinned ? "Unpin" : "Pin to case"}
                 </button>
-                {canChange(note) && (
+                {canChange(note) && !readOnly && (
                   <button
                     type="button"
                     className="cn-action is-danger"

@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Home, RefreshCw, AlertCircle } from "lucide-react";
 import { api } from "../../api";
+import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
 import { Button, LoadingBlock, formatMoney } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { groupPaymentEvents, stageLabel } from "../../paymentEvents.js";
@@ -9,6 +10,7 @@ import { Section } from "../case/CaseFile";
 
 export default function PaymentReconciliation({ ctx }) {
   const navigate = useNavigate();
+  const readOnly = useReadOnly();
   const { caseState, moneyLedger } = ctx;
 
   const claimId = caseState.claim_id || caseState.draftData?.claim_id;
@@ -196,7 +198,7 @@ export default function PaymentReconciliation({ ctx }) {
                                 ) : (
                                   <div className="pay-ack">
                                     <span className="is-bad">Failed</span>
-                                    <button type="button" className="ep-action" disabled={isAcknowledging} onClick={() => handleAcknowledge(pay)}>
+                                    <button type="button" className="ep-action" disabled={isAcknowledging || readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={() => handleAcknowledge(pay)}>
                                       {isAcknowledging ? "Retrying…" : "Retry"}
                                     </button>
                                     <button type="button" className="pd-inline-link" onClick={() => setShowOverrides((p) => ({ ...p, [ref]: !p[ref] }))}>

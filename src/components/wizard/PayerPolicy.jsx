@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Building2, FileText, ArrowRight, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { api } from "../../api";
+import { useReadOnly } from "../../readOnly";
 import { Button, StatusBadge } from "../Common";
 import Dropdown from "../Dropdown";
 import { formatMoney, formatDate } from "../../format.js";
@@ -30,6 +31,7 @@ const payerFromPolicy = (policy) => {
 
 export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
+  const readOnly = useReadOnly();
   const { patient, caseState, updateCaseState, caseClosed } = ctx;
 
   const [payers, setPayers] = useState([]);
@@ -88,7 +90,7 @@ export default function PayerPolicy({ ctx }) {
   };
 
   useEffect(() => {
-    if (!patient?.child_id || policies.length || selectedPolicy) return;
+    if (readOnly || !patient?.child_id || policies.length || selectedPolicy) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       if (!cancelled) fetchPolicies("");
@@ -299,7 +301,14 @@ export default function PayerPolicy({ ctx }) {
           </div>
         )}
 
-        {loadingPolicies ? (
+        {readOnly ? (
+          <div className="pp-state">
+            <div>
+              <div className="pp-state-title">View only</div>
+              <div className="pp-muted">Looking up a patient's policies asks the payer, which this account cannot do.</div>
+            </div>
+          </div>
+        ) : loadingPolicies ? (
           <div className="pp-list" aria-busy="true">
             {[0, 1].map((i) => (
               <div key={i} className="pp-row is-skeleton">

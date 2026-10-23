@@ -168,7 +168,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const actions = (
     <>
       {submitError && <div className="ep-notice is-bad">{submitError}</div>}
-      <Button
+      <Button write
         variant="primary"
         icon={Send}
         disabled={submitting || caseClosed}

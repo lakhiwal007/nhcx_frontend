@@ -293,7 +293,7 @@ export default function ReprocessScreen({ ctx }) {
             </ul>
             <div className="pd-submit">
               {submitError && <div className="ep-notice is-bad">{submitError}</div>}
-              <Button variant="primary" icon={Send} disabled={!description || submitting} onClick={handleSubmit} className="pd-submit-btn">
+              <Button write variant="primary" icon={Send} disabled={!description || submitting} onClick={handleSubmit} className="pd-submit-btn">
                 {submitting ? "Submitting…" : "Submit appeal"}
               </Button>
             </div>

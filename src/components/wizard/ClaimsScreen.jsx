@@ -79,7 +79,7 @@ function PatientContextForm({ claimId, onResolved }) {
                   />
                 </div>
               ))}
-              <Button variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
+              <Button write variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
                 {saving ? "Saving…" : "Save & Refresh"}
               </Button>
             </div>
@@ -563,16 +563,16 @@ export default function ClaimsScreen({ ctx }) {
       ? { label: "Resubmit discharge claim", onClick: () => setShowDischargeResubmitDrawer(true) }
       : dischargeCorrelationId
         ? { label: "Continue to final claim", onClick: () => setActiveTab("final"), disabled: dischargeFailed, icon: ArrowRight }
-        : { label: submitting ? "Submitting…" : "Submit discharge claim", onClick: handleSubmitDischarge, disabled: !canSubmit, icon: Send };
+        : { label: submitting ? "Submitting…" : "Submit discharge claim", onClick: handleSubmitDischarge, disabled: !canSubmit, icon: Send, write: true };
   } else if (activeTab === "final") {
     primary = finalCorrelationId
       ? { label: "View decision", onClick: () => setActiveTab("decision"), icon: ArrowRight }
-      : { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: !canSubmitFinal || submitting, icon: Send };
+      : { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: !canSubmitFinal || submitting, icon: Send, write: true };
   } else if (claimDecided) {
     primary = isClaimApproved || isPartialApproval
       ? { label: "View payment status", onClick: () => navigate("../payment"), icon: ArrowRight }
       : isClaimQueried
-        ? { label: "Respond to query", onClick: () => setShowQueryDrawer(true) }
+        ? { label: "Respond to query", onClick: () => setShowQueryDrawer(true), write: true }
         : isClaimRejected
           ? { label: "Ask for a reprocess", onClick: () => navigate("../reprocess") }
           : null;
@@ -944,7 +944,7 @@ export default function ClaimsScreen({ ctx }) {
               {(activeTab === "final" || activeTab === "decision") && submitError && <div className="ep-notice is-bad">{submitError}</div>}
               {activeTab === "discharge" && dischargeSubmitError && <div className="ep-notice is-bad">{dischargeSubmitError}</div>}
               {primary && (
-                <Button variant="primary" icon={primary.icon} disabled={primary.disabled} onClick={primary.onClick} className="pd-submit-btn">
+                <Button variant="primary" icon={primary.icon} disabled={primary.disabled} write={primary.write} onClick={primary.onClick} className="pd-submit-btn">
                   {primary.label}
                 </Button>
               )}
@@ -986,7 +986,7 @@ export default function ClaimsScreen({ ctx }) {
             {submitError}
           </div>
         )}
-        <Button variant="primary" className="w-full" disabled={!queryAnswer || submitting} onClick={handleQuerySubmit} style={{ justifyContent: "center" }}>
+        <Button write variant="primary" className="w-full" disabled={!queryAnswer || submitting} onClick={handleQuerySubmit} style={{ justifyContent: "center" }}>
           {submitting ? "Submitting…" : "Submit Response"}
         </Button>
       </Drawer>
@@ -1022,7 +1022,7 @@ export default function ClaimsScreen({ ctx }) {
             {submitError}
           </div>
         )}
-        <Button variant="primary" className="w-full" disabled={submitting || !(Number(releaseAmount) > 0)} onClick={handleRequestRelease} style={{ justifyContent: "center" }}>
+        <Button write variant="primary" className="w-full" disabled={submitting || !(Number(releaseAmount) > 0)} onClick={handleRequestRelease} style={{ justifyContent: "center" }}>
           {submitting ? "Sending…" : "Send to payer"}
         </Button>
       </Drawer>
@@ -1095,7 +1095,7 @@ export default function ClaimsScreen({ ctx }) {
             {dischargeSubmitError}
           </div>
         )}
-        <Button variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>
+        <Button write variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>
           {submitting ? "Resubmitting…" : "Resubmit Discharge Claim"}
         </Button>
       </Drawer>

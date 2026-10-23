@@ -108,7 +108,7 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
         ))}
       </div>
       <div className="pd-form-actions">
-        <Button variant="primary" size="small" disabled={saving} onClick={handleSave}>
+        <Button write variant="primary" size="small" disabled={saving} onClick={handleSave}>
           {saving ? "Saving…" : "Save & refresh draft"}
         </Button>
       </div>
@@ -736,7 +736,7 @@ export default function PreauthDraft({ ctx }) {
                 </>
               ) : (
                 <>
-                  <Button variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit} className="pd-submit-btn">
+                  <Button write variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit} className="pd-submit-btn">
                     {submitting ? "Submitting…" : "Submit preauth"}
                   </Button>
                   <button type="button" className="pd-text-btn" onClick={handleSaveDraft}>
@@ -765,7 +765,7 @@ export default function PreauthDraft({ ctx }) {
             <Button variant="outline" onClick={() => setConfirmResend(false)}>
               Cancel
             </Button>
-            <Button variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit}>
+            <Button write variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit}>
               {submitting ? "Sending…" : `Send ${formatMoney(effectiveTotal)} preauth`}
             </Button>
           </div>

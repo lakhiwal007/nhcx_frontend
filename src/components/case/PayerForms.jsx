@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../../api";
+import { useReadOnly } from "../../readOnly";
 import { Button, LoadingBlock } from "../Common";
 import { Drawer } from "../Overlay";
 import { Section } from "./CaseFile";
@@ -78,7 +79,7 @@ function Question({ item, value, file, disabled, onChange, onFile }) {
   );
 }
 
-function FormEditor({ caseId, stage, form, readOnly, onClose, onSaved }) {
+function FormEditor({ caseId, stage, form, readOnly, lockedBy, onClose, onSaved }) {
   const [values, setValues] = useState(() => Object.fromEntries(form.items.map((it) => [it.linkId, it.answer ?? ""])));
   const [files, setFiles] = useState({});
   const [saving, setSaving] = useState(false);
@@ -125,13 +126,17 @@ function FormEditor({ caseId, stage, form, readOnly, onClose, onSaved }) {
       subtitle={form.consent ? "The scheme's consent form for this leg" : `Answered for the ${LEG_LABEL[stage]}`}
       footer={
         !readOnly && (
-          <Button variant="primary" onClick={save} disabled={saving}>
+          <Button write variant="primary" onClick={save} disabled={saving}>
             {saving ? "Saving…" : "Save answers"}
           </Button>
         )
       }
     >
-      {readOnly && <div className="ep-notice">The claim has gone to the payer, so the pre-auth's forms are read only.</div>}
+      {readOnly && (
+        <div className="ep-notice">
+          {lockedBy === "account" ? "This account can view only." : "The claim has gone to the payer, so the pre-auth's forms are read only."}
+        </div>
+      )}
       {form.consent && (
         <div className="ep-notice">
           Upload the signed declaration. The other questions take the payer's default answer when left blank.
@@ -154,6 +159,7 @@ function FormEditor({ caseId, stage, form, readOnly, onClose, onSaved }) {
 }
 
 export default function PayerForms({ caseId, stage }) {
+  const viewOnly = useReadOnly();
   const [state, setState] = useState({ key: null, data: null, error: null });
   const [open, setOpen] = useState(null);
   const key = `${caseId}|${stage}`;
@@ -175,6 +181,7 @@ export default function PayerForms({ caseId, stage }) {
   const forms = state.data?.forms || [];
   const openForm = forms.find((f) => f.url === open) || null;
   const unanswered = forms.filter((f) => !f.answered).length;
+  const readOnly = viewOnly || !!state.data?.read_only;
 
   const onSaved = (saved) => {
     setState((prev) => ({ ...prev, data: { ...prev.data, forms: (prev.data?.forms || []).map((f) => (f.url === saved.url ? saved : f)) } }));
@@ -204,14 +211,14 @@ export default function PayerForms({ caseId, stage }) {
               </span>
               <span className="ep-muted">{f.answered ? `${f.answered} answered` : "Not answered"}</span>
               <Button variant="outline" onClick={() => setOpen(f.url)}>
-                {state.data?.read_only ? "View" : f.answered ? "Edit" : "Fill"}
+                {readOnly ? "View" : f.answered ? "Edit" : "Fill"}
               </Button>
             </li>
           ))}
         </ul>
       )}
       {openForm && (
-        <FormEditor key={openForm.url} caseId={caseId} stage={stage} form={openForm} readOnly={!!state.data?.read_only} onClose={() => setOpen(null)} onSaved={onSaved} />
+        <FormEditor key={openForm.url} caseId={caseId} stage={stage} form={openForm} readOnly={readOnly} lockedBy={viewOnly ? "account" : "claim"} onClose={() => setOpen(null)} onSaved={onSaved} />
       )}
     </Section>
   );

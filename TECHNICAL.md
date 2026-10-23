@@ -59,10 +59,9 @@ Set via `.env` / `.env.local` (Vite dev) or build args (Docker). See `.env.examp
 | Header | Source | Purpose |
 |---|---|---|
 | `Authorization: Bearer <token>` | `window.__NHCX_TOKEN__` (set by the parent HIS page that embeds this app), fallback `localStorage["nhcx_session_token"]` for local dev | Parent-HIS session token; backend decodes it (no signature check — trusted internal network) to resolve the acting user + facility. Required on every endpoint except `/facilities/*` and `/health`. |
-| `X-Provider-Id` | `localStorage["nhcx_default_provider_id"]` | The active facility's `hcx_participant_code`. Optional — only needed to disambiguate when a user/admin has access to more than one facility. Omitted entirely when `localStorage["nhcx_all_facilities_mode"] === "true"` (polyclinic admin's read-only cross-facility view). |
-| `X-Admin-Token` | `localStorage["nhcx_admin_token"]`, entered in Settings | Deployment admin secret, required in addition to the bearer token on the three facility-mutation endpoints (`POST /facilities`, `PUT /facilities/{code}`, `PUT /facilities/{code}/private_key`). |
+| `X-Provider-Id` | `localStorage["nhcx_default_provider_id"]` | The active facility's `hcx_participant_code`. Optional — only needed to disambiguate when a user/admin has access to more than one facility. Omitted entirely when `localStorage["nhcx_all_facilities_mode"] === "true"` (a global admin's read-only cross-facility view, which the backend applies whatever is sent). |
 
-Session bootstrap: `GET /session` (bearer token only, no facility required) returns `{ user, is_admin, facilities[] }`. The frontend auto-selects a lone facility, shows a selector for 2+, and offers a "View All Facilities" read-only mode for admins. See `src/api.js`'s `getSession` and `App.jsx`'s session-bootstrap effect.
+Session bootstrap: `GET /session` (bearer token only, no facility required) returns `{ user, is_admin, read_only, manageable_facility_codes, manages_any_facility, facilities[] }`. The frontend auto-selects a lone facility and shows a selector for 2+. A `read_only` session (HIS role 3, the global admin) always opens the all-facilities view; `api.js` refuses its writes before sending (`setReadOnlySession`), and `ReadOnlyContext` (`src/readOnly.js`) disables every `<Button write>`. Settings offers Register / Edit / Key only for the codes in `manageable_facility_codes` (HIS role 10, the clinic admin, for its own clinics). See `src/api.js`'s `getSession` and `App.jsx`'s session-bootstrap effect.
 
 ## Deployment (Docker)
 
@@ -84,8 +83,7 @@ Session bootstrap: `GET /session` (bearer token only, no facility required) retu
 | `nhcx_claims_<claim_id>` | Which claim-wizard steps are complete |
 | `nhcx_session_token` | Dev-only fallback for the parent-HIS bearer token |
 | `nhcx_default_provider_id` / `nhcx_default_facility_name` | Active facility's participant code / display name |
-| `nhcx_all_facilities_mode` | Admin's cross-facility read-only view toggle |
-| `nhcx_admin_token` | Deployment admin secret for facility mutations |
+| `nhcx_all_facilities_mode` | Global admin's cross-facility read-only view, set from `/session` |
 | `nhcx_theme` | Light/dark preference |
 | `nhcx_layout_direction` | Sidebar-rail vs. top-bar nav shell preference |
 
