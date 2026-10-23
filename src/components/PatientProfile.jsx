@@ -9,6 +9,7 @@ import { resolveCaseStatus } from "../caseStatus.js";
 import { routeAtOrAfter } from "../workflowStorage";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import PayerName from "./PayerName";
+import Dropdown from "./Dropdown";
 
 function calculateAge(dob) {
   if (!dob) return null;
@@ -529,6 +530,20 @@ function PatientDetail({ patient }) {
 
 const PAGE_SIZE = 20;
 
+// Case-state chips; counts come from the server for the whole search, not the page.
+const CASE_STATE_TABS = [
+  { key: "any", label: "All" },
+  { key: "open_case", label: "Open case", dot: "var(--info)" },
+  { key: "with_case", label: "Has cases", dot: "var(--success)" },
+  { key: "no_case", label: "No case", dot: "var(--text-muted)" },
+];
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "recent_activity", label: "Recent activity" },
+  { value: "name", label: "Name A–Z" },
+];
+
 export default function PatientProfile() {
   const [children, setChildren] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -537,17 +552,20 @@ export default function PatientProfile() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [caseState, setCaseState] = useState("any");
+  const [sortBy, setSortBy] = useState("newest");
+  const [stateCounts, setStateCounts] = useState({});
   const searchTimer = useRef(null);
   useEffect(() => () => clearTimeout(searchTimer.current), []);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const loadChildren = useCallback(async (query = "", pageNum = 1) => {
+  const loadChildren = useCallback(async (query = "", pageNum = 1, state = "any", sort = "newest") => {
     setLoading(true);
     setLoadError(false);
     try {
-      const params = { limit: PAGE_SIZE, offset: (pageNum - 1) * PAGE_SIZE };
+      const params = { limit: PAGE_SIZE, offset: (pageNum - 1) * PAGE_SIZE, case_state: state, sort };
       if (query.trim()) {
         if (/^\d{10}$/.test(query.trim())) {
           params.mobile = query.trim();
@@ -560,6 +578,7 @@ export default function PatientProfile() {
       const res = await api.searchChildren(params);
       setChildren(res?.children || []);
       setTotalCount(res?.total_count || 0);
+      setStateCounts(res?.state_counts || {});
     } catch (_) {
       setLoadError(true);
     } finally {
@@ -610,12 +629,24 @@ export default function PatientProfile() {
   const handleSearch = () => {
     setHasSearched(true);
     setPage(1);
-    loadChildren(searchQuery, 1);
+    loadChildren(searchQuery, 1, caseState, sortBy);
   };
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    loadChildren(searchQuery, newPage);
+    loadChildren(searchQuery, newPage, caseState, sortBy);
+  };
+
+  const changeCaseState = (state) => {
+    setCaseState(state);
+    setPage(1);
+    loadChildren(searchQuery, 1, state, sortBy);
+  };
+
+  const changeSort = (sort) => {
+    setSortBy(sort);
+    setPage(1);
+    loadChildren(searchQuery, 1, caseState, sort);
   };
 
   if (selectedPatient || loadingDetail) {
@@ -660,7 +691,7 @@ export default function PatientProfile() {
               searchTimer.current = setTimeout(() => {
                 setHasSearched(!!value.trim());
                 setPage(1);
-                loadChildren(value, 1);
+                loadChildren(value, 1, caseState, sortBy);
               }, 300);
             }}
             onKeyDown={(e) => {
@@ -670,6 +701,26 @@ export default function PatientProfile() {
               }
             }}
           />
+          <div className="wq-chips" role="tablist" aria-label="Case state">
+            {CASE_STATE_TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={caseState === t.key}
+                className={`wq-chip${caseState === t.key ? " is-on" : ""}`}
+                onClick={() => changeCaseState(t.key)}
+              >
+                {t.dot && <span className="wq-chip-dot" style={{ "--wq-dot": t.dot }} />}
+                {t.label}
+                <span className="wq-chip-count">{loading ? "–" : stateCounts[t.key] ?? 0}</span>
+              </button>
+            ))}
+          </div>
+          <div className="wq-toolbar-spacer" />
+          <div style={{ width: "160px" }}>
+            <Dropdown compact ariaLabel="Sort" value={sortBy} options={SORT_OPTIONS} onChange={changeSort} />
+          </div>
         </div>
 
         {loading ? (
@@ -677,8 +728,14 @@ export default function PatientProfile() {
         ) : children.length === 0 ? (
           <EmptyState
             icon={User}
-            title={hasSearched ? "No patients found" : "No patients registered yet"}
-            description={hasSearched ? "Try a different name, ID or mobile number." : "Registered children will show up here."}
+            title={hasSearched || caseState !== "any" ? "No patients found" : "No patients registered yet"}
+            description={
+              caseState !== "any"
+                ? "No patient in this group matches. Try another chip or clear the search."
+                : hasSearched
+                  ? "Try a different name, ID or mobile number."
+                  : "Registered children will show up here."
+            }
           />
         ) : (
           <div className="wq-table-scroll">

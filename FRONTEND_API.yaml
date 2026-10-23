@@ -435,6 +435,27 @@ paths:
           schema:
             type: integer
             default: 0
+        - name: case_state
+          in: query
+          required: false
+          description: >
+            Narrow to children by their cashless cases at this provider: `with_case`
+            (any case), `open_case` (a case not superseded, settled, complete or
+            cancelled), `no_case` (none). `state_counts` always counts every state.
+          schema:
+            type: string
+            enum: [any, with_case, open_case, no_case]
+            default: any
+        - name: sort
+          in: query
+          required: false
+          description: >
+            `recent_activity` (the child whose case moved last first; children with
+            no case last), `name` (A to Z), `newest` (latest registered child first).
+          schema:
+            type: string
+            enum: [recent_activity, name, newest]
+            default: newest
       responses:
         "200":
           description: Child search results
@@ -4303,6 +4324,24 @@ components:
       properties:
         total_count:
           type: integer
+          description: Children in the chosen `case_state` that match the search.
+        case_state:
+          type: string
+          enum: [any, with_case, open_case, no_case]
+        sort:
+          type: string
+          enum: [recent_activity, name, newest]
+        state_counts:
+          type: object
+          description: >
+            Children matching the search in each case state, whichever state was
+            chosen. (Where the HIS has no ABHA profile table, the counts cover the
+            fetched page only.)
+          properties:
+            any: { type: integer }
+            with_case: { type: integer }
+            open_case: { type: integer }
+            no_case: { type: integer }
         limit:
           type: integer
         offset:

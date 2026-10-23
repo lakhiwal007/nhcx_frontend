@@ -968,13 +968,23 @@ const mock = {
         },
     ];
     const name = params.name?.toLowerCase();
-    const children = all.filter(
+    const matched = all.filter(
       (c) =>
         (params.child_id == null || String(c.child_id) === String(params.child_id)) &&
         (!params.mobile || c.mobile === params.mobile) &&
         (!name || c.name.toLowerCase().includes(name)),
     );
-    return { total_count: children.length, limit: 20, offset: 0, children };
+    const hasCase = (c) => (c.cashless_cases_count ?? (c.latest_claim ? 1 : 0)) > 0;
+    const isOpen = (c) => !!c.latest_claim && !["settled", "complete", "superseded"].includes(c.latest_claim.status) && c.latest_claim.current_step !== "settled";
+    const STATES = { any: () => true, with_case: hasCase, open_case: isOpen, no_case: (c) => !hasCase(c) };
+    const caseState = STATES[params.case_state] ? params.case_state : "any";
+    const sort = params.sort || "newest";
+    const lastActivity = (c) => (c.latest_claim?.created_at ? new Date(c.latest_claim.created_at).getTime() : -Infinity);
+    const children = matched.filter(STATES[caseState]).sort((a, b) =>
+      sort === "name" ? a.name.localeCompare(b.name) : sort === "recent_activity" ? lastActivity(b) - lastActivity(a) : b.child_id - a.child_id,
+    );
+    const state_counts = Object.fromEntries(Object.entries(STATES).map(([k, fn]) => [k, matched.filter(fn).length]));
+    return { total_count: children.length, limit: 20, offset: 0, case_state: caseState, sort, state_counts, children };
   },
 
   // ─── Payer Search ───────────────────────────────────────────────────────────
