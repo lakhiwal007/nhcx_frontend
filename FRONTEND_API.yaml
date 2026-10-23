@@ -4380,6 +4380,11 @@ components:
           format: date-time
         cashless_cases_count:
           type: integer
+        last_activity:
+          type: string
+          format: date-time
+          nullable: true
+          description: When any of the child's cashless cases (or their claims) last changed; null with no case. The `recent_activity` sort orders by it.
         latest_claim:
           type: object
           nullable: true
