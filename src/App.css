@@ -743,37 +743,427 @@ h3,
     text-decoration: none;
 }
 
-/* ─── Patient file (PatientProfile.jsx detail) ─────────────────────────── */
-.pt-screen .ds-empty {
-    padding-bottom: 12px;
+/* ─── Patient file (PatientProfile.jsx) ────────────────────────────────── */
+.pt-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
-.pt-screen .ep-section > .ep-table-wrap + .ep-table-wrap {
+.pt-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+
+/* Header card: identity + actions, then a row of labelled facts */
+.pt-head {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding: 24px 28px;
+}
+
+.pt-head-top {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.pt-head-id {
+    flex: 1;
+    min-width: 220px;
+}
+
+.pt-head-name {
+    margin: 0;
+    font-size: 22px;
+    font-weight: var(--fw-bold);
+    letter-spacing: -0.01em;
+    color: var(--text-main);
+}
+
+.pt-head-meta {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.pt-head-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.pt-facts {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding-top: 18px;
     border-top: 1px solid var(--border-color);
 }
 
-.pt-row {
+.pt-fact {
+    padding: 0 20px;
+    border-left: 1px solid var(--border-color);
+    min-width: 0;
+}
+
+.pt-fact:first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.pt-fact-label {
+    font-size: 11px;
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.pt-fact-value {
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: var(--fw-medium);
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pt-fact-value.is-warn {
+    color: var(--warning);
+}
+
+@media (max-width: 900px) {
+    .pt-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 14px;
+    }
+    .pt-fact:nth-child(odd) {
+        padding-left: 0;
+        border-left: 0;
+    }
+}
+
+.pt-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    font: var(--fw-bold) 13px var(--font-sans);
+}
+
+.pt-avatar.is-lg {
+    width: 52px;
+    height: 52px;
+    font-size: 20px;
+}
+
+/* Tabs */
+.pt-panel {
+    overflow: hidden;
+}
+
+.pt-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.pt-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    margin-right: 28px;
+    padding: 0 4px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--text-muted);
+    font: var(--fw-semibold) 14px var(--font-sans);
     cursor: pointer;
 }
 
-.pt-row:hover td,
-.pt-row:focus-visible td {
+.pt-tab:hover {
+    color: var(--text-main);
+}
+
+.pt-tab.is-on {
+    color: var(--text-main);
+    border-bottom-color: var(--primary);
+}
+
+.pt-count {
+    padding: 2px 8px;
+    border-radius: 999px;
     background: var(--bg-main);
+    color: var(--text-main);
+    font: var(--fw-medium) 12px var(--font-mono);
 }
 
-.ds-verdict.pt-status {
-    display: inline-flex;
-    gap: 6px;
-    padding: 0;
-    font-weight: var(--fw-medium);
+.pt-count.is-alert {
+    background: color-mix(in srgb, var(--warning) 14%, transparent);
+    color: var(--warning);
 }
 
-.ds-verdict.pt-status.is-bad {
+.pt-tab-body {
+    padding: 4px 24px 20px;
+    overflow-x: auto;
+}
+
+/* Ledger table: dark rule under the headers, light row lines, no column grid */
+.pt-ledger {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 14px;
+    color: var(--text-main);
+}
+
+.pt-ledger th {
+    padding: 16px 16px 10px;
+    border-bottom: 1.5px solid var(--text-main);
+    color: var(--text-main);
+    font: var(--fw-semibold) 12px var(--font-sans);
+    text-align: left;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+.pt-ledger td {
+    padding: 15px 16px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+}
+
+.pt-ledger .pt-num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.pt-ledger .pt-money {
+    border-left: 1px solid var(--border-color);
+}
+
+.pt-ledger .pt-chev-col {
+    width: 20px;
+    padding-right: 0;
+}
+
+.pt-ledger tr.pt-row {
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.pt-ledger {
+    --pt-tint: color-mix(in srgb, var(--primary) 6%, var(--bg-card));
+}
+
+/* Each cell paints its own tint and laps 1px onto the next, so no hairline
+   seams show between cells at fractional zoom levels. */
+.pt-ledger tr.pt-row:hover td {
+    background: var(--bg-main);
+    box-shadow: 1px 0 0 var(--bg-main);
+}
+
+.pt-ledger tr.pt-row:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+.pt-ledger tr.pt-row.is-on td {
+    background: var(--pt-tint);
+    box-shadow: 1px 0 0 var(--pt-tint);
+    border-bottom-color: transparent;
+}
+
+.pt-ledger tr.pt-row.is-on td:first-child {
+    box-shadow: inset 3px 0 0 var(--primary), 1px 0 0 var(--pt-tint);
+}
+
+.pt-ledger tr.pt-expand > td {
+    padding: 6px 20px 24px 44px;
+    background: var(--pt-tint);
+}
+
+.pt-chev {
+    margin-top: 3px;
+    color: var(--text-muted);
+    transition: transform 0.15s ease;
+}
+
+.pt-chev.is-open {
+    color: var(--primary);
+    transform: rotate(90deg);
+}
+
+.pt-sub {
+    margin-top: 3px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.pt-strong {
+    font-weight: var(--fw-semibold);
+}
+
+.pt-warn {
+    color: var(--warning);
+    font-weight: var(--fw-semibold);
+}
+
+.pt-bad {
     color: var(--error);
+    font-weight: var(--fw-semibold);
 }
 
-.pt-note {
-    border-top: 1px solid var(--border-color);
+.pt-clip {
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pt-empty {
+    padding: 20px 0 4px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+/* Opened row: a facts line, then white cards holding nested ledgers */
+.pt-detail-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 32px;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+.pt-detail-facts .pt-k {
+    margin-right: 8px;
+    color: var(--text-muted);
+}
+
+.pt-detail-facts .pt-detail-action {
+    margin-left: auto;
+}
+
+.pt-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .pt-detail-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.pt-detail-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.pt-inner {
+    padding: 4px 6px 8px;
+    border-radius: 10px;
+    overflow-x: auto;
+}
+
+.pt-inner-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 14px 4px;
+    font-size: 13px;
+    font-weight: var(--fw-bold);
+}
+
+.pt-mini {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pt-mini th {
+    padding: 8px 14px;
+    border-bottom: 1.5px solid var(--text-main);
+    color: var(--text-main);
+    font: var(--fw-semibold) 12px var(--font-sans);
+    text-align: left;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+.pt-mini td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+}
+
+.pt-mini .pt-num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.pt-mini tr.pt-total td {
+    border-bottom: 0;
+    border-top: 1.5px solid var(--text-main);
+    font-weight: var(--fw-bold);
+    font-size: 14px;
+}
+
+.pt-message {
+    margin: 0 0 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.pt-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pt-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+}
+
+/* Patient list */
+.pt-person {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.pt-person .wq-sub {
+    white-space: nowrap;
+}
+
+.pt-act {
+    min-width: 104px;
 }
 
 /* ─── Shared overlays (Overlay.jsx: Drawer, Modal) ─────────────────────── */

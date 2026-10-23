@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { User, Plus, ArrowLeft, AlertCircle } from "lucide-react";
+import { User, Plus, ArrowLeft, ArrowRight, AlertCircle, ChevronRight, Paperclip } from "lucide-react";
 import { api } from "../api";
 import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney } from "./Common";
-import { Section, Fields } from "./case/CaseFile";
-import { formatDate, formatPhone, formatCaseRef } from "../format.js";
-import { taskStep } from "../taskRoutes";
-import { resolveCaseStatus } from "../caseStatus.js";
+import { formatDate, formatPhone, formatCaseRef, formatRelative, humanize, priorityLabel, safeHref } from "../format.js";
+import { taskStep, taskScreen, taskNavState } from "../taskRoutes";
+import { isSettled, needsAttention } from "../caseStatus.js";
 import { routeAtOrAfter } from "../workflowStorage";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import PayerName from "./PayerName";
 import Dropdown from "./Dropdown";
+import { CaseStatusChip, StageTrack } from "./caseJourney";
+import CommunicationDetailDrawer, { commHeadline, commPreview } from "./CommunicationDetail";
 
 function calculateAge(dob) {
   if (!dob) return null;
@@ -17,9 +18,353 @@ function calculateAge(dob) {
   return years;
 }
 
-function CaseStatusChip({ claim }) {
-  const cfg = resolveCaseStatus(claim);
-  return <span className={`badge-modern cc-status-chip ${cfg.badgeClass}`}>{cfg.label}</span>;
+const capitalize = (v) => (v ? v[0].toUpperCase() + v.slice(1) : null);
+
+function Avatar({ patient, large = false }) {
+  const [broken, setBroken] = useState(false);
+  const cls = `pt-avatar${large ? " is-lg" : ""}`;
+  if (patient.profile_photo && !broken) {
+    return <img className={cls} src={patient.profile_photo} alt="" onError={() => setBroken(true)} />;
+  }
+  return (
+    <span className={cls} aria-hidden="true">
+      {patient.name?.trim()?.[0]?.toUpperCase() || "?"}
+    </span>
+  );
+}
+
+// HIS billing_status: 0 billed and unpaid, 1 paid, 2 refunded or cancelled, null draft.
+const BILLING_STATUS = { 0: "Unpaid", 1: "Paid", 2: "Refunded" };
+const billingLabel = (v) => (v == null || v === "" ? "Draft" : BILLING_STATUS[v] ?? humanize(String(v)));
+
+const sum = (list, pick) => list.reduce((s, x) => s + (Number(pick(x)) || 0), 0);
+
+// Latest admission still in the bed, else the latest one.
+function currentAdmission(visits) {
+  return visits.find((v) => !v.ended_at) || visits[0] || null;
+}
+
+function isOpenCase(c) {
+  return !!c && !isSettled(c) && !/CANCELLED/i.test(c.preauth_status || "") && c.status !== "superseded";
+}
+
+function admissionMoney(visit) {
+  const invoices = visit.invoices || [];
+  const paid = [
+    ...(visit.advance_payments || []).map((p) => ({
+      kind: p.payment_type || "Advance",
+      mode: p.payment_mode,
+      ref: null,
+      date: p.date,
+      amount: p.amount,
+      advance: true,
+    })),
+    ...(visit.payments || []).map((p) => ({
+      kind: "Collected",
+      mode: p.payment_mode,
+      ref: p.online_txn_id,
+      date: p.collected_at,
+      amount: p.amount,
+    })),
+  ];
+  const billed = sum(invoices, (i) => i.amount_billed);
+  const discount = sum(invoices, (i) => i.final_discount);
+  const finalBill = sum(invoices, (i) => i.final_amount ?? i.amount_billed);
+  const settled = sum(paid, (p) => p.amount);
+  return { invoices, paid, billed, discount, finalBill, outstanding: finalBill - settled };
+}
+
+const daysBetween = (from, to) => {
+  if (!from) return null;
+  const ms = new Date(to || Date.now()) - new Date(from);
+  return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 86400000)) : null;
+};
+
+const money = (v) => (v == null ? "—" : v < 0 ? `− ${formatMoney(-v)}` : formatMoney(v));
+
+// A ledger row that opens a detail row under it; one open per table.
+function ExpandRow({ open, onToggle, cols, label, children, detail }) {
+  return (
+    <>
+      <tr
+        className={`pt-row${open ? " is-on" : ""}`}
+        tabIndex={0}
+        aria-expanded={open}
+        title={open ? `Hide ${label}` : `Show ${label}`}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+      >
+        <td className="pt-chev-col">
+          <ChevronRight size={13} className={`pt-chev${open ? " is-open" : ""}`} aria-hidden="true" />
+        </td>
+        {children}
+      </tr>
+      {open && (
+        <tr className="pt-expand">
+          <td colSpan={cols}>{detail}</td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function MoneyCard({ title = "Money", rows }) {
+  return (
+    <div className="pt-card pt-inner">
+      <div className="pt-inner-head">{title}</div>
+      <table className="pt-mini">
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th className="pt-num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.filter(Boolean).map((r, i) => (
+            <tr key={`${r.label}-${i}`} className={r.total ? "pt-total" : undefined}>
+              <td>
+                {r.label}
+                {r.sub && <div className="pt-sub">{r.sub}</div>}
+              </td>
+              <td className={`pt-num mono${r.total && r.tone ? ` pt-${r.tone}` : ""}`}>{money(r.value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AdmissionDetail({ visit, onStartCase, canStart }) {
+  const { invoices, paid, billed, discount, outstanding } = admissionMoney(visit);
+  const lines = invoices.flatMap((inv) => (inv.line_items || []).map((li) => ({ ...li, invoice_no: inv.invoice_no })));
+  const sponsors = [...new Set(invoices.map((i) => i.sponsor).filter(Boolean))];
+  const procedures = visit.procedures || [];
+  const billHeads = invoices.map((inv) => [inv.invoice_no, billingLabel(inv.billing_status), inv.payment_mode].filter(Boolean).join(" · "));
+
+  return (
+    <>
+      <div className="pt-detail-facts">
+        {visit.reason && (
+          <span>
+            <span className="pt-k">Reason</span>
+            {visit.reason}
+          </span>
+        )}
+        {procedures.length > 0 && (
+          <span>
+            <span className="pt-k">Procedure{procedures.length > 1 ? "s" : ""}</span>
+            {procedures.map((p, i) => (
+              <span key={i}>
+                {i > 0 && ", "}
+                {p.code && <span className="mono">{p.code} </span>}
+                {p.name}
+              </span>
+            ))}
+          </span>
+        )}
+        {sponsors.length > 0 && (
+          <span>
+            <span className="pt-k">Sponsor tag</span>
+            {sponsors.join(", ")}
+          </span>
+        )}
+        {canStart && (
+          <span className="pt-detail-action">
+            <Button variant="outline" size="small" icon={Plus} onClick={() => onStartCase(visit)}>
+              Start case for this admission
+            </Button>
+          </span>
+        )}
+      </div>
+
+      {invoices.length === 0 ? (
+        <p className="pt-empty">No billing on this admission yet.</p>
+      ) : (
+        <div className="pt-detail-grid">
+          <div className="pt-card pt-inner">
+            <div className="pt-inner-head">
+              <span>Bill</span>
+              <span className="pt-sub">{billHeads.join("  |  ")}</span>
+            </div>
+            <table className="pt-mini">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Item</th>
+                  <th>Category</th>
+                  <th className="pt-num">Qty</th>
+                  <th className="pt-num">Rate</th>
+                  <th className="pt-num">Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((li, n) => (
+                  <tr key={li.line_item_id ?? n}>
+                    <td className="mono">{li.code || "—"}</td>
+                    <td>
+                      {li.name}
+                      {invoices.length > 1 && li.invoice_no && <div className="pt-sub">{li.invoice_no}</div>}
+                    </td>
+                    <td className="ep-cap">{li.category || "—"}</td>
+                    <td className="pt-num mono">{li.quantity ?? "—"}</td>
+                    <td className="pt-num mono">{li.unit_price != null ? formatMoney(li.unit_price) : "—"}</td>
+                    <td className="pt-num mono">{li.net_amount != null ? formatMoney(li.net_amount) : "—"}</td>
+                  </tr>
+                ))}
+                <tr className="pt-total">
+                  <td />
+                  <td colSpan={4}>Billed</td>
+                  <td className="pt-num mono">{formatMoney(billed)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <MoneyCard
+            rows={[
+              { label: "Billed", value: billed },
+              discount > 0 && { label: "Discount", value: -discount },
+              ...paid.map((p) => ({
+                label: p.kind,
+                sub: [p.mode, p.ref, p.date && formatDate(p.date)].filter(Boolean).join(" · ") || null,
+                value: -(Number(p.amount) || 0),
+              })),
+              { label: "To collect", value: outstanding, total: true, tone: outstanding > 0 ? "warn" : null },
+            ]}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+const amountOf = (totals) => totals?.benefit?.value ?? totals?.eligible?.value ?? null;
+const decisionLabel = (v) => (v ? humanize(String(v).toLowerCase()) : null);
+
+function CaseDetail({ summary, tasks, onOpenCase, onOpenTask }) {
+  const [state, setState] = useState(() => ({ loading: !!summary.cashless_case_id, full: null }));
+  useEffect(() => {
+    if (!summary.cashless_case_id) return undefined;
+    let live = true;
+    api
+      .getCashlessStatus(summary.cashless_case_id)
+      .then((full) => live && setState({ loading: false, full }))
+      .catch(() => live && setState({ loading: false, full: null }));
+    return () => {
+      live = false;
+    };
+  }, [summary.cashless_case_id]);
+
+  if (state.loading) return <p className="pt-empty">Loading the case…</p>;
+
+  const full = state.full;
+  const preauth = full?.preauth;
+  const claim = full?.claim;
+  const payment = full?.payment;
+  const caseTasks = full?.pending_tasks?.length ? full.pending_tasks : tasks;
+
+  return (
+    <>
+      <div className="pt-detail-facts">
+        <span>
+          <span className="pt-k">Pre-auth</span>
+          {decisionLabel(preauth?.decision) || decisionLabel(summary.preauth_status) || "Not sent"}
+          {preauth?.preauth_ref && <span className="mono"> · {preauth.preauth_ref}</span>}
+        </span>
+        <span>
+          <span className="pt-k">Claim</span>
+          {decisionLabel(claim?.decision) || (claim ? "With the payer" : "Not sent")}
+        </span>
+        <span>
+          <span className="pt-k">Payment</span>
+          {payment?.settled ? "Settled" : payment?.latest_stage ? humanize(payment.latest_stage) : "None yet"}
+          {payment?.utr && <span className="mono"> · UTR {payment.utr}</span>}
+        </span>
+        <span className="pt-detail-action">
+          <Button variant="outline" size="small" icon={ArrowRight} onClick={onOpenCase}>
+            Open case
+          </Button>
+        </span>
+      </div>
+      <div className="pt-detail-grid">
+        <div className="pt-card pt-inner">
+          <div className="pt-inner-head">Pending tasks</div>
+          {caseTasks.length === 0 ? (
+            <p className="pt-empty" style={{ padding: "4px 14px 10px" }}>Nothing is waiting on this case.</p>
+          ) : (
+            <table className="pt-mini">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Raised</th>
+                  <th className="pt-num">
+                    <span className="sr-only">Action</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {caseTasks.map((t, ti) => (
+                  <tr key={t.id ?? t.task_id ?? ti}>
+                    <td>
+                      <div className="pt-strong">{t.title || humanize(t.task_type)}</div>
+                      {(t.priority === "urgent" || t.priority === "high") && <div className="pt-sub pt-bad">{priorityLabel(t.priority)}</div>}
+                    </td>
+                    <td>{formatRelative(t.created_at)}</td>
+                    <td className="pt-num">
+                      <button type="button" className="cc-act" onClick={() => onOpenTask(t)}>
+                        Do this
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <MoneyCard
+          rows={[
+            { label: "Billed", value: summary.total_billed ?? preauth?.totals?.submitted?.value ?? null },
+            preauth && { label: "Pre-auth approved", value: amountOf(preauth.totals) },
+            claim && { label: "Claim approved", value: amountOf(claim.totals) },
+            { label: "Paid by the payer", value: payment?.net ?? null, total: true },
+          ]}
+        />
+      </div>
+    </>
+  );
+}
+
+function MessageDetail({ comm, onOpen }) {
+  const texts = (comm.payload || []).filter((p) => p.content_string);
+  const files = (comm.payload || []).filter((p) => safeHref(p.content_attachment));
+  return (
+    <>
+      {texts.length ? (
+        texts.map((p, i) => (
+          <p key={i} className="pt-message">
+            {p.content_string}
+          </p>
+        ))
+      ) : (
+        <p className="pt-empty">{commPreview(comm) || "The payer sent no text with this message."}</p>
+      )}
+      <div className="pt-actions">
+        {files.map((p, i) => (
+          <a key={i} className="cc-act pt-link" href={safeHref(p.content_attachment)} target="_blank" rel="noreferrer">
+            <Paperclip size={12} /> Attachment{files.length > 1 ? ` ${i + 1}` : ""}
+          </a>
+        ))}
+        <button type="button" className="cc-act" onClick={onOpen}>
+          {comm.kind === "query" || !comm.kind ? "Reply / open" : "Open"}
+        </button>
+      </div>
+    </>
+  );
 }
 
 function PatientDetail({ patient }) {
@@ -27,12 +372,15 @@ function PatientDetail({ patient }) {
   const [tasks, setTasks] = useState([]);
   const [communications, setCommunications] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(false);
+  const [drawerComm, setDrawerComm] = useState(null);
+  const [tab, setTab] = useState("admissions");
+  const [openAdmission, setOpenAdmission] = useState(null);
+  const [openCaseKey, setOpenCaseKey] = useState(null);
+  const [openCommId, setOpenCommId] = useState(null);
 
   const age = calculateAge(patient.dob);
-
-  const totalBilled = patient.visits?.reduce((sum, visit) => {
-    return sum + (visit.invoices?.reduce((invSum, inv) => invSum + (inv.amount_billed || 0), 0) || 0);
-  }, 0);
+  const visits = [...(patient.visits || [])].sort((a, b) => String(b.started_at || "").localeCompare(String(a.started_at || "")));
+  const current = currentAdmission(visits);
 
   useEffect(() => {
     setLoadingExtra(true);
@@ -138,14 +486,12 @@ function PatientDetail({ patient }) {
       navigate(`/case/${patient.child_id}/payer`);
     }
   };
-
-  const statusTone = (claim) => {
-    const cls = resolveCaseStatus(claim).badgeClass;
-    return cls === "badge-success" ? "ok" : cls === "badge-error" ? "bad" : cls === "badge-warning" ? "warn" : "info";
+  const openTask = (task) => {
+    const path = taskScreen(task.task_type, patient.child_id) || `/case/${patient.child_id}/`;
+    navigate(path, { state: taskNavState(task) });
   };
 
   const latest = patient.latest_claim;
-  const visits = patient.visits || [];
   // A visit's claim row has no journey step, so the latest-case summary wins for that case's status.
   const visitCases = visits.flatMap((v) =>
     (v.claims || []).map((c) => ({
@@ -154,376 +500,317 @@ function PatientDetail({ patient }) {
       admission_no: v.admission_no,
     })),
   );
-  const cases = visitCases.length ? visitCases : latest ? [latest] : [];
+  const cases = (visitCases.length ? visitCases : latest ? [latest] : []).sort((a, b) =>
+    String(b.created_at || "").localeCompare(String(a.created_at || "")),
+  );
   const caseCount = Math.max(patient.cashless_cases_count || 0, cases.length);
-  const gender = patient.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1);
-  const openCase = (c) => resumeCase(c.cashless_case_id ? c : null);
+  const latestOpen = isOpenCase(latest);
+  const sameCase = (t, c) => c.cashless_case_id != null && String(t.cashless_case_id) === String(c.cashless_case_id);
+  const tasksFor = (c) => tasks.filter((t) => sameCase(t, c));
+  const looseTasks = tasks.filter((t) => !cases.some((c) => sameCase(t, c)));
+  const casesForVisit = (v) => (v.claims || []).map((c) => c.cashless_case_id).filter(Boolean);
+  const unread = communications.filter((c) => !c.provider_read).length;
+  const sortedComms = [...communications].sort((a, b) =>
+    String(b.received_at || b.sent_at || "").localeCompare(String(a.received_at || a.sent_at || "")),
+  );
+
+  const toggleComm = (comm) => {
+    const next = openCommId === comm.correlation_id ? null : comm.correlation_id;
+    setOpenCommId(next);
+    if (next && !comm.provider_read) {
+      api
+        .markCommunicationRead(comm.correlation_id)
+        .then(() => setCommunications((prev) => prev.map((c) => (c.correlation_id === comm.correlation_id ? { ...c, provider_read: true } : c))))
+        .catch(() => {});
+    }
+  };
+
+  const stay = current
+    ? current.ended_at
+      ? `Discharged ${formatDate(current.ended_at)}`
+      : `In hospital · ${current.admission_no || "admitted"}`
+    : "No admission";
+
+  const TABS = [
+    { key: "admissions", label: "Admissions", count: visits.length },
+    { key: "cases", label: "Cashless cases", count: caseCount, alert: tasks.length ? `${tasks.length} task${tasks.length === 1 ? "" : "s"}` : null },
+    { key: "messages", label: "Payer messages", count: loadingExtra ? "–" : communications.length, alert: unread ? `${unread} unread` : null },
+  ];
 
   return (
-    <div className="pd-screen ep-screen pt-screen">
-      <div className="wq-header">
-        <div>
-          <h1 className="wq-title">{patient.name}</h1>
-        </div>
-      </div>
-
-      <div className="pd-layout">
-        <div className="pd-main">
-          <Section id="pt-patient" title="Patient">
-            <div className="ep-pad">
-              <Fields
-                cols={3}
-                rows={[
-                  { label: "Patient ID", value: `#${patient.child_id}`, mono: true },
-                  { label: "Gender", value: gender },
-                  { label: "Date of birth", value: patient.dob && formatDate(patient.dob), sub: age !== null ? `${age} yrs` : null },
-                  { label: "Mobile", value: patient.mobile && formatPhone(patient.mobile), mono: true },
-                  { label: "ABHA", value: patient.abha_number || "Not linked", mono: !!patient.abha_number, tone: patient.abha_number ? null : "warn" },
-                  { label: "Registered", value: patient.created_at && formatDate(patient.created_at) },
-                ]}
-              />
+    <div className="pt-screen">
+      <section className="pt-card pt-head">
+        <div className="pt-head-top">
+          <Avatar patient={patient} large />
+          <div className="pt-head-id">
+            <h1 className="pt-head-name">{patient.name}</h1>
+            <div className="pt-head-meta">
+              Patient <span className="mono">#{patient.child_id}</span>
+              {patient.created_at && ` · registered ${formatDate(patient.created_at)}`}
             </div>
-          </Section>
-
-          <Section id="pt-cases" title="Cashless cases" meta={`${caseCount} on record`}>
-            {cases.length === 0 ? (
-              <p className="ds-empty">No cashless case has been started for this patient.</p>
-            ) : (
-              <div className="ep-table-wrap">
-                <table className="ep-table">
-                  <thead>
-                    <tr>
-                      <th>Case</th>
-                      <th>Payer · Policy</th>
-                      <th>Status</th>
-                      <th className="ep-num">Billed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cases.map((c, i) => (
-                      <tr
-                        key={c.cashless_case_id ?? c.claim_id ?? i}
-                        className="pt-row"
-                        tabIndex={0}
-                        title="Open case"
-                        onClick={() => openCase(c)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") openCase(c);
-                        }}
-                      >
-                        <td>
-                          <div className="ep-mono ep-strong">
-                            {c.cashless_case_id ? formatCaseRef(c.cashless_case_id) : `Claim #${c.claim_id}`}
-                          </div>
-                          {c.admission_no && <div className="ep-muted">{c.admission_no}</div>}
-                        </td>
-                        <td>
-                          <div><PayerName id={c.payer_id} name={c.payer_name} /></div>
-                          {c.policy_number && <div className="ep-muted ep-mono">{c.policy_number}</div>}
-                        </td>
-                        <td>
-                          <span className={`ds-verdict is-${statusTone(c)} pt-status`}>
-                            <span className="ep-dot" aria-hidden="true" />
-                            {resolveCaseStatus(c).label}
-                          </span>
-                          {(c.claim_decision || c.payment_status) && (
-                            <div className="ep-muted ep-cap">
-                              {[
-                                c.claim_decision && `Claim ${c.claim_decision.replace(/_/g, " ").toLowerCase()}`,
-                                c.payment_status && `Payment ${c.payment_status.replace(/_/g, " ").toLowerCase()}`,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </div>
-                          )}
-                        </td>
-                        <td className="ep-num ep-mono">{c.total_billed != null ? formatMoney(c.total_billed) : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {cases.length < caseCount && (
-                  <p className="ds-empty pt-note">Only the latest case is listed here. Older cases are in Cashless Cases.</p>
-                )}
-              </div>
-            )}
-          </Section>
-
-          {visits.length === 0 ? (
-            <Section id="pt-visits" title="Visits">
-              <p className="ds-empty">No visits on record.</p>
-            </Section>
-          ) : (
-            visits.map((visit, vi) => {
-              const invoices = visit.invoices || [];
-              const lines = invoices.flatMap((inv) =>
-                (inv.line_items || []).map((li) => ({ ...li, invoice_no: inv.invoice_no })),
-              );
-              const paid = [
-                ...(visit.advance_payments || []).map((p) => ({ ...p, kind: "Advance" })),
-                ...(visit.payments || []).map((p) => ({ ...p, kind: "Collected" })),
-              ];
-              const paidTotal = paid.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-              const doctorSub = [
-                visit.primary_doctor?.specialization,
-                visit.primary_doctor?.registration_no && `Reg ${visit.primary_doctor.registration_no}`,
-              ]
-                .filter(Boolean)
-                .join(" · ");
-              return (
-                <Section
-                  key={visit.admission_id ?? vi}
-                  id={`pt-visit-${vi}`}
-                  title={`${visit.admission_no || `Visit ${vi + 1}`} · ${(visit.visit_type || "visit").toUpperCase()}`}
-                  meta={
-                    <Button variant="outline" size="small" icon={Plus} onClick={() => startWorkflow(visit)}>
-                      Start case for this visit
-                    </Button>
-                  }
-                >
-                  <div className="ep-pad">
-                    <Fields
-                      cols={3}
-                      rows={[
-                        { label: "Started", value: visit.started_at && formatDate(visit.started_at) },
-                        { label: "Status", value: visit.status && visit.status[0].toUpperCase() + visit.status.slice(1).replace(/_/g, " ") },
-                        { label: "Reason", value: visit.reason },
-                        { label: "Diagnosis", value: visit.diagnosis },
-                        { label: "Primary doctor", value: visit.primary_doctor?.name, sub: doctorSub || null },
-                      ]}
-                    />
-                  </div>
-
-                  {visit.procedures?.length > 0 && (
-                    <div className="ep-table-wrap">
-                      <table className="ep-table">
-                        <thead>
-                          <tr>
-                            <th>Procedure code</th>
-                            <th>Procedure</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visit.procedures.map((p, pi) => (
-                            <tr key={pi}>
-                              <td className="ep-mono">{p.code || "—"}</td>
-                              <td>{p.name}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {invoices.length > 0 && (
-                    <div className="ep-table-wrap">
-                      <table className="ep-table">
-                        <thead>
-                          <tr>
-                            <th>Invoice</th>
-                            <th>Date</th>
-                            <th>Billing</th>
-                            <th className="ep-num">Billed</th>
-                            <th className="ep-num">Discount</th>
-                            <th className="ep-num">Final</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {invoices.map((inv, ii) => (
-                            <tr key={inv.invoice_id ?? ii}>
-                              <td className="ep-mono">{inv.invoice_no || "—"}</td>
-                              <td>{inv.invoice_date ? formatDate(inv.invoice_date) : "—"}</td>
-                              <td className="ep-cap">{inv.billing_status?.replace(/_/g, " ") || "—"}</td>
-                              <td className="ep-num ep-mono">{formatMoney(inv.amount_billed)}</td>
-                              <td className="ep-num ep-mono">{inv.final_discount ? formatMoney(inv.final_discount) : "—"}</td>
-                              <td className="ep-num ep-mono ep-strong">{formatMoney(inv.final_amount ?? inv.amount_billed)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {lines.length > 0 && (
-                    <div className="ep-table-wrap">
-                      <table className="ep-table">
-                        <thead>
-                          <tr>
-                            <th>Code</th>
-                            <th>Bill item</th>
-                            <th>Category</th>
-                            <th className="ep-num">Qty</th>
-                            <th className="ep-num">Unit price</th>
-                            <th className="ep-num">Net</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lines.map((li, n) => (
-                            <tr key={li.line_item_id ?? n}>
-                              <td className="ep-mono">{li.code || "—"}</td>
-                              <td>
-                                {li.name}
-                                {invoices.length > 1 && <div className="ep-muted">{li.invoice_no}</div>}
-                              </td>
-                              <td className="ep-cap">{li.category || "—"}</td>
-                              <td className="ep-num ep-mono">{li.quantity ?? "—"}</td>
-                              <td className="ep-num ep-mono">{li.unit_price != null ? formatMoney(li.unit_price) : "—"}</td>
-                              <td className="ep-num ep-mono">{li.net_amount != null ? formatMoney(li.net_amount) : "—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {paid.length > 0 && (
-                    <div className="ep-table-wrap">
-                      <table className="ep-table">
-                        <thead>
-                          <tr>
-                            <th>Patient payment</th>
-                            <th>Mode</th>
-                            <th>Date</th>
-                            <th className="ep-num">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {paid.map((p, pi) => (
-                            <tr key={pi}>
-                              <td>{p.kind}</td>
-                              <td className="ep-cap">{p.mode || "—"}</td>
-                              <td>{p.date ? formatDate(p.date) : "—"}</td>
-                              <td className="ep-num ep-mono">{formatMoney(p.amount)}</td>
-                            </tr>
-                          ))}
-                          {paid.length > 1 && (
-                            <tr className="pd-total-row">
-                              <td colSpan={3}>Total collected</td>
-                              <td className="ep-num ep-mono">{formatMoney(paidTotal)}</td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {invoices.length === 0 && paid.length === 0 && <p className="ds-empty">No billing on this visit yet.</p>}
-                </Section>
-              );
-            })
-          )}
-
-          <Section id="pt-tasks" title="Pending tasks" meta={loadingExtra ? null : String(tasks.length)}>
-            {loadingExtra ? (
-              <p className="ds-empty">Loading…</p>
-            ) : tasks.length === 0 ? (
-              <p className="ds-empty">No pending tasks.</p>
-            ) : (
-              <div className="ep-table-wrap">
-                <table className="ep-table">
-                  <thead>
-                    <tr>
-                      <th>Task</th>
-                      <th>Workflow</th>
-                      <th>Priority</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tasks.map((task, ti) => (
-                      <tr key={task.id ?? task.task_id ?? ti}>
-                        <td>{task.title}</td>
-                        <td className="ep-cap">{task.workflow?.replace(/_/g, " ") || "—"}</td>
-                        <td className={`ep-cap${task.priority === "urgent" || task.priority === "high" ? " is-bad" : ""}`}>
-                          {task.priority || "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Section>
-
-          <Section id="pt-comms" title="Payer communications" meta={loadingExtra ? null : String(communications.length)}>
-            {loadingExtra ? (
-              <p className="ds-empty">Loading…</p>
-            ) : communications.length === 0 ? (
-              <p className="ds-empty">No communications.</p>
-            ) : (
-              <div className="ep-table-wrap">
-                <table className="ep-table">
-                  <thead>
-                    <tr>
-                      <th>Topic</th>
-                      <th>From</th>
-                      <th>Priority</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {communications.map((comm, ci) => (
-                      <tr key={comm.correlation_id ?? ci}>
-                        <td>{comm.topic_display || <span className="ep-muted">No subject</span>}</td>
-                        <td><PayerName id={comm.payer_id} name={comm.payer_name} /></td>
-                        <td className={`ep-cap${comm.priority === "urgent" || comm.priority === "stat" ? " is-bad" : ""}`}>
-                          {comm.priority || "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Section>
-        </div>
-
-        <aside className="pd-side">
-          <section className="ep-section pd-request">
-            <header className="ep-section-head">
-              <h3 className="ep-section-title">Cashless</h3>
-            </header>
-            {latest ? (
+          </div>
+          <div className="pt-head-actions">
+            {latestOpen ? (
               <>
-                <div className={`ds-verdict is-${statusTone(latest)}`}>
-                  <span className="ep-dot" aria-hidden="true" />
-                  <span className="ds-verdict-label">{resolveCaseStatus(latest).label}</span>
-                </div>
-                <div className="ds-ref">
-                  <span className="ep-muted">Latest case</span>
-                  <span className="ep-mono">{formatCaseRef(latest.cashless_case_id)}</span>
-                </div>
-                <div className="ds-ref">
-                  <span className="ep-muted">Payer</span>
-                  <span><PayerName id={latest.payer_id} name={latest.payer_name} /></span>
-                </div>
+                <Button variant="outline" icon={Plus} onClick={() => startWorkflow(current)}>
+                  New case
+                </Button>
+                <Button variant="primary" onClick={() => resumeCase(latest)}>
+                  Resume {formatCaseRef(latest.cashless_case_id)} →
+                </Button>
               </>
             ) : (
-              <p className="ds-empty">No case yet.</p>
+              <Button variant="primary" icon={Plus} onClick={() => startWorkflow(current)}>
+                {current && !current.ended_at ? `Start case for ${current.admission_no || "this admission"}` : "Start cashless case"}
+              </Button>
             )}
-            {totalBilled > 0 && (
-              <div className="pd-amount">
-                <div className="ep-muted">Billed across visits</div>
-                <div className="pd-amount-value ep-mono">{formatMoney(totalBilled)}</div>
-              </div>
-            )}
-            <div className="pd-submit">
-              {latest ? (
-                <>
-                  <Button variant="primary" onClick={() => resumeCase(latest)} className="pd-submit-btn">
-                    Resume {formatCaseRef(latest.cashless_case_id)}
-                  </Button>
-                  <button type="button" className="pd-text-btn" onClick={() => startWorkflow(visits[0])}>
-                    <Plus size={13} /> Start a new cashless case
-                  </button>
-                </>
-              ) : (
-                <Button variant="primary" icon={Plus} onClick={() => startWorkflow(visits[0])} className="pd-submit-btn">
-                  Start cashless case
-                </Button>
-              )}
+          </div>
+        </div>
+        <div className="pt-facts">
+          <div className="pt-fact">
+            <div className="pt-fact-label">Gender · age</div>
+            <div className="pt-fact-value">{[capitalize(patient.gender), age !== null && `${age} yrs`].filter(Boolean).join(" · ") || "—"}</div>
+          </div>
+          <div className="pt-fact">
+            <div className="pt-fact-label">Date of birth</div>
+            <div className="pt-fact-value">{formatDate(patient.dob)}</div>
+          </div>
+          <div className="pt-fact">
+            <div className="pt-fact-label">Mobile</div>
+            <div className="pt-fact-value mono">{formatPhone(patient.mobile)}</div>
+          </div>
+          <div className="pt-fact">
+            <div className="pt-fact-label">ABHA</div>
+            <div className={`pt-fact-value${patient.abha_number ? " mono" : " is-warn"}`} title={patient.abha_number || undefined}>
+              {patient.abha_number || "Not linked"}
             </div>
-          </section>
-        </aside>
-      </div>
+          </div>
+          <div className="pt-fact">
+            <div className="pt-fact-label">Now</div>
+            <div className="pt-fact-value" title={stay}>{stay}</div>
+          </div>
+        </div>
+      </section>
+
+      <section className="pt-card pt-panel">
+        <nav className="pt-tabs" role="tablist" aria-label="Patient sections">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              className={`pt-tab${tab === t.key ? " is-on" : ""}`}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+              <span className="pt-count">{t.count}</span>
+              {t.alert && <span className="pt-count is-alert">{t.alert}</span>}
+            </button>
+          ))}
+        </nav>
+
+        <div className="pt-tab-body" role="tabpanel">
+          {tab === "admissions" &&
+            (visits.length === 0 ? (
+              <p className="pt-empty">No admissions on record.</p>
+            ) : (
+              <table className="pt-ledger">
+                <thead>
+                  <tr>
+                    <th className="pt-chev-col" aria-hidden="true" />
+                    <th>Admission</th>
+                    <th>Admitted</th>
+                    <th>Discharged</th>
+                    <th>Diagnosis</th>
+                    <th>Doctor</th>
+                    <th className="pt-num pt-money">Final bill</th>
+                    <th className="pt-num">To collect</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visits.map((v, vi) => {
+                    const key = v.admission_id ?? `v${vi}`;
+                    const m = admissionMoney(v);
+                    const linked = casesForVisit(v);
+                    const days = daysBetween(v.started_at, v.ended_at);
+                    return (
+                      <ExpandRow
+                        key={key}
+                        open={openAdmission === key}
+                        onToggle={() => setOpenAdmission(openAdmission === key ? null : key)}
+                        cols={8}
+                        label="admission"
+                        detail={
+                          <AdmissionDetail
+                            visit={v}
+                            onStartCase={startWorkflow}
+                            canStart={!(latestOpen && linked.includes(latest.cashless_case_id))}
+                          />
+                        }
+                      >
+                        <td>
+                          <span className="mono pt-strong">{v.admission_no || `Admission ${vi + 1}`}</span>
+                          <div className="pt-sub mono">{linked.length ? linked.map((id) => formatCaseRef(id)).join(", ") : "No case"}</div>
+                        </td>
+                        <td className="ep-nowrap">{formatDate(v.started_at)}</td>
+                        <td className="ep-nowrap">
+                          {v.ended_at ? formatDate(v.ended_at) : <span className="pt-strong">In hospital</span>}
+                          {days != null && <div className="pt-sub">{v.ended_at ? `${days} day${days === 1 ? "" : "s"}` : `Day ${days + 1}`}</div>}
+                        </td>
+                        <td>
+                          <div className="pt-clip" title={v.diagnosis || undefined}>{v.diagnosis || "—"}</div>
+                        </td>
+                        <td>
+                          {v.primary_doctor?.name || "—"}
+                          {v.primary_doctor?.specialization && <div className="pt-sub">{v.primary_doctor.specialization}</div>}
+                        </td>
+                        <td className="pt-num pt-money mono">{m.invoices.length ? formatMoney(m.finalBill) : "—"}</td>
+                        <td className={`pt-num mono${m.outstanding > 0 ? " pt-warn" : ""}`}>{m.invoices.length ? formatMoney(m.outstanding) : "—"}</td>
+                      </ExpandRow>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ))}
+
+          {tab === "cases" &&
+            (cases.length === 0 && looseTasks.length === 0 ? (
+              <p className="pt-empty">No cashless case has been started for this patient.</p>
+            ) : (
+              <>
+                <table className="pt-ledger">
+                  <thead>
+                    <tr>
+                      <th className="pt-chev-col" aria-hidden="true" />
+                      <th>Case</th>
+                      <th>Admission</th>
+                      <th>Payer · policy</th>
+                      <th>Stage</th>
+                      <th>Status</th>
+                      <th className="pt-num pt-money">Billed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cases.map((c, i) => {
+                      const key = c.cashless_case_id ?? c.claim_id ?? `c${i}`;
+                      const caseTasks = tasksFor(c);
+                      return (
+                        <ExpandRow
+                          key={key}
+                          open={openCaseKey === key}
+                          onToggle={() => setOpenCaseKey(openCaseKey === key ? null : key)}
+                          cols={7}
+                          label="case"
+                          detail={<CaseDetail summary={c} tasks={caseTasks} onOpenCase={() => resumeCase(c.cashless_case_id ? c : null)} onOpenTask={openTask} />}
+                        >
+                          <td>
+                            <span className="mono pt-strong">{c.cashless_case_id ? formatCaseRef(c.cashless_case_id) : `Claim #${c.claim_id}`}</span>
+                            <div className="pt-sub">{c.created_at ? `Opened ${formatDate(c.created_at)}` : "—"}</div>
+                          </td>
+                          <td className="mono">{c.admission_no || "—"}</td>
+                          <td>
+                            <PayerName id={c.payer_id} name={c.payer_name} />
+                            {c.policy_number && <div className="pt-sub mono">{c.policy_number}</div>}
+                          </td>
+                          <td>
+                            <StageTrack claim={c} />
+                          </td>
+                          <td>
+                            <CaseStatusChip claim={c} />
+                            {caseTasks.length > 0 && (
+                              <div className="pt-sub pt-warn">
+                                {caseTasks.length} task{caseTasks.length === 1 ? "" : "s"} waiting
+                              </div>
+                            )}
+                          </td>
+                          <td className="pt-num pt-money mono">{c.total_billed != null ? formatMoney(c.total_billed) : "—"}</td>
+                        </ExpandRow>
+                      );
+                    })}
+                    {looseTasks.map((t, ti) => (
+                      <tr key={`loose-${t.id ?? t.task_id ?? ti}`}>
+                        <td className="pt-chev-col" />
+                        <td colSpan={5}>
+                          <div className="pt-strong">{t.title || humanize(t.task_type)}</div>
+                          <div className="pt-sub">Pending task not tied to a case listed here</div>
+                        </td>
+                        <td className="pt-num">
+                          <button type="button" className="cc-act" onClick={() => openTask(t)}>
+                            Do this
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {cases.length < caseCount && <p className="pt-empty">Only the latest case is listed here. Older cases are in Cashless Cases.</p>}
+              </>
+            ))}
+
+          {tab === "messages" &&
+            (loadingExtra ? (
+              <p className="pt-empty">Loading…</p>
+            ) : sortedComms.length === 0 ? (
+              <p className="pt-empty">No messages from payers.</p>
+            ) : (
+              <table className="pt-ledger">
+                <thead>
+                  <tr>
+                    <th className="pt-chev-col" aria-hidden="true" />
+                    <th>Message</th>
+                    <th>Payer</th>
+                    <th>Case</th>
+                    <th>Received</th>
+                    <th>
+                      <span className="sr-only">Flags</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedComms.map((c) => {
+                    const flag = !c.provider_read
+                      ? { text: "Unread", cls: "pt-warn" }
+                      : c.priority === "urgent" || c.priority === "stat"
+                        ? { text: priorityLabel(c.priority), cls: "pt-bad" }
+                        : null;
+                    return (
+                      <ExpandRow
+                        key={c.correlation_id}
+                        open={openCommId === c.correlation_id}
+                        onToggle={() => toggleComm(c)}
+                        cols={6}
+                        label="message"
+                        detail={<MessageDetail comm={c} onOpen={() => setDrawerComm(c.correlation_id)} />}
+                      >
+                        <td>
+                          <div className={c.provider_read ? undefined : "pt-strong"}>{commHeadline(c)}</div>
+                          {commPreview(c) && <div className="pt-sub pt-clip">{commPreview(c)}</div>}
+                        </td>
+                        <td>
+                          <PayerName id={c.payer_id} name={c.payer_name} />
+                        </td>
+                        <td className="mono">{c.cashless_case_id ? formatCaseRef(c.cashless_case_id) : "—"}</td>
+                        <td className="ep-nowrap" title={c.received_at ? formatDate(c.received_at) : undefined}>
+                          {formatRelative(c.received_at || c.sent_at)}
+                        </td>
+                        <td className={`ep-nowrap ${flag?.cls || ""}`}>{flag?.text || ""}</td>
+                      </ExpandRow>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ))}
+        </div>
+      </section>
+
+      <CommunicationDetailDrawer
+        correlationId={drawerComm}
+        open={!!drawerComm}
+        onClose={() => setDrawerComm(null)}
+        onRead={(id) => setCommunications((prev) => prev.map((c) => (c.correlation_id === id ? { ...c, provider_read: true } : c)))}
+        showOpenCase
+      />
     </div>
   );
 }
@@ -560,6 +847,7 @@ export default function PatientProfile() {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const loadChildren = useCallback(async (query = "", pageNum = 1, state = "any", sort = "newest") => {
     setLoading(true);
@@ -724,7 +1012,7 @@ export default function PatientProfile() {
         </div>
 
         {loading ? (
-          <SkeletonTable rows={6} cols={5} />
+          <SkeletonTable rows={6} cols={8} />
         ) : children.length === 0 ? (
           <EmptyState
             icon={User}
@@ -739,19 +1027,25 @@ export default function PatientProfile() {
           />
         ) : (
           <div className="wq-table-scroll">
-            <table className="wq-table">
+            <table className="wq-table cc-table">
               <thead>
                 <tr>
+                  <th className="cc-edge-col" aria-hidden="true" />
                   <th>Patient</th>
                   <th>Mobile</th>
+                  <th>ABHA</th>
                   <th>Latest case</th>
-                  <th>Cases</th>
+                  <th>Stage</th>
+                  <th className="cc-num">Cases</th>
+                  <th>Last activity</th>
+                  <th className="cc-actions-col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
                 {children.map((child) => {
                   const age = calculateAge(child.dob);
                   const claim = child.latest_claim;
+                  const open = isOpenCase(claim);
                   return (
                     <tr
                       key={child.child_id}
@@ -760,26 +1054,55 @@ export default function PatientProfile() {
                       onClick={() => handleSelectPatient(child)}
                       onKeyDown={(e) => { if (e.key === "Enter") handleSelectPatient(child); }}
                     >
+                      <td className="cc-edge-col">
+                        {claim && needsAttention(claim) && <span className="wq-edge is-high" />}
+                      </td>
                       <td>
-                        <div className="cc-patient">{child.name}</div>
-                        <div className="wq-sub">
-                          {[`#${child.child_id}`, child.gender && child.gender[0].toUpperCase() + child.gender.slice(1), age !== null && `${age} yrs`]
-                            .filter(Boolean)
-                            .join(" · ")}
+                        <div className="pt-person">
+                          <Avatar patient={child} />
+                          <div>
+                            <div className="cc-patient">{child.name}</div>
+                            <div className="wq-sub">
+                              {[`#${child.child_id}`, capitalize(child.gender), age !== null && `${age} yrs`].filter(Boolean).join(" · ")}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="wq-mono">{child.mobile ? formatPhone(child.mobile) : "—"}</td>
+                      <td className={child.abha_number ? "wq-mono" : "pt-warn"}>{child.abha_number || "Not linked"}</td>
                       <td>
                         {claim ? (
                           <>
-                            <CaseStatusChip claim={claim} />
-                            {(claim.payer_name || claim.payer_id) && <div className="wq-sub"><PayerName id={claim.payer_id} name={claim.payer_name} /></div>}
+                            <div className="wq-mono cc-case-id">{formatCaseRef(claim.cashless_case_id)}</div>
+                            <div className="wq-sub cc-payer">
+                              <PayerName id={claim.payer_id} name={claim.payer_name} />
+                              {claim.policy_number && ` · ${claim.policy_number}`}
+                            </div>
                           </>
                         ) : (
-                          <span className="ep-muted">No cases</span>
+                          <span className="ep-muted">No case yet</span>
                         )}
                       </td>
-                      <td className="wq-mono">{child.cashless_cases_count ?? (claim ? 1 : 0)}</td>
+                      <td>{claim ? <StageTrack claim={claim} /> : null}</td>
+                      <td className="cc-num wq-mono">{child.cashless_cases_count ?? (claim ? 1 : 0)}</td>
+                      <td className="wq-sub" title={child.last_activity ? formatDate(child.last_activity) : undefined}>
+                        {child.last_activity ? formatRelative(child.last_activity) : "—"}
+                      </td>
+                      <td className="cc-actions-col">
+                        <div className="cc-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="cc-act pt-act"
+                            onClick={() =>
+                              open
+                                ? navigate(`/case/${child.child_id}/`, { state: { cashless_case_id: claim.cashless_case_id, claim_id: claim.claim_id ?? null } })
+                                : navigate(`/case/${child.child_id}/payer`, { state: { newCase: true } })
+                            }
+                          >
+                            {open ? "Resume case" : "Start case"}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

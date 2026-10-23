@@ -882,8 +882,10 @@ const mock = {
           gender: "male",
           dob: "2020-01-01",
           mobile: "9999999999",
+          abha_number: "91-7112-3456-7890",
           created_at: "2026-05-04T10:30:00+05:30",
           cashless_cases_count: 1,
+          last_activity: "2026-05-24T16:10:00+05:30",
           latest_claim: {
             cashless_case_id: 4,
             claim_id: 101,
@@ -917,7 +919,9 @@ const mock = {
                   amount_billed: 16000,
                   final_amount: 15200,
                   final_discount: 800,
-                  billing_status: "pending",
+                  billing_status: 0,
+                  payment_mode: "Split Payment",
+                  sponsor: "insurance",
                   line_items: [
                     {
                       line_item_id: 1,
@@ -928,9 +932,21 @@ const mock = {
                       unit_price: 4500,
                       net_amount: 9000,
                     },
+                    {
+                      line_item_id: 2,
+                      code: "47562",
+                      name: "Laparoscopic cholecystectomy",
+                      category: "procedure",
+                      quantity: 1,
+                      unit_price: 7000,
+                      net_amount: 7000,
+                    },
                   ],
                 },
               ],
+              procedures: [{ code: "47562", name: "Laparoscopic cholecystectomy" }],
+              advance_payments: [{ advance_payment_id: 1, amount: 5000, payment_mode: "Cash", date: "2026-05-23", payment_type: "Advance" }],
+              payments: [{ payment_id: 1, invoice_id: 622, amount: 2000, payment_mode: "UPI", online_txn_id: "UPI-88213", collected_at: "2026-05-24T12:00:00+05:30" }],
               claims: [
                 {
                   claim_id: 101,
@@ -952,8 +968,10 @@ const mock = {
           gender: "female",
           dob: "2019-06-11",
           mobile: "8888888888",
+          abha_number: null,
           created_at: "2026-05-04T11:00:00+05:30",
           cashless_cases_count: 2,
+          last_activity: "2026-05-20T09:00:00+05:30",
           latest_claim: {
             cashless_case_id: 5,
             claim_id: 102,
@@ -964,6 +982,36 @@ const mock = {
             preauth_status: "approved",
             created_at: "2026-05-04T11:05:00+05:30",
           },
+          visits: [
+            {
+              visit_type: "ipd",
+              admission_id: 540,
+              admission_no: "ADM-540",
+              started_at: "2026-05-02T08:00:00+05:30",
+              ended_at: "2026-05-06T11:00:00+05:30",
+              status: "discharged",
+              diagnosis: "Lobar pneumonia",
+              primary_doctor: { doctor_id: 2, name: "Dr. Kiran Shah", specialization: "Pulmonologist", registration_no: "MCI-22871" },
+              invoices: [
+                { invoice_id: 540, invoice_type: "ipd", invoice_no: "IPD-INV-540", invoice_date: "2026-05-06", amount_billed: 42000, final_amount: 40000, final_discount: 2000, billing_status: 1, payment_mode: "Insurance", line_items: [] },
+              ],
+              payments: [],
+              advance_payments: [],
+              claims: [],
+            },
+          ],
+        },
+        {
+          child_id: 27,
+          name: "Kabir Nair",
+          gender: "male",
+          dob: "2016-09-30",
+          mobile: "7777777777",
+          abha_number: "91-5555-0000-1234",
+          created_at: "2026-05-14T09:00:00+05:30",
+          cashless_cases_count: 0,
+          last_activity: null,
+          latest_claim: null,
           visits: [],
         },
     ];
@@ -979,7 +1027,7 @@ const mock = {
     const STATES = { any: () => true, with_case: hasCase, open_case: isOpen, no_case: (c) => !hasCase(c) };
     const caseState = STATES[params.case_state] ? params.case_state : "any";
     const sort = params.sort || "newest";
-    const lastActivity = (c) => (c.latest_claim?.created_at ? new Date(c.latest_claim.created_at).getTime() : -Infinity);
+    const lastActivity = (c) => (c.last_activity ? new Date(c.last_activity).getTime() : -Infinity);
     const children = matched.filter(STATES[caseState]).sort((a, b) =>
       sort === "name" ? a.name.localeCompare(b.name) : sort === "recent_activity" ? lastActivity(b) - lastActivity(a) : b.child_id - a.child_id,
     );
