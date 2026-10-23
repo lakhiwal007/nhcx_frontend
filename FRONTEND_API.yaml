@@ -1327,6 +1327,107 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /cashless/{cashless_case_id}/forms:
+    get:
+      tags: [Cashless Preparation]
+      operationId: listPayerForms
+      summary: The payer's forms a leg must carry, with the answers saved so far
+      description: >
+        NHA D12. With the payer's auth-requirements ruling held, the
+        pre-authorisation carries the forms the ruling names and the claim the
+        case's other package and policy forms; without a ruling, each form goes
+        on the leg its `stage` names. For a payer that needs proof of presence
+        (PMJAY) the leg's consent form ("Authentication Consent" /
+        "Discharge Consent") is always listed (`consent: true`). LAMA, DAMA and
+        Death forms are not offered. Nothing is listed until the case's package
+        master is `ready`.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: query
+          schema: { type: string, enum: [preauth, claim], default: preauth }
+      responses:
+        "200":
+          description: The leg's forms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayerFormList"
+        "404":
+          description: No case with this id is visible to this provider
+    post:
+      tags: [Cashless Preparation]
+      operationId: savePayerForm
+      summary: Save one form's answers
+      description: >
+        NHA D17. One answer per question per case. A blank answer clears the
+        question; a file question keeps its file when posted without one, unless
+        `clear` is true. Saving on the `preauth` leg once the claim is with the
+        payer is refused (400, the pre-authorisation being read only). A file is
+        at most 2 MB. The answered forms ride on the next pre-authorisation or
+        claim as QuestionnaireResponses (F7); a PMJAY send whose consent form
+        lacks its signed declaration is refused (400, PAYR-1271), and the consent
+        form's other blank questions are filled with the payer's default.
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, form_url, answers]
+              properties:
+                request_id: { type: string }
+                stage: { type: string, enum: [preauth, claim], default: preauth }
+                form_url:
+                  type: string
+                  description: The form's `url`.
+                answers:
+                  type: array
+                  items:
+                    type: object
+                    required: [link_id]
+                    properties:
+                      link_id: { type: string }
+                      answer:
+                        type: string
+                        description: The answer as typed or chosen (for a choice, the option label).
+                      attachment:
+                        type: object
+                        description: For an `attachment` question.
+                        properties:
+                          title: { type: string }
+                          content_type: { type: string }
+                          data:
+                            type: string
+                            description: Base64 file content
+                      clear:
+                        type: boolean
+                        description: Remove a file answer.
+      responses:
+        "200":
+          description: The saved form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayerForm"
+        "400":
+          description: Pre-authorisation read only, or a file over 2 MB
+        "404":
+          description: No such case or form
+        "422":
+          description: form_url missing
+
   /cashless/{cashless_case_id}/notes:
     get:
       tags: [Cashless Preparation]
@@ -3323,13 +3424,13 @@ paths:
           schema: { type: string }
       responses:
         "202":
-          description: Acknowledged; the communication's summary with `status: complete`
+          description: "Acknowledged; the communication's summary with `status: complete`"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CommunicationStatusResponse"
         "422":
-          description: The acknowledgement failed again; same shape with `status: failed`, `message` and `ack_error` set to the reason
+          description: "The acknowledgement failed again; same shape with `status: failed`, `message` and `ack_error` set to the reason"
           content:
             application/json:
               schema:
@@ -4727,7 +4828,7 @@ components:
             then `complete`. Absent on rows stored before the package master, which
             carry the legacy fields below instead.
         plan:
-          $ref: "#/components/schemas/InsurancePlanSummary"
+          $ref: "#/components/schemas/PackageMasterPlan"
         policy_documents:
           type: array
           items:
@@ -4789,7 +4890,59 @@ components:
           nullable: true
           description: Raw decrypted FHIR Bundle from the NHCX InsurancePlan callback. Present only when status is complete.
 
-    InsurancePlanSummary:
+    PayerFormList:
+      type: object
+      properties:
+        status: { type: string }
+        cashless_case_id: { type: integer }
+        stage: { type: string, enum: [preauth, claim] }
+        read_only:
+          type: boolean
+          description: The pre-authorisation can no longer be changed.
+        forms:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayerForm"
+
+    PayerForm:
+      type: object
+      properties:
+        url: { type: string }
+        title: { type: string, nullable: true }
+        kind:
+          type: string
+          nullable: true
+          description: "`stgquestionnaire` for an STG checklist."
+        stage: { type: string, enum: [pre, post] }
+        consent:
+          type: boolean
+          description: The scheme's consent form for this leg.
+        answered: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              linkId: { type: string }
+              type:
+                type: string
+                description: "FHIR item type: boolean, date, dateTime, integer, decimal, choice, string, text, attachment, display, group, ..."
+              text: { type: string }
+              required: { type: boolean }
+              depth: { type: integer }
+              options:
+                type: array
+                items: { type: string }
+              initial: { type: string, nullable: true }
+              answer: { type: string, nullable: true }
+              file:
+                type: object
+                nullable: true
+                properties:
+                  title: { type: string }
+                  content_type: { type: string }
+
+    PackageMasterPlan:
       type: object
       properties:
         plan_identifier:

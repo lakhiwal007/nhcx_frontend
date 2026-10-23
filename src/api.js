@@ -439,7 +439,34 @@ const MOCK_PLAN_FORMS = [
       { linkId: "1", type: "choice", text: "Discharge type", required: true, depth: 0, options: ["Normal", "LAMA", "Death"], initial: "Normal" },
     ],
   },
+  {
+    url: "https://nha.gov.in/fhir/Questionnaire/100024",
+    form_id: "100024",
+    title: "Authentication Consent",
+    kind: "questionnaire",
+    stage: "pre",
+    items: [
+      { linkId: "100093", type: "attachment", text: "Medical Superintendent Declaration Form (During Admission)", required: true, depth: 0, options: [], initial: null },
+      { linkId: "100095", type: "string", text: "Remarks", required: false, depth: 0, options: [], initial: null },
+    ],
+  },
 ];
+
+// Mock answers to the payer's forms, keyed by case, form and question.
+const MOCK_FORM_ANSWERS = {};
+
+const mockPayerForm = (caseId, form) => {
+  const given = MOCK_FORM_ANSWERS[`${caseId}|${form.url}`] || {};
+  return {
+    url: form.url,
+    title: form.title,
+    kind: form.kind === "stg" ? "stgquestionnaire" : form.kind,
+    stage: form.stage,
+    consent: /consent/i.test(form.title),
+    answered: Object.keys(given).length,
+    items: form.items.map((it) => ({ ...it, answer: given[it.linkId]?.answer ?? null, file: given[it.linkId]?.file ?? null })),
+  };
+};
 
 const MOCK_PMJAY_PLAN = {
   plan_status: "ready",
@@ -645,6 +672,28 @@ const mock = {
     };
   },
 
+  getPayerForms: async (cashless_case_id, stage = "preauth") => {
+    await delay(300);
+    const legStage = stage === "claim" ? "post" : "pre";
+    return {
+      status: "complete",
+      cashless_case_id,
+      stage,
+      read_only: false,
+      forms: MOCK_PLAN_FORMS.filter((f) => f.stage === legStage && !/discharge type|lama|death/i.test(f.title)).map((f) => mockPayerForm(cashless_case_id, f)),
+    };
+  },
+  savePayerForm: async (cashless_case_id, { form_url, answers }) => {
+    await delay(300);
+    const form = MOCK_PLAN_FORMS.find((f) => f.url === form_url);
+    const store = (MOCK_FORM_ANSWERS[`${cashless_case_id}|${form_url}`] ||= {});
+    (answers || []).forEach((a) => {
+      if (a.attachment) store[a.link_id] = { answer: a.attachment.title, file: { title: a.attachment.title, content_type: a.attachment.content_type } };
+      else if (a.answer !== undefined && String(a.answer).trim() === "") delete store[a.link_id];
+      else if (a.answer !== undefined) store[a.link_id] = { answer: String(a.answer).trim() };
+    });
+    return { ...mockPayerForm(cashless_case_id, form), status: "complete" };
+  },
   listCaseNotes: async (cashless_case_id) => {
     await delay(250);
     return { status: "complete", cashless_case_id, notes: [...mockNotes(cashless_case_id)].sort((a, b) => b.pinned - a.pinned || b.id - a.id) };
@@ -2791,6 +2840,8 @@ const real = {
 
   getDashboardAnalytics: (params = {}) => http.get("/cashless/dashboard/analytics", params),
 
+  getPayerForms: (cashless_case_id, stage = "preauth") => http.get(`/cashless/${cashless_case_id}/forms`, { stage }),
+  savePayerForm: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/forms`, data),
   listCaseNotes: (cashless_case_id) => http.get(`/cashless/${cashless_case_id}/notes`),
   createCaseNote: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/notes`, data),
   updateCaseNote: (cashless_case_id, note_id, data) =>

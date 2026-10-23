@@ -7,6 +7,7 @@ import { usePoll } from "../../hooks/usePoll";
 import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
+import PayerForms from "../case/PayerForms";
 import { Drawer } from "../Overlay";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
@@ -708,6 +709,7 @@ export default function ClaimsScreen({ ctx }) {
                   <div className="ep-muted ep-pad">No coded complaints, findings, investigations or medications on the clinical note.</div>
                 )}
               </Section>
+              <PayerForms caseId={resolvedCashlessCaseId} stage="claim" />
               {claimDraft?.discharge_summary && (
                 <Section id="cl-discharge-summary" title="Discharge summary">
                   <Fields

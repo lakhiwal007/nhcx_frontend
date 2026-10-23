@@ -6,6 +6,7 @@ import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common"
 import { formatDate } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL } from "../case/caseStages";
 import { Section, Fields } from "../case/CaseFile";
+import PayerForms from "../case/PayerForms";
 import { Modal } from "../Overlay";
 import FhirBundleModal from "../FhirBundleModal";
 import PayerName from "../PayerName";
@@ -651,6 +652,8 @@ export default function PreauthDraft({ ctx }) {
               />
             </div>
           </Section>
+
+          <PayerForms caseId={cashless_case_id || draft?.cashless_case_id} stage="preauth" />
 
           {draft?.discharge_summary && (
             <Section id="pd-discharge" title="Discharge summary">
