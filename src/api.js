@@ -85,6 +85,13 @@ export const generateRequestId = () =>
     return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
 
+// A task action's path arrives as "/cashless/..." (ACTION_MAP) or as the
+// backend's "/api/v1/insurance/cashless/..." (action.endpoint); both live under
+// BASE_URL, which may sit on another host than this page.
+const API_PATH_PREFIX = /^(\/nhcx)?\/api\/v1\/insurance(?=\/|$)/;
+const resolveApiUrl = (path) =>
+  /^https?:\/\//.test(path) ? path : new URL(BASE_URL + path.replace(API_PATH_PREFIX, ""), window.location.origin).toString();
+
 /** Build a full URL with query params (undefined/null/"" values are skipped). */
 const buildUrl = (path, params = {}) => {
   const url = new URL(BASE_URL + path, window.location.origin);
@@ -261,13 +268,11 @@ const http = {
       throw err;
     }
   },
-  /** Fire an arbitrary POST to a full path (used by Work Queue task actions). */
+  /** Fire an arbitrary POST to a task action's path (used by Work Queue task actions). */
   rawPost: async (fullPath, body = {}) => {
     refuseIfReadOnly();
     const merged = { request_id: generateRequestId(), ...body };
-    const url = fullPath.startsWith("http")
-      ? fullPath
-      : window.location.origin + fullPath;
+    const url = resolveApiUrl(fullPath);
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -284,13 +289,10 @@ const http = {
       throw err;
     }
   },
-  /** Fire an arbitrary GET to a full path (used by GET-only Work Queue task actions). */
+  /** Fire an arbitrary GET to a task action's path (used by GET-only Work Queue task actions). */
   rawGet: async (fullPath, params = {}) => {
     const merged = { request_id: generateRequestId(), ...params };
-    const base = fullPath.startsWith("http")
-      ? fullPath
-      : window.location.origin + fullPath;
-    const url = new URL(base);
+    const url = new URL(resolveApiUrl(fullPath));
     Object.entries(merged).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "")
         url.searchParams.append(k, v);
