@@ -92,6 +92,11 @@ const API_PATH_PREFIX = /^(\/nhcx)?\/api\/v1\/insurance(?=\/|$)/;
 const resolveApiUrl = (path) =>
   /^https?:\/\//.test(path) ? path : new URL(BASE_URL + path.replace(API_PATH_PREFIX, ""), window.location.origin).toString();
 
+// The callback base NHCX should deliver to: this API's own context path, which
+// is BASE_URL without its "/v1/insurance" suffix.
+export const callbackBaseUrl = () =>
+  new URL(BASE_URL.replace(/\/v1\/insurance\/?$/, ""), window.location.origin).toString().replace(/\/$/, "");
+
 /** Build a full URL with query params (undefined/null/"" values are skipped). */
 const buildUrl = (path, params = {}) => {
   const url = new URL(BASE_URL + path, window.location.origin);
@@ -2299,6 +2304,7 @@ const mock = {
       read_only: false,
       manageable_facility_codes: [],
       manages_any_facility: true,
+      nhcx_environment: "sandbox",
       facilities: [
         { facility_code: "HOSP-001", hcx_participant_code: "1000099999@hcx", name: "City General Hospital", environment: "production" },
         { facility_code: "HOSP-002", hcx_participant_code: "1000088888@hcx", name: "District Paediatric Centre", environment: "sandbox" },
@@ -2395,6 +2401,24 @@ const mock = {
   uploadFacilityKey: async (facility_code) => {
     await delay(700);
     return { facility_code, private_key_set: true };
+  },
+  startFacilityOnboarding: async (data) => {
+    await delay(700);
+    return { facility_code: data.facility_code, participant_code: `${data.facility_code}@hcx`, transaction_id: "mock-txn-create", facility_name: data.name || null };
+  },
+  confirmFacilityOnboarding: async (data) => {
+    await delay(700);
+    if (data.passcode === "000000") throw new Error("NHCX Gateway error: Invalid passcode");
+    return { facility_code: data.facility_code, name: data.name, hcx_participant_code: data.participant_code, registry_id: data.registry_id, abdm_registered: false };
+  },
+  registerFacilityOnboarding: async (facility_code) => {
+    await delay(700);
+    return { facility_code, hcx_participant_code: `${facility_code}@hcx`, transaction_id: "mock-txn-update", status: "PENDING" };
+  },
+  activateFacilityOnboarding: async (facility_code, data) => {
+    await delay(700);
+    if (data.passcode === "000000") throw new Error("NHCX Gateway error: Invalid passcode");
+    return { facility_code, hcx_participant_code: `${facility_code}@hcx`, abdm_registered: true, private_key_set: true };
   },
 };
 
@@ -2554,6 +2578,13 @@ const real = {
     http.put(`/facilities/${facility_code}`, data),
   uploadFacilityKey: (facility_code, data) =>
     http.put(`/facilities/${facility_code}/private_key`, data),
+  // NHCX production onboarding: create + passcode, then certificate + passcode.
+  startFacilityOnboarding: (data) => http.post("/facilities/onboarding/start", data),
+  confirmFacilityOnboarding: (data) => http.post("/facilities/onboarding/confirm", data),
+  registerFacilityOnboarding: (facility_code, data) =>
+    http.post(`/facilities/${facility_code}/onboarding/register`, data),
+  activateFacilityOnboarding: (facility_code, data) =>
+    http.post(`/facilities/${facility_code}/onboarding/activate`, data),
 
   // ─── Escape hatch for Work Queue task actions ────────────────────────────────
   rawPost: (fullPath, body = {}) => http.rawPost(fullPath, body),

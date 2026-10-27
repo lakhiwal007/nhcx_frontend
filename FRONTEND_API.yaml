@@ -3163,6 +3163,167 @@ paths:
                       code: "WRAPPER-ERROR:4222"
                       message: "Invalid PEM: Neither PUB key nor PRIV key: nested asn1 error"
 
+  /facilities/onboarding/start:
+    post:
+      tags: [Facility Management]
+      operationId: startFacilityOnboarding
+      summary: Create the facility's NHCX participant against its HFR record (step 1 of 4)
+      description: >
+        Calls NHCX `POST /v2/participant/create` (registry type HFR `10001`,
+        role provider `10001`). NHCX answers with the new participant code and a
+        transaction id, and sends a passcode by SMS to the mobile on the HFR
+        record. Keep both for `confirm`; a lost transaction id means calling
+        start again. Clinic admin of `facility_code`'s clinic only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, facility_code, registry_id, primary_mobile, primary_email]
+              properties:
+                request_id: { type: string }
+                facility_code: { type: string }
+                registry_id: { type: string, description: The facility's HFR ID. }
+                primary_mobile: { type: string, description: "The 10-digit mobile on the HFR record; it must match exactly." }
+                primary_email: { type: string }
+                endpoint_url: { type: string, description: "Optional here; register sets it." }
+      responses:
+        "200":
+          description: Participant created, passcode sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  facility_code: { type: string }
+                  participant_code: { type: string, description: "Ends in @hcx." }
+                  transaction_id: { type: string }
+                  facility_name: { type: string, nullable: true }
+                  facility_contact: { type: string, nullable: true }
+                  facility_email: { type: string, nullable: true }
+        "400":
+          description: Missing or malformed field (mobile must be 10 digits)
+        "403":
+          description: Not a clinic admin of this facility_code (WRAPPER-ERROR:1014)
+        "502":
+          description: NHCX refused; the message carries NHCX's reason (for example a mobile that does not match HFR)
+
+  /facilities/onboarding/confirm:
+    post:
+      tags: [Facility Management]
+      operationId: confirmFacilityOnboarding
+      summary: Confirm the first passcode and record the facility (step 2 of 4)
+      description: >
+        Checks the facility details first (so a passcode is not spent on a
+        record that cannot be saved), then calls NHCX `GET /validate` and creates
+        or updates the facility under the new participant code, not yet
+        registered. Accepts the same facility fields as `POST /facilities`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, facility_code, participant_code, transaction_id, passcode]
+              properties:
+                request_id: { type: string }
+                facility_code: { type: string }
+                participant_code: { type: string }
+                transaction_id: { type: string }
+                passcode: { type: string, description: The SMS passcode; valid 24 hours for this transaction id only. }
+                name: { type: string, description: Required for a facility not yet recorded. }
+      responses:
+        "201":
+          description: The facility, abdm_registered false
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Facility"
+        "422":
+          description: The facility details are invalid; NHCX was not called
+        "502":
+          description: NHCX refused the passcode
+
+  /facilities/{facility_code}/onboarding/register:
+    post:
+      tags: [Facility Management]
+      operationId: registerFacilityCertificate
+      summary: Register the certificate and callback address (step 3 of 4)
+      description: >
+        Checks the certificate belongs to the private key (sent here, or the one
+        already stored), then calls NHCX `POST /v2/participant/update` with the
+        certificate as Base64 and the callback URL. NHCX sends a second passcode.
+        The certificate, key and callback URL are stored once NHCX accepts.
+      parameters:
+        - name: facility_code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, encryption_cert]
+              properties:
+                request_id: { type: string }
+                encryption_cert: { type: string, description: "PEM certificate or its Base64." }
+                private_key_pem: { type: string, description: Required unless the facility already holds a key. }
+                endpoint_url: { type: string, description: "https:// callback base; defaults to the facility's." }
+      responses:
+        "200":
+          description: Accepted, second passcode sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  facility_code: { type: string }
+                  hcx_participant_code: { type: string }
+                  transaction_id: { type: string }
+                  status: { type: string, nullable: true }
+        "422":
+          description: The certificate does not belong to the private key (WRAPPER-ERROR:4224); NHCX was not called
+
+  /facilities/{facility_code}/onboarding/activate:
+    post:
+      tags: [Facility Management]
+      operationId: activateFacilityOnboarding
+      summary: Confirm the second passcode and check NHCX holds our certificate (step 4 of 4)
+      description: >
+        Calls NHCX `GET /update/validate`, then reads the certificate back with
+        `POST /fetch/certs`. The facility is marked registered only when that
+        certificate's key matches the stored one.
+      parameters:
+        - name: facility_code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, transaction_id, passcode]
+              properties:
+                request_id: { type: string }
+                transaction_id: { type: string }
+                passcode: { type: string }
+      responses:
+        "200":
+          description: The facility, abdm_registered true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Facility"
+        "422":
+          description: NHCX holds a different certificate (WRAPPER-ERROR:4225)
+        "502":
+          description: NHCX refused the passcode
+
 security:
   - BearerAuth: []
 
@@ -3242,6 +3403,10 @@ components:
         manages_any_facility:
           type: boolean
           description: True only under NHCX_SKIP_AUTH, where any facility may be registered or changed.
+        nhcx_environment:
+          type: string
+          enum: [sandbox, production]
+          description: Which NHCX this deployment talks to; production registers facilities only through the onboarding steps.
         facilities:
           type: array
           description: Facilities the user may select (a global admin sees all active facilities).
