@@ -2353,6 +2353,253 @@ select.input-modern option {
     color: var(--text-main);
 }
 
+.cd-form {
+    padding-bottom: 4px;
+}
+
+.cd-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cd-section-title {
+    font-size: 13px;
+    font-weight: var(--fw-semibold);
+    color: var(--text-main);
+}
+
+.cd-help {
+    margin-top: 2px;
+}
+
+.cd-payer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.cd-payer-name {
+    font-weight: var(--fw-semibold);
+}
+
+.cd-payer .pp-link {
+    margin-left: 0;
+}
+
+.cd-typeahead {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cd-typeahead .pp-input {
+    flex: none;
+}
+
+.cd-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.cd-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cd-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cd-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.cd-field .pp-input {
+    flex: none;
+}
+
+.cd-refusal {
+    margin: 12px 16px 0;
+}
+
+.cd-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 12px 16px;
+}
+
+.cd-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin: 0 6px -2px 0;
+}
+
+.cd-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+}
+
+.cd-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cd-tile:hover:not(:disabled) {
+    border-color: var(--primary);
+}
+
+.cd-tile:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.cd-tile-person {
+    display: flex;
+    gap: 10px;
+}
+
+.cd-avatar {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+    font-weight: var(--fw-semibold);
+    object-fit: cover;
+}
+
+.cd-tile-name {
+    font-weight: var(--fw-semibold);
+}
+
+.cd-tile-policy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.cd-figures {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.cd-figures > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.cd-poll-error {
+    padding: 0 16px 12px;
+    color: var(--error);
+}
+
+.cd-sent {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cd-sent-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-xs);
+    background: none;
+    color: var(--text-main);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cd-sent-row:hover,
+.cd-sent-row.is-on {
+    border-color: var(--border-color);
+    background: var(--bg-main);
+}
+
+.cd-sent-title {
+    font-weight: var(--fw-semibold);
+}
+
+.cd-sent-info {
+    flex-basis: 100%;
+    padding-left: 22px;
+}
+
+.cd-sent-error {
+    flex-basis: 100%;
+    padding-left: 22px;
+    font-size: 12px;
+    color: var(--error);
+}
+
+.cd-chip {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--bg-main);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: var(--fw-semibold);
+    text-transform: capitalize;
+}
+
+.cd-chip.is-active {
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    color: var(--success);
+}
+
+.cd-chip.is-wait {
+    background: color-mix(in srgb, var(--warning) 16%, transparent);
+    color: var(--warning);
+}
+
+.cd-chip.is-error {
+    background: color-mix(in srgb, var(--error) 12%, transparent);
+    color: var(--error);
+}
+
+@media (max-width: 720px) {
+    .cd-grid-2,
+    .cd-grid-3,
+    .cd-figures {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 /* Footer: what's selected + continue */
 .pp-footer {
     display: flex;

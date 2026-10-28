@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Building2, FileText, ArrowRight, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Search, Building2, FileText, ArrowRight, AlertTriangle, CheckCircle2, Radar } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
 import { Button, StatusBadge } from "../Common";
@@ -163,6 +163,17 @@ export default function PayerPolicy({ ctx }) {
 
   const effectivePayer = payerFromPolicy(selectedPolicy);
 
+  const canDiscover = !readOnly && !caseClosed;
+  const openDiscovery = () => {
+    const typed = identifierType === "MemberId" ? memberId.trim() : "";
+    navigate(typed ? `../discover?member_id=${encodeURIComponent(typed)}` : "../discover");
+  };
+  const discoverButton = (label) => (
+    <button type="button" className="pp-btn" onClick={openDiscovery}>
+      <Radar size={14} /> {label}
+    </button>
+  );
+
   const handleNext = () => {
     if (selectedPolicy && effectivePayer) {
       navigate("../prep");
@@ -189,6 +200,9 @@ export default function PayerPolicy({ ctx }) {
             </div>
           </div>
           <div className="pp-searchby">
+            {canDiscover &&
+              !loadingPolicies &&
+              discoverButton(policies.length > 0 ? "None of these? Discover with a payer" : "Discover with a payer")}
             <span className="pp-searchby-key">Search by</span>
             <div style={{ width: "170px" }}>
               <Dropdown
@@ -330,6 +344,7 @@ export default function PayerPolicy({ ctx }) {
             <button type="button" className="pp-btn" onClick={() => fetchPolicies(identifierType, memberId)}>
               Retry
             </button>
+            {canDiscover && discoverButton("Discover with a payer")}
           </div>
         ) : visiblePolicies.length === 0 ? (
           <div className="pp-state">
@@ -349,12 +364,16 @@ export default function PayerPolicy({ ctx }) {
                   {identifierType === "MemberId" && memberId.trim() ? " — check the member ID for a typo." : "."}
                 </div>
               )}
+              <div className="pp-muted">
+                The lookup only finds policies linked to the patient's identifiers. A payer can still be asked directly.
+              </div>
             </div>
             {identifierType && (
               <button type="button" className="pp-btn" onClick={() => handleIdentifierTypeChange("")}>
                 Try Auto instead
               </button>
             )}
+            {canDiscover && discoverButton("Discover with a payer")}
           </div>
         ) : (
           <div className="pp-list" role="radiogroup" aria-label="Policies">

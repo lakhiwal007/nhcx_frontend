@@ -6,6 +6,7 @@
 import { enrichPayrMessage, describePayrError } from "./api/payrErrors.js";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+const mockDiscoveries = [];
 
 // Base URL for real network calls. Change this to match your backend server.
 const BASE_URL =
@@ -1754,7 +1755,68 @@ const mock = {
     };
   },
 
+  discoverCoverage: async (data) => {
+    await delay(600);
+    if (!data.payer_id) throw new Error("Choose the payer to ask");
+    if (!data.policy_number && !data.member_id) throw new Error("Enter the policy number or the member id to ask about");
+    const correlation_id = `disc-${Date.now()}`;
+    mockDiscoveries.unshift({
+      correlation_id,
+      payer_id: data.payer_id,
+      sent_at: new Date().toISOString(),
+      policy_number: data.policy_number || undefined,
+      member_id: data.member_id || undefined,
+      abha_number: data.abha_number || undefined,
+    });
+    return { correlation_id, request_id: correlation_id, payer_id: data.payer_id, status: "submitted", message: "Eligibility request queued to the payer." };
+  },
+
+  adoptDiscoveredCover: async (correlation_id, data) => {
+    await delay(400);
+    const discovery = mockDiscoveries.find((d) => d.correlation_id === correlation_id);
+    return {
+      status: "adopted",
+      correlation_id,
+      policy: {
+        policy_number: data.policy_code,
+        product_name: "PMJAY for Himachal",
+        payer_id: discovery?.payer_id,
+        payer_name: discovery?.payer_id,
+        member_id: data.member_id,
+        status: "active",
+        sum_insured: 500000,
+        currency: "INR",
+        effective_to: "2027-03-31",
+        source: "discovery",
+      },
+    };
+  },
+
   getCoverageEligibilityStatus: async (correlation_id) => {
+    const discovery = mockDiscoveries.find((d) => d.correlation_id === correlation_id);
+    if (discovery) {
+      await delay(300);
+      const base = { correlation_id, purpose: "discovery", payer_id: discovery.payer_id, submitted_at: discovery.sent_at };
+      if (Date.now() - new Date(discovery.sent_at).getTime() < 3000) return { ...base, status: "pending", covers: [] };
+      const shared = {
+        policy_code: discovery.policy_number || "PMJAY/HP/S/G",
+        plan_name: "PMJAY for Himachal",
+        status: "active",
+        sum_insured: 500000,
+        balance: 450000,
+        currency: "INR",
+        valid_until: "2027-03-31",
+        members_on_cover: 2,
+      };
+      return {
+        ...base,
+        status: "complete",
+        covers: [
+          { ...shared, member_id: discovery.member_id || "MD5SLS4X5", name: "Asha Devi", gender: "female", dob: "1984-02-11", relationship: "Self", abha_number: discovery.abha_number },
+          { ...shared, member_id: "MD5SLS4X6", name: "Ravi Devi", gender: "male", dob: "2012-07-04", relationship: "Son" },
+        ],
+      };
+    }
     await delay(1500);
     return {
       correlation_id,
@@ -3017,6 +3079,10 @@ const real = {
     http.post("/cashless/coverage_eligibility/benefits", data),
   getCoverageEligibilityStatus: (correlation_id) =>
     http.get(`/cashless/coverage_eligibility/status/${correlation_id}`),
+  discoverCoverage: (data) =>
+    http.post("/cashless/coverage_eligibility/check", { ...data, purpose: "discovery" }),
+  adoptDiscoveredCover: (correlation_id, data) =>
+    http.post(`/cashless/coverage_eligibility/discoveries/${encodeURIComponent(correlation_id)}/adopt`, data),
 
   getPreauthStatus: (correlation_id, signal) =>
     http.get(`/cashless/preauth/status/${correlation_id}`, {}, { signal }),

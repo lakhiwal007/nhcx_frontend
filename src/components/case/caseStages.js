@@ -19,6 +19,7 @@ const BRANCHES = {
 };
 
 const VIEWS = {
+  discover: { label: "Discover a policy", hint: "Ask a payer directly for the patient's cover when the policy lookup does not find it." },
   timeline: { label: "Audit trail", hint: "Every request, payer response and status change on this case, newest first." },
 };
 

@@ -16,6 +16,7 @@ import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo } fr
 import "../case/case-workspace.css";
 
 import PayerPolicy from "./PayerPolicy";
+import CoverageDiscovery from "./CoverageDiscovery";
 import EligibilityPrep from "./EligibilityPrep";
 import PreauthDraft from "./PreauthDraft";
 import PreauthStatus from "./PreauthStatus";
@@ -324,6 +325,7 @@ export default function CaseWrapper() {
                 <Routes location={location}>
                   <Route path="/" element={<Navigate to={landingStage(effectiveCase)} replace />} />
                   <Route path="payer" element={<PayerPolicy ctx={contextValue} />} />
+                  <Route path="discover" element={<CoverageDiscovery ctx={contextValue} />} />
                   <Route path="prep" element={<EligibilityPrep ctx={contextValue} />} />
                   <Route path="review" element={<PreauthDraft ctx={contextValue} />} />
                   <Route path="status" element={<PreauthStatus ctx={contextValue} />} />
