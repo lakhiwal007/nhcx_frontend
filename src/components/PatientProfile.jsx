@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { User, Plus, ArrowLeft, ArrowRight, AlertCircle, ChevronRight, Paperclip } from "lucide-react";
 import { api } from "../api";
 import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney } from "./Common";
-import { formatDate, formatPhone, formatCaseRef, formatRelative, humanize, priorityLabel, safeHref } from "../format.js";
+import { formatDate, formatPhone, formatCaseRef, formatRelative, humanize, priorityLabel, safeHref, photoSrc } from "../format.js";
 import { taskStep, taskScreen, taskNavState } from "../taskRoutes";
 import { isSettled, needsAttention } from "../caseStatus.js";
 import { routeAtOrAfter } from "../workflowStorage";
@@ -23,8 +23,8 @@ const capitalize = (v) => (v ? v[0].toUpperCase() + v.slice(1) : null);
 function Avatar({ patient, large = false }) {
   const [broken, setBroken] = useState(false);
   const cls = `pt-avatar${large ? " is-lg" : ""}`;
-  if (patient.profile_photo && !broken) {
-    return <img className={cls} src={patient.profile_photo} alt="" onError={() => setBroken(true)} />;
+  if (photoSrc(patient.profile_photo) && !broken) {
+    return <img className={cls} src={photoSrc(patient.profile_photo)} alt="" onError={() => setBroken(true)} />;
   }
   return (
     <span className={cls} aria-hidden="true">

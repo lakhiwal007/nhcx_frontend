@@ -51,6 +51,12 @@ import { PageActionsSlot } from "./components/PageActions";
 
 const TASK_POLL_MS = 60_000;
 
+function LegacyBasePath() {
+  const location = useLocation();
+  const rest = location.pathname.replace(/^\/nhcx\/service/, "") || "/";
+  return <Navigate to={`${rest}${location.search}${location.hash}`} replace />;
+}
+
 function RequireProvider({ hasProvider, sessionReady }) {
   if (!sessionReady) return <LoadingBlock text="Loading…" />;
   return hasProvider ? <Outlet /> : <Navigate to="/settings" replace />;
@@ -757,6 +763,7 @@ export default function App() {
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname.split("/")[1]}>
               <Route path="/" element={<Navigate to="/work-queue" replace />} />
+              <Route path="/nhcx/service/*" element={<LegacyBasePath />} />
               <Route
                 path="/settings"
                 element={
