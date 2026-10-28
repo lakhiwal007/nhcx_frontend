@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { taskScreen, taskNavState } from "../taskRoutes";
-import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
+import { Button, EmptyState, SkeletonTable, TablePagination, InfoTip, Tip, NextStep } from "./Common";
+import { taskHelp } from "../help/taskHelp.js";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { Drawer } from "./Overlay";
@@ -356,6 +357,11 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
     >
       {task && (
         <div className="wq-drawer-body">
+              {taskHelp(task.task_type) && (
+                <NextStep tone="info" title="What to do" className="wq-drawer-guide">
+                  {taskHelp(task.task_type)}
+                </NextStep>
+              )}
               {task.description && (
                 <p
                   style={{
@@ -689,6 +695,10 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         </div>
       )}
 
+      <Tip className="wq-page-tip">
+        Everything waiting on the hospital, most urgent first. Click a task to see what to do, then open its case.
+      </Tip>
+
       <div className="wq-panel">
         <div className="wq-toolbar">
           <input
@@ -782,7 +792,11 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             iconOpacity={0.4}
             iconColor="var(--success)"
             title={statusFilter === "pending" ? "All Caught Up!" : "No completed tasks"}
-            description={`No ${statusFilter} tasks${taskTypeFilter ? " of this type" : ""}.`}
+            description={
+              statusFilter === "pending"
+                ? `Nothing is waiting on the hospital${taskTypeFilter ? " for this task type" : ""}. New tasks appear here when a payer answers or a case needs a step.`
+                : `No completed tasks${taskTypeFilter ? " of this type" : ""} yet.`
+            }
           />
         ) : visible.length === 0 ? (
           <div className="wq-empty">
@@ -911,7 +925,10 @@ function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
       </td>
       <td>
         <div className="wq-task">
-          <span className="wq-type-tag">{shortTaskType(task.task_type)}</span>
+          <span className="wq-type-tag">
+            {shortTaskType(task.task_type)}
+            {taskHelp(task.task_type) && <InfoTip title={shortTaskType(task.task_type)} text={taskHelp(task.task_type)} />}
+          </span>
           <span className="wq-task-main">
             <span className={`wq-task-text${bucket === "urgent" ? " is-urgent" : ""}`} title={title}>
               {bucket !== "normal" && <span className={`wq-prio is-${bucket}`}>{bucket === "urgent" ? "Urgent" : "High"}</span>}

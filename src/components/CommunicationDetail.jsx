@@ -5,7 +5,7 @@ import {
 import { api } from "../api";
 import { useReadOnly } from "../readOnly";
 import { resolveAction } from "../api/actionMap";
-import { Button, QueryResponseFields } from "./Common";
+import { Button, QueryResponseFields, NextStep } from "./Common";
 import { Drawer } from "./Overlay";
 import { formatDateTime, humanize, priorityLabel, safeHref } from "../format.js";
 import { buildActionBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
@@ -280,6 +280,20 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                 <>
                   <div style={{ fontSize: "18px", fontWeight: 700, lineHeight: 1.3 }}>{commHeadline(detail)}</div>
 
+                  {inbound && (
+                    <NextStep
+                      tone={canReply ? "warn" : "info"}
+                      title={canReply ? "The payer is waiting for your answer" : answered ? "Answered" : "For your information"}
+                    >
+                      {canReply
+                        ? "Read the message, then use Reply to the payer below to attach what it asks for. The case waits until you answer."
+                        : answered
+                          ? "Your reply has been sent. The payer's next answer will appear in the case."
+                          : detail?.kind === "notification"
+                            ? "An update from the payer. It is acknowledged to the payer automatically; no reply is needed."
+                            : "A note from the payer. Read it; no reply is needed."}
+                    </NextStep>
+                  )}
                   {reasonCfg.hint && (
                     <div style={{ padding: "12px 16px", background: "var(--bg-main)", border: `1px solid ${reasonCfg.borderColor || "var(--border-color)"}`, borderLeft: `4px solid ${reasonCfg.borderColor || "var(--border-color)"}`, borderRadius: "8px", fontSize: "13px", lineHeight: 1.5 }}>
                       {reasonCfg.hint}

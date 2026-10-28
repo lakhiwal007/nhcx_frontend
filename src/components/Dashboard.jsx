@@ -5,7 +5,7 @@ import {
   Inbox, AlertCircle, LayoutGrid, List, MoreVertical, Plus,
 } from "lucide-react";
 import { api } from "../api";
-import { Button, EmptyState, SkeletonTable, TablePagination } from "./Common";
+import { Button, EmptyState, SkeletonTable, TablePagination, Tip } from "./Common";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { formatMoney, formatDate, formatRelative, formatCaseRef } from "../format.js";
@@ -494,6 +494,10 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         </div>
       )}
 
+      <Tip className="wq-page-tip">
+        Every insurance case and where it stands. Click a row to open the case; the left rail there says what to do next.
+      </Tip>
+
       <div className="wq-panel">
         <div className="wq-toolbar">
           <input
@@ -547,7 +551,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           <EmptyState
             icon={Inbox}
             title="No cashless cases yet"
-            description="Start a case from the child registry and it will show up here."
+            description="To start one, open Patients, find the admitted patient and press Start case. It will show up here."
           >
             {!allFacilitiesMode && (
               <Button variant="primary" size="small" icon={Plus} onClick={() => navigate("/registry")}>

@@ -5913,3 +5913,17 @@ code {
 .pp-searchby {
     flex-wrap: wrap;
 }
+
+.wq-drawer-guide {
+    margin-bottom: 14px;
+}
+
+.wq-page-tip {
+    margin: 0 0 10px;
+}
+
+.wq-type-tag .info-tip-btn {
+    width: 14px;
+    height: 14px;
+    margin-left: 2px;
+}

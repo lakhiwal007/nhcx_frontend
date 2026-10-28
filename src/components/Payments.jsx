@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertCircle } from "lucide-react";
-import { SkeletonTable, Button, TablePagination } from "./Common";
+import { SkeletonTable, Button, TablePagination, Tip } from "./Common";
 import { formatMoney, formatDate, formatDateTime } from "../format.js";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
@@ -150,6 +150,10 @@ export default function Payments() {
         </div>
       )}
 
+      <Tip className="wq-page-tip">
+        Money the payers have sent for settled claims. Match each UTR with the hospital's bank statement.
+      </Tip>
+
       <div className="wq-panel">
         <div className="wq-toolbar">
           <input
@@ -195,7 +199,7 @@ export default function Payments() {
             <div className="cc-empty-hint">
               {payments.length
                 ? "Try a different search or stage."
-                : "Payer payment notices appear here once claims are settled."}
+                : "Payments appear here once a payer settles a claim, usually days after the claim is approved."}
             </div>
           </div>
         ) : (

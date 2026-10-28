@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Paperclip, AlertCircle, Send } from "lucide-react";
 import { api } from "../api";
-import { Button, SkeletonTable, TablePagination } from "./Common";
+import { Button, SkeletonTable, TablePagination, Tip } from "./Common";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { formatDateTime, formatRelative, priorityLabel } from "../format.js";
@@ -113,6 +113,11 @@ export default function Communications({ allFacilitiesMode = false }) {
           Could not load communications. Showing the last known results, if any.
         </div>
       )}
+
+      <Tip className="wq-page-tip">
+        Messages from payers about your cases. A query needs a reply with what the payer asks for; a notification only needs
+        reading.
+      </Tip>
 
       <div className="wq-panel">
         <div className="wq-toolbar">

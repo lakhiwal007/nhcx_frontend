@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { User, Plus, ArrowLeft, ArrowRight, AlertCircle, ChevronRight, Paperclip } from "lucide-react";
 import { api } from "../api";
-import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney } from "./Common";
+import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney, InfoTip, Tip } from "./Common";
 import { formatDate, formatPhone, formatCaseRef, formatRelative, humanize, priorityLabel, safeHref, photoSrc } from "../format.js";
 import { taskStep, taskScreen, taskNavState } from "../taskRoutes";
 import { isSettled, needsAttention } from "../caseStatus.js";
@@ -580,7 +580,10 @@ function PatientDetail({ patient }) {
             <div className="pt-fact-value mono">{formatPhone(patient.mobile)}</div>
           </div>
           <div className="pt-fact">
-            <div className="pt-fact-label">ABHA</div>
+            <div className="pt-fact-label">
+              ABHA
+              <InfoTip term="abha" />
+            </div>
             <div className={`pt-fact-value${patient.abha_number ? " mono" : " is-warn"}`} title={patient.abha_number || undefined}>
               {patient.abha_number || "Not linked"}
             </div>
@@ -613,7 +616,7 @@ function PatientDetail({ patient }) {
         <div className="pt-tab-body" role="tabpanel">
           {tab === "admissions" &&
             (visits.length === 0 ? (
-              <p className="pt-empty">No admissions on record.</p>
+              <p className="pt-empty">No admissions on record. Admissions are created in the hospital system and appear here.</p>
             ) : (
               <table className="pt-ledger">
                 <thead>
@@ -676,7 +679,9 @@ function PatientDetail({ patient }) {
 
           {tab === "cases" &&
             (cases.length === 0 && looseTasks.length === 0 ? (
-              <p className="pt-empty">No cashless case has been started for this patient.</p>
+              <p className="pt-empty">
+                No cashless case has been started for this patient. If they are admitted and insured, press Start case.
+              </p>
             ) : (
               <>
                 <table className="pt-ledger">
@@ -964,6 +969,10 @@ export default function PatientProfile() {
         </div>
       )}
 
+      <Tip className="wq-page-tip">
+        Find the admitted patient by name, ID, mobile or ABHA, then press Start case to begin an insurance case.
+      </Tip>
+
       <div className="wq-panel">
         <div className="wq-toolbar">
           <input
@@ -1022,7 +1031,7 @@ export default function PatientProfile() {
                 ? "No patient in this group matches. Try another chip or clear the search."
                 : hasSearched
                   ? "Try a different name, ID or mobile number."
-                  : "Registered children will show up here."
+                  : "Patients registered in the hospital system show up here."
             }
           />
         ) : (

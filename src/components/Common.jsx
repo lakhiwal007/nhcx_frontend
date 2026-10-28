@@ -151,6 +151,9 @@ export const InfoTip = ({ term, title, text, more, label }) => {
         aria-expanded={!!pos}
         aria-controls={pos ? popId : undefined}
         onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+        }}
       >
         <Info size={13} />
       </button>
