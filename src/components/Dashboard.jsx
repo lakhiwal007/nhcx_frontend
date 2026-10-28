@@ -551,7 +551,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           <EmptyState
             icon={Inbox}
             title="No cashless cases yet"
-            description="To start one, open Patients, find the admitted patient and press Start case. It will show up here."
+            description="To start one, open Patient Registry, find the admitted patient and press Start case. It will show up here."
           >
             {!allFacilitiesMode && (
               <Button variant="primary" size="small" icon={Plus} onClick={() => navigate("/registry")}>

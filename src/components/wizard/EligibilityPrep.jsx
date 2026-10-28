@@ -865,7 +865,7 @@ export default function EligibilityPrep({ ctx }) {
         </div>
         {notAdmitted ? (
           <Button variant="outline" onClick={() => navigate("/registry")}>
-            ← Back to patients
+            ← Back to Patient Registry
           </Button>
         ) : (
           <Button variant="outline" onClick={() => navigate("../payer")}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { User, Plus, ArrowLeft, ArrowRight, AlertCircle, ChevronRight, Paperclip } from "lucide-react";
+import { User, Plus, ArrowLeft, ArrowRight, AlertCircle, ChevronRight, Paperclip, Search } from "lucide-react";
 import { api } from "../api";
 import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney, InfoTip, Tip } from "./Common";
 import { formatDate, formatPhone, formatCaseRef, formatRelative, humanize, priorityLabel, safeHref, photoSrc } from "../format.js";
@@ -998,6 +998,17 @@ export default function PatientProfile() {
               }
             }}
           />
+          <Button
+            variant="outline"
+            size="small"
+            icon={Search}
+            onClick={() => {
+              clearTimeout(searchTimer.current);
+              handleSearch();
+            }}
+          >
+            Search
+          </Button>
           <div className="wq-chips" role="tablist" aria-label="Case state">
             {CASE_STATE_TABS.map((t) => (
               <button
