@@ -15,7 +15,7 @@ import {
   Trash2,
   Paperclip,
 } from "lucide-react";
-import { formatMoney, formatDateTime, formatPhone, formatPercent, currencySymbol, safeHref } from "../format.js";
+import { formatMoney, formatDateTime, formatPhone, formatPercent, currencySymbol, safeHref, photoSrc } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
 export { formatMoney };
@@ -200,8 +200,8 @@ export const PatientCard = ({ patient, onClick, isSelected, age, statusSlot }) =
       className={`patient-card-modern${isSelected ? " selected" : ""}`}
     >
       <div className="patient-card-avatar">
-        {patient.profile_photo && !photoError
-          ? <img src={patient.profile_photo} alt="" onError={() => setPhotoError(true)} />
+        {photoSrc(patient.profile_photo) && !photoError
+          ? <img src={photoSrc(patient.profile_photo)} alt="" onError={() => setPhotoError(true)} />
           : patient.name?.[0]?.toUpperCase()
         }
       </div>

@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { Card, StatusBadge, Button, Input, PatientCard, EmptyState, LoadingBlock, formatMoney } from "./Common";
-import { formatDate, formatPhone, formatCaseRef } from "../format.js";
+import { formatDate, formatPhone, formatCaseRef, photoSrc } from "../format.js";
 import { taskStep } from "../taskRoutes";
 import { resolveCaseStatus } from "../caseStatus.js";
 import { routeAtOrAfter } from "../workflowStorage";
@@ -163,8 +163,8 @@ function PatientDetail({ patient, onBack }) {
             display: "flex", alignItems: "center", justifyContent: "center",
             fontWeight: 800, fontSize: "24px", flexShrink: 0, overflow: "hidden",
           }}>
-            {patient.profile_photo && !headerPhotoError
-              ? <img src={patient.profile_photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setHeaderPhotoError(true)} />
+            {photoSrc(patient.profile_photo) && !headerPhotoError
+              ? <img src={photoSrc(patient.profile_photo)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setHeaderPhotoError(true)} />
               : patient.name?.[0]?.toUpperCase()
             }
           </div>

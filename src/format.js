@@ -141,3 +141,20 @@ export const safeHref = (v) => {
 
   return null;
 };
+
+const IMAGE_SIGNATURES = [
+  ["/9j/", "image/jpeg"],
+  ["iVBORw0", "image/png"],
+  ["R0lGOD", "image/gif"],
+  ["UklGR", "image/webp"],
+];
+
+export const photoSrc = (v) => {
+  const raw = v == null ? "" : String(v).trim();
+  if (!raw) return null;
+  if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+  const compact = raw.replace(/\s+/g, "");
+  const match = IMAGE_SIGNATURES.find(([prefix]) => compact.startsWith(prefix));
+  if (match && /^[A-Za-z0-9+/]+=*$/.test(compact)) return `data:${match[1]};base64,${compact}`;
+  return raw;
+};
