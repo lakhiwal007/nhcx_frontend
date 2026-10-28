@@ -1965,5 +1965,11 @@ Facility administration (not part of the cashless desk flow — an admin/owner s
 | POST | `/facilities` | Register a facility + ABDM onboarding (clinic admin of that `facility_code`'s clinic) |
 | PUT | `/facilities/{code}` | Update facility + ABDM sync (clinic admin of that clinic) |
 | PUT | `/facilities/{code}/private_key` | Upload/replace the RSA decryption key (clinic admin of that clinic) |
+| POST | `/facilities/onboarding/start` | NHCX production step 1: create the participant from the HFR ID; SMS passcode 1 |
+| POST | `/facilities/onboarding/confirm` | Step 2: confirm passcode 1 and record the facility under its `@hcx` code |
+| POST | `/facilities/{code}/onboarding/register` | Step 3: register the certificate (PEM or Base64) and callback URL; SMS passcode 2 |
+| POST | `/facilities/{code}/onboarding/activate` | Step 4: confirm passcode 2; marked registered only if NHCX returns our certificate |
+
+**NHCX production (`nhcx_environment: "production"` in `/session`).** NHCX production takes a participant only through the four onboarding steps above, each half confirmed by a passcode sent to the mobile on the facility's HFR record (valid 24 hours, one per transaction id; the UI carries the transaction id between steps, and a lost one means repeating that step). `POST /facilities` and `PUT /facilities/{code}` there save our record only — no ABDM call — so create needs the `@hcx` code (normally from onboarding). In the sandbox they keep calling `participant/create` / `participant/update` as before. `encryption_cert` may be a PEM, the Base64 of one, or an https URL; the registry always receives Base64.
 
 On `POST /facilities`, don't collect `hcx_participant_code` in the create form — ABDM's `participant/create` assigns it, and the wrapper returns it in the response (`hcx_participant_code`, also under `abdm_registration.response.participant_code`). Only pass it in the request body for the rare case of re-linking a participant code that already exists outside this wrapper. If ABDM registration fails on create and no code was supplied, the wrapper returns `422` and no facility record is created — surface the error and let the admin retry rather than treating the facility as partially created.

@@ -14,7 +14,7 @@ import {
   SearchX,
   Sparkles,
 } from "lucide-react";
-import { api, ALL_FACILITIES_MODE_KEY } from "../api";
+import { api, ALL_FACILITIES_MODE_KEY, callbackBaseUrl } from "../api";
 import { getDeepLinkClinicId } from "../sessionBootstrap";
 import { Button, EmptyState, LoadingBlock } from "./Common";
 import { Drawer } from "./Overlay";
@@ -389,6 +389,224 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
   );
 }
 
+// NHCX production takes a participant only through two passcode-confirmed
+// halves: create against the HFR record, then register the certificate and
+// callback address. The passcodes go to the mobile on the HFR record.
+const ONBOARDING_STEPS = ["Hospital details", "First passcode", "Certificate", "Second passcode"];
+
+function OnboardingWizard({ open, start, onClose, onDone }) {
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState({});
+  const [transactionId, setTransactionId] = useState("");
+  const [passcode, setPasscode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [sentTo, setSentTo] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setStep(start?.step ?? 0);
+    setForm({ scheme_code: "PMJAY", endpoint_url: callbackBaseUrl(), ...start?.facility });
+    setTransactionId("");
+    setPasscode("");
+    setError(null);
+    setSentTo(null);
+  }, [open, start]);
+
+  const set = (key, value) => setForm((p) => ({ ...p, [key]: value }));
+
+  const run = async (fn) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError(err.message || "NHCX refused the request.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendCreate = () =>
+    run(async () => {
+      if (!form.facility_code || !form.name || !form.registry_id || !form.primary_email) {
+        throw new Error("Facility code, name, HFR ID and email are required.");
+      }
+      if (!/^\d{10}$/.test(form.primary_mobile || "")) {
+        throw new Error("Enter the 10-digit mobile exactly as it is on the HFR record.");
+      }
+      const res = await api.startFacilityOnboarding({
+        facility_code: form.facility_code,
+        registry_id: form.registry_id,
+        primary_mobile: form.primary_mobile,
+        primary_email: form.primary_email,
+      });
+      setForm((p) => ({ ...p, hcx_participant_code: res.participant_code }));
+      setTransactionId(res.transaction_id);
+      setPasscode("");
+      setSentTo(form.primary_mobile);
+      setStep(1);
+    });
+
+  const confirmCreate = () =>
+    run(async () => {
+      await api.confirmFacilityOnboarding({
+        facility_code: form.facility_code,
+        participant_code: form.hcx_participant_code,
+        transaction_id: transactionId,
+        passcode: passcode.trim(),
+        name: form.name,
+        registry_id: form.registry_id,
+        hfr_id: form.registry_id,
+        scheme_code: form.scheme_code,
+        state: form.state,
+        district: form.district,
+        primary_email: form.primary_email,
+        primary_mobile: form.primary_mobile,
+      });
+      setPasscode("");
+      setStep(2);
+    });
+
+  const sendCertificate = () =>
+    run(async () => {
+      if (!form.encryption_cert) throw new Error("Generate or paste the certificate first.");
+      if (!form.endpoint_url) throw new Error("The callback URL is required.");
+      const res = await api.registerFacilityOnboarding(form.facility_code, {
+        encryption_cert: form.encryption_cert,
+        private_key_pem: form.private_key_pem || undefined,
+        endpoint_url: form.endpoint_url,
+      });
+      setTransactionId(res.transaction_id);
+      setPasscode("");
+      setSentTo(form.primary_mobile || "the mobile on the HFR record");
+      setStep(3);
+    });
+
+  const confirmCertificate = () =>
+    run(async () => {
+      await api.activateFacilityOnboarding(form.facility_code, { transaction_id: transactionId, passcode: passcode.trim() });
+      setStep(4);
+      await onDone?.();
+    });
+
+  const passcodeStep = (onConfirm, onResend, what) => (
+    <div className="st-stack">
+      <div className="ep-notice">
+        NHCX sent a passcode to {sentTo || "the mobile on the HFR record"} to {what}. It is valid for 24 hours.
+      </div>
+      <FormField label="Passcode" required>
+        <TextInput value={passcode} onChange={setPasscode} placeholder="From the SMS" monospace />
+      </FormField>
+      <div className="st-row-actions">
+        <Button write variant="primary" disabled={busy || !passcode.trim()} onClick={onConfirm}>
+          {busy ? "Checking…" : "Confirm passcode"}
+        </Button>
+        <Button write variant="outline" disabled={busy} onClick={onResend}>
+          Send a new passcode
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <Drawer
+      width={620}
+      stack
+      open={open}
+      onClose={onClose}
+      title="Register on NHCX production"
+      subtitle={step < 4 ? `Step ${step + 1} of 4 · ${ONBOARDING_STEPS[step]}` : "Registered"}
+      footer={
+        <Button variant="outline" onClick={onClose}>
+          {step === 4 ? "Close" : "Cancel"}
+        </Button>
+      }
+    >
+      <div className="st-stack">
+        {error && <div className="ep-notice is-bad">{error}</div>}
+
+        {step === 0 && (
+          <>
+            <FormField label="Facility Code" required hint="The hospital's clinic id in the HIS">
+              <TextInput value={form.facility_code} onChange={(v) => set("facility_code", v)} disabled={!!start?.facility?.facility_code} monospace />
+            </FormField>
+            <FormField label="Hospital Name" required>
+              <TextInput value={form.name} onChange={(v) => set("name", v)} />
+            </FormField>
+            <FormField label="HFR ID" required hint="The facility's Health Facility Registry id; it must be verified in HFR">
+              <TextInput value={form.registry_id} onChange={(v) => set("registry_id", v)} placeholder="IN2910000001" monospace />
+            </FormField>
+            <FormField label="Mobile on the HFR record" required hint="Both passcodes go here; it must match HFR exactly">
+              <TextInput value={form.primary_mobile} onChange={(v) => set("primary_mobile", v)} placeholder="9876543210" />
+            </FormField>
+            <FormField label="Email" required>
+              <TextInput value={form.primary_email} onChange={(v) => set("primary_email", v)} placeholder="hcx@hospital.example" />
+            </FormField>
+            <FormField label="State">
+              <TextInput value={form.state} onChange={(v) => set("state", v)} />
+            </FormField>
+            <FormField label="District">
+              <TextInput value={form.district} onChange={(v) => set("district", v)} />
+            </FormField>
+            <div>
+              <Button write variant="primary" disabled={busy} onClick={sendCreate}>
+                {busy ? "Sending…" : "Create on NHCX and send passcode"}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {step === 1 && (
+          <>
+            <div>
+              NHCX participant code: <span className="ep-mono ep-strong">{form.hcx_participant_code}</span>
+            </div>
+            {passcodeStep(confirmCreate, sendCreate, "confirm the hospital's creation")}
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div>
+              Created as <span className="ep-mono ep-strong">{form.hcx_participant_code}</span>. Now register the certificate NHCX
+              encrypts with, and the address it delivers payer answers to.
+            </div>
+            <GenerateKeypairButton
+              facilityCode={form.facility_code}
+              facilityName={form.name}
+              onGenerated={({ private_key_pem, encryption_cert }) => setForm((p) => ({ ...p, private_key_pem, encryption_cert }))}
+            />
+            <FormField label="Encryption Certificate (Base64 or PEM)" required wide>
+              <textarea className="input-modern st-textarea" rows={4} value={form.encryption_cert || ""} onChange={(e) => set("encryption_cert", e.target.value)} />
+            </FormField>
+            <FormField label="Private Key PEM" hint="Must belong to the certificate; leave empty to keep the key already stored" wide>
+              <textarea className="input-modern st-textarea" rows={4} value={form.private_key_pem || ""} onChange={(e) => set("private_key_pem", e.target.value)} />
+            </FormField>
+            <FormField label="Callback URL" required hint="https, a domain name (no IP or port), hosted in India" wide>
+              <TextInput value={form.endpoint_url} onChange={(v) => set("endpoint_url", v)} monospace />
+            </FormField>
+            <div>
+              <Button write variant="primary" disabled={busy} onClick={sendCertificate}>
+                {busy ? "Sending…" : "Register certificate and send passcode"}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {step === 3 && passcodeStep(confirmCertificate, sendCertificate, "confirm the certificate and callback URL")}
+
+        {step === 4 && (
+          <div className="ep-notice">
+            {form.name || form.facility_code} is registered on NHCX production as {form.hcx_participant_code}, and NHCX holds this
+            certificate.
+          </div>
+        )}
+      </div>
+    </Drawer>
+  );
+}
+
 // Key and ABDM status: plain text when fine, colour only when something is wrong.
 function KeyStatus({ set }) {
   return set ? <span className="ep-muted">Uploaded</span> : <span className="is-bad">Missing</span>;
@@ -404,6 +622,7 @@ export default function Settings({
   readOnly = false,
   manageableFacilityCodes = [],
   managesAnyFacility = false,
+  nhcxEnvironment = "sandbox",
   sessionFacilities = null,
   sessionUserId = null,
   onSessionRefresh,
@@ -418,6 +637,8 @@ export default function Settings({
   const [loadError, setLoadError] = useState(false);
 
   const [showFacilityDrawer, setShowFacilityDrawer] = useState(false);
+  const [onboarding, setOnboarding] = useState(null);
+  const isProduction = nhcxEnvironment === "production";
   const [editingFacility, setEditingFacility] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -474,6 +695,10 @@ export default function Settings({
   }, [showManagement, needsFallbackPicker]);
 
   const openCreate = (prefill = {}) => {
+    if (isProduction) {
+      setOnboarding({ step: 0, facility: prefill });
+      return;
+    }
     setEditingFacility(null);
     setForm({ ...EMPTY_FORM, ...prefill });
     setFormError(null);
@@ -814,6 +1039,11 @@ export default function Settings({
                       <td className="st-col-actions">
                         {canManage(f.facility_code) && (
                           <div className="st-row-actions">
+                            {isProduction && !f.abdm_registered && (
+                              <button type="button" className="ep-action" onClick={() => setOnboarding({ step: 2, facility: { ...f } })}>
+                                Finish NHCX registration
+                              </button>
+                            )}
                             <button type="button" className="ep-action" onClick={() => openEdit(f)}>
                               <Edit2 size={13} /> Edit
                             </button>
@@ -831,6 +1061,16 @@ export default function Settings({
           )}
         </Section>
       )}
+
+      <OnboardingWizard
+        open={!!onboarding}
+        start={onboarding}
+        onClose={() => setOnboarding(null)}
+        onDone={async () => {
+          await loadFacilities();
+          await onSessionRefresh?.();
+        }}
+      />
 
       <Drawer
         width={620}

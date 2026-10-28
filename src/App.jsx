@@ -93,6 +93,7 @@ export default function App() {
   const [readOnly, setReadOnly] = useState(false);
   const [manageableFacilityCodes, setManageableFacilityCodes] = useState([]);
   const [managesAnyFacility, setManagesAnyFacility] = useState(false);
+  const [nhcxEnvironment, setNhcxEnvironment] = useState("sandbox");
   const [sessionFacilities, setSessionFacilities] = useState(null);
   const [sessionUserId, setSessionUserId] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -136,6 +137,7 @@ export default function App() {
     setReadOnly(isReadOnly);
     setManageableFacilityCodes((res?.manageable_facility_codes || []).map(String));
     setManagesAnyFacility(!!res?.manages_any_facility);
+    setNhcxEnvironment(res?.nhcx_environment === "production" ? "production" : "sandbox");
     setSessionUserId(res?.user?.id ?? null);
     const facilities = res?.facilities || [];
     setSessionFacilities(facilities);
@@ -762,6 +764,7 @@ export default function App() {
                     readOnly={readOnly}
                     manageableFacilityCodes={manageableFacilityCodes}
                     managesAnyFacility={managesAnyFacility}
+                    nhcxEnvironment={nhcxEnvironment}
                     sessionFacilities={sessionFacilities}
                     sessionUserId={sessionUserId}
                     onSessionRefresh={refreshSession}
