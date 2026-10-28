@@ -5,6 +5,21 @@ import { Check, Lock } from "lucide-react";
 // raised as a tile; branch nodes (Enhancement, Reprocess) sit indented with a
 // dashed ring. Stages and their clickability are computed by buildStages();
 // this component only presents them.
+const nowHint = (stages) => {
+  const urgent = stages.find((s) => s.tone === "urgent" && !s.branch);
+  if (urgent) {
+    const note = String(urgent.note || "");
+    if (urgent.id === "status" && /query/i.test(note)) return { tone: "urgent", text: "The payer asked a question. Open Approval and press Respond to query." };
+    if (urgent.id === "status" && /reject/i.test(note)) return { tone: "urgent", text: "The preauth was rejected. Open Approval to read why, then resubmit or treat the patient as cash." };
+    if (urgent.id === "status" && /cancel/i.test(note)) return { tone: "urgent", text: "The preauth was cancelled. Start a new case if the patient is admitted again." };
+    if (urgent.id === "claim") return { tone: "urgent", text: "Open Claim to read the payer's decision. If you disagree, ask for a reprocess." };
+  }
+  if (stages.some((s) => s.live && !s.done)) {
+    return { tone: "wait", text: "Nothing to do right now: the payer is deciding. The answer appears here and in the Work Queue." };
+  }
+  return null;
+};
+
 export default function CaseStepper({ stages, onNavigate }) {
   const core = stages.filter((s) => !s.branch);
   // Count what the rail shows as ticked, so the header never disagrees with
@@ -98,6 +113,15 @@ export default function CaseStepper({ stages, onNavigate }) {
         })}
       </ol>
 
+      {(() => {
+        const now = nowHint(stages);
+        return now ? (
+          <div className={`cx-rail-now is-${now.tone}`}>
+            <div className="cx-rail-next-eyebrow">{now.tone === "urgent" ? "Do this now" : "Waiting on the payer"}</div>
+            <p className="cx-rail-next-hint">{now.text}</p>
+          </div>
+        ) : null;
+      })()}
       {(upcoming || !next) && (
         <div className={`cx-rail-next${next ? "" : " is-complete"}`}>
           {upcoming ? (

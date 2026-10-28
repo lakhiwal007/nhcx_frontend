@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Home, RefreshCw, AlertCircle } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
-import { Button, LoadingBlock, formatMoney } from "../Common";
+import { Button, LoadingBlock, formatMoney, NextStep } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { groupPaymentEvents, stageLabel } from "../../paymentEvents.js";
 import { Section } from "../case/CaseFile";
@@ -100,8 +100,25 @@ export default function PaymentReconciliation({ ctx }) {
     net != null && { label: "Net credited", value: net, total: true },
   ].filter(Boolean);
 
+  const guide = isNotFound
+    ? null
+    : paymentData?.settled
+      ? shortBy
+        ? {
+            tone: "warn",
+            title: "Paid less than approved",
+            text: "Compare the amounts below. If the shortfall isn't explained by TDS or a deduction you agree with, go to the Claim step and use Ask for the balance.",
+          }
+        : { tone: "ok", title: "Paid in full", text: "Match the UTR below with the hospital's bank statement. Nothing else is needed for this case." }
+      : { tone: "info", title: "The payer is paying in stages", text: "More notices may follow. Each one is acknowledged automatically; check back later." };
+
   return (
     <div className="wizard-step pd-screen">
+      {guide && (
+        <NextStep tone={guide.tone} title={guide.title} className="ds-guide">
+          {guide.text}
+        </NextStep>
+      )}
       {ackFailed > 0 && (
         <div className="ep-notice is-bad">
           {ackFailed} payment acknowledgement{ackFailed === 1 ? "" : "s"} failed to reach the payer. Retry from the
@@ -112,7 +129,7 @@ export default function PaymentReconciliation({ ctx }) {
       <div className="pd-layout">
         <div className="pd-main">
           {isNotFound ? (
-            <Section id="pay-none" title="No payment yet">
+            <Section id="pay-none" title="No payment yet" info="payment_notice">
               <p className="ds-empty">
                 The payer sends payment notices on its own schedule, typically hours to days after the claim is
                 approved. Each notice is acknowledged automatically when it arrives.
@@ -125,7 +142,12 @@ export default function PaymentReconciliation({ ctx }) {
             </Section>
           ) : (
             <>
-              <Section id="pay-settlement" title="Settlement">
+              <Section
+                id="pay-settlement"
+                title="Settlement"
+                info="utr"
+                tip="TDS is tax the payer deducts and deposits for the hospital; net credited is what reaches the bank."
+              >
                 <dl className="ds-statement">
                   {statement.map((r) => (
                     <div key={r.label} className={r.total ? "is-total" : undefined}>

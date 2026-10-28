@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Building2, FileText, ArrowRight, AlertTriangle, CheckCircle2, Radar } from "lucide-react";
+import { Search, Building2, ArrowRight, AlertTriangle, CheckCircle2, Radar } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
-import { Button, StatusBadge } from "../Common";
+import { Button, StatusBadge, InfoTip, Tip, NextStep } from "../Common";
 import Dropdown from "../Dropdown";
 import { formatMoney, formatDate } from "../../format.js";
 
@@ -190,7 +190,10 @@ export default function PayerPolicy({ ctx }) {
       <div className="pp-panel">
         <div className="pp-head">
           <div className="pp-head-text">
-            <h2 className="pp-title">Select a policy</h2>
+            <h2 className="pp-title">
+              Select a policy
+              <InfoTip term="policy" />
+            </h2>
             <div className="pp-subtitle">
               {loadingPolicies
                 ? "Searching the patient's policies…"
@@ -198,12 +201,22 @@ export default function PayerPolicy({ ctx }) {
                   ? "Policy search failed"
                   : `${policyCount} ${policyCount === 1 ? "policy" : "policies"} found${patient?.name ? ` for ${patient.name}` : ""}`}
             </div>
+            <Tip>
+              We look for policies an insurer has linked to the patient's ABHA number, member ID or mobile. Pick the one that
+              pays for this admission.
+            </Tip>
           </div>
           <div className="pp-searchby">
             {canDiscover &&
               !loadingPolicies &&
               discoverButton(policies.length > 0 ? "None of these? Discover with a payer" : "Discover with a payer")}
-            <span className="pp-searchby-key">Search by</span>
+            <span className="pp-searchby-key">
+              Search by
+              <InfoTip
+                title="Search by"
+                text="Auto tries the ABHA number, then the member ID, then the mobile number. Choose Member ID to type the number printed on the insurance card."
+              />
+            </span>
             <div style={{ width: "170px" }}>
               <Dropdown
                 compact
@@ -236,6 +249,7 @@ export default function PayerPolicy({ ctx }) {
             >
               Search
             </button>
+            <InfoTip term="member_id" />
           </div>
         )}
 
@@ -276,6 +290,7 @@ export default function PayerPolicy({ ctx }) {
 
         {showPayerLookup && (
           <div className="pp-lookup">
+            <Tip className="pp-lookup-tip">Pick an insurer to search for this patient's policies with that insurer only.</Tip>
             <div className="pp-member" style={{ padding: 0, border: "none" }}>
               <input
                 className="input-modern pp-input"
@@ -310,7 +325,9 @@ export default function PayerPolicy({ ctx }) {
                 ))}
               </div>
             ) : hasSearched ? (
-              <div className="pp-muted" style={{ marginTop: "var(--space-3)" }}>No payers found.</div>
+              <div className="pp-muted" style={{ marginTop: "var(--space-3)" }}>
+                No insurer matches that name. Try a shorter part of the name, for example "Star" or "HDFC".
+              </div>
             ) : null}
           </div>
         )}
@@ -335,46 +352,65 @@ export default function PayerPolicy({ ctx }) {
             ))}
           </div>
         ) : policyError ? (
-          <div className="pp-state is-error">
-            <AlertTriangle size={16} />
-            <div>
-              <div className="pp-state-title">Couldn't fetch policies</div>
-              <div className="pp-muted">{policyError}</div>
-            </div>
-            <button type="button" className="pp-btn" onClick={() => fetchPolicies(identifierType, memberId)}>
-              Retry
-            </button>
-            {canDiscover && discoverButton("Discover with a payer")}
-          </div>
+          <NextStep
+            tone="bad"
+            className="pp-next"
+            title="Couldn't reach the insurance registry"
+            steps={[
+              "Press Retry. A failed lookup is often a short network problem.",
+              "If it keeps failing, ask the insurer directly with Discover with a payer.",
+            ]}
+            actions={
+              <>
+                <button type="button" className="pp-btn" onClick={() => fetchPolicies(identifierType, memberId)}>
+                  Retry
+                </button>
+                {canDiscover && discoverButton("Discover with a payer")}
+              </>
+            }
+          >
+            {policyError}
+          </NextStep>
         ) : visiblePolicies.length === 0 ? (
-          <div className="pp-state">
-            <FileText size={16} />
-            <div>
-              <div className="pp-state-title">
-                No policies found
-                {identifierType === "MemberId" && memberId.trim()
-                  ? ` for member ID ${memberId.trim()}`
-                  : identifierType
-                    ? ` via ${IDENTIFIER_TYPE_LABELS[identifierType]}`
-                    : " for this patient"}
-              </div>
-              {identifierType && (
-                <div className="pp-muted">
-                  No other identifiers were tried
-                  {identifierType === "MemberId" && memberId.trim() ? " — check the member ID for a typo." : "."}
-                </div>
-              )}
-              <div className="pp-muted">
-                The lookup only finds policies linked to the patient's identifiers. A payer can still be asked directly.
-              </div>
-            </div>
-            {identifierType && (
-              <button type="button" className="pp-btn" onClick={() => handleIdentifierTypeChange("")}>
-                Try Auto instead
-              </button>
-            )}
-            {canDiscover && discoverButton("Discover with a payer")}
-          </div>
+          <NextStep
+            tone="warn"
+            className="pp-next"
+            title={`No policy found${
+              identifierType === "MemberId" && memberId.trim()
+                ? ` for member ID ${memberId.trim()}`
+                : identifierType
+                  ? ` by ${IDENTIFIER_TYPE_LABELS[identifierType]}`
+                  : patient?.name
+                    ? ` for ${patient.name}`
+                    : ""
+            }`}
+            steps={[
+              "Ask the patient for their insurance card or e-card.",
+              identifierType === "MemberId" && memberId.trim()
+                ? "Check the member ID for a typo and search again."
+                : "Choose Member ID under Search by and type the member ID from the card.",
+              "Still nothing? Use Discover with a payer to ask that insurer directly.",
+              "If the patient has no insurance, treat them as a cash patient. No cashless case is needed.",
+            ]}
+            actions={
+              <>
+                {identifierType !== "MemberId" && (
+                  <button type="button" className="pp-btn" onClick={() => handleIdentifierTypeChange("MemberId")}>
+                    Search by member ID
+                  </button>
+                )}
+                {identifierType && (
+                  <button type="button" className="pp-btn" onClick={() => handleIdentifierTypeChange("")}>
+                    Try all identifiers
+                  </button>
+                )}
+                {canDiscover && discoverButton("Discover with a payer")}
+              </>
+            }
+          >
+            The lookup only finds policies an insurer has linked to the patient's ABHA number or mobile, and many are not linked
+            yet. That does not mean the patient is uninsured.
+          </NextStep>
         ) : (
           <div className="pp-list" role="radiogroup" aria-label="Policies">
             {visiblePolicies.map((policy) => {
@@ -462,7 +498,9 @@ export default function PayerPolicy({ ctx }) {
                 </span>
               </>
             ) : (
-              <span className="pp-muted">{caseClosed ? "The case is settled; its policy can't be changed." : "Select a policy to continue."}</span>
+              <span className="pp-muted">
+                {caseClosed ? "The case is settled; its policy can't be changed." : "Select the policy that pays for this admission to continue."}
+              </span>
             )}
           </div>
           {!caseClosed && (
@@ -470,6 +508,7 @@ export default function PayerPolicy({ ctx }) {
               variant="primary"
               size="small"
               disabled={!selectedPolicy || !effectivePayer}
+              disabledReason="Select a policy above first."
               onClick={handleNext}
             >
               Continue to eligibility

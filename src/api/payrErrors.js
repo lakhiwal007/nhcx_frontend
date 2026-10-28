@@ -46,11 +46,45 @@ function categoryForNumber(n) {
   return null;
 }
 
-/** Pull a normalized `PAYR-####` token out of any string, or null. */
+const GUIDANCE = {
+  payer: "The payer refused this request. Fix what it names and send again. If you are not sure what to change, share the code below with your IT team.",
+  nhcx: "NHCX refused the message before it reached the payer. Nothing on this screen will fix it; share the code below with your IT team.",
+};
+
+let guide = null;
+let guidePromise = null;
+const listeners = new Set();
+
+export function loadPayerGuide() {
+  if (!guidePromise) {
+    guidePromise = import("../help/payerErrors.json")
+      .then((m) => {
+        guide = m.default;
+        listeners.forEach((fn) => fn());
+        return guide;
+      })
+      .catch(() => {
+        guidePromise = null;
+        return null;
+      });
+  }
+  return guidePromise;
+}
+
+export function onPayerGuideLoaded(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+export function payerGuideReady() {
+  return !!guide;
+}
+
+/** Pull a normalized `PAYR-####` or `NHCX-####` token out of any string, or null. */
 export function extractPayrCode(text) {
   if (typeof text !== "string") return null;
-  const m = text.match(/PAYR[-\s]?(\d{3,4})/i);
-  return m ? `PAYR-${m[1]}` : null;
+  const m = text.match(/(PAYR|NHCX)[-\s]?(\d{3,4})/i);
+  return m ? `${m[1].toUpperCase()}-${m[2]}` : null;
 }
 
 /**
@@ -60,6 +94,22 @@ export function extractPayrCode(text) {
 export function describePayrError(input) {
   const code = extractPayrCode(typeof input === "string" ? input : input?.code || "");
   if (!code) return null;
+  const known = guide?.[code];
+  if (known) {
+    return {
+      code,
+      category: known.source,
+      label: known.title,
+      meaning: known.meaning,
+      fix: known.fix,
+      guidance: GUIDANCE[known.source] || GUIDANCE.payer,
+      severity: known.source === "nhcx" ? "warning" : "error",
+      retryable: known.source === "nhcx",
+    };
+  }
+  if (code.startsWith("NHCX")) {
+    return { code, category: "nhcx", label: "NHCX refused the message", guidance: GUIDANCE.nhcx, severity: "warning", retryable: true };
+  }
   const num = Number(code.slice(5));
   const category = categoryForNumber(num);
   const meta = (category && CATEGORY[category]) || CATEGORY.protocol;
@@ -88,6 +138,8 @@ export function classifyError(err) {
       // Prefer the payer's human message when present; else the category label.
       title: desc.label,
       detail: human && !extractPayrCode(human) ? human : null,
+      meaning: desc.meaning || null,
+      fix: desc.fix || [],
       guidance: desc.guidance,
       severity: desc.severity,
       retryable: desc.retryable,

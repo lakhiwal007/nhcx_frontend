@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, AlertCircle, Save, Edit2, CheckCircle2, Plus, Trash2, FileJson, ArrowRight } from "lucide-react";
 import { api } from "../../api";
-import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, formatMoney, InfoTip, Tip, NextStep } from "../Common";
 import { formatDate } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL } from "../case/caseStages";
 import { Section, Fields } from "../case/CaseFile";
@@ -338,11 +338,35 @@ export default function PreauthDraft({ ctx }) {
 
   // What still stands between this draft and the payer, in reading order.
   const readiness = [
-    { label: "Patient details", ok: patientContextMissing.length === 0, note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null },
-    { label: "Diagnosis with a principal", ok: displayDiagnoses.length > 0 && displayDiagnoses.some((d) => d.primary) && !hisBlockers.some((f) => /diagnos/i.test(f)) },
-    { label: "Billable line items", ok: displayItems.length > 0 && effectiveTotal > 0 && !hisBlockers.some((f) => /items/i.test(f)) },
-    { label: "Required documents", ok: !hasMissingDocs, note: requiredDocs.length ? `${attachedRequired} of ${requiredDocs.length}` : null },
-    { label: "Eligibility checked", ok: !eligibility || eligibility.status === "complete", soft: true, note: eligibility && eligibility.status !== "complete" ? "incomplete" : null },
+    {
+      label: "Patient details",
+      ok: patientContextMissing.length === 0,
+      note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null,
+      fix: "Fill in the Missing patient details form at the top.",
+    },
+    {
+      label: "Diagnosis with a principal",
+      ok: displayDiagnoses.length > 0 && displayDiagnoses.some((d) => d.primary) && !hisBlockers.some((f) => /diagnos/i.test(f)),
+      fix: "Add the diagnosis in the hospital system, or with Add diagnosis below, and mark one as principal.",
+    },
+    {
+      label: "Billable line items",
+      ok: displayItems.length > 0 && effectiveTotal > 0 && !hisBlockers.some((f) => /items/i.test(f)),
+      fix: "Raise the estimate or bill for this admission in the hospital system, then reload this page.",
+    },
+    {
+      label: "Required documents",
+      ok: !hasMissingDocs,
+      note: requiredDocs.length ? `${attachedRequired} of ${requiredDocs.length}` : null,
+      fix: "Upload each required document under Supporting documents.",
+    },
+    {
+      label: "Eligibility checked",
+      ok: !eligibility || eligibility.status === "complete",
+      soft: true,
+      note: eligibility && eligibility.status !== "complete" ? "incomplete" : null,
+      fix: "Optional: re-run eligibility on the Eligibility step for a fuller check.",
+    },
   ];
   const blocking = readiness.filter((r) => !r.ok && !r.soft).length;
 
@@ -366,10 +390,15 @@ export default function PreauthDraft({ ctx }) {
         </div>
       )}
       {hisBlockers.length > 0 && (
-        <div className="ep-notice is-bad">
-          <strong>Clinical or billing records are incomplete</strong> ({hisBlockers.join(", ")}). Complete them in the
-          HIS, then reload this draft.
-        </div>
+        <NextStep
+          tone="bad"
+          title="The hospital records are missing something the payer needs"
+          steps={[
+            `Missing: ${hisBlockers.join(", ")}.`,
+            "Ask the doctor or billing desk to add it in the hospital system.",
+            "Reload this page; the draft is rebuilt from the records.",
+          ]}
+        />
       )}
       {eligibility && eligibility.status !== "complete" && (
         <div className="ep-notice is-warn">
@@ -399,7 +428,7 @@ export default function PreauthDraft({ ctx }) {
             />
           )}
 
-          <Section id="pd-admission" title="Admission">
+          <Section id="pd-admission" title="Admission" info="preauth" tip="Check the dates and ward. They come from the hospital system.">
             <Fields
               cols={3}
               rows={[
@@ -418,6 +447,7 @@ export default function PreauthDraft({ ctx }) {
           <Section
             id="pd-diagnosis"
             title="Diagnosis"
+            tip="Mark the main reason for admission as principal. The payer checks the treatment against it."
             meta={
               <button type="button" className="ep-action" onClick={addDiagnosis}>
                 <Plus size={13} /> Add diagnosis
@@ -498,7 +528,12 @@ export default function PreauthDraft({ ctx }) {
             )}
           </Section>
 
-          <Section id="pd-treatment" title="Treatment & cost" meta={editedItems ? "Edited — amount recomputed from the lines below" : null}>
+          <Section
+            id="pd-treatment"
+            title="Treatment & cost"
+            meta={editedItems ? "Edited — amount recomputed from the lines below" : null}
+            tip="Lines from the hospital estimate or bill. The total is the amount you ask the payer to approve."
+          >
             {unbilledProcedures.length > 0 && (
               <Fields
                 cols={1}
@@ -565,7 +600,12 @@ export default function PreauthDraft({ ctx }) {
             </div>
           </Section>
 
-          <Section id="pd-justification" title="Clinical justification" meta="Coded from the clinical notes; sent with the request">
+          <Section
+            id="pd-justification"
+            title="Clinical justification"
+            meta="Coded from the clinical notes; sent with the request"
+            tip="Complaints, findings and tests that show why the treatment is needed. Fuller notes mean fewer queries."
+          >
             {justification.length ? (
               <Fields
                 cols={1}
@@ -580,6 +620,7 @@ export default function PreauthDraft({ ctx }) {
             <Section
               id="pd-team"
               title="Treating team"
+              tip="Every doctor needs a registration number. Payers can refuse a request with one missing."
               meta={
                 <button type="button" className="ep-action" onClick={() => setCareTeamEditMode((p) => !p)}>
                   {careTeamEditMode ? <><CheckCircle2 size={13} /> Done</> : <><Edit2 size={13} /> Edit</>}
@@ -631,11 +672,12 @@ export default function PreauthDraft({ ctx }) {
           <Section
             id="pd-documents"
             title="Supporting documents"
+            tip="Upload clear PDF, JPG or PNG files. Required documents must be attached before you can submit."
             meta={requiredDocs.length ? `${attachedRequired} of ${requiredDocs.length} required attached` : null}
           >
             {payerAsks.length > 0 && (
               <div className="ep-notice">
-                The payer asked for these at pre-auth:{" "}
+                The payer asked for these with the preauth, so attach them below:{" "}
                 {payerAsks
                   .map((r) => `${r.display || r.code || r.text}${r.kind === "form" ? " (form)" : ""}${r.for_code ? ` for ${r.for_code}` : ""}`)
                   .join(" · ")}
@@ -680,7 +722,10 @@ export default function PreauthDraft({ ctx }) {
         <aside className="pd-side">
           <section className="ep-section pd-request">
             <header className="ep-section-head">
-              <h3 className="ep-section-title">Preauth request</h3>
+              <h3 className="ep-section-title">
+                Preauth request
+                <InfoTip term="preauth" />
+              </h3>
             </header>
             <div className="pd-amount">
               <div className="ep-muted">Amount requested</div>
@@ -697,6 +742,7 @@ export default function PreauthDraft({ ctx }) {
                   {r.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
                   <span>{r.label}</span>
                   {r.note && <span className="pd-ready-note">{r.note}</span>}
+                  {!r.ok && r.fix && <span className="pd-ready-fix">{r.fix}</span>}
                 </li>
               ))}
             </ul>
@@ -712,7 +758,11 @@ export default function PreauthDraft({ ctx }) {
             </dl>
 
             <div className="pd-submit">
-              {submitError && <div className="ep-notice is-bad">{submitError}</div>}
+              {submitError && (
+                <NextStep tone="bad" title="Not sent">
+                  {submitError} Fix what the message names and press Submit preauth again. Your draft is kept.
+                </NextStep>
+              )}
               {!submitError && !preauthAlreadyLive && blocking > 0 && (
                 <div className="ep-muted">
                   {blocking} item{blocking === 1 ? "" : "s"} above must be resolved before submitting.
@@ -736,9 +786,18 @@ export default function PreauthDraft({ ctx }) {
                 </>
               ) : (
                 <>
-                  <Button write variant="primary" icon={Send} disabled={!canSubmit} onClick={handleSubmit} className="pd-submit-btn">
+                  <Button
+                    write
+                    variant="primary"
+                    icon={Send}
+                    disabled={!canSubmit}
+                    disabledReason={submitting ? "Sending to the payer…" : "Resolve the items marked above first. Each one says how."}
+                    onClick={handleSubmit}
+                    className="pd-submit-btn"
+                  >
                     {submitting ? "Submitting…" : "Submit preauth"}
                   </Button>
+                  <Tip>After you submit, the payer decides. You will see its answer on the Approval step.</Tip>
                   <button type="button" className="pd-text-btn" onClick={handleSaveDraft}>
                     <Save size={13} /> Save draft
                   </button>

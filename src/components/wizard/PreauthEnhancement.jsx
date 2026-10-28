@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send } from "lucide-react";
 import { api } from "../../api";
-import { Button, LoadingBlock, formatMoney } from "../Common";
+import { Button, LoadingBlock, formatMoney, NextStep } from "../Common";
 import { formatDate } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
 
@@ -126,6 +126,13 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
               ? "The enhancement preview didn't load. Try again from the Approval stage."
               : preview.reason || "No new procedures or billing found since the approved preauth."}
           </p>
+          {preview && (
+            <NextStep tone="info" title="How to ask for more">
+              An enhancement needs something new to justify it: a new procedure, or bills above the approved amount. Ask the
+              doctor to record the new procedure or the billing desk to add the charges in the hospital system, then open this
+              again.
+            </NextStep>
+          )}
           <div className="ds-empty-actions">
             <Button variant="outline" size="small" onClick={close}>
               {routed ? "Back to approval" : "Close"}
@@ -167,7 +174,11 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
 
   const actions = (
     <>
-      {submitError && <div className="ep-notice is-bad">{submitError}</div>}
+      {submitError && (
+        <NextStep tone="bad" title="Not sent">
+          {submitError} Fix what the message names and submit again.
+        </NextStep>
+      )}
       <Button write
         variant="primary"
         icon={Send}
@@ -187,13 +198,23 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const sections = (
     <>
       {!routed && (
-        <Section id="en-amounts" title="Amount">
+        <Section
+          id="en-amounts"
+          title="Amount"
+          info="enhancement"
+          tip="The extra amount you are asking for, on top of what the payer already approved."
+        >
           {statement}
         </Section>
       )}
 
       {newProcs.length > 0 && (
-        <Section id="en-procs" title="New procedures" meta="Untick a procedure to leave it and its lines out">
+        <Section
+          id="en-procs"
+          title="New procedures"
+          meta="Untick a procedure to leave it and its lines out"
+          tip="Only treatment added since the approval is sent. Untick anything that isn't needed."
+        >
           <ul className="en-procs">
             {newProcs.map((proc, i) => (
               <li key={i}>
@@ -246,7 +267,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
         </Section>
       )}
 
-      <Section id="en-docs" title="Documents sent with it">
+      <Section id="en-docs" title="Documents sent with it" tip="Attach notes or reports that show why the extra treatment is needed.">
         <Fields cols={1} rows={docs.map((d, i) => ({ label: i === 0 ? "Attached" : " ", value: d.name || d.code, sub: d.event_date ? formatDate(d.event_date) : null }))} />
         <label className="en-url">
           <span>Revised estimate URL (optional)</span>

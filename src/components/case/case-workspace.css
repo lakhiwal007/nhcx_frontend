@@ -1039,3 +1039,18 @@
 .cn-error {
   margin-bottom: 12px;
 }
+
+.cx-rail-now {
+  margin-top: auto;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--cx-wait) 30%, transparent);
+  background: color-mix(in srgb, var(--cx-wait) 8%, var(--cx-surface));
+}
+.cx-rail-now.is-urgent {
+  border-color: color-mix(in srgb, var(--cx-urgent) 35%, transparent);
+  background: color-mix(in srgb, var(--cx-urgent) 8%, var(--cx-surface));
+}
+.cx-rail-now + .cx-rail-next {
+  margin-top: 8px;
+}

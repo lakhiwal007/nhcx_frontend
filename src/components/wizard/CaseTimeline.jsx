@@ -158,12 +158,15 @@ export default function CaseTimeline({ ctx }) {
   useEffect(() => { load(); }, [load]);
 
   if (!cashlessCaseId) {
-    return <EmptyState title="No case yet" description="The audit trail appears once a cashless case has been created." />;
+    return <EmptyState
+        title="No case yet"
+        description="The audit trail lists every request and payer answer once the case starts. Start on the Policy step."
+      />;
   }
   if (loading) return <LoadingBlock text="Loading audit trail…" />;
   if (error) {
     return (
-      <EmptyState title="Could not load the audit trail" description="The case audit trail is temporarily unavailable.">
+      <EmptyState title="Could not load the audit trail" description="This is usually a short network problem. Press Retry; the case itself is not affected.">
         <Button variant="outline" icon={RefreshCw} onClick={load} className="mt-4">Retry</Button>
       </EmptyState>
     );

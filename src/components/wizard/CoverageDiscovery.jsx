@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Building2, Radar, AlertTriangle, UserRound } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
-import { Button } from "../Common";
+import { Button, InfoTip, Tip, NextStep } from "../Common";
 import { formatMoney, formatDate, formatDateTime, humanize } from "../../format.js";
 
 const POLL_MS = 4000;
@@ -206,10 +206,17 @@ export default function CoverageDiscovery({ ctx }) {
       <div className="pp-panel">
         <div className="pp-head">
           <div className="pp-head-text">
-            <h2 className="pp-title">Discover a policy</h2>
+            <h2 className="pp-title">
+              Discover a policy
+              <InfoTip term="discovery" />
+            </h2>
             <div className="pp-subtitle">
-              Ask a payer directly who {patient?.name || "this patient"} is to it, when the policy lookup does not find the cover.
+              Ask one insurer directly whether it covers {patient?.name || "this patient"}.
             </div>
+            <Tip>
+              Have the patient's insurance card ready. You need the insurer's name and the policy number or member ID printed on
+              it.
+            </Tip>
           </div>
           <button type="button" className="pp-btn" onClick={() => navigate("../payer")}>
             <ArrowLeft size={14} /> Back to policies
@@ -228,7 +235,10 @@ export default function CoverageDiscovery({ ctx }) {
         ) : (
           <div className="cd-form">
             <section className="cd-section">
-              <div className="cd-section-title">Payer</div>
+              <div className="cd-section-title">
+                1. Which insurer?
+                <InfoTip term="payer" />
+              </div>
               {payer ? (
                 <div className="cd-payer">
                   <Building2 size={14} />
@@ -255,7 +265,9 @@ export default function CoverageDiscovery({ ctx }) {
                     value={payerQuery}
                     onChange={(e) => setPayerQuery(e.target.value)}
                   />
-                  <div className="pp-muted cd-help">Every payer on the exchange, government and private.</div>
+                  <div className="pp-muted cd-help">
+                    Type at least two letters of the insurer or TPA named on the card, for example "Star" or "PMJAY".
+                  </div>
                   {searchingPayers && payerQueryReady ? (
                     <div className="pp-muted cd-help">Searching…</div>
                   ) : visiblePayers.length > 0 ? (
@@ -270,34 +282,43 @@ export default function CoverageDiscovery({ ctx }) {
                       ))}
                     </div>
                   ) : payerQueryReady ? (
-                    <div className="pp-muted cd-help">No payers found.</div>
+                    <div className="pp-muted cd-help">No insurer matches that name. Try a shorter part of it.</div>
                   ) : null}
                 </div>
               )}
             </section>
 
             <section className="cd-section">
-              <div className="cd-section-title">The policy</div>
-              <div className="pp-muted">Name the policy by its number or by the member id on the card, whichever the person has.</div>
+              <div className="cd-section-title">2. Which policy?</div>
+              <div className="pp-muted">Copy these from the insurance card. One of the two is enough; both is better.</div>
               <div className="cd-grid cd-grid-2">
                 <label className="cd-field">
-                  <span>Policy number</span>
+                  <span>
+                    Policy number
+                    <InfoTip term="policy_number" />
+                  </span>
                   <input className="input-modern pp-input" value={values.policy_number} onChange={setField("policy_number")} />
                 </label>
                 <label className="cd-field">
-                  <span>Member ID</span>
+                  <span>
+                    Member ID
+                    <InfoTip term="member_id" />
+                  </span>
                   <input className="input-modern pp-input" value={values.member_id} onChange={setField("member_id")} />
                 </label>
               </div>
-              <div className="pp-muted">Enter the policy number, the member id, or both. At least one is required.</div>
+
             </section>
 
             <section className="cd-section">
-              <div className="cd-section-title">Additional information</div>
-              <div className="pp-muted">Sent with the discovery so the payer has more than one handle to match on. All optional.</div>
+              <div className="cd-section-title">3. Anything else that helps the insurer find the patient (optional)</div>
+              <div className="pp-muted">Mobile and ABHA are filled in from the patient's record. Leave a field empty if you don't have it.</div>
               <div className="cd-grid cd-grid-3">
                 <label className="cd-field">
-                  <span>Aadhaar number</span>
+                  <span>
+                    Aadhaar number
+                    <InfoTip term="aadhaar" />
+                  </span>
                   <input className="input-modern pp-input" inputMode="numeric" value={values.aadhaar} onChange={setField("aadhaar")} />
                 </label>
                 <label className="cd-field">
@@ -305,24 +326,27 @@ export default function CoverageDiscovery({ ctx }) {
                   <input className="input-modern pp-input" inputMode="numeric" value={values.mobile} onChange={setField("mobile")} />
                 </label>
                 <label className="cd-field">
-                  <span>ABHA number</span>
+                  <span>
+                    ABHA number
+                    <InfoTip term="abha" />
+                  </span>
                   <input className="input-modern pp-input" inputMode="numeric" value={values.abha_number} onChange={setField("abha_number")} />
                 </label>
               </div>
             </section>
 
             {refusal && (
-              <div className="pp-state is-error cd-refusal">
-                <AlertTriangle size={16} />
-                <div>{refusal}</div>
-              </div>
+              <NextStep tone="bad" className="cd-refusal" title="Not sent yet">
+                {refusal}
+              </NextStep>
             )}
 
             <div className="cd-actions">
               {waiting ? (
                 <>
                   <span className="pp-muted">
-                    <span className="spinner cd-spinner" /> Waiting for {active?.payer_id || payer?.code} to answer
+                    <span className="spinner cd-spinner" /> Waiting for {active?.payer_id || payer?.code} to answer. This usually takes
+                    under a minute; keep this page open.
                   </span>
                   <button type="button" className="pp-btn" onClick={() => setWaiting(false)}>
                     Stop waiting
@@ -342,15 +366,33 @@ export default function CoverageDiscovery({ ctx }) {
           <section className="cd-section cd-covers">
             <div className="cd-section-title">Cover returned</div>
             {active.status === "failed" ? (
-              <div className="pp-state is-error">
-                <AlertTriangle size={16} />
-                <div>{active.error || "The payer refused the discovery."}</div>
-              </div>
+              <NextStep
+                tone="bad"
+                title="The insurer could not answer"
+                steps={[
+                  "Check the policy number and member ID against the card, then press Discover again.",
+                  "If it fails again, the insurer's system may be down. Try again later or call the insurer's helpdesk.",
+                ]}
+              >
+                {active.error || "The insurer refused the request."}
+              </NextStep>
             ) : (active.covers || []).length === 0 ? (
-              <div className="pp-muted">
-                The payer answered with no cover for this person. Check the identifiers and ask again, or ask another payer.
-              </div>
+              <NextStep
+                tone="warn"
+                title="This insurer has no cover for these details"
+                steps={[
+                  "Check the policy number and member ID for typos, and that you picked the insurer named on the card.",
+                  "Add the mobile or ABHA number if you left them empty, then ask again.",
+                  "If the card names a TPA, ask the TPA instead of the insurer, or the other way round.",
+                  "No luck at all? Treat the patient as cash for now; a policy can be added to the case later.",
+                ]}
+              />
             ) : (
+              <Tip>
+                Choose the person being admitted. A family card lists everyone on it, so check the name, age and relationship.
+              </Tip>
+            )}
+            {active.status !== "failed" && (active.covers || []).length > 0 && (
               <div className="cd-tiles">
                 {active.covers.map((cover) => {
                   const key = `${cover.policy_code}|${cover.member_id || ""}`;

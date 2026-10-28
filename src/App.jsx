@@ -48,6 +48,9 @@ import CaseWrapper from "./components/wizard/CaseWrapper";
 import { LoadingBlock } from "./components/Common";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { PageActionsSlot } from "./components/PageActions";
+import { TipsProvider } from "./help/TipsContext.jsx";
+import TipsToggle from "./help/TipsToggle.jsx";
+import { loadPayerGuide } from "./api/payrErrors.js";
 
 const TASK_POLL_MS = 60_000;
 
@@ -193,6 +196,11 @@ export default function App() {
   };
 
   const refreshSession = () => api.getSession().then(applySessionResult);
+
+  useEffect(() => {
+    const timer = setTimeout(loadPayerGuide, 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -418,6 +426,7 @@ export default function App() {
   }
 
   return (
+    <TipsProvider>
     <div
       className={`app-container ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isMobileMenuOpen ? "mobile-menu-open" : ""} dir-${layoutDirection.toLowerCase()}`}
       data-theme={theme}
@@ -511,6 +520,7 @@ export default function App() {
                 {!hasProvider ? <Building2 size={13} /> : allFacilitiesMode ? <Globe size={13} /> : <Building2 size={13} />}
                 <span className="command-facility-label">{hasProvider ? facilityLabel : "No facility"}</span>
               </button>
+              <TipsToggle />
               <button onClick={toggleTheme} className="command-icon-btn" title="Toggle theme">
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.span
@@ -713,6 +723,7 @@ export default function App() {
                 <span className="topbar-facility-name">{facilityLabel}</span>
               </button>
             )}
+            <TipsToggle />
             <button onClick={toggleTheme} className="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
@@ -839,5 +850,6 @@ export default function App() {
         </AnimatePresence>
       </div>
     </div>
+    </TipsProvider>
   );
 }

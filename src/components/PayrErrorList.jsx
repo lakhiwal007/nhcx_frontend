@@ -1,5 +1,6 @@
 import { AlertCircle, AlertTriangle, Ban } from "lucide-react";
 import { classifyError } from "../api/payrErrors.js";
+import { usePayerGuide } from "../help/usePayerGuide.js";
 
 // Renders a gateway/adjudication errors[] array. PAYR-coded errors show the
 // friendly label + guidance with the raw code tucked into an expandable
@@ -12,6 +13,7 @@ const TONE = {
 };
 
 export default function PayrErrorList({ errors }) {
+  usePayerGuide();
   if (!errors?.length) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
@@ -36,8 +38,14 @@ export default function PayrErrorList({ errors }) {
             <Icon size={15} style={{ color: tone.color, flexShrink: 0, marginTop: "1px" }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 700, color: tone.color }}>{e.title}</div>
+              {e.meaning && (
+                <div style={{ color: "var(--text-main)", marginTop: "2px", lineHeight: 1.5 }}>{e.meaning}</div>
+              )}
               {e.detail && (
-                <div style={{ color: "var(--text-main)", marginTop: "2px" }}>{e.detail}</div>
+                <div style={{ color: "var(--text-main)", marginTop: "2px" }}>
+                  {e.meaning ? <span style={{ color: "var(--text-muted)" }}>Payer said: </span> : null}
+                  {e.detail}
+                </div>
               )}
               {e.guidance && (
                 <div style={{ color: "var(--text-muted)", marginTop: "3px", lineHeight: 1.5 }}>
@@ -54,9 +62,16 @@ export default function PayrErrorList({ errors }) {
                       userSelect: "none",
                     }}
                   >
-                    Details
+                    Details for the IT team
                   </summary>
                   <code style={{ fontSize: "11px", color: "var(--text-muted)" }}>{e.code}</code>
+                  {e.fix?.length > 0 && (
+                    <ol style={{ margin: "4px 0 0", paddingLeft: "18px", fontSize: "11px", color: "var(--text-muted)", lineHeight: 1.5 }}>
+                      {e.fix.map((step, n) => (
+                        <li key={n}>{step}</li>
+                      ))}
+                    </ol>
+                  )}
                 </details>
               )}
             </div>

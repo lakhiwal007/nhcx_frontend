@@ -1,0 +1,3199 @@
+{
+ "NHCX-1001": {
+  "title": "The recipient's system is not reachable",
+  "meaning": "The exchange could not deliver your message because the recipient's endpoint did not answer, so send the request again once the recipient is reachable.",
+  "fix": [
+   "Mark the case as undelivered. The original request is dead and no answer will come for it.",
+   "Once the recipient is reachable, send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "If the failures continue, contact the recipient, or NHCX support.",
+   "Check that your registered endpoint is reachable from outside your network over HTTPS."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1002": {
+  "title": "The sender is not a registered participant",
+  "meaning": "The exchange does not know the sender named on your message, so register as a participant or correct the sender code before sending again.",
+  "fix": [
+   "Register your organisation as a participant.",
+   "Set x-hcx-sender_code to the participant code the registry issued you.",
+   "Confirm the code with POST /participant/search.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1003": {
+  "title": "The recipient is not a registered participant",
+  "meaning": "The exchange does not know the recipient your message is addressed to, so correct the recipient code before sending again.",
+  "fix": [
+   "Take the recipient code from processingID in the policy lookup, not from PayerID.",
+   "Confirm the code with POST /participant/search.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1004": {
+  "title": "No recipient is registered for the scheme you asked for",
+  "meaning": "The exchange found no recipient registered for the scheme on your message, so take the recipient code from the beneficiary's policy and send again.",
+  "fix": [
+   "Look up the beneficiary's policies and take processingID from the policy you are sending against.",
+   "Put that value in x-hcx-recipient_code.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "If the lookup gives no usable recipient for the scheme, contact NHCX support."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1005": {
+  "title": "A request header is missing or not valid",
+  "meaning": "The exchange refused your call because a header is missing or holds a value it cannot accept, so fill every mandatory header and send again.",
+  "fix": [
+   "Compare your protected header with the x-hcx protocol headers. Fill every mandatory header.",
+   "Generate a new UUID for each x-hcx-api_call_id, and one per request cycle for x-hcx-correlation_id.",
+   "Set x-hcx-workflow_id to the code for this stage.",
+   "Send Accept, Content-Type and bearer_auth on the HTTP call."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1006": {
+  "title": "The correlation id has already been used",
+  "meaning": "The exchange already holds a request with this correlation id, so send the request again with a new correlation id.",
+  "fix": [
+   "Generate a fresh UUID for x-hcx-correlation_id and send the request again as a new cycle.",
+   "Link the old and the new correlation id to the same case in your system.",
+   "Before retrying after a timeout, check whether the first request got through.",
+   "If this keeps happening, see Duplicate or mismatched correlation id."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1007": {
+  "title": "The exchange could not process the request's structure or values",
+  "meaning": "The exchange failed while processing your message and points at its structure or values, so check the body, the headers and the sealed envelope before sending again.",
+  "fix": [
+   "Check the body: one payload field holding the compact JWE string.",
+   "Check every protected header value against the x-hcx protocol headers.",
+   "Rebuild the JWE and confirm it has five parts separated by dots.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1008": {
+  "title": "The exchange had a temporary failure",
+  "meaning": "The exchange failed while processing your message for a reason on its side, so wait and send the request again.",
+  "fix": [
+   "Wait, then send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Space your retries out. Do not retry in a tight loop.",
+   "If the code repeats over a long period, contact NHCX support with the correlation ids and timestamps."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1009": {
+  "title": "The exchange failed and recorded the cause in its own logs",
+  "meaning": "The exchange failed while processing your message and the cause is in its own logs, so keep the identifiers and contact support if a retry fails.",
+  "fix": [
+   "Keep the x-hcx-correlation_id, the x-hcx-api_call_id, the timestamp and the full response.",
+   "Check the request against the x-hcx protocol headers.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "If it fails again, contact NHCX support with those identifiers."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1010": {
+  "title": "No request matches the correlation id on your answer",
+  "meaning": "The exchange holds no request with the correlation id on your answer, so answer on the correlation id of the request you received, or check where that request stands.",
+  "fix": [
+   "Copy x-hcx-correlation_id from the request you received into your answer. Do not generate a new one.",
+   "Ask the exchange where the original request stands.",
+   "If the original request is gone, your answer cannot be delivered. The sender must start a new cycle."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1011": {
+  "title": "The x-hcx-status value is not valid",
+  "meaning": "The exchange refused your message because its status header holds a value it does not accept, so set the status that fits the kind of message you are sending.",
+  "fix": [
+   "Set x-hcx-status from the table above.",
+   "Build the value from a constant in your code, not from free text.",
+   "Send the message again. An answer keeps the correlation id of the request it answers."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1012": {
+  "title": "No message matches the api_call_id you gave",
+  "meaning": "The exchange found no message with the call id you referred to, so use the exact call id you stored when you sent that message.",
+  "fix": [
+   "Store the x-hcx-api_call_id of every message you send, against its case.",
+   "Refer to the stored value exactly. For a status check, put it in x-hcx-correlation_id.",
+   "Send the message again."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1013": {
+  "title": "The request body is empty or not valid",
+  "meaning": "The exchange received a call with an empty body or one it cannot read as a request, so send a body carrying the sealed message.",
+  "fix": [
+   "Send a JSON body of the form {\"payload\": \"<JWE_COMPACT_STRING>\"}.",
+   "Seal the FHIR bundle and the headers into the JWE before sending.",
+   "Log the exact body you send, so an empty body shows in your own logs.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1014": {
+  "title": "The exchange could not deliver the response to its sender",
+  "meaning": "The exchange could not deliver a response to the participant it was meant for, because that participant's endpoint did not take it.",
+  "fix": [
+   "Keep your response and its correlation id.",
+   "Send it again once the original sender's endpoint is reachable.",
+   "If the exchange answers NHCX-1010, the request is gone. The original sender must start again.",
+   "Check that your registered endpoint is reachable and answers HTTP 202 within 30 seconds."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1015": {
+  "title": "The client is not allowed to change this participant's registry details",
+  "meaning": "NHCX-1015 means the participant registry refused an update because the client id behind the token did not create the participant, so send the change with the creator's credentials or through the NHCX portal or support.",
+  "fix": [
+   "Find the client id that created the participant. The team that onboarded it holds those credentials.",
+   "Mint a token with those credentials and send the update again.",
+   "If the creator's credentials are gone, change the record on the NHCX portal, or ask NHCX support to change it. Give support the participant_code and the message text."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1016": {
+  "title": "The call does not fit the exchange open on this correlation id",
+  "meaning": "The exchange refused your call because its path is not a valid next step for the exchange open under this correlation id, so answer on the paired path.",
+  "fix": [
+   "Answer each request on the on_ path paired with the path it arrived on.",
+   "Give each new request cycle its own correlation id.",
+   "Check what the exchange holds for the correlation id before you retry."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1017": {
+  "title": "The recipient answered a delivery in a form the exchange does not accept",
+  "meaning": "NHCX-1017 means the recipient's system answered a delivered message with a status or body the exchange does not accept, so the exchange treats the delivery as failed; the sheet prints the same text for NHCX-1015, which is a registry refusal.",
+  "fix": [
+   "Answer every delivery with HTTP 202 and this body before you process it:",
+   "Copy api_call_id and correlation_id from the delivery you received.",
+   "Set entity_type to the use case of the delivery.",
+   "Leave error.code and error.message as empty strings when you accept."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-1018": {
+  "title": "The ABHA number is not in the XX-XXXX-XXXX-XXXX form",
+  "meaning": "The exchange refused the message because the beneficiary's health account number is not written as fourteen digits in hyphenated groups of two, four, four and four.",
+  "fix": [
+   "Format the ABHA number as XX-XXXX-XXXX-XXXX before you place it in x-hcx-ben-abha-id.",
+   "Store the 14 digits once, and format them where you build the header. Every call then uses the same form.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "nhcx"
+ },
+ "NHCX-401": {
+  "title": "The exchange does not accept your authorisation for this call",
+  "meaning": "The exchange refused the call because it does not accept the token or the caller behind it, so renew the session token and check your participant may make this call.",
+  "fix": [
+   "Call the session endpoint for a new token and retry with it.",
+   "Send the token as bearer_auth: Bearer <ACCESS_TOKEN_FROM_SESSION_TOKEN>. The exchange's own endpoints read bearer_auth, not Authorization.",
+   "Generate the token with the client id used when your participant was created.",
+   "If every call returns this code, see Every call returns 401."
+  ],
+  "source": "nhcx"
+ },
+ "PAYR-1001": {
+  "title": "The recipient could not decrypt your request",
+  "meaning": "The receiving payer could not open your sealed request, usually because it was sealed with the wrong or an outdated certificate, so fetch the current certificate and send again.",
+  "fix": [
+   "Confirm the recipient is a registered participant with POST /participant/search.",
+   "Fetch the recipient's current certificate from the registry with POST /fetch/certs.",
+   "Seal the request again with that certificate. Check that every header listed above is present.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1002": {
+  "title": "The payer could not encrypt its answer to you",
+  "meaning": "The payer processed your request but could not seal its answer with the certificate you registered, so upload a valid certificate and the payer sends the answer.",
+  "fix": [
+   "Confirm your organisation is a registered participant.",
+   "Upload a valid encryption certificate to NHCX.",
+   "Wait for the payer's answer. You do not need to resend the request.",
+   "If the answer does not arrive, contact NHCX support."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1003": {
+  "title": "The payer's system could not reach the exchange and will resend, or the workflow requested is not valid",
+  "meaning": "PAYR-1003 means one of two things, the payer's system could not reach the exchange and will resend or, from the national scheme's reference payer, the workflow requested is not valid, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Set x-hcx-workflow_id to the workflow code for this stage.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1004": {
+  "title": "Your facility is not registered with the payer for the policy, or the FHIR bundle is malformed",
+  "meaning": "PAYR-1004 means one of two things, your facility is not registered with the payer for the policy or, from the national scheme's reference payer, the data bundle is malformed, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Confirm with the payer that your facility is registered for this policy.",
+   "Check that the request names the beneficiary's policy.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Read the details at the end of the message and fix what they name."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1005": {
+  "title": "The beneficiary is not a covered member of the policy, or the request is more than 24 hours old",
+  "meaning": "PAYR-1005 means one of two things, the beneficiary is not a covered member of the policy or, from the national scheme's reference payer, the request is more than 24 hours old, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Confirm membership with a coverage eligibility check.",
+   "Enrol the beneficiary for the policy with the payer, or use the policy that covers them.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Set x-hcx-timestamp to the current time when you build each request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1006": {
+  "title": "The policy does not exist, or a name in the request is not valid",
+  "meaning": "PAYR-1006 means one of two things, the policy does not exist or, from the national scheme's reference payer, a name in the request is not valid, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Take the policy from the beneficiary's policy lookup.",
+   "Address the request to the payer that holds that policy.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Check every name in the request, starting with the patient's name in the Patient resource."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1007": {
+  "title": "The policy has expired, or the gender in the request is not valid",
+  "meaning": "PAYR-1007 means one of two things, the policy has expired or, from the national scheme's reference payer, the gender in the request is not valid, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Check the beneficiary's current policy with a coverage eligibility check.",
+   "Send the request against a policy that is in force.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Send the gender as a code from the value set at https://hl7.org/fhir/R4/valueset-administrative-gender.html."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1008": {
+  "title": "The beneficiary's remaining cover is not enough for the request, or the FHIR bundle is not valid or cannot be parsed",
+  "meaning": "PAYR-1008 means one of two things, the beneficiary's remaining cover is not enough for the request or, from the national scheme's reference payer, the data bundle is not valid or cannot be parsed; the PMJAY payer also sends it with fifteen texts the error sheet prints without a code, and the message text tells them apart.",
+  "fix": [
+   "Check the remaining cover with a coverage eligibility check.",
+   "Request no more than the remaining cover.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Match the text against the table above and fix the element it names: the attachment's data, title or contentType, the HFR id, the hospital id, the case number, or the Task's code and reason code pair."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1009": {
+  "title": "The requested items are not valid or not covered, or the Patient resource has no identifier",
+  "meaning": "PAYR-1009 means one of two things, the requested items are not valid or not covered or, from the national scheme's reference payer, the Patient resource has no identifier, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Check each item against the policy's covered items.",
+   "Remove or replace items the policy does not cover.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Add an identifier to the Patient resource. The profile is at https://www.nrces.in/ndhm/fhir/r4/StructureDefinition-Patient.html."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1010": {
+  "title": "A preauthorisation was required but not obtained, or the Patient identifier has no type",
+  "meaning": "PAYR-1010 means one of two things, a preauthorisation was required but not obtained or, from the national scheme's reference payer, the Patient identifier has no type, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Obtain a preauthorisation before the claim or enhancement.",
+   "Carry the approved preauthorisation's reference in the later request.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Give every identifier a type, starting with the Patient identifier. The profile is at https://www.nrces.in/ndhm/fhir/r4/StructureDefinition-Patient.html."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1011": {
+  "title": "The approved package does not support enhancement, or the Claim resource has no identifier",
+  "meaning": "PAYR-1011 means one of two things, the approved package does not support enhancement or, from the national scheme's reference payer, the Claim resource has no identifier, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Do not resend the same enhancement. The payer refuses it again.",
+   "Check whether a package allows enhancement before you send one.",
+   "Add an identifier to the Claim resource.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1012": {
+  "title": "The claim amount is more than the approved preauthorisation amount, or the Claim identifier has no type",
+  "meaning": "PAYR-1012 means one of two things, the claim amount is more than the approved preauthorisation amount or, from the national scheme's reference payer, the Claim identifier has no type, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Compare the claimed total with the approved amount in the preauthorisation's ClaimResponse.",
+   "Reduce the claim to the approved amount, or obtain an enhancement first.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Give the Claim resource's identifier a type."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1013": {
+  "title": "The procedures or packages have no prior approval, or the provider Organization resource has no identifier",
+  "meaning": "PAYR-1013 means one of two things, the procedures or packages have no prior approval or, from the national scheme's reference payer, the provider Organization resource has no identifier, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Claim or enhance only procedures and packages the preauthorisation approved.",
+   "Obtain approval for any other procedure first.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Add an identifier to the provider Organization resource. Send your HFR ID as that identifier, with type code NPI."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1014": {
+  "title": "The date of birth is after the date of service, or the provider Organization identifier has no type",
+  "meaning": "PAYR-1014 means one of two things, the date of birth is after the date of service or, from the national scheme's reference payer, the provider Organization identifier has no type, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Check the Patient birthDate and every service date in the request.",
+   "Correct whichever date is wrong.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Give the provider Organization identifier a type. For the HFR ID, the type code is NPI."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1015": {
+  "title": "The date of service is after the date of death, or the payer Organization resource has no identifier",
+  "meaning": "PAYR-1015 means one of two things, the date of service is after the date of death or, from the national scheme's reference payer, the payer Organization resource has no identifier, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Check the service dates and the date of death in the claim.",
+   "Correct whichever date is wrong.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Add an identifier to the payer Organization resource."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1016": {
+  "title": "The claim duplicates one already submitted for the same services and dates, or the payer Organization identifier has no type",
+  "meaning": "PAYR-1016 means one of two things, the claim duplicates one already submitted for the same services and dates or, from the national scheme's reference payer, the payer Organization identifier has no type, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Check whether you already submitted a claim for these services and dates.",
+   "Do not submit it again. Follow the first claim instead.",
+   "Give the payer Organization identifier a type.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1017": {
+  "title": "The amount calculations are not correct, or the Task resource has no task code",
+  "meaning": "PAYR-1017 means one of two things, the amount calculations are not correct or, from the national scheme's reference payer, the Task resource has no task code, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Recompute each item's net amount from its quantity and unit price.",
+   "Recompute the total from the items.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006.",
+   "Set Task.code, for example reprocess or cancel."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1018": {
+  "title": "The time limit for submission has expired, or the Task resource has no reason code",
+  "meaning": "PAYR-1018 means one of two things, the time limit for submission has expired or, from the national scheme's reference payer, the Task resource has no reason code, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Submit within the payer's time limit for each stage.",
+   "For a submission that is already late, contact the payer. Resending it returns the same code.",
+   "Set Task.reasonCode, for example claimrejected for a reprocess, or a cancellation reason such as patientrequest. The input, code and reason code must form a valid combination.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1019": {
+  "title": "The additional information the payer asked for did not arrive in time, or a supporting info sequence is not valid",
+  "meaning": "PAYR-1019 means one of two things, the additional information the payer asked for did not arrive in time or, from the national scheme's reference payer, a supporting info sequence is not valid, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Answer each payer query within the time limit, with every document asked for.",
+   "For a query already past its limit, contact the payer.",
+   "Number each supportingInfo entry with a unique sequence.",
+   "Use those numbers wherever the bundle refers to a supporting info entry."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1020": {
+  "title": "The payer holds no valid bank details for your facility, or a supporting info category is not valid",
+  "meaning": "PAYR-1020 means one of two things, the payer holds no valid bank details for your facility or, from the national scheme's reference payer, a supporting info category is not valid, and the message text that comes with the code tells them apart.",
+  "fix": [
+   "Contact the payer to register or correct your facility's bank details.",
+   "Payment for the claim can go ahead once the payer holds valid details.",
+   "Set category on the entry named in the message to a code from https://www.nrces.in/ndhm/fhir/r4/ValueSet-ndhm-supportinginfo-category.html.",
+   "Send the request again with a fresh x-hcx-correlation_id. Reusing the old one returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1021": {
+  "title": "PAYR-1021, a supporting info entry has an invalid code",
+  "meaning": "The payer rejected your preauthorisation or claim because one supporting information entry carries a code that does not fit it.",
+  "fix": [
+   "Find the Claim.supportingInfo entry whose sequence matches the number in the message.",
+   "Check its category and code as a pair. The payer reads these pairs:",
+   "Take codes from the NRCeS supporting info code value set, https://www.nrces.in/ndhm/fhir/r4/ValueSet-ndhm-supportinginfo-code.html.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1023": {
+  "title": "PAYR-1023, a procedure has an invalid category",
+  "meaning": "The payer rejected your preauthorisation or claim because a procedure in it has a missing or unaccepted category.",
+  "fix": [
+   "Open each Procedure resource in the bundle.",
+   "Give it a category coding. The sample bundles use code Stratification with system http://hl7.org/fhir/ValueSet/procedure-category.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1024": {
+  "title": "PAYR-1024, a procedure has an invalid status",
+  "meaning": "The payer rejected your preauthorisation or claim because a procedure in it has a missing or unaccepted status.",
+  "fix": [
+   "Open each Procedure resource in the bundle.",
+   "Set Procedure.status. The sample preauthorisation and claim bundles use preparation.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1025": {
+  "title": "PAYR-1025, a procedure has an invalid sequence",
+  "meaning": "The payer rejected your preauthorisation or claim because it cannot read a valid sequence number for one of its procedures.",
+  "fix": [
+   "Number the Claim.procedure entries from 1 in sequence, one number per procedure.",
+   "Make each item's procedureSequence name one of those numbers. The sample preauthorisation bundle sets procedureSequence to 1 on its item.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1026": {
+  "title": "PAYR-1026, the claim references a procedure that is not in the bundle",
+  "meaning": "The payer rejected your preauthorisation or claim because the claim points at a procedure record that the bundle does not contain.",
+  "fix": [
+   "List the procedureReference values in Claim.procedure.",
+   "For each one, add the Procedure resource to the bundle, or correct the reference.",
+   "Make the reference resolve to the Procedure entry's fullUrl. The sample bundles pair procedureReference procedure/1 with a Procedure entry whose fullUrl ends in claim/procedure/1.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1027": {
+  "title": "PAYR-1027, a claim item has an invalid id",
+  "meaning": "The payer rejected your preauthorisation or claim because one of the billed items has a missing or unreadable id.",
+  "fix": [
+   "Open each entry in Claim.item.",
+   "Give it an id. The sample preauthorisation bundle gives its first item the id Item/1.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1028": {
+  "title": "PAYR-1028, a claim item has an invalid sequence",
+  "meaning": "The payer rejected your preauthorisation or claim because one of the billed items has a missing or unreadable sequence number.",
+  "fix": [
+   "Number the Claim.item entries from 1 in sequence, one number per item.",
+   "Keep the item's careTeamSequence, diagnosisSequence and procedureSequence pointing at real entries. The sample preauthorisation bundle gives its only item sequence 1.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1029": {
+  "title": "PAYR-1029, the bundle id is invalid",
+  "meaning": "The payer rejected your request because the outer bundle that carries it has a missing or unreadable id.",
+  "fix": [
+   "Set Bundle.id on the outer bundle.",
+   "Use a plain identifier. The sample bundles use ids such as PreAuth and CLAIM.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1030": {
+  "title": "PAYR-1030, a questionnaire id in the bundle is invalid",
+  "meaning": "The payer rejected your preauthorisation or claim because the id of a questionnaire answer in it is not valid.",
+  "fix": [
+   "Fetch the insurance plan for the policy.",
+   "Take questionnaire ids from the plan. Do not build them yourself.",
+   "Give each QuestionnaireResponse a valid id.",
+   "Reference it from Claim.supportingInfo with category INF and code ODN. For a questionnaire tied to a procedure code, use category STG."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1031": {
+  "title": "PAYR-1031, a bundle entry has an invalid URL",
+  "meaning": "The payer rejected your request because one of the entries in its bundle has a missing or unreadable address.",
+  "fix": [
+   "Give every entry a fullUrl. The sample bundles use either an https:// URL or a urn:uuid: value.",
+   "Make every reference in the bundle match the fullUrl of the entry it points at.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1032": {
+  "title": "PAYR-1032, the eligibility check has an invalid purpose",
+  "meaning": "The payer rejected your eligibility check because it does not say, in a form the payer accepts, what you want to know.",
+  "fix": [
+   "Set CoverageEligibilityRequest.purpose to auth-requirements, benefits or validation.",
+   "Choose by what you need to learn.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1033": {
+  "title": "PAYR-1033, the eligibility check has no items for its purpose",
+  "meaning": "The payer rejected your eligibility check because it asks about treatment but lists no treatment items.",
+  "fix": [
+   "Add at least one item to the CoverageEligibilityRequest.",
+   "Name the package you are asking about in that item. The sample checks name the package this way.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1034": {
+  "title": "PAYR-1034, a procedure code is invalid",
+  "meaning": "The payer rejected your preauthorisation or claim because a procedure code in it is not one the payer accepts.",
+  "fix": [
+   "Fetch the insurance plan for the policy.",
+   "Take procedure codes from the plan. The procedure code is the code of each benefit's type, under the plan's specific cost.",
+   "Use the same code in Procedure.code and in the item's productOrService, as the sample bundles do.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1035": {
+  "title": "PAYR-1035, the policy code is invalid",
+  "meaning": "The payer rejected your request because the insurance policy it names is not one the payer recognises.",
+  "fix": [
+   "Check the policy details in the Coverage resource of your bundle.",
+   "For an insurance plan request, check the PolicyNumber input of the Task.",
+   "Correct the code, then resend.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1036": {
+  "title": "PAYR-1036, a supporting info entry lacks a valid attachment",
+  "meaning": "The payer rejected your preauthorisation or claim because a supporting document entry does not carry a usable document.",
+  "fix": [
+   "Find the Claim.supportingInfo entry whose sequence matches the number in the message.",
+   "Put the document in valueAttachment. Encode it as Base64 in data, give it a non-empty title, and set contentType.",
+   "Use an accepted content type: application/pdf, application/jpg, application/jpeg, application/png or application/fhir+json.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1037": {
+  "title": "PAYR-1037, the communication has no identifier",
+  "meaning": "The payer rejected your answer to its communication request because the message in it carries no identifier.",
+  "fix": [
+   "Add an identifier to the Communication resource, with a type, a system and a value.",
+   "The sample acknowledgement uses identifier type MR.",
+   "Send the corrected acknowledgement bundle on /v1/communication/on_request.",
+   "Keep the x-hcx-correlation_id of the payer's communication request. The payer links your acknowledgement to its request by that id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1038": {
+  "title": "PAYR-1038, the communication identifier has no type",
+  "meaning": "The payer rejected your answer to its communication request because the message identifier in it has no type.",
+  "fix": [
+   "Give each Communication identifier a type coding.",
+   "The sample acknowledgement uses code MR, Medical record number.",
+   "Send the corrected acknowledgement bundle on /v1/communication/on_request.",
+   "Keep the x-hcx-correlation_id of the payer's communication request. The payer links your acknowledgement to its request by that id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1039": {
+  "title": "PAYR-1039, the communication has no payload",
+  "meaning": "The payer rejected your answer to its communication request because the message in it carries no content.",
+  "fix": [
+   "Add a payload to the Communication resource.",
+   "Put the content in payload.contentAttachment. The acknowledgement must carry it.",
+   "Send the corrected acknowledgement bundle on /v1/communication/on_request.",
+   "Keep the x-hcx-correlation_id of the payer's communication request. The payer links your acknowledgement to its request by that id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1040": {
+  "title": "PAYR-1040, a reference points at a resource that is not in the bundle",
+  "meaning": "The payer rejected your request because one record in it points at another record that the bundle does not contain.",
+  "fix": [
+   "Collect every reference value in the bundle.",
+   "Match each one to the fullUrl of an entry.",
+   "Add the missing resource, or correct the reference.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1041": {
+  "title": "PAYR-1041, a procedure has no identifier",
+  "meaning": "The payer rejected your preauthorisation or claim because a procedure record in it carries no identifier.",
+  "fix": [
+   "Add an identifier to every Procedure resource.",
+   "The sample bundles use identifier type SNO, Serial Number, from the v2-0203 code system, with system https://bis.pmjay.gov.in.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1042": {
+  "title": "PAYR-1042, a procedure identifier has no type",
+  "meaning": "The payer rejected your preauthorisation or claim because a procedure record's identifier does not say what kind of identifier it is.",
+  "fix": [
+   "Give each Procedure identifier a type coding.",
+   "The sample bundles use code SNO, Serial Number, from the v2-0203 code system.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1043": {
+  "title": "PAYR-1043, a date is in the wrong format",
+  "meaning": "The payer rejected your request because a date in it is not written in the standard date format.",
+  "fix": [
+   "Check every element of the FHIR date type in the bundle.",
+   "Write each as year, month and day, for example 2026-02-27.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1044": {
+  "title": "PAYR-1044, a date and time is in the wrong format",
+  "meaning": "The payer rejected your request because a date with a time in it is not written in the standard format.",
+  "fix": [
+   "Check every element of the FHIR dateTime type in the bundle.",
+   "Write each with a time zone, for example 2026-02-27T08:40:02+05:30, as the sample claim does.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1045": {
+  "title": "PAYR-1045, a claim item has an invalid quantity",
+  "meaning": "The payer rejected your preauthorisation or claim because a billed item does not state a usable number of units.",
+  "fix": [
+   "Open each entry in Claim.item.",
+   "Give it a quantity with a numeric value. The sample bundles bill one unit, quantity 1.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1046": {
+  "title": "PAYR-1046, a supporting info entry has no value or date",
+  "meaning": "The payer rejected your preauthorisation or claim because a supporting information entry carries no content at all.",
+  "fix": [
+   "Find the Claim.supportingInfo entry whose sequence matches the number in the message.",
+   "Give it the content its category and code call for.",
+   "Send dates in timingDate, timingPeriod or valueString. Send documents in valueAttachment. Point at clinical records with valueReference.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1047": {
+  "title": "PAYR-1047, a supporting info entry has an invalid reference",
+  "meaning": "The payer rejected your preauthorisation or claim because a supporting information entry points at another record in an unusable way.",
+  "fix": [
+   "Find the Claim.supportingInfo entry whose sequence matches the number in the message.",
+   "Point valueReference.reference at an entry in the bundle, using that entry's fullUrl.",
+   "Reference a Composition for a clinical record, as the sample bundles do. Reference a QuestionnaireResponse for category INF with code ODN.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1048": {
+  "title": "PAYR-1048, a supporting info entry references a resource that is not in the",
+  "meaning": "The payer rejected your preauthorisation or claim because a supporting information entry points at a record the bundle does not contain.",
+  "fix": [
+   "Find the Claim.supportingInfo entry whose sequence matches the number in the message.",
+   "Add the referenced resource to the bundle, or correct the reference.",
+   "Make the reference match the new entry's fullUrl.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1049": {
+  "title": "PAYR-1049, the payer cannot accept the bundle",
+  "meaning": "The payer rejected your request because it could not accept the bundle as a whole.",
+  "fix": [
+   "Validate the whole bundle against the NRCeS profiles.",
+   "Fix every error the validator reports.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1050": {
+  "title": "PAYR-1050, a practitioner identifier has no type",
+  "meaning": "The payer rejected your preauthorisation or claim because a doctor's identifier in it does not say what kind of identifier it is.",
+  "fix": [
+   "Give every Practitioner identifier a type coding.",
+   "For the HPR id, use type code HPIN.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1051": {
+  "title": "PAYR-1051, a clinical record has no section",
+  "meaning": "The payer rejected your preauthorisation or claim because an attached clinical record has no sections.",
+  "fix": [
+   "Give every Composition at least one section.",
+   "List the section's resources in section.entry. The sample bundles attach diagnostic reports and invoices this way.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1052": {
+  "title": "PAYR-1052, a clinical record section has no references",
+  "meaning": "The payer rejected your preauthorisation or claim because a section of an attached clinical record lists no records.",
+  "fix": [
+   "List the section's resources in section.entry.",
+   "Make each reference match the fullUrl of an entry in the bundle.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1053": {
+  "title": "PAYR-1053, a nested clinical record section has an invalid reference",
+  "meaning": "The payer rejected your preauthorisation or claim because a section inside an attached clinical record points at something invalid.",
+  "fix": [
+   "Check every entry in the nested sections of each Composition.",
+   "Point each one at the fullUrl of an entry in the bundle.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1054": {
+  "title": "PAYR-1054, a clinical record section is empty",
+  "meaning": "The payer rejected your preauthorisation or claim because a section of an attached clinical record has no content.",
+  "fix": [
+   "Find the empty section in each Composition.",
+   "Fill it with entry references to the resources it holds, or remove it.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1055": {
+  "title": "PAYR-1055, a clinical record has no subject or its subject is not a patient",
+  "meaning": "The payer rejected your preauthorisation or claim because an attached clinical record does not name the patient it is about.",
+  "fix": [
+   "Set Composition.subject on every Composition.",
+   "Point it at the Patient resource in the bundle.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1056": {
+  "title": "PAYR-1056, the patient's contact organization is not an Organization",
+  "meaning": "The payer rejected your preauthorisation or claim because the patient in an attached clinical record has a contact of the wrong kind.",
+  "fix": [
+   "Open the Patient that each Composition names in subject.",
+   "Point Patient.contact.organization at an Organization resource in the bundle, or remove it.",
+   "Validate the corrected bundle before you send it.",
+   "Send the request with a new x-hcx-correlation_id and a new x-hcx-api_call_id. The failed correlation id is inactive. Reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1057": {
+  "title": "PAYR-1057, the patient's general practitioner has the wrong type",
+  "meaning": "The payer rejected your preauthorisation or claim because the patient in an attached clinical record names a general practitioner of the wrong kind.",
+  "fix": [
+   "Open the Patient that each Composition names in subject.",
+   "Point each Patient.generalPractitioner at an Organization, Practitioner or PractitionerRole resource in the bundle.",
+   "Check the Patient against the NRCeS Patient profile, https://www.nrces.in/ndhm/fhir/r4/StructureDefinition-Patient.html.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1058": {
+  "title": "PAYR-1058, the patient's managing organization is not an Organization",
+  "meaning": "The payer rejected your preauthorisation or claim because the patient in an attached clinical record names a managing organization of the wrong kind.",
+  "fix": [
+   "Open the Patient that each Composition names in subject.",
+   "Point Patient.managingOrganization at an Organization resource in the bundle.",
+   "Check the Patient against the NRCeS Patient profile, https://www.nrces.in/ndhm/fhir/r4/StructureDefinition-Patient.html.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1059": {
+  "title": "PAYR-1059, a clinical record points at something other than an encounter",
+  "meaning": "The payer rejected your preauthorisation or claim because an attached clinical record or observation points at the wrong kind of record for its visit.",
+  "fix": [
+   "Check encounter on every Composition and Observation.",
+   "Point each one at an Encounter resource in the bundle.",
+   "Check the record against the NRCeS DiagnosticReportRecord profile, https://www.nrces.in/ndhm/fhir/r4/StructureDefinition-DiagnosticReportRecord.html.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1060": {
+  "title": "PAYR-1060, a clinical record has no encounter or its encounter has no subject",
+  "meaning": "The payer rejected your preauthorisation or claim because an attached clinical record does not name its visit, or the visit does not name the patient.",
+  "fix": [
+   "Give every Composition and Observation an encounter that references an Encounter resource in the bundle.",
+   "Give that Encounter a subject that references the Patient.",
+   "Check the Encounter against the NRCeS Encounter profile, https://www.nrces.in/ndhm/fhir/r4/StructureDefinition-Encounter.html.",
+   "Validate the corrected bundle before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1061": {
+  "title": "An encounter's subject has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because an encounter in the bundle names a subject that is not a patient.",
+  "fix": [
+   "Find each Encounter that a Composition's encounter or an Observation points at.",
+   "Set its subject.reference to the fullUrl of the Patient entry in the same bundle. Use the Patient that the Composition's subject points at.",
+   "Check the Encounter against the NRCES Encounter profile.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1062": {
+  "title": "An encounter has no episode of care the payer can find",
+  "meaning": "The payer rejected your preauthorisation or claim because it could not find the episode of care for an encounter in the bundle.",
+  "fix": [
+   "Add an episode of care reference to the Encounter. The NRCES Encounter profile names the element and the target types it allows.",
+   "Include the resource it points at as an entry in the same bundle.",
+   "Make the reference match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1063": {
+  "title": "An encounter's episode of care has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because an encounter's episode of care points at the wrong kind of record.",
+  "fix": [
+   "Find the episode of care reference on each Encounter that a Composition or an Observation points at.",
+   "Open the NRCES Encounter profile and read the target types it allows for that element.",
+   "Point the reference at an entry of an allowed type, and make it match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1064": {
+  "title": "An encounter has no based-on reference the payer can find",
+  "meaning": "The payer rejected your preauthorisation or claim because it could not find what an encounter in the bundle is based on.",
+  "fix": [
+   "Add a based-on reference to the Encounter. The NRCES Encounter profile names the element and the target types it allows.",
+   "Include the resource it points at as an entry in the same bundle.",
+   "Make the reference match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1065": {
+  "title": "An encounter's based-on reference has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because an encounter's based-on reference points at the wrong kind of record.",
+  "fix": [
+   "Find the based-on reference on each Encounter that a Composition or an Observation points at.",
+   "Open the NRCES Encounter profile and read the target types it allows for that element.",
+   "Point the reference at an entry of an allowed type, and make it match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1066": {
+  "title": "An encounter has no appointment the payer can find",
+  "meaning": "The payer rejected your preauthorisation or claim because it could not find the appointment for an encounter in the bundle.",
+  "fix": [
+   "Add an appointment reference to the Encounter. The NRCES Encounter profile names the element and the target types it allows.",
+   "Include the Appointment resource it points at as an entry in the same bundle.",
+   "Make the reference match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1067": {
+  "title": "An encounter's appointment has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because an encounter's appointment reference points at something that is not an appointment.",
+  "fix": [
+   "Find the appointment reference on each Encounter that a Composition or an Observation points at.",
+   "Open the NRCES Encounter profile and read the target types it allows for that element.",
+   "Point the reference at an Appointment entry, and make it match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1068": {
+  "title": "An encounter has no reason reference the payer can find",
+  "meaning": "The payer rejected your preauthorisation or claim because it could not find the reason for an encounter in the bundle.",
+  "fix": [
+   "Add a reason reference to the Encounter. The NRCES Encounter profile names the element and the target types it allows.",
+   "Include the resource it points at as an entry in the same bundle.",
+   "Make the reference match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1069": {
+  "title": "An encounter's reason reference has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because an encounter's reason reference points at the wrong kind of record.",
+  "fix": [
+   "Find the reason reference on each Encounter that a Composition or an Observation points at.",
+   "Open the NRCES Encounter profile and read the target types it allows for that element.",
+   "Point the reference at an entry of an allowed type, and make it match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1070": {
+  "title": "A composition has no author",
+  "meaning": "The payer rejected your preauthorisation or claim because a clinical document in the bundle does not say who wrote it.",
+  "fix": [
+   "Add author to every Composition in the bundle.",
+   "Point author[0].reference at an entry in the bundle, such as the Practitioner who wrote the record.",
+   "Make the reference match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1071": {
+  "title": "A composition's author has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because a clinical document names an author of a kind it does not accept.",
+  "fix": [
+   "Find the author reference on each Composition in the bundle.",
+   "Point it at an entry of one of the six accepted types, such as the Practitioner who wrote the record.",
+   "Make the reference match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1072": {
+  "title": "A claim procedure has no procedure reference",
+  "meaning": "The payer rejected your preauthorisation or claim because a procedure listed on the claim does not point at its procedure record.",
+  "fix": [
+   "Give every Claim.procedure entry a procedureReference that points at a Procedure entry in the bundle:",
+   "Include that Procedure resource as an entry, with a fullUrl that matches the reference exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1073": {
+  "title": "An observation has no based-on reference",
+  "meaning": "The payer rejected your preauthorisation or claim because it could not find what an observation in the bundle is based on.",
+  "fix": [
+   "Add a based-on reference to every Observation in the bundle. The NRCES Observation profile names the element and the target types it allows.",
+   "Include the resource it points at as an entry in the same bundle.",
+   "Make the reference match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1074": {
+  "title": "An observation's based-on reference has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because an observation's based-on reference points at the wrong kind of record.",
+  "fix": [
+   "Find the based-on reference on each Observation in the bundle.",
+   "Open the NRCES Observation profile and read the target types it allows for that element.",
+   "Point the reference at an entry of an allowed type, and make it match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1075": {
+  "title": "An observation has no part-of reference",
+  "meaning": "The payer rejected your preauthorisation or claim because it could not find what an observation in the bundle is part of.",
+  "fix": [
+   "Add a part-of reference to every Observation in the bundle. The NRCES Observation profile names the element and the target types it allows.",
+   "Include the resource it points at as an entry in the same bundle.",
+   "Make the reference match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1076": {
+  "title": "An observation's part-of reference has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because an observation's part-of reference points at the wrong kind of record.",
+  "fix": [
+   "Find the part-of reference on each Observation in the bundle.",
+   "Open the NRCES Observation profile and read the target types it allows for that element.",
+   "Point the reference at an entry of an allowed type, and make it match that entry's fullUrl exactly.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1077": {
+  "title": "An observation has no subject",
+  "meaning": "The payer rejected your preauthorisation or claim because an observation in the bundle does not say which patient it is about.",
+  "fix": [
+   "Give every Observation a subject whose reference is the fullUrl of the Patient entry in the bundle.",
+   "Send the reference even when you already send subject.display. A display names the patient but does not point at the Patient entry.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1078": {
+  "title": "An observation's subject is not a Patient",
+  "meaning": "The payer rejected your preauthorisation or claim because an observation's subject points at something other than the patient.",
+  "fix": [
+   "Find the subject on each Observation in the bundle.",
+   "Set subject.reference to the fullUrl of the Patient entry in the same bundle.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1079": {
+  "title": "The claim has no care team",
+  "meaning": "The payer rejected your preauthorisation or claim because the claim does not name the care team treating the patient.",
+  "fix": [
+   "Add a careTeam entry to the Claim for the treating practitioner:",
+   "Point each Claim.item at that entry through careTeamSequence, using the same sequence number.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1080": {
+  "title": "A practitioner's HPR id is not valid",
+  "meaning": "The payer rejected your preauthorisation or claim because a practitioner in the bundle carries a professional registry id it does not accept.",
+  "fix": [
+   "Find the Practitioner entry whose fullUrl matches the url in the message.",
+   "Check its HPR identifier against the practitioner's HPR registration.",
+   "Send the identifier with type code HPIN and system https://hpr.abdm.gov.in:",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1081": {
+  "title": "An item's service date is not valid",
+  "meaning": "The payer rejected your preauthorisation or claim because the service date on one of the billed items is not valid.",
+  "fix": [
+   "Find the Claim.item whose sequence matches the message.",
+   "Correct its service date. In a preauthorisation bundle it sits in servicedPeriod.start and servicedPeriod.end, for example 2026-02-22.",
+   "Use the NRCES date format. PAYR-1043 and PAYR-1044 cover date format failures.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1082": {
+  "title": "A composition linked from supporting info has an invalid title",
+  "meaning": "The payer rejected your preauthorisation or claim because a document attached through supporting information has a title it does not accept.",
+  "fix": [
+   "Find the Claim.supportingInfo entry whose sequence matches the message.",
+   "Follow its valueReference to the Composition entry in the bundle.",
+   "Correct that Composition's title, and check the Composition against its NRCES profile.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1083": {
+  "title": "A practitioner has no HPR id",
+  "meaning": "The payer rejected your preauthorisation or claim because a practitioner in the bundle carries no professional registry id.",
+  "fix": [
+   "Find the Practitioner resource named in the message.",
+   "Add the practitioner's HPR id to its identifier, with type code HPIN and system https://hpr.abdm.gov.in:",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1084": {
+  "title": "A reference points at a questionnaire response that is not in the bundle",
+  "meaning": "The payer rejected your preauthorisation or claim because the bundle refers to a questionnaire response it does not contain.",
+  "fix": [
+   "Add the QuestionnaireResponse as an entry whose fullUrl is exactly the url in the message.",
+   "Check every other reference in the bundle the same way. Each must match the fullUrl of an entry.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1085": {
+  "title": "A questionnaire response reference points at the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because a reference meant for a questionnaire response points at a different kind of record.",
+  "fix": [
+   "Find the entry whose fullUrl is the url in the message.",
+   "Point the reference at the QuestionnaireResponse entry instead, or correct the entry so it holds the QuestionnaireResponse.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1086": {
+  "title": "A reference points at a procedure that is not in the bundle",
+  "meaning": "The payer rejected your preauthorisation or claim because the bundle refers to a procedure record it does not contain.",
+  "fix": [
+   "Add the Procedure as an entry whose fullUrl is exactly the url in the message.",
+   "Check every other reference in the bundle the same way. Each must match the fullUrl of an entry.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1087": {
+  "title": "A procedure reference points at the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because a reference meant for a procedure record points at a different kind of record.",
+  "fix": [
+   "Find the entry whose fullUrl is the url in the message.",
+   "Point the reference at the Procedure entry instead, or correct the entry so it holds the Procedure.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1088": {
+  "title": "A composition failed the payer's checks",
+  "meaning": "The payer rejected your preauthorisation or claim because a clinical document in the bundle failed its checks.",
+  "fix": [
+   "Check every Composition for these elements, each pointing at an entry in the bundle: title, author, subject, encounter and each section[].entry[].reference.",
+   "Compare each Composition with the NRCES profile named in its meta.profile.",
+   "The codes for the single-element failures are PAYR-1051 to PAYR-1055, PAYR-1070, PAYR-1071 and PAYR-1082.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1089": {
+  "title": "The claim has no billing items",
+  "meaning": "The payer rejected your preauthorisation or claim because the claim lists nothing to bill.",
+  "fix": [
+   "Add at least one Claim.item for the package you are billing:",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1090": {
+  "title": "The coverage has no identifier",
+  "meaning": "The payer rejected your request because the policy record in the bundle carries no identifier.",
+  "fix": [
+   "Add an identifier to the Coverage resource, carrying the policy id:",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1091": {
+  "title": "The coverage identifier has no type",
+  "meaning": "The payer rejected your request because the identifier on the policy record in the bundle does not say what kind of identifier it is.",
+  "fix": [
+   "Give the Coverage identifier a type with code NH from http://terminology.hl7.org/CodeSystem/v2-0203:",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1092": {
+  "title": "The payer failed while processing your request",
+  "meaning": "The payer could not finish processing your request and asks you to start a new one.",
+  "fix": [
+   "Send the same content as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1093": {
+  "title": "An encounter linked from a composition has no subject",
+  "meaning": "The payer rejected your preauthorisation or claim because the visit record behind a clinical document does not say which patient it is about.",
+  "fix": [
+   "Find the Encounter that each Composition's encounter points at.",
+   "Set the Encounter's subject.reference to the fullUrl of the Patient entry. Use the Patient that the Composition's subject points at.",
+   "Check the Encounter against the NRCES Encounter profile.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1094": {
+  "title": "An encounter's subject has the wrong resource type",
+  "meaning": "The payer rejected your preauthorisation or claim because an encounter in the bundle names a subject that is not a patient.",
+  "fix": [
+   "Find each Encounter that a Composition's encounter or an Observation points at.",
+   "Set its subject.reference to the fullUrl of the Patient entry in the same bundle. Use the Patient that the Composition's subject points at.",
+   "Check the Encounter against the NRCES Encounter profile.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1095": {
+  "title": "The claim carries no valid discharge information",
+  "meaning": "The payer rejected your claim because it carries no valid information about how the patient was discharged.",
+  "fix": [
+   "Add a Claim.supportingInfo entry with category DIS and one of the codes LAMA, DAMA, DTH or DTM. The value sets are supporting info category and supporting info code.",
+   "Send its value as a string naming the discharge stage: After Surgery, Before Surgery or During Surgery. PAYR-1514 covers a wrong value type.",
+   "Give the entry a sequence no other supporting info entry uses.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1096": {
+  "title": "A death discharge carries no valid death date",
+  "meaning": "The payer rejected your claim because the patient's discharge type is death and the claim carries no valid date of death.",
+  "fix": [
+   "Add a Claim.supportingInfo entry with category ONS and code DTM, carrying the date of death. The value sets are supporting info category and supporting info code.",
+   "Send the date as a timing (a date or a period) or as a string value. PAYR-1503 covers a wrong value type.",
+   "Give the entry a sequence no other supporting info entry uses.",
+   "Validate the corrected bundle in the NRCES validator before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1097": {
+  "title": "The request arrived with no encrypted payload",
+  "meaning": "The payer rejected your request because it found no encrypted content inside it.",
+  "fix": [
+   "Encrypt the FHIR bundle with the payer's public certificate.",
+   "Put the resulting compact string in payload:",
+   "Check that the ciphertext part of the compact string is not empty before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1098": {
+  "title": "The registration date has the wrong value type",
+  "meaning": "The payer rejected your preauthorisation or claim because the patient's registration date is sent in a form it does not accept.",
+  "fix": [
+   "Find the Claim.supportingInfo entry whose sequence matches the message.",
+   "Send the registration date as a timing (a date or a period) or as valueString, in NRCES date format.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1099": {
+  "title": "The discharge date has the wrong value type",
+  "meaning": "The payer rejected your claim because the patient's discharge date is sent in a form it does not accept.",
+  "fix": [
+   "Find the Claim.supportingInfo entry whose sequence matches the message.",
+   "Send the discharge date with category ONS and code DSDE, as a timing (a date or a period) or as valueString, in NRCES date format.",
+   "Validate the corrected bundle in the NRCES validator before you send it.",
+   "Send it as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1101": {
+  "title": "The eligibility purpose is not valid",
+  "meaning": "The payer returned no result because the purpose of your eligibility check is not one it accepts.",
+  "fix": [
+   "Set CoverageEligibilityRequest.purpose to discovery, validation, benefits or auth-requirements.",
+   "For auth-requirements, include the procedures you are asking about in item. PAYR-1033 covers a check with no items.",
+   "When you do not have the policy code, send discovery first. Then send validation with the policy_code you receive.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1102": {
+  "title": "The id you searched with is not valid",
+  "meaning": "The payer could not find a beneficiary because the id your request searched with is not valid.",
+  "fix": [
+   "Correct the beneficiary identifiers on the Patient resource. An eligibility check must carry the PMJAY member id, the ABHA number, or both.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1103": {
+  "title": "The care plan id is not valid",
+  "meaning": "The payer rejected your request because the care plan id in it is not valid.",
+  "fix": [
+   "Correct the care plan id in your request.",
+   "Send the check again with a valid care plan id.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1104": {
+  "title": "More than one beneficiary record matches",
+  "meaning": "The payer stopped processing your request because the beneficiary details you sent match more than one of its records.",
+  "fix": [
+   "Send identifiers that point at one person. Put both the PMJAY member id and the ABHA number on the Patient resource when you have them.",
+   "If the request already carries both, contact the support team. The payer must resolve the duplicate record.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1105": {
+  "title": "The payer has no configuration for your hospital",
+  "meaning": "The payer stopped processing your check because it holds no configuration for your hospital.",
+  "fix": [
+   "Check the provider Organization in your bundle. It must carry your HFR id as an identifier with type code NPI.",
+   "The HFR id must match the registry id recorded in NHCX for your participant code.",
+   "Contact the support team to have the payer set up your hospital's configuration.",
+   "Once the payer confirms the setup, send the check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1106": {
+  "title": "The payer has no details for a requested procedure",
+  "meaning": "The payer found no details for a procedure you asked about in your eligibility check.",
+  "fix": [
+   "Check each item[*].productOrService.coding.code in the request.",
+   "Use the procedure code from the payer's insurance plan: the code of the type of the benefit component of the specific cost of the plan.",
+   "Fetch the insurance plan for the policy when you do not have it.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1107": {
+  "title": "The check carries no billable item",
+  "meaning": "The payer rejected your eligibility check because it carries no item it can bill against.",
+  "fix": [
+   "Add at least one item to the CoverageEligibilityRequest.",
+   "Give each item a speciality in category.coding.code, a package or procedure code in productOrService.coding.code, and a quantity.value.",
+   "Take the codes from the payer's insurance plan for the policy.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1108": {
+  "title": "The payer has no details for the requested stratification",
+  "meaning": "The payer found no details for the stratification you asked about in your eligibility check.",
+  "fix": [
+   "Check each item[*].modifier.coding.code in the request.",
+   "Use a stratification code the payer holds for that package in its insurance plan.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1109": {
+  "title": "The payer has no details for a requested investigation",
+  "meaning": "The payer found no details for an investigation you asked about in your eligibility check.",
+  "fix": [
+   "Check the investigation codes in item[*].productOrService.coding.code.",
+   "Use an investigation code the payer holds in its insurance plan for the policy.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1110": {
+  "title": "The payer has no details for a requested implant",
+  "meaning": "The payer found no details for an implant you asked about in your eligibility check.",
+  "fix": [
+   "Check the implant codes in item[*].productOrService.coding.code.",
+   "Use an implant code the payer holds in its insurance plan for the policy.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1111": {
+  "title": "A payer rule rejected the request",
+  "meaning": "A business rule at the payer rejected your eligibility check, and the message does not name the rule.",
+  "fix": [
+   "Contact the support team with the correlation id of the failed check. The payer can name the rule that failed.",
+   "Correct the request once you know the rule.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1112": {
+  "title": "The payer id is not valid",
+  "meaning": "The payer rejected your eligibility check because the payer id in it is not valid.",
+  "fix": [
+   "Check x-hcx-recipient_code in the protected header and the insurer Organization in the bundle.",
+   "Use the processingID from the get policies response as the recipient code, not the PayerID.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1113": {
+  "title": "An item code is not valid",
+  "meaning": "The payer rejected your eligibility check because an item code in it is not valid.",
+  "fix": [
+   "Find the item whose productOrService.coding.code matches the message.",
+   "Replace it with a package or procedure code from the payer's insurance plan for the policy.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1114": {
+  "title": "An item's speciality code is not valid",
+  "meaning": "The payer rejected your eligibility check because the speciality code on one item is not valid.",
+  "fix": [
+   "Find the item named in the message and its category.coding.code.",
+   "Replace it with the speciality code from the payer's insurance plan: the code of the category of the specific cost of the plan.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1115": {
+  "title": "An item's quantity is not valid",
+  "meaning": "The payer rejected your eligibility check because the quantity on one item is not valid.",
+  "fix": [
+   "Find the item named in the message.",
+   "Correct its quantity.value to the number of units you are asking about.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1116": {
+  "title": "Your hospital is not authorised under the policy",
+  "meaning": "The payer stopped processing your check because your hospital is not authorised to raise cases under the policy.",
+  "fix": [
+   "Contact the support team to get your hospital authorised under the policy named in the message.",
+   "Raise no cases under that policy until the authorisation is in place.",
+   "Once the authorisation is in place, send the check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1117": {
+  "title": "The payer has no details for the policy",
+  "meaning": "The payer stopped processing your check because it holds no details for the policy you named.",
+  "fix": [
+   "Check the policy code in the Coverage resource's identifier.value.",
+   "When you do not have the policy code, send a check with purpose discovery to fetch the active policy_code. Then send validation with it.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1118": {
+  "title": "The payer has no details for the requested items",
+  "meaning": "The payer stopped processing your eligibility check because it holds no details for the items you asked about.",
+  "fix": [
+   "Check every item's productOrService.coding.code, category.coding.code and modifier.coding.code.",
+   "Take each code from the payer's insurance plan for the policy.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1119": {
+  "title": "The payer received no details for the payer id from the exchange",
+  "meaning": "The payer stopped processing your check because the exchange returned no details for the payer id you sent.",
+  "fix": [
+   "Look up the payer in the participant registry, and use the participant code it returns.",
+   "Use the processingID from the get policies response as the recipient code, not the PayerID.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1120": {
+  "title": "The reference id has been used before",
+  "meaning": "The payer rejected your eligibility check because its reference id repeats one it has already seen.",
+  "fix": [
+   "Give every request its own reference id.",
+   "Send the check again with a reference id you have not used before.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1121": {
+  "title": "The policy is not found for this beneficiary",
+  "meaning": "The payer stopped processing your check because it holds no record of the named policy for this beneficiary.",
+  "fix": [
+   "Fetch the beneficiary's linked policies with the get policies call, and use a policy code from the result.",
+   "When no policy is linked, send a check with purpose discovery to fetch the active policy_code.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1122": {
+  "title": "The beneficiary has no policy with the payer",
+  "meaning": "The payer stopped processing your check because it holds no policy for the beneficiary.",
+  "fix": [
+   "Check the beneficiary identifiers on the Patient resource: the PMJAY member id, the ABHA number, or both.",
+   "Confirm the beneficiary holds a policy with this payer. Fetch linked policies with the get policies call.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006.",
+   "If the same code comes back after these steps, contact the NHCX support team. Give them the correlation id of the failed request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1123": {
+  "title": "The beneficiary is not covered by this payer",
+  "meaning": "The payer stopped processing your check because the beneficiary is not a covered member of any of its policies.",
+  "fix": [
+   "Confirm which payer covers the beneficiary. Fetch the beneficiary's policies with the get policies call.",
+   "Send the check to the processingID from that response as the recipient code, not the PayerID.",
+   "If no policy of this payer covers the beneficiary, the beneficiary must be enrolled for an applicable policy first.",
+   "Send the corrected check as a new request with a new x-hcx-correlation_id. After a failure the old correlation id is inactive, and reusing it returns NHCX-1006."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1201": {
+  "title": "Claimed amount is zero or above the wallet balance",
+  "meaning": "The payer refused the request because the amount claimed was zero, or larger than the balance left in the beneficiary's scheme wallet.",
+  "fix": [
+   "Check the balance before you submit. Run a coverage eligibility check with purpose validation. It returns the used amount, the available balance and the wallet liability.",
+   "Set Claim.total above 0 and no higher than the available balance.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1202": {
+  "title": "Speciality code is not in the insurance plan",
+  "meaning": "The payer refused the request because an item names a speciality code that the hospital's insurance plan does not carry.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Find the package under plan.specificCost. Copy that entry's category code into Claim.item.category for the named item.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1203": {
+  "title": "Speciality description does not match the insurance plan",
+  "meaning": "The payer refused the request because a speciality description differs from the one in the hospital's insurance plan.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Copy the display of the matching category exactly as the plan carries it.",
+   "Take the code and the description from the same plan entry.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1204": {
+  "title": "Procedure code is not in the insurance plan",
+  "meaning": "The payer refused the request because a procedure code is not one the hospital's insurance plan offers.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Pick the package from the plan. Copy the benefit type code into Claim.item.productOrService.",
+   "Do not type package codes by hand.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1205": {
+  "title": "Procedure description does not match the insurance plan",
+  "meaning": "The payer refused the request because a procedure description differs from the one in the hospital's insurance plan.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Copy the benefit type display exactly as the plan carries it.",
+   "Take the code and the description from the same plan entry.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1206": {
+  "title": "Procedure type is not accepted",
+  "meaning": "The payer refused the request because the type sent for a procedure is not one it accepts.",
+  "fix": [
+   "Set every procedure component to the value the insurance plan response gives for the package. Do not derive these values by hand.",
+   "Correct the type on the named Claim.procedure entry.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1207": {
+  "title": "Procedure factor is not accepted",
+  "meaning": "The payer refused the request because the factor sent for a procedure is not one it accepts.",
+  "fix": [
+   "Set every procedure component to the value the insurance plan response gives for the package.",
+   "Correct the factor for the named procedure.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1208": {
+  "title": "Item quantity is not accepted",
+  "meaning": "The payer refused the request because the quantity sent for an item failed its check.",
+  "fix": [
+   "Correct Claim.item.quantity.value for the named item.",
+   "Check it against the package in the insurance plan.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1209": {
+  "title": "Item net amount is zero or less",
+  "meaning": "The payer refused the request because an item's net amount was not greater than zero.",
+  "fix": [
+   "Give every item a net amount above 0.",
+   "Take package prices from the insurance plan. Cost values there are in rupees, with unit INR.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1210": {
+  "title": "Procedure status is not accepted",
+  "meaning": "The payer refused the request because the status sent for a procedure is not one it accepts.",
+  "fix": [
+   "Use preparation in Procedure.status for a procedure that has not happened yet.",
+   "Check that every Claim.procedure reference points at a Procedure in the bundle.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1211": {
+  "title": "Beneficiary and care plan match no rule at this hospital",
+  "meaning": "The payer refused the request because the beneficiary and the care plan met none of its criteria for treatment at your hospital.",
+  "fix": [
+   "Run a coverage eligibility check with purpose auth-requirements for the same beneficiary and procedures. It tells you whether the treatment is covered for this member at your hospital.",
+   "Correct the beneficiary or care plan details to match, or choose a package the check covers.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1212": {
+  "title": "Enhancement has no approved preauthorisation",
+  "meaning": "The payer refused an enhancement because it holds no approved preauthorisation for that case.",
+  "fix": [
+   "Check the case number. It must be the one your approved preauthorisation carries in Claim.identifier.",
+   "If the case has no approval, send a new preauthorisation with workflow 12, as the message instructs.",
+   "Send the enhancement only after approval arrives on /v1/preauth/on_submit with workflow 21."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1213": {
+  "title": "Enhancement sent while the case is still in progress",
+  "meaning": "The payer refused an enhancement because it is still deciding an earlier request on the same case.",
+  "fix": [
+   "Wait for the payer's decision on the earlier request. It arrives on /v1/preauth/on_submit.",
+   "Send the enhancement again after that decision arrives."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1214": {
+  "title": "Resubmission has no approved preauthorisation",
+  "meaning": "The payer refused a resubmission because it holds no approved preauthorisation for that case.",
+  "fix": [
+   "Check that the case number matches Claim.identifier on the original preauthorisation.",
+   "If no approved preauthorisation exists, send a new preauthorisation with workflow 12, as the message instructs."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1215": {
+  "title": "Resubmission sent while the case is still in progress",
+  "meaning": "The payer refused a resubmission because it is still deciding an earlier request on the same case.",
+  "fix": [
+   "Wait for the payer's decision on the earlier request. It arrives on /v1/preauth/on_submit.",
+   "Send the resubmission again after that decision arrives."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1216": {
+  "title": "New preauthorisation sent for a case already in progress",
+  "meaning": "The payer refused a new preauthorisation because a request on the same case is still in progress.",
+  "fix": [
+   "Do not open a second preauthorisation on a case that is in progress.",
+   "Wait for the decision on the first request. It arrives on /v1/preauth/on_submit.",
+   "If the new request is for a different admission, give it its own case number in Claim.identifier."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1217": {
+  "title": "New preauthorisation sent for a case already approved",
+  "meaning": "The payer refused a new preauthorisation because the case already has an approved one.",
+  "fix": [
+   "To add treatment to the approved case, send an enhancement with workflow 13.",
+   "To resubmit the case, send workflow 121.",
+   "If the request is for a different admission, give it its own case number in Claim.identifier."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1218": {
+  "title": "Query response sent for a case that was not queried",
+  "meaning": "The payer refused a query response because it holds no queried preauthorisation for that case.",
+  "fix": [
+   "Send a query response only after the payer queries the case. A query arrives on /v1/preauth/on_submit with workflow 24 and adjudication reason queried.",
+   "Check that the case number matches the queried case.",
+   "If the case was not queried, wait for the payer's decision instead."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1219": {
+  "title": "Case is not in the queried state",
+  "meaning": "The payer refused a query response because the case it names has not been queried.",
+  "fix": [
+   "Send a query response only after the payer queries the case. A query arrives on /v1/preauth/on_submit with workflow 24 and adjudication reason queried.",
+   "Check that the case number matches the queried case.",
+   "If the case was not queried, wait for the payer's decision instead."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1220": {
+  "title": "Investigation description does not match its code",
+  "meaning": "The payer refused the request because an investigation's description does not match the payer's description for its code.",
+  "fix": [
+   "Take investigation codes and descriptions from the coverage eligibility auth-requirements response. It lists the documents a preauthorisation needs.",
+   "Copy the display exactly as the payer published it.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1221": {
+  "title": "Investigation code is not valid",
+  "meaning": "The payer refused the request because an investigation code is not one it recognises.",
+  "fix": [
+   "Take investigation codes and descriptions from the coverage eligibility auth-requirements response. It lists the documents a preauthorisation needs.",
+   "Copy the code exactly as the payer published it.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1222": {
+  "title": "Investigation status is not accepted",
+  "meaning": "The payer refused the request because the status sent for an investigation is not one it accepts.",
+  "fix": [
+   "Correct the status on the named investigation.",
+   "Resend the request.",
+   "If the value matches your clinical record, contact the support team with the case number."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1223": {
+  "title": "Investigation attachment is not valid",
+  "meaning": "The payer refused the request because a document attached to an investigation failed its checks.",
+  "fix": [
+   "Re-encode the file as Base64. Check its name and content type against the rules above.",
+   "Keep each file within 2 MB. Merge several documents into one file when an item needs them.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1224": {
+  "title": "Implant description does not match its code",
+  "meaning": "The payer refused the request because an implant's description does not match the payer's description for its code.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Take the implant code and its description from the same Implant cost line.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1225": {
+  "title": "Implant code is not valid",
+  "meaning": "The payer refused the request because an implant code is not one it recognises.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Use only implant codes from the plan's Implant cost lines for the package.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1226": {
+  "title": "Implant status is not accepted",
+  "meaning": "The payer refused the request because the status sent for an implant is not one it accepts.",
+  "fix": [
+   "Correct the status on the named implant.",
+   "Resend the request.",
+   "If the value matches your clinical record, contact the support team with the case number."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1227": {
+  "title": "Implant attachment is not valid",
+  "meaning": "The payer refused the request because a document attached to an implant failed its checks.",
+  "fix": [
+   "Re-encode the file as Base64. Check its name and content type against the rules above.",
+   "Keep each file within 2 MB. Merge several documents into one file when an item needs them.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1228": {
+  "title": "Implant quantity is not accepted",
+  "meaning": "The payer refused the request because the quantity sent for an implant failed its check.",
+  "fix": [
+   "Correct the quantity for the named implant.",
+   "Check it against the implant's cost line in the insurance plan.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1229": {
+  "title": "Implant net amount is not accepted",
+  "meaning": "The payer refused the request because the net amount sent for an implant failed its check.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Work the implant's net amount from the price on its Implant cost line. Cost values are in rupees, with unit INR.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1230": {
+  "title": "Implant unit price is not accepted",
+  "meaning": "The payer refused the request because the unit price sent for an implant failed its check.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Use the price on the implant's Implant cost line. Cost values are in rupees, with unit INR.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1231": {
+  "title": "Claim already raised for this case",
+  "meaning": "The payer refused a preauthorisation request because the final claim for the case has already been raised.",
+  "fix": [
+   "Do not send further preauthorisation requests for this case number.",
+   "Continue the case on the claim."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1232": {
+  "title": "Investigations missing for a private hospital",
+  "meaning": "The payer refused the request because a private hospital sent no investigation details for the case.",
+  "fix": [
+   "Run a coverage eligibility check with purpose auth-requirements. Its response lists the documents the preauthorisation needs.",
+   "Attach each investigation as a supportingInfo entry with category INV, Document Type - Investigation.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1233": {
+  "title": "Wallet short and patient liability not allowed",
+  "meaning": "The payer refused the request because the beneficiary's wallet cannot cover it and your hospital may not charge the shortfall to the patient.",
+  "fix": [
+   "Run a coverage eligibility check with purpose validation. It returns the used amount, the available balance and the wallet liability.",
+   "Reduce the request so it fits within the available balance.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1234": {
+  "title": "No preauthorisation found for the case number",
+  "meaning": "The payer refused the request because it holds no preauthorisation for the case number sent.",
+  "fix": [
+   "Check the case number against the one on the original preauthorisation.",
+   "If no preauthorisation exists, send a new one with workflow 12."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1235": {
+  "title": "Wallet balance is insufficient",
+  "meaning": "The payer refused the request because the beneficiary's wallet balance cannot cover it.",
+  "fix": [
+   "Run a coverage eligibility check with purpose validation. It returns the used amount, the available balance and the wallet liability.",
+   "Reduce the request so it fits within the available balance.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1236": {
+  "title": "Claim type is not in-patient or out-patient",
+  "meaning": "The payer refused the request because the claim type was missing or not an accepted in-patient or out-patient value.",
+  "fix": [
+   "Set Claim.type with the system and code above for an in-patient case.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1237": {
+  "title": "Beneficiary has an active preauthorisation at another hospital",
+  "meaning": "The payer refused the request because the beneficiary already has an active preauthorisation at another hospital.",
+  "fix": [
+   "Ask the hospital named in the message to cancel its active preauthorisation, or to raise its claim.",
+   "Resend your request once that hospital confirms."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1238": {
+  "title": "Beneficiary has an active preauthorisation at your hospital",
+  "meaning": "The payer refused the request because the beneficiary already has an active preauthorisation at your hospital.",
+  "fix": [
+   "Find the active preauthorisation by the reference number in the message.",
+   "Cancel it, or raise its claim.",
+   "Resend your request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1239": {
+  "title": "Hospital configuration not found",
+  "meaning": "The payer refused the request because it has no configuration set up for your hospital.",
+  "fix": [
+   "Contact the support team, as the message instructs.",
+   "Resend the request once the support team confirms your configuration."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1240": {
+  "title": "Requested procedures not found",
+  "meaning": "The payer refused the request because it holds no details for the procedures requested.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Use only package codes from the current plan in Claim.item.productOrService.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1241": {
+  "title": "Registration date is not valid",
+  "meaning": "The payer refused the request because the patient's registration date was missing or not valid.",
+  "fix": [
+   "Send the registration date in a supportingInfo entry with category OTH and code EDT.",
+   "Send the value as timing, a date or a period, or as a string.",
+   "Use the NRCeS date-time format, for example 2026-03-10T21:21:17+05:30.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1242": {
+  "title": "Registration date format is not valid",
+  "meaning": "The payer refused the request because the patient's registration date was not in an accepted format.",
+  "fix": [
+   "Write the registration date in the NRCeS date-time format, for example 2026-03-10T21:21:17+05:30.",
+   "Send it as timing, a date or a period, or as a string, in the entry with category OTH and code EDT.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1243": {
+  "title": "Admission date is not valid",
+  "meaning": "The payer refused the request because the admission date was missing or not valid.",
+  "fix": [
+   "Send the admission date in a supportingInfo entry with code ADDD.",
+   "Send the value as timing, a date or a period, or as a string.",
+   "Use the NRCeS date-time format, for example 2026-03-10T21:21:17+05:30.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1244": {
+  "title": "Admission date format is not valid",
+  "meaning": "The payer refused the request because the admission date was not in an accepted format.",
+  "fix": [
+   "Write the admission date in the NRCeS date-time format, for example 2026-03-10T21:21:17+05:30.",
+   "Send it as timing, a date or a period, or as a string, in the entry with code ADDD.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1245": {
+  "title": "A scheme rule failed",
+  "meaning": "The payer refused the request because it broke one of the scheme's business rules.",
+  "fix": [
+   "Read the message text you received. Correct the request against the rule it names.",
+   "If the message reads only Rule failure., contact the support team with the case number.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1246": {
+  "title": "Payer id is not valid",
+  "meaning": "The payer refused the request because the payer identifier in it was not valid.",
+  "fix": [
+   "Set x-hcx-recipient_code to the payer's participant code.",
+   "Give the payer Organization its identifier, and point Claim.insurer at that Organization.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1247": {
+  "title": "Payer details not received from the exchange",
+  "meaning": "The payer refused the request because it did not receive the payer details for the payer identifier sent.",
+  "fix": [
+   "Check the payer id as described for PAYR-1246.",
+   "Resend the request.",
+   "If it repeats with a correct payer id, contact the support team."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1248": {
+  "title": "Item code is not valid",
+  "meaning": "The payer refused the request because the code on an item is not valid.",
+  "fix": [
+   "Fetch the current insurance plan for your hospital and the beneficiary's policy.",
+   "Copy the package code from the plan into Claim.item.productOrService for the named item.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1249": {
+  "title": "Item sequence is not valid",
+  "meaning": "The payer refused the request because an item's sequence number is not valid.",
+  "fix": [
+   "Give every item a unique whole-number sequence, starting at 1.",
+   "Check that each cross-reference points at a sequence that exists in the Claim.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1250": {
+  "title": "Policy is not listed",
+  "meaning": "The payer refused the request because the policy code sent is not one it lists.",
+  "fix": [
+   "Use the policy code the beneficiary holds with this payer.",
+   "If you do not have it, run a coverage eligibility check with purpose discovery. It finds the active policy code.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1251": {
+  "title": "No billable treatment plan",
+  "meaning": "The payer refused the request because it carried no billable treatment plan for the case.",
+  "fix": [
+   "Add at least one item with a package code from the insurance plan, a quantity, a unit price and a net amount above 0.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1252": {
+  "title": "Case is not in a state that can be cancelled",
+  "meaning": "The payer refused a cancellation because the case is not currently submitted or approved.",
+  "fix": [
+   "Do not resend the cancellation. You cannot cancel this case.",
+   "Read the current status in the message. Continue the case from that state."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1253": {
+  "title": "Case is already cancelled",
+  "meaning": "The payer refused a cancellation because the case is already cancelled.",
+  "fix": [
+   "Do not resend the cancellation.",
+   "Mark the case cancelled in your system.",
+   "For further treatment, raise a new preauthorisation with a new case number. A cancelled case number accepts no preauthorisation."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1254": {
+  "title": "Treatment guideline questionnaire response missing",
+  "meaning": "The payer refused the request because a procedure needs a completed treatment guideline checklist and none was sent.",
+  "fix": [
+   "Take the STG questionnaire from the insurance plan, or from the coverage eligibility auth-requirements response.",
+   "Fill a QuestionnaireResponse. Put the questionnaire URL from the insurance plan in QuestionnaireResponse.questionnaire.",
+   "Add a supportingInfo entry to the Claim with category STG. Its value is a reference to that QuestionnaireResponse.",
+   "Include the QuestionnaireResponse resource in the bundle at that reference."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1255": {
+  "title": "Case number already cancelled",
+  "meaning": "The payer refused a preauthorisation because its case number belongs to a cancelled case.",
+  "fix": [
+   "Raise a new preauthorisation with a new case number in Claim.identifier.",
+   "Send it with workflow 12."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1256": {
+  "title": "No biometric authentication and no consent questionnaire",
+  "meaning": "The payer refused a new preauthorisation because it carried neither the patient's biometric authentication nor the signed consent questionnaire.",
+  "fix": [
+   "Send biometric authentication. Authenticate the patient by fingerprint, iris or face. Pass the user token from the verification as a header on the preauthorisation. The token is valid for 30 minutes.",
+   "Or send the Authentication Consent Questionnaire response. Take the questionnaire from the insurance plan for the policy. The consent document is signed by the doctor and the patient. Send the response as a QuestionnaireResponse, referenced from a supportingInfo entry with category INF."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1257": {
+  "title": "Payment already initiated for the case",
+  "meaning": "The payer refused a cancellation because payment for the case has already started.",
+  "fix": [
+   "Do not resend the cancellation. You cannot cancel this case.",
+   "Follow the case through payment."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1258": {
+  "title": "Payment already cleared for the case",
+  "meaning": "The payer refused a cancellation because payment for the case has already been made.",
+  "fix": [
+   "Do not resend the cancellation. You cannot cancel this case.",
+   "Record the case as paid."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1259": {
+  "title": "Newborn date of birth missing",
+  "meaning": "The payer refused a newborn case because the baby's date of birth was not sent.",
+  "fix": [
+   "Add the baby's date of birth to the child's Patient.",
+   "Attach the proof of date of birth: category DOB, code BCF for a birth certificate, or DCB for a government hospital discharge card.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1260": {
+  "title": "Newborn date of birth is in the future",
+  "meaning": "The payer refused a newborn case because the baby's date of birth was later than today.",
+  "fix": [
+   "Correct the child's date of birth. Check it against the proof of date of birth you attach.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1261": {
+  "title": "Newborn details are not valid",
+  "meaning": "The payer refused a newborn case because the newborn details failed its checks.",
+  "fix": [
+   "The parent, mother or father, is the primary Patient.",
+   "The parent's Patient links the child's Patient through link, with type refer and other pointing at the child.",
+   "The child's Patient carries gender, date of birth and name.",
+   "Proof of date of birth: category DOB, code BCF for a birth certificate, or DCB for a government hospital discharge card."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1262": {
+  "title": "Newborn gender missing",
+  "meaning": "The payer refused a newborn case because the baby's gender was not sent.",
+  "fix": [
+   "Add the gender to the child's Patient. Use a value from the administrative gender value set, https://hl7.org/fhir/R4/valueset-administrative-gender.html.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1263": {
+  "title": "Newborn documents missing",
+  "meaning": "The payer refused a newborn case because a mandatory document for the baby was not attached.",
+  "fix": [
+   "Proof of date of birth: category DOB, code BCF for a birth certificate, or DCB for a government hospital discharge card.",
+   "A supporting attachment that justifies a bill in the parent's name as Baby of <parent name>.",
+   "Every document the coverage eligibility auth-requirements response lists for the procedures."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1264": {
+  "title": "Newborn documents missing",
+  "meaning": "The payer refused a newborn case because a mandatory document for the baby was not attached.",
+  "fix": [
+   "Proof of date of birth: category DOB, code BCF for a birth certificate, or DCB for a government hospital discharge card.",
+   "A supporting attachment that justifies a bill in the parent's name as Baby of <parent name>.",
+   "Every document the coverage eligibility auth-requirements response lists for the procedures."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1265": {
+  "title": "Newborn documents missing",
+  "meaning": "The payer refused a newborn case because a mandatory document for the baby was not attached.",
+  "fix": [
+   "Proof of date of birth: category DOB, code BCF for a birth certificate, or DCB for a government hospital discharge card.",
+   "A supporting attachment that justifies a bill in the parent's name as Baby of <parent name>.",
+   "Every document the coverage eligibility auth-requirements response lists for the procedures."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1266": {
+  "title": "Newborn documents missing",
+  "meaning": "The payer refused a newborn case because a mandatory document for the baby was not attached.",
+  "fix": [
+   "Proof of date of birth: category DOB, code BCF for a birth certificate, or DCB for a government hospital discharge card.",
+   "A supporting attachment that justifies a bill in the parent's name as Baby of <parent name>.",
+   "Every document the coverage eligibility auth-requirements response lists for the procedures."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1267": {
+  "title": "Active newborn preauthorisation at your hospital",
+  "meaning": "The payer refused a newborn case because the beneficiary already has an active newborn preauthorisation at your hospital.",
+  "fix": [
+   "Find the active preauthorisation by the reference number in the message.",
+   "Cancel it, or raise its claim.",
+   "Resend your request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1268": {
+  "title": "Active newborn preauthorisation at another hospital",
+  "meaning": "The payer refused a newborn case because the beneficiary already has an active newborn preauthorisation at another hospital.",
+  "fix": [
+   "Ask the hospital named in the message to cancel its active preauthorisation, or to raise its claim.",
+   "Resend your request once that hospital confirms."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1269": {
+  "title": "Newborn is older than 6 years",
+  "meaning": "The payer refused a newborn case because the child's date of birth is more than 6 years ago.",
+  "fix": [
+   "Check the date of birth against the proof you attach. Correct it if it is wrong.",
+   "A newborn case is for a child aged 6 or under who has no Member ID yet. If the child is older than 6 years, do not send the case as a newborn case.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1270": {
+  "title": "Item LM100 sent on a preauthorisation",
+  "meaning": "The payer refused the preauthorisation because it included item LM100, which belongs only on a claim.",
+  "fix": [
+   "Remove the LM100 item from the preauthorisation.",
+   "Send LM100 only on the claim, when the discharge qualifies.",
+   "Resend the preauthorisation."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1271": {
+  "title": "Consent questionnaire answer missing",
+  "meaning": "The payer refused a new preauthorisation because a question in the consent questionnaire had no answer.",
+  "fix": [
+   "Answer every question in the questionnaire, as the insurance plan for the policy defines it.",
+   "Or send biometric authentication. Authenticate the patient by fingerprint, iris or face. Pass the user token from the verification as a header on the preauthorisation. The token is valid for 30 minutes.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1272": {
+  "title": "Biometric user token is not valid",
+  "meaning": "The payer refused the request because the patient's biometric user token was not valid.",
+  "fix": [
+   "Authenticate the patient again by fingerprint, iris or face.",
+   "Send the new user token with the preauthorisation.",
+   "If biometric capture keeps failing, send the Authentication Consent Questionnaire response instead."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1273": {
+  "title": "Questionnaire not found for the selection",
+  "meaning": "The payer refused the request because a questionnaire response pointed at a questionnaire it could not find.",
+  "fix": [
+   "Put the exact questionnaire URL in QuestionnaireResponse.questionnaire. Take it from the insurance plan or the coverage eligibility auth-requirements response.",
+   "Refresh your stored insurance plan if it is out of date.",
+   "Resend the request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1301": {
+  "title": "A claim already exists for this case",
+  "meaning": "The payer refused a new claim because a claim has already been raised for the same case.",
+  "fix": [
+   "Do not raise a second claim for the case. Wait for the payer's response to the first claim on /v1/claim/on_submit.",
+   "If the payer queried the first claim, answer the query on the same claim. Follow answer a payer query on a claim.",
+   "If the payer rejected the claim and you dispute the decision, follow ask the payer to reprocess a claim.",
+   "If your records show no earlier claim, search your submission log for an earlier 202 Accepted on the same case number."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1302": {
+  "title": "No approved preauthorisation for this case",
+  "meaning": "The payer refused a new claim because it found no approved preauthorisation for the case.",
+  "fix": [
+   "Put the identifier of the approved preauthorisation in Claim.identifier, or reference the preAuthRef from its ClaimResponse.",
+   "Submit the claim only after the preauthorisation is approved and treatment is complete. Follow submit a preauthorisation first.",
+   "Set x-hcx-recipient_code to the processingID from the get policies response, not the PayerID."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1303": {
+  "title": "No active claim to update for this case",
+  "meaning": "The payer refused your query response because the case has no open claim to update.",
+  "fix": [
+   "Reuse the original Claim.identifier in the query response.",
+   "Check the payer's last response on the claim. If it was response.complete, the claim is closed and a query response will not be accepted.",
+   "To dispute a closed claim that was rejected, follow ask the payer to reprocess a claim.",
+   "If no claim exists yet, submit one first. Follow submit a claim after discharge."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1304": {
+  "title": "The claim for this case is not under query",
+  "meaning": "The payer refused your query response because it has not queried the claim for this case.",
+  "fix": [
+   "Send a query response only after a query arrives. Read outcome and the adjudication reason code together: partial with queried is a query.",
+   "Reuse the Claim.identifier of the queried claim.",
+   "Set x-hcx-workflow_id to the claim query response code from workflow codes, not a preauthorisation code."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1305": {
+  "title": "The use case is not valid for this case",
+  "meaning": "The payer refused the request because the use case it declares is not valid for the case.",
+  "fix": [
+   "Set Claim.use to claim on every claim bundle.",
+   "If you send x-hcx-use_case, use the claim value for the step: New for a first claim, Resubmit for a resubmission.",
+   "Declare a resubmission only for a case that already has a claim."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1306": {
+  "title": "The procedure is not in the preauthorisation request",
+  "meaning": "The claim bills a procedure that the preauthorisation for the case never requested.",
+  "fix": [
+   "Claim only the procedures the preauthorisation requested. Reuse its procedure entries instead of rebuilding them.",
+   "Keep each item's Claim.item[].sequence as it was in the preauthorisation.",
+   "If treatment needed a procedure the preauthorisation did not cover, request an enhancement before discharge. Follow request a preauthorisation enhancement."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1307": {
+  "title": "The procedure quantity is not valid",
+  "meaning": "The claim carries a quantity for a procedure that the payer does not accept for the case.",
+  "fix": [
+   "Compare Claim.item[].quantity with the item at the same sequence in the approved preauthorisation.",
+   "Send the quantity of the procedure actually delivered to the patient.",
+   "On the LM100 item, send the number of days the patient was admitted.",
+   "For a cyclic procedure, stay within the cycles the insurance plan allows. Payment covers only cycles with a biometric capture."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1308": {
+  "title": "The procedure is not in the active claim",
+  "meaning": "The update names a procedure that the claim now open for the case does not contain.",
+  "fix": [
+   "Keep the items of the submitted claim when you answer a query. Change what the query asked for, such as supporting documents.",
+   "Reuse the original Claim.identifier and each item's sequence."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1309": {
+  "title": "The implant is not in the preauthorisation request",
+  "meaning": "The claim bills an implant that the preauthorisation for the case never requested.",
+  "fix": [
+   "Claim only the implants the preauthorisation requested. Reuse its implant entries instead of rebuilding them.",
+   "Keep each item's Claim.item[].sequence as it was in the preauthorisation.",
+   "If treatment needed an implant the preauthorisation did not cover, request an enhancement before discharge. Follow request a preauthorisation enhancement."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1310": {
+  "title": "The implant quantity is not valid",
+  "meaning": "The claim carries a quantity for an implant that the payer does not accept for the case.",
+  "fix": [
+   "Compare Claim.item[].quantity with the item at the same sequence in the approved preauthorisation.",
+   "Send the quantity of the implant actually delivered to the patient."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1311": {
+  "title": "The implant is not in the active claim",
+  "meaning": "The update names an implant that the claim now open for the case does not contain.",
+  "fix": [
+   "Keep the items of the submitted claim when you answer a query. Change what the query asked for, such as supporting documents.",
+   "Reuse the original Claim.identifier and each item's sequence."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1312": {
+  "title": "The investigation is not in the preauthorisation request",
+  "meaning": "The claim bills an investigation that the preauthorisation for the case never requested.",
+  "fix": [
+   "Claim only the investigations the preauthorisation requested. Reuse its investigation entries instead of rebuilding them.",
+   "Keep each item's Claim.item[].sequence as it was in the preauthorisation.",
+   "If treatment needed an investigation the preauthorisation did not cover, request an enhancement before discharge. Follow request a preauthorisation enhancement."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1313": {
+  "title": "The investigation quantity is not valid",
+  "meaning": "The claim carries a quantity for an investigation that the payer does not accept for the case.",
+  "fix": [
+   "Compare Claim.item[].quantity with the item at the same sequence in the approved preauthorisation.",
+   "Send the quantity of the investigation actually delivered to the patient."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1314": {
+  "title": "The investigation is not in the active claim",
+  "meaning": "The update names an investigation that the claim now open for the case does not contain.",
+  "fix": [
+   "Keep the items of the submitted claim when you answer a query. Change what the query asked for, such as supporting documents.",
+   "Reuse the original Claim.identifier and each item's sequence."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1315": {
+  "title": "The procedure was rejected at preauthorisation",
+  "meaning": "The claim bills a procedure that the payer rejected when it decided the preauthorisation.",
+  "fix": [
+   "Remove the rejected item from the claim.",
+   "Read the item adjudication in the preauthorisation's ClaimResponse before you build the claim. The adjudication with category status gives each item's decision.",
+   "Build claim items from the approved items only."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1316": {
+  "title": "The investigation was rejected at preauthorisation",
+  "meaning": "The claim bills an investigation that the payer rejected when it decided the preauthorisation.",
+  "fix": [
+   "Remove the rejected item from the claim.",
+   "Read the item adjudication in the preauthorisation's ClaimResponse before you build the claim. The adjudication with category status gives each item's decision.",
+   "Build claim items from the approved items only."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1317": {
+  "title": "The implant was rejected at preauthorisation",
+  "meaning": "The claim bills an implant that the payer rejected when it decided the preauthorisation.",
+  "fix": [
+   "Remove the rejected item from the claim.",
+   "Read the item adjudication in the preauthorisation's ClaimResponse before you build the claim. The adjudication with category status gives each item's decision.",
+   "Build claim items from the approved items only."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1318": {
+  "title": "The claim has no requested treatment plan",
+  "meaning": "The claim carries no requested treatment plan for the case, so the payer cannot check it.",
+  "fix": [
+   "Include the treatment items in Claim.item, each with its procedure code, category and amounts.",
+   "Reuse the procedure entries from the approved preauthorisation."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1319": {
+  "title": "The claim has no requested investigation plan",
+  "meaning": "The claim carries no requested investigation plan for the case, so the payer cannot check it.",
+  "fix": [
+   "Include the investigation items the preauthorisation requested, each with its investigation code and amounts.",
+   "Reuse the investigation entries from the approved preauthorisation."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1320": {
+  "title": "The payer has no details for the requested investigations",
+  "meaning": "The payer's system holds no details for the investigations the claim requests.",
+  "fix": [
+   "Take codes from the current insurance plan for your hospital. Follow request the insurance plan.",
+   "Refresh the insurance plan at least weekly, and at once when the policy is renewed or amended.",
+   "Outdated tariff versions cause rate mismatches and automatic claim rejection. Record which plan version each claim used.",
+   "Check each code against the insurance plan. A code the plan does not list also returns PAYR-1221."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1321": {
+  "title": "The workflow id is not valid for this step",
+  "meaning": "The payer could not process the request because the workflow id it carries is not valid.",
+  "fix": [
+   "Set x-hcx-workflow_id to the code for the claim step you are taking. A new claim is 15, Claim Request Initiated.",
+   "For a query response and every other step, take the code from workflow codes.",
+   "In PMJAY there is no separate discharge workflow. Submit the claim with the Claim Submitted workflow id, not a discharge code."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1322": {
+  "title": "The case is not in a state that accepts this request",
+  "meaning": "The payer refused the request because of the current state of the case it names.",
+  "fix": [
+   "For no active case, check that the case number is the identifier of the approved preauthorisation. A closed claim does not reopen.",
+   "For an active instance, wait for the payer's response to the first request on /v1/claim/on_submit. Send the next request on the case after it arrives.",
+   "Send every request on a case one at a time. Queue the next request in your system until the previous response arrives."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1323": {
+  "title": "The beneficiary's wallet balance is too low",
+  "meaning": "The payer refused the claim because the beneficiary does not have enough scheme balance left.",
+  "fix": [
+   "Check the balance with a coverage eligibility check of purpose validation. It returns the used amount, the available balance and the wallet liability.",
+   "Keep the claimed amount at or below the available balance.",
+   "If the patient must pay the difference, check that patient liability applies at your hospital."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1324": {
+  "title": "The discharge stage is not valid",
+  "meaning": "The claim carries a discharge stage that the payer does not accept.",
+  "fix": [
+   "Send one Claim.supportingInfo entry with category DIS and code DTH, DTM, LAMA or DAMA.",
+   "Put the stage in valueString, spelled exactly as one of the accepted values.",
+   "Send the entry on every claim, surgical or medical."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1325": {
+  "title": "The admission date is not valid",
+  "meaning": "The payer read the admission date in the claim but does not accept it for the case.",
+  "fix": [
+   "Carry each date in its own Claim.supportingInfo entry, built as the claim request bundle shows it.",
+   "Use the actual admission date and time from the patient's record.",
+   "Send the date as a string value or as timing, in the NRCeS date-time format. Use a full date-time with the offset, in the form YYYY-MM-DDThh:mm:ss+05:30."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1326": {
+  "title": "The discharge date is not valid",
+  "meaning": "The payer read the discharge date in the claim but does not accept it for the case.",
+  "fix": [
+   "Carry each date in its own Claim.supportingInfo entry, built as the claim request bundle shows it.",
+   "Use the actual discharge date and time from the patient's record.",
+   "Send the date as a string value or as timing, in the NRCeS date-time format. Use a full date-time with the offset, in the form YYYY-MM-DDThh:mm:ss+05:30."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1327": {
+  "title": "The admission date is in the wrong format",
+  "meaning": "The payer could not read the admission date in the claim because of its format.",
+  "fix": [
+   "Carry each date in its own Claim.supportingInfo entry, built as the claim request bundle shows it.",
+   "Send the date as a string value or as timing, in the NRCeS date-time format. Use a full date-time with the offset, in the form YYYY-MM-DDThh:mm:ss+05:30.",
+   "Use the same offset on every date in the claim."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1328": {
+  "title": "The discharge date is in the wrong format",
+  "meaning": "The payer could not read the discharge date in the claim because of its format.",
+  "fix": [
+   "Carry each date in its own Claim.supportingInfo entry, built as the claim request bundle shows it.",
+   "Send the date as a string value or as timing, in the NRCeS date-time format. Use a full date-time with the offset, in the form YYYY-MM-DDThh:mm:ss+05:30.",
+   "Use the same offset on every date in the claim."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1329": {
+  "title": "The registration date is not valid",
+  "meaning": "The payer read the registration date in the claim but does not accept it for the case.",
+  "fix": [
+   "Send the registration date in the Claim.supportingInfo entry with category OTH and code EDT.",
+   "Use the actual registration date and time from the patient's record.",
+   "Send the date as a string value or as timing, in the NRCeS date-time format. Use a full date-time with the offset, in the form YYYY-MM-DDThh:mm:ss+05:30."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1330": {
+  "title": "The registration date is in the wrong format",
+  "meaning": "The payer could not read the registration date in the claim because of its format.",
+  "fix": [
+   "Send the registration date in the Claim.supportingInfo entry with category OTH and code EDT.",
+   "Send the date as a string value or as timing, in the NRCeS date-time format. Use a full date-time with the offset, in the form YYYY-MM-DDThh:mm:ss+05:30.",
+   "Use the same offset on every date in the claim."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1331": {
+  "title": "The receiver is not registered in NHCX",
+  "meaning": "The payer found that the receiver named in the claim is not a registered participant.",
+  "fix": [
+   "Set x-hcx-recipient_code to the processingID from the get policies response.",
+   "Check the code is a registered participant code before you send.",
+   "The same condition at the exchange returns NHCX-1003."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1332": {
+  "title": "The Claim Review Committee request is not valid",
+  "meaning": "The payer refused a request meant for review of a claim decision.",
+  "fix": [
+   "Check whether the CRC has already decided the case. If it has, the decision stands.",
+   "Build the request as ask the payer to reprocess a claim describes."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1333": {
+  "title": "The claim type is not valid",
+  "meaning": "The claim says in-patient or out-patient in a way the payer does not accept.",
+  "fix": [
+   "Set Claim.type to the care type of the case. For in-patient care, use SNOMED CT 737481003, Inpatient care management.",
+   "Keep the claim type the same as in the approved preauthorisation."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1334": {
+  "title": "The payer has no configuration for your hospital",
+  "meaning": "The payer's system holds no configuration for the hospital that sent the claim.",
+  "fix": [
+   "Check that x-hcx-sender_code is your own registered participant code.",
+   "Check the provider Organization carries the hospital's HFR id as an identifier with type code NPI. It must match the id recorded in NHCX for your participant code.",
+   "If both are right, contact the support team with the case number and your x-hcx-correlation_id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1335": {
+  "title": "The implant quantity is not valid",
+  "meaning": "The claim carries an implant quantity that the payer does not accept.",
+  "fix": [
+   "Send the number of implants actually used.",
+   "Compare the quantity with the implant at the same sequence in the approved preauthorisation."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1336": {
+  "title": "The implant unit price is not valid",
+  "meaning": "The claim carries an implant unit price that the payer does not accept.",
+  "fix": [
+   "Take the implant price from the current insurance plan for your hospital.",
+   "Refresh the insurance plan at least weekly, and at once when the policy is renewed or amended.",
+   "Outdated tariff versions cause rate mismatches and automatic claim rejection. Record which plan version each claim used."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1337": {
+  "title": "The implant net amount is not valid",
+  "meaning": "The claim carries an implant net amount that the payer does not accept.",
+  "fix": [
+   "Recalculate net from the quantity and unit price you send for the implant.",
+   "Take the implant price from the current insurance plan for your hospital.",
+   "Amount calculations that do not add up also return PAYR-1017."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1338": {
+  "title": "The implant attachment is not valid",
+  "meaning": "The claim carries an implant attachment that the payer does not accept.",
+  "fix": [
+   "Encode the attachment value as Base64.",
+   "Give the attachment a name. The name cannot be empty.",
+   "Use one of the allowed content types: application/pdf, application/jpg, application/jpeg, application/png or application/fhir+json.",
+   "Keep each document under 2 MB. The whole bundle can be 20 MB at most."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1339": {
+  "title": "The implant status is not valid",
+  "meaning": "The claim carries an implant status that the payer does not accept.",
+  "fix": [
+   "Compare the status on the implant with the item at the same sequence in the approved preauthorisation.",
+   "Send Requested as the status on a requested item. The payer requires that value on the LM100 item.",
+   "The full list of accepted status values is not yet published."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1340": {
+  "title": "The investigation status is not valid",
+  "meaning": "The claim carries an investigation status that the payer does not accept.",
+  "fix": [
+   "Compare the status on the investigation with the item at the same sequence in the approved preauthorisation.",
+   "Send Requested as the status on a requested item. The payer requires that value on the LM100 item.",
+   "The full list of accepted status values is not yet published."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1341": {
+  "title": "The investigation attachment is not valid",
+  "meaning": "The claim carries an investigation attachment that the payer does not accept.",
+  "fix": [
+   "Encode the attachment value as Base64.",
+   "Give the attachment a name. The name cannot be empty.",
+   "Use one of the allowed content types: application/pdf, application/jpg, application/jpeg, application/png or application/fhir+json.",
+   "Keep each document under 2 MB. The whole bundle can be 20 MB at most."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1342": {
+  "title": "A case in progress blocks a new reimbursement request",
+  "meaning": "The payer refused a new reimbursement request because an earlier request on the same case is still in progress.",
+  "fix": [
+   "Wait for the payer's response to the earlier request before you send a new one.",
+   "Check that x-hcx-workflow_id is the reimbursement code for the step. Take it from workflow codes.",
+   "Send the new request with a new x-hcx-correlation_id once the earlier request is finished."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1343": {
+  "title": "A reimbursement was already approved for this case",
+  "meaning": "The payer refused a new reimbursement request because it has already approved one for the same case.",
+  "fix": [
+   "Do not resend the reimbursement request for the case.",
+   "To dispute the approved amount, raise a reprocess request instead. A reimbursement reprocess uses its own workflow id, R122.",
+   "Follow ask the payer to reprocess a claim for the request itself."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1344": {
+  "title": "The payer has no details for the requested procedures",
+  "meaning": "The payer's system holds no details for the procedures the claim requests.",
+  "fix": [
+   "Take codes from the current insurance plan for your hospital. Follow request the insurance plan.",
+   "Refresh the insurance plan at least weekly, and at once when the policy is renewed or amended.",
+   "Outdated tariff versions cause rate mismatches and automatic claim rejection. Record which plan version each claim used.",
+   "Check each code against the insurance plan. A code the plan does not list also returns PAYR-1204."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1345": {
+  "title": "The procedure status is not valid",
+  "meaning": "The claim carries a procedure status that the payer does not accept.",
+  "fix": [
+   "Compare the status on the procedure with the item at the same sequence in the approved preauthorisation.",
+   "Send Requested as the status on a requested item. The payer requires that value on the LM100 item.",
+   "The full list of accepted status values is not yet published."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1346": {
+  "title": "The procedure description is not valid",
+  "meaning": "The claim carries a procedure description that the payer does not accept.",
+  "fix": [
+   "Send the procedure description exactly as the insurance plan gives it for that procedure code.",
+   "Refresh the insurance plan at least weekly, and at once when the policy is renewed or amended."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1347": {
+  "title": "The procedure type is not valid",
+  "meaning": "The claim carries a procedure type that the payer does not accept.",
+  "fix": [
+   "Send the procedure type the insurance plan gives for the procedure code.",
+   "Compare the type with the procedure in the approved preauthorisation."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1348": {
+  "title": "The procedure factor is not valid",
+  "meaning": "The claim carries a procedure factor that the payer does not accept.",
+  "fix": [
+   "Compare the factor with the procedure at the same sequence in the approved preauthorisation.",
+   "Do not recompute the factor on your side between preauthorisation and claim."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1349": {
+  "title": "The procedure quantity is not valid",
+  "meaning": "The claim carries a procedure quantity that the payer does not accept.",
+  "fix": [
+   "Send the quantity actually delivered, compared with the approved preauthorisation.",
+   "On the LM100 item, send the number of days the patient was admitted.",
+   "For a cyclic procedure, stay within the cycles the insurance plan allows."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1350": {
+  "title": "The procedure net amount is not valid",
+  "meaning": "The claim carries a procedure net amount that the payer does not accept.",
+  "fix": [
+   "Take the package cost from the current insurance plan for your hospital.",
+   "Recalculate net from the quantity, factor and unitPrice you send.",
+   "Amount calculations that do not add up also return PAYR-1017.",
+   "Outdated tariff versions cause rate mismatches and automatic claim rejection. Record which plan version each claim used."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1351": {
+  "title": "The procedure speciality code is not valid",
+  "meaning": "The claim carries a procedure speciality code that the payer does not accept.",
+  "fix": [
+   "Send the category code of the specific cost of the plan in the insurance plan, for example MG for General Medicine.",
+   "Take the procedure and its speciality from the same entry in the insurance plan.",
+   "Refresh the insurance plan at least weekly, and at once when the policy is renewed or amended."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1352": {
+  "title": "The beneficiary and care plan do not fit this hospital",
+  "meaning": "The beneficiary and care plan in the claim match no rule for handling the case at this hospital.",
+  "fix": [
+   "Use the same beneficiary and care plan details as the approved preauthorisation.",
+   "Take the treatment from the insurance plan for your hospital.",
+   "Refresh the insurance plan at least weekly, and at once when the policy is renewed or amended."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1353": {
+  "title": "The care plan id is not valid",
+  "meaning": "The claim carries a care plan id the payer does not accept.",
+  "fix": [
+   "Use the care plan recorded when the beneficiary was registered.",
+   "Keep the care plan id the same as in the approved preauthorisation."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1354": {
+  "title": "The claim failed a payer rule",
+  "meaning": "The claim failed one of the payer's rules, and the message does not name the rule.",
+  "fix": [
+   "Recheck each package in the claim against the claim conditions in the insurance plan.",
+   "Compare the claim with the approved preauthorisation, item by item.",
+   "If you find nothing, contact the support team with the case number and your x-hcx-correlation_id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1355": {
+  "title": "The payer has no details for the requested implants",
+  "meaning": "The payer's system holds no details for the implants the claim requests.",
+  "fix": [
+   "Take codes from the current insurance plan for your hospital. Follow request the insurance plan.",
+   "Refresh the insurance plan at least weekly, and at once when the policy is renewed or amended.",
+   "Outdated tariff versions cause rate mismatches and automatic claim rejection. Record which plan version each claim used.",
+   "Check each code against the insurance plan. A code the plan does not list also returns PAYR-1225."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1356": {
+  "title": "The wallet is short and the patient cannot pay the difference",
+  "meaning": "The beneficiary's scheme balance does not cover the amount, and the hospital may not charge the patient the rest.",
+  "fix": [
+   "Check the balance with a coverage eligibility check of purpose validation. It returns the available balance and the wallet liability.",
+   "Reduce the claimed amount by the deficit in the message, so it stays within the available balance."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1357": {
+  "title": "The admission date is after the discharge date",
+  "meaning": "The claim gives an admission date later than its discharge date.",
+  "fix": [
+   "Correct whichever date is wrong, using the patient's record.",
+   "Use the same offset, +05:30, on the admission and discharge dates.",
+   "Carry each date in its own Claim.supportingInfo entry, built as the claim request bundle shows it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1358": {
+  "title": "The patient was registered too long after admission",
+  "meaning": "The registration date in the claim is later after admission than the scheme allows.",
+  "fix": [
+   "Check the registration date against the patient's record and correct it if it is wrong.",
+   "Check the admission date as well. A wrong admission date moves the window.",
+   "Use the same offset, +05:30, on both dates."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1359": {
+  "title": "The claim has no billable treatment plan",
+  "meaning": "The treatment plan in the claim has nothing the payer can bill for the case.",
+  "fix": [
+   "Send at least one treatment item with its code, quantity, unitPrice and net.",
+   "For a discharge against medical advice before or during surgery, add the LM100 item."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1360": {
+  "title": "An item code is not valid",
+  "meaning": "The claim carries an item code the payer does not accept at the named item sequence.",
+  "fix": [
+   "Take each item code from the current insurance plan for your hospital.",
+   "Compare the code with the item at the same sequence in the approved preauthorisation.",
+   "Refresh the insurance plan at least weekly, and at once when the policy is renewed or amended."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1361": {
+  "title": "An item sequence is not valid",
+  "meaning": "The claim carries an item sequence number the payer does not accept.",
+  "fix": [
+   "Keep the sequence each item had in the approved preauthorisation.",
+   "Give every item its own sequence number.",
+   "Check that careTeamSequence, diagnosisSequence, procedureSequence and informationSequence point at entries in the claim."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1362": {
+  "title": "A discharge against medical advice needs the LM100 procedure",
+  "meaning": "The patient left against medical advice before or during surgery, and the claim lacks the special procedure for that case.",
+  "fix": [
+   "Add an item with procedure code LM100 and status Requested.",
+   "Set its quantity to the number of days the patient was admitted.",
+   "Remove the other preauthorisation items. LM100 is the only procedure accepted, and only the actual stay is payable.",
+   "Keep the discharge entry: category DIS, code LAMA or DAMA, and the stage as its value."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1363": {
+  "title": "No biometric authentication and no consent questionnaire at discharge",
+  "meaning": "The claim carries neither proof that the patient was present at discharge nor the consent questionnaire that replaces it.",
+  "fix": [
+   "Authenticate the patient by fingerprint or iris or face at discharge. Pass the user token as a header parameter on the claim submission.",
+   "If biometric authentication is not possible, send the Authentication Consent Questionnaire response. Take the questionnaire for the policy from the insurance plan.",
+   "Add the response as a QuestionnaireResponse in the bundle. Reference it from Claim.supportingInfo with category INF, as the claim request bundle shows.",
+   "A cyclic package cannot use the consent form. Biometric authentication is mandatory at its discharge."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1364": {
+  "title": "A consent questionnaire answer is empty",
+  "meaning": "The consent questionnaire response in the claim leaves one of its questions unanswered.",
+  "fix": [
+   "Answer every question in the questionnaire. Give the item with the named link id a value.",
+   "Take the questions from the insurance plan for the policy, and refresh it when the policy changes.",
+   "Authenticate the patient by fingerprint or iris or face at discharge. Pass the user token as a header parameter on the claim submission."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1365": {
+  "title": "The standard treatment guideline response is missing",
+  "meaning": "A procedure in the claim needs its treatment guideline questionnaire answered, and the claim does not include the answer.",
+  "fix": [
+   "Take the STG questionnaire for the procedure from the insurance plan.",
+   "Send the questionnaire URL from the insurance plan back in the questionnaire response.",
+   "Reference the response from Claim.supportingInfo with category STG and the value as a reference."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1366": {
+  "title": "The biometric user token is not valid",
+  "meaning": "The token from the patient's biometric authentication is not valid for this claim.",
+  "fix": [
+   "Authenticate the patient again at discharge and send the new token with the claim.",
+   "Refresh the token automatically until the transaction cycle completes. If it expires, start a fresh biometric authentication.",
+   "For a cyclic procedure's claim, a still-valid refresh token from the last cycle is allowed. A new token is preferred.",
+   "If biometric authentication keeps failing, use the Authentication Consent Questionnaire for discharge instead."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1367": {
+  "title": "No biometric record for a cycle date",
+  "meaning": "The payer found no biometric authentication of the beneficiary for a date the claim gives for a treatment cycle.",
+  "fix": [
+   "Capture a live biometric authentication at every cycle, with process type Discharge. A refresh token is not allowed for a cycle.",
+   "Set each cycle's timingPeriod start and end to its biometric capture times.",
+   "Claim only the cycles that have a biometric capture. Payment covers only those."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1368": {
+  "title": "Cycle information is missing for some cycles",
+  "meaning": "The claim for a cyclic procedure does not carry information for every cycle it requests.",
+  "fix": [
+   "Send one Claim.supportingInfo entry per cycle, with category CD and code TD.",
+   "Give each entry a timingPeriod start and end that match that cycle's biometric capture.",
+   "List every cycle entry's sequence in the item's informationSequence.",
+   "Set the item quantity to the cycles actually given."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1369": {
+  "title": "Two biometric authentications on one date for a cyclic procedure",
+  "meaning": "The claim gives more than one biometric authentication on the same date for a cyclic procedure.",
+  "fix": [
+   "Correct the biometric authentication dates for each cycle, using your capture records.",
+   "Space cycles at least 24 hours apart from capture to capture. That also keeps them on different dates.",
+   "Disable biometric capture for the procedure for 24 hours after each capture in your system."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1370": {
+  "title": "A supporting detail has an invalid start date",
+  "meaning": "An entry in the claim's supporting information carries a start date the payer does not accept.",
+  "fix": [
+   "Send timingPeriod.start as a full date-time with offset, for example 2026-08-05T13:01:33+05:30.",
+   "For each cycle of a cyclic procedure, set the start and end to the biometric capture times for that cycle.",
+   "Keep the entry's sequence and the item's informationSequence pointing at each other."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1401": {
+  "title": "The policy is not allowed for your hospital",
+  "meaning": "The payer will not give your hospital the plan for this policy, and only the technical support team can change that.",
+  "fix": [
+   "Confirm that <policy_code> in the message is the policy you meant to request.",
+   "Contact the technical support team. Give them the full message, <policy_code>, your participant code, your HFR id and the x-hcx-correlation_id of the refused request.",
+   "After support resolves it, send a new request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1402": {
+  "title": "The payer has no policy with the code you requested",
+  "meaning": "The payer could not find the policy code in your insurance plan request, so it returned no plan.",
+  "fix": [
+   "Compare <policy_code> in the message with the policyNumber value you sent. Look for a typing error, a space or a wrong segment. The sample policy codes are PMJAY/HP/S/G and PMJAY/CH/S/G.",
+   "Take the policy code from your coverage eligibility result, not from free text.",
+   "If the code is correct, contact the technical support team. Give them the full message and the x-hcx-correlation_id of the refused request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1403": {
+  "title": "The renewal does not belong to the requested policy",
+  "meaning": "The payer knows the policy you asked about but not the renewal you named under it, so it returned no plan.",
+  "fix": [
+   "Compare <renewal_code> and <policy_code> in the message with the values your system sent. Correct whichever is wrong.",
+   "If both are correct, contact the technical support team. Give them the full message and the x-hcx-correlation_id of the refused request."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1404": {
+  "title": "No treatment is configured for the policy under any speciality",
+  "meaning": "The payer has the policy you asked about but no speciality or treatment set up under it, so there is no plan to return.",
+  "fix": [
+   "Compare <policy_code> in the message with the policyNumber value you sent. Correct it if it is not the policy you meant.",
+   "If the policy code is correct, contact the technical support team. The payer has to configure a speciality for the policy. Give them the full message and the x-hcx-correlation_id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1405": {
+  "title": "The payer has no enrolled hospital for your HFR id or sender code",
+  "meaning": "The payer could not find your hospital in its records from the facility registry id or sender code you sent, so it returned no plan.",
+  "fix": [
+   "Compare <hfr_id> in the message with your facility's HFR id. Correct the providerId value if it differs.",
+   "Send the HFR id that matches the registry id recorded for your participant in NHCX.",
+   "Check that <sender_code> is your own participant code.",
+   "If both values are correct, contact the technical support team. Your hospital's enrolment with the payer has to be checked. Give them the full message and the x-hcx-correlation_id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1406": {
+  "title": "An earlier insurance plan request for the same policy is still running",
+  "meaning": "The payer is still working on an earlier plan request from your hospital for the same policy, so wait before asking again.",
+  "fix": [
+   "Do not send another request for the same policy. Each one is refused while the earlier one runs.",
+   "Wait 15 to 60 minutes. Watch /v1/insuranceplan/on_request for the answer to the earlier request.",
+   "If no answer arrives after 60 minutes, contact the technical support team. Give them the correlation id from the message."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1501": {
+  "title": "The surgery date entry carries the wrong kind of value",
+  "meaning": "The scheme payer rejected your preauthorisation or claim because the surgery date entry holds a value that is not a date, a period or text.",
+  "fix": [
+   "Find the supportingInfo entry whose sequence matches the message.",
+   "Send the surgery date in that entry as a string in the NRCeS date-time format. Keep category ONS and code PSP.",
+   "Replace the value. Do not send an attachment or a reference in this entry."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1502": {
+  "title": "The admission date entry carries the wrong kind of value",
+  "meaning": "The scheme payer rejected your preauthorisation or claim because the admission date entry holds a value that is not a date, a period or text.",
+  "fix": [
+   "Find the supportingInfo entry whose sequence matches the message.",
+   "Send the admission date in that entry as a string in the NRCeS date-time format. Keep category ONS and code ADDD.",
+   "Replace the value. Do not send an attachment or a reference in this entry."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1503": {
+  "title": "The death date entry carries the wrong kind of value",
+  "meaning": "The scheme payer rejected your claim because the death date entry holds a value that is not a date, a period or text.",
+  "fix": [
+   "Find the supportingInfo entry whose sequence matches the message.",
+   "Send the death date in that entry as a string in the NRCeS date-time format. Keep category ONS and code DTM.",
+   "Replace the value. Do not send an attachment or a reference in this entry."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1504": {
+  "title": "The case remarks in your query response are not text",
+  "meaning": "The scheme payer rejected your answer to its query because the overall case remarks were not sent as text.",
+  "fix": [
+   "Find the supportingInfo entry whose sequence matches the message.",
+   "Put the remarks in that entry as a string, with category NMI and code CQD.",
+   "Replace any attachment or reference in this entry with the text itself."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1505": {
+  "title": "A questionnaire response is attached under the wrong category or code",
+  "meaning": "The scheme payer rejected your preauthorisation or claim because a questionnaire answer is attached under a category and code it does not accept.",
+  "fix": [
+   "Find the supportingInfo entry whose sequence matches the message.",
+   "Set its category and code to the pair for what it attaches, as in the table.",
+   "Point its valueReference at a QuestionnaireResponse resource included in the same bundle."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1506": {
+  "title": "The newborn's gender is not valid",
+  "meaning": "The scheme payer rejected your newborn case because the child's record has no valid gender.",
+  "fix": [
+   "Find the child Patient resource that the parent's link points to.",
+   "Set gender to a code from the value set above."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1507": {
+  "title": "The newborn's date of birth is not valid",
+  "meaning": "The scheme payer rejected your newborn case because the child's record has no valid date of birth.",
+  "fix": [
+   "Find the child Patient resource that the parent's link points to.",
+   "Set birthDate to the child's date of birth, in the form YYYY-MM-DD.",
+   "Check the date is not in the future and is within 6 years of the current date."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1508": {
+  "title": "The newborn link does not lead to a Patient resource",
+  "meaning": "The scheme payer rejected your newborn case because the parent's link to the child does not lead to a valid patient record.",
+  "fix": [
+   "Find the reference from the message in your bundle.",
+   "Make sure one bundle entry has that reference as its fullUrl, and that its resource is a Patient.",
+   "Put the child's details in that resource: gender, date of birth and name."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1509": {
+  "title": "The newborn's proof of birth attachment is not valid",
+  "meaning": "The scheme payer rejected your newborn case because the proof of birth document is missing or unusable.",
+  "fix": [
+   "Add or correct the proof of birth entry. Use category DOB and code BCF or DCB.",
+   "Encode the document as Base64, give it a name and set an accepted content type."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1510": {
+  "title": "A parameter code in your request is not valid",
+  "meaning": "The scheme payer rejected your request because one of its parameter codes is not a code it accepts.",
+  "fix": [
+   "Compare every Task.input type code and system in your request with the table.",
+   "Check the other coded values in your bundle against the sample bundles and the NRCeS code systems.",
+   "If you cannot find the parameter, contact the NHCX support team. Give them the full message and the x-hcx-correlation_id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1511": {
+  "title": "A parameter value in your request is not valid",
+  "meaning": "The scheme payer rejected your request because one of its parameter values is not a value it accepts.",
+  "fix": [
+   "Check each Task.input value in your request against the table.",
+   "Take reference numbers from the payer's earlier responses, not from free text.",
+   "If you cannot find the parameter, contact the NHCX support team. Give them the full message and the x-hcx-correlation_id."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1512": {
+  "title": "A patient reference does not lead to a Patient resource",
+  "meaning": "The scheme payer rejected your request because a reference to the patient does not lead to a valid patient record.",
+  "fix": [
+   "Search your bundle for the reference in the message.",
+   "Make sure one bundle entry has that reference as its fullUrl, and that its resource is a Patient.",
+   "Check the reference is spelled the same in both places.",
+   "Validate the bundle against the NRCeS profiles before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1513": {
+  "title": "A diagnosis is not sent as a coded concept",
+  "meaning": "The scheme payer rejected your request because a diagnosis was not sent as a code with its system.",
+  "fix": [
+   "Send every diagnosis as a diagnosisCodeableConcept with at least one coding:",
+   "Check every entry in the list, not only the first. Validate the bundle against the NRCeS profiles before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1514": {
+  "title": "The discharge information entry does not name a discharge stage",
+  "meaning": "The scheme payer rejected your claim because the discharge information entry was not text naming the discharge stage.",
+  "fix": [
+   "Find the supportingInfo entry whose sequence matches the message.",
+   "Send the discharge stage in that entry as a string, with category DIS and the code for the discharge."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1515": {
+  "title": "An organisation in your bundle has no name",
+  "meaning": "The scheme payer rejected your request because an organisation record in it has no valid name.",
+  "fix": [
+   "Find the Organization resource whose fullUrl matches the reference in the message.",
+   "Set its name to the organisation's name. Do not send an empty string.",
+   "Check every other Organization resource in the bundle, for the provider and the payer alike.",
+   "Validate the bundle against the NRCeS profiles before you send it."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1516": {
+  "title": "The payer cannot match your error response to any message",
+  "meaning": "The scheme payer refused an error response from your system because its identifiers match no message the payer knows about.",
+  "fix": [
+   "Take the identifiers for your error response from the message you are answering. Do not generate a fresh correlation id for a response.",
+   "Set x-hcx-sender_code to your own participant code. Set x-hcx-recipient_code to the sender of the message you answer.",
+   "Follow the identifier rules for responses in Correlation id, API call id and workflow id.",
+   "If the identifiers match and the code comes back, contact the NHCX support team. Give them the three values from the message."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1517": {
+  "title": "Your error was sent encrypted instead of as a protocol response",
+  "meaning": "The scheme payer refused an error from your system because it arrived in the encrypted structure instead of the protocol response structure.",
+  "fix": [
+   "Send the error as a ProtocolResponse. Its headers travel in clear, with the error in x-hcx-error_details:",
+   "x-hcx-entity-type is one of coverageeligibility, payment, insuranceplan, task, claim or preauth. x-hcx-ben-abha-id carries the beneficiary's ABHA number. Set the identifiers as Correlation id, API call id and workflow id describes."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1518": {
+  "title": "Your Task resource carries no input parameters",
+  "meaning": "The scheme payer rejected your task request because the task carries none of the inputs it needs.",
+  "fix": [
+   "Add the inputs your request needs, from the table.",
+   "Give each input a type coding, with a system and a code, and a value. An input with no type returns PAYR-1519."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1519": {
+  "title": "A Task input parameter has no type",
+  "meaning": "The scheme payer rejected your task request because at least one of the task's inputs does not say what kind of input it is.",
+  "fix": [
+   "Check every Task.input entry, not only the first.",
+   "Give each one a type.coding with a system and a code from the table.",
+   "Keep the value next to its type, as valueString or valueReference."
+  ],
+  "source": "payer"
+ },
+ "PAYR-1520": {
+  "title": "The communication reference does not lead to a Communication resource",
+  "meaning": "The scheme payer rejected your answer to its request for information because the reference to your communication does not lead to a communication record.",
+  "fix": [
+   "Search your bundle for the reference in the message.",
+   "Make sure one bundle entry has that reference as its fullUrl, and that its resource is a Communication.",
+   "Point the include input at that entry:"
+  ],
+  "source": "payer"
+ }
+}

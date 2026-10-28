@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, RefreshCw, PlusCircle, X, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
-import { Button, QueryResponseFields, formatMoney } from "../Common";
+import { Button, QueryResponseFields, formatMoney, NextStep } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
 import { Drawer, Modal } from "../Overlay";
@@ -404,6 +404,66 @@ export default function PreauthStatus({ ctx }) {
                 ? { tone: "pending", label: "Cancelled" }
                 : { tone: "pending", label: "Decision unclear" };
 
+  const guide = isFailed
+    ? {
+        tone: "bad",
+        title: "The payer never received this preauth",
+        steps: ["Read the reason above.", "Go back to the preauth draft, fix what it names, and submit again."],
+      }
+    : !isComplete
+      ? {
+          tone: "info",
+          title: statusData?.purpose === "cancel" ? "The payer is processing the cancellation" : "The payer is deciding",
+          text: "Private insurers must answer a preauth within 1 hour (IRDAI). You can leave this page; the decision appears here and in the Work Queue.",
+        }
+      : isApproved
+        ? {
+            tone: "ok",
+            title: "Approved: go ahead with treatment",
+            steps: [
+              "Treat within the approved amount shown below.",
+              "If treatment will cost more, use Request enhancement before discharge.",
+              "When the patient is discharged, continue to Claim.",
+            ],
+          }
+        : isPartial
+          ? {
+              tone: "warn",
+              title: "Approved for less than you asked",
+              steps: [
+                "See Amount breakdown below for what the payer cut and why.",
+                "Tell the patient they may have to pay the difference.",
+                "If you can justify more, use Request enhancement and attach the reason.",
+              ],
+            }
+          : isQueried
+            ? {
+                tone: "warn",
+                title: "The payer has a question",
+                steps: [
+                  "Read the payer's note below to see what it needs.",
+                  "Press Respond to query and attach the documents or details it asks for.",
+                  "The decision waits until you answer, so reply quickly.",
+                ],
+              }
+            : isRejected
+              ? {
+                  tone: "bad",
+                  title: "Rejected",
+                  steps: [
+                    "Read the payer's reason under Payer notes.",
+                    "If you can fix it, such as a missing document or a wrong code, press Resubmit preauth.",
+                    "If not, tell the patient. They can continue as a cash patient.",
+                  ],
+                }
+              : isCancelled
+                ? { tone: "info", title: "Cancelled", text: "This preauth was withdrawn. If the patient is admitted again, start a new case." }
+                : {
+                    tone: "warn",
+                    title: "The payer's answer isn't clear",
+                    steps: ["Press Refresh decision.", "If it stays unclear, use Request gateway status or call the payer's helpdesk."],
+                  };
+
   // Actions are described by id and run from one event handler.
   const runAction = (id) => {
     if (id === "claim") navigate("../claim", { state: { claim_id: statusData?.claim_id || caseState.claim_id } });
@@ -506,10 +566,14 @@ export default function PreauthStatus({ ctx }) {
         </div>
       )}
 
+      <NextStep tone={guide.tone} title={guide.title} steps={guide.steps || []} className="ds-guide">
+        {guide.text}
+      </NextStep>
+
       <div className="pd-layout">
         <div className="pd-main">
           {!isComplete && !isFailed && (
-            <Section id="ds-waiting" title={knownDecision ? "Loading adjudication details" : "Waiting for the payer"}>
+            <Section id="ds-waiting" info="waiting" title={knownDecision ? "Loading adjudication details" : "Waiting for the payer"}>
               <Fields
                 cols={2}
                 rows={[
@@ -553,7 +617,7 @@ export default function PreauthStatus({ ctx }) {
 
           {isComplete && (
             <>
-              <Section id="ds-amounts" title="Amount breakdown">
+              <Section id="ds-amounts" title="Amount breakdown" tip="What you asked for, what the payer cut and why, and what it approved.">
                 <dl className="ds-statement">
                   {statement.map((r) => (
                     <div key={r.label} className={r.total ? "is-total" : undefined}>
@@ -570,7 +634,7 @@ export default function PreauthStatus({ ctx }) {
               </Section>
 
               {adjItems.length > 0 && (
-                <Section id="ds-lines" title="Line adjudication">
+                <Section id="ds-lines" title="Line adjudication" tip="The payer's answer for each line of the request.">
                   <div className="ep-table-wrap">
                     <table className="ep-table ds-lines-table">
                       <thead>
@@ -617,7 +681,7 @@ export default function PreauthStatus({ ctx }) {
               )}
 
               {statusData?.process_notes?.length > 0 && (
-                <Section id="ds-notes" title="Payer notes">
+                <Section id="ds-notes" title="Payer notes" tip="The payer's own words. Read these first when a preauth is queried, cut or rejected.">
                   <ol className="ds-notes">
                     {statusData.process_notes.map((n, i) => (
                       <li key={n.number ?? i}>
@@ -657,7 +721,12 @@ export default function PreauthStatus({ ctx }) {
                 </Section>
               )}
 
-              <Section id="ds-response" title="Payer response" meta="As received over NHCX">
+              <Section
+                id="ds-response"
+                title="Payer response"
+                meta="As received over NHCX"
+                info={{ title: "Payer response", text: "Technical details of the payer's answer. Useful for your IT team; you don't need them to act." }}
+              >
                 <Fields
                   cols={3}
                   rows={[

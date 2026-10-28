@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Send, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Button, DocumentChecklist } from "../Common";
+import { Button, DocumentChecklist, NextStep } from "../Common";
 import Dropdown from "../Dropdown";
 import { Section, Fields } from "../case/CaseFile";
 
@@ -127,9 +127,30 @@ export default function ReprocessScreen({ ctx }) {
             ? { tone: "bad", label: "Appeal rejected" }
             : { tone: "pending", label: "Decision received" };
 
+  const guide = isFailed
+    ? { tone: "bad", title: "The payer never received the appeal", text: "Check the reason below and press Send again." }
+    : !isComplete
+      ? { tone: "info", title: "The payer is reviewing your appeal", text: "This can take a few days. You can leave this page; the answer appears here and in the Work Queue." }
+      : appealApproved
+        ? { tone: decision === "PARTIALLY_APPROVED" ? "warn" : "ok", title: "Appeal accepted", text: "Track the money on the Payment step." }
+        : decision === "QUERIED"
+          ? { tone: "warn", title: "The payer has a question about the appeal", text: "Go to the Claim step, press Respond to query and send what it asks for." }
+          : decision === "REJECTED"
+            ? {
+                tone: "bad",
+                title: "Appeal rejected",
+                text: "Read the payer's notes. You can send one more appeal with new evidence; otherwise the decision stands and the patient may have to pay.",
+              }
+            : null;
+
   if (polling || status) {
     return (
       <div className="wizard-step pd-screen">
+        {guide && (
+          <NextStep tone={guide.tone} title={guide.title} className="ds-guide">
+            {guide.text}
+          </NextStep>
+        )}
         <div className="pd-layout">
           <div className="pd-main">
             {isFailed ? (
@@ -232,7 +253,13 @@ export default function ReprocessScreen({ ctx }) {
     <div className="wizard-step pd-screen">
       <div className="pd-layout">
         <div className="pd-main">
-          <Section id="rp-form" title="Grounds for the appeal" meta="For a rejected or partly approved claim">
+          <Section
+            id="rp-form"
+            title="Grounds for the appeal"
+            meta="For a rejected or partly approved claim"
+            info="reprocess"
+            tip="Say in plain words why the payer should look again, and point to the evidence you attach below."
+          >
             <div className="pd-form rp-form">
               <label className="pd-form-field">
                 <span>Reason</span>
@@ -250,7 +277,12 @@ export default function ReprocessScreen({ ctx }) {
             </div>
           </Section>
 
-          <Section id="rp-docs" title="Supporting evidence" meta="Attach anything the payer's rejection notes ask for">
+          <Section
+            id="rp-docs"
+            title="Supporting evidence"
+            meta="Attach anything the payer's rejection notes ask for"
+            tip="An appeal without new evidence is usually rejected again."
+          >
             <div className="pd-docs">
               <DocumentChecklist
                 documents={supportingDocs}
@@ -292,8 +324,20 @@ export default function ReprocessScreen({ ctx }) {
               </li>
             </ul>
             <div className="pd-submit">
-              {submitError && <div className="ep-notice is-bad">{submitError}</div>}
-              <Button write variant="primary" icon={Send} disabled={!description || submitting} onClick={handleSubmit} className="pd-submit-btn">
+              {submitError && (
+                <NextStep tone="bad" title="Not sent">
+                  {submitError} Fix what the message names and send again.
+                </NextStep>
+              )}
+              <Button
+                write
+                variant="primary"
+                icon={Send}
+                disabled={!description || submitting}
+                disabledReason={submitting ? "Sending…" : "Write the reason for the appeal first."}
+                onClick={handleSubmit}
+                className="pd-submit-btn"
+              >
                 {submitting ? "Submitting…" : "Submit appeal"}
               </Button>
             </div>

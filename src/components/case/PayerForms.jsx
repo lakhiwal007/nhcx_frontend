@@ -192,12 +192,16 @@ export default function PayerForms({ caseId, stage }) {
     <Section
       id={`payer-forms-${stage}`}
       title="Payer forms"
+      info="payer_forms"
+      tip="Open each form and answer the questions. Answers are sent with the request; required forms left empty can get it refused."
       meta={forms.length ? `${forms.length - unanswered} of ${forms.length} answered · sent with the ${LEG_LABEL[stage]}` : null}
     >
       {loading ? (
         <LoadingBlock compact text="Loading the payer's forms…" />
       ) : state.error ? (
-        <div className="ep-notice is-bad">{state.error}</div>
+        <div className="ep-notice is-bad">
+          {state.error} Reload the page to try again. You can still send the request; the payer may ask for the answers later.
+        </div>
       ) : !forms.length ? (
         <div className="ep-muted ep-pad">The payer asks for no forms on the {LEG_LABEL[stage]}.</div>
       ) : (

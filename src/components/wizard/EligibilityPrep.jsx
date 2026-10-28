@@ -4,7 +4,7 @@ import { ArrowRight, AlertCircle, RefreshCw } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
 import { usePoll } from "../../hooks/usePoll";
-import { Card, Button, LoadingBlock, TablePagination } from "../Common";
+import { Card, Button, LoadingBlock, TablePagination, InfoTip, Tip, NextStep } from "../Common";
 import Dropdown from "../Dropdown";
 import { Section, Fields } from "../case/CaseFile";
 import { formatDate, formatMoney } from "../../format.js";
@@ -901,16 +901,41 @@ export default function EligibilityPrep({ ctx }) {
 
   const inforce = checks?.inforce;
   const verdict = needsRetry
-    ? { tone: "bad", label: "Check failed", text: caseData?.prepare_error?.message || "The eligibility submission couldn't be completed." }
+    ? {
+        tone: "bad",
+        label: "Check failed",
+        text: caseData?.prepare_error?.message || "The eligibility submission couldn't be completed.",
+        next: "Press Retry preparation. If it fails again, go back to the Policy step and check the policy, or share this message with your IT team.",
+      }
     : isStalePending
-      ? { tone: "warn", label: "No insurer response", text: "The request may have been lost. Re-run the check to retry." }
+      ? {
+          tone: "warn",
+          label: "No insurer response",
+          text: "The request may have been lost. Re-run the check to retry.",
+          next: "Press Re-run eligibility. If the insurer still doesn't answer, call its helpdesk; its system may be down.",
+        }
       : inforce === false
-        ? { tone: "bad", label: "Not eligible", text: "The insurer reports the policy as not in force." }
+        ? {
+            tone: "bad",
+            label: "Not eligible",
+            text: "The insurer reports the policy as not in force.",
+            next: "The policy is not active today, so the insurer won't pay. Ask the patient for a renewed or different policy and pick it on the Policy step, or treat the patient as cash.",
+          }
         : polling || isPending
-          ? { tone: "pending", label: "Awaiting insurer", text: "Results fill in as each check returns." }
+          ? {
+              tone: "pending",
+              label: "Awaiting insurer",
+              text: "Results fill in as each check returns.",
+              tip: "Insurers usually answer within a minute or two. You can read the plan and treatment below while you wait.",
+            }
           : inforce || isComplete
-            ? { tone: "ok", label: "Eligible", text: "The policy is in force for this admission." }
-            : { tone: "pending", label: "Not confirmed", text: "Refresh to fetch the latest answer." };
+            ? {
+                tone: "ok",
+                label: "Eligible",
+                text: "The policy is in force for this admission.",
+                tip: "Next: check the member, the planned treatment and the payer's requirements below, then continue to the preauth draft.",
+              }
+            : { tone: "pending", label: "Not confirmed", text: "Refresh to fetch the latest answer.", tip: "Press Refresh to ask for the insurer's latest answer." };
 
   const cd = checks?.coverage?.coverage_details || {};
   const bp = checks?.coverage?.benefit_period;
@@ -976,6 +1001,12 @@ export default function EligibilityPrep({ ctx }) {
           ) : null}
         </span>
       </div>
+      {verdict.next && (
+        <NextStep tone={verdict.tone === "bad" ? "bad" : "warn"} className="ep-next" title="What to do now">
+          {verdict.next}
+        </NextStep>
+      )}
+      {verdict.tip && <Tip className="ep-verdict-tip">{verdict.tip}</Tip>}
       {needsResubmit && !isStalePending && (
         <div className="ep-notice is-warn">
           One or more eligibility checks didn't complete and won't resolve on their own. Re-run the eligibility check.
@@ -987,20 +1018,31 @@ export default function EligibilityPrep({ ctx }) {
 
       <JumpBar />
 
-      <Section id="ep-policy" title="Policy & member" meta="As resolved by the insurer's eligibility response">
+      <Section
+        id="ep-policy"
+        title="Policy & member"
+        meta="As resolved by the insurer's eligibility response"
+        info="policy"
+        tip="Check that the member ID and name match the patient's insurance card."
+      >
         <Fields
           cols={3}
           rows={[
             { label: "Policy number", value: caseData?.policy_number || policy?.policy_number, mono: true },
             { label: "Payer", value: caseState.payer?.name || caseData?.payer_id, sub: caseState.payer?.name && caseData?.payer_id ? caseData.payer_id : null },
-            { label: "Member ID", value: cd.member_id || policy?.member_id, mono: true },
+            { label: "Member ID", value: cd.member_id || policy?.member_id, mono: true, info: "member_id" },
             { label: "Coverage plan", value: cd.plan_name || cd.plan },
-            { label: "Sum insured", value: sumInsured != null ? formatMoney(sumInsured) : null, mono: true },
+            { label: "Sum insured", value: sumInsured != null ? formatMoney(sumInsured) : null, mono: true, info: "sum_insured" },
             wallet && { label: "Used so far", value: formatMoney(wallet.used), mono: true },
-            wallet && { label: "Balance", value: formatMoney(wallet.balance), mono: true, tone: wallet.balance <= 0 ? "bad" : undefined },
+            wallet && { label: "Balance", value: formatMoney(wallet.balance), mono: true, tone: wallet.balance <= 0 ? "bad" : undefined, info: "balance" },
             { label: "Benefit period", value: period(bp?.start, bp?.end) },
             { label: "Coverage status", value: cd.status && <span className="ep-cap">{cd.status}</span>, tone: cd.status && !/active/i.test(cd.status) ? "bad" : undefined },
-            { label: "In force", value: inforce == null ? (checks?.validation.state === "pending" ? "Awaiting insurer" : null) : inforce ? "Yes" : "No", tone: inforce === false ? "bad" : undefined },
+            {
+              label: "In force",
+              value: inforce == null ? (checks?.validation.state === "pending" ? "Awaiting insurer" : null) : inforce ? "Yes" : "No",
+              tone: inforce === false ? "bad" : undefined,
+              info: { title: "In force", text: "Yes means the policy is active today and the insurer can pay for this admission. No means it has lapsed or not started." },
+            },
             { label: "Coverage reference", value: checks?.coverage?.coverage, mono: true },
           ]}
         />
@@ -1011,9 +1053,10 @@ export default function EligibilityPrep({ ctx }) {
             </div>
             {memberError && <div className="ep-notice is-bad">{memberError}</div>}
             {members.length > 1 && !chosenMemberId && (
-              <div className="ep-notice is-warn">
-                The payer answered with every member on this family card. Choose the one who is admitted before the pre-auth.
-              </div>
+              <NextStep tone="warn" title="Choose who is admitted">
+                This family card covers {members.length} people. Press <strong>This is the patient</strong> on the admitted person's
+                row. The preauth is filed for that person, so a wrong choice bills the wrong member.
+              </NextStep>
             )}
             <Members
               members={members}
@@ -1029,6 +1072,8 @@ export default function EligibilityPrep({ ctx }) {
       <Section
         id="ep-plan"
         title="Insurance plan"
+        info="insurance_plan"
+        tip="The payer's packages, rates, documents and forms for this policy. It is fetched once per policy and reused."
         meta={
           plan
             ? [
@@ -1044,7 +1089,12 @@ export default function EligibilityPrep({ ctx }) {
             : null
         }
       >
-        {planError && <div className="ep-notice is-bad">{plan?.error_code ? `${plan.error_code}: ` : ""}{planError}</div>}
+        {planError && (
+          <NextStep tone="bad" title="The insurer couldn't send its plan">
+            {plan?.error_code ? `${plan.error_code}: ` : ""}
+            {planError} Press <strong>Fetch plan again</strong>. If it keeps failing, share this message with your IT team.
+          </NextStep>
+        )}
         {planEmpty && plan?.error_message && <div className="ep-notice is-warn">{plan.error_message}</div>}
         {planFetch?.message && (
           <div className={`ep-notice${planFetch.state === "refused" ? " is-warn" : planFetch.state === "failed" ? " is-bad" : ""}`}>
@@ -1063,7 +1113,10 @@ export default function EligibilityPrep({ ctx }) {
         {!plan || plan.status === "pending" ? (
           <>
             {plan?.message && <div className="ep-notice is-warn">{plan.message}</div>}
-            <div className="ep-muted ep-pad">Waiting for the insurer to return the plan.</div>
+            <div className="ep-muted ep-pad">
+              Waiting for the insurer to send its plan. Large plans can take a few minutes; refresh this page later if it doesn't
+              appear.
+            </div>
           </>
         ) : (
           <>
@@ -1092,7 +1145,10 @@ export default function EligibilityPrep({ ctx }) {
             </div>
             {planForms.length > 0 && (
               <>
-                <div className="ep-detail-title">Payer forms ({planForms.length})</div>
+                <div className="ep-detail-title">
+                  Payer forms ({planForms.length})
+                  <InfoTip term="payer_forms" />
+                </div>
                 <div className="ep-table-wrap">
                   <table className="ep-table">
                     <thead>
@@ -1130,7 +1186,13 @@ export default function EligibilityPrep({ ctx }) {
         )}
       </Section>
 
-      <Section id="ep-eligibility" title="Eligibility checks" meta="Three questions sent to the insurer for this admission">
+      <Section
+        id="ep-eligibility"
+        title="Eligibility checks"
+        meta="Three questions sent to the insurer for this admission"
+        info="eligibility"
+        tip="Click a check to see the insurer's answer to it."
+      >
         {checks ? (
           <div className="ep-checks">
             <div className="ep-check-list" role="tablist" aria-label="Eligibility checks">
@@ -1160,11 +1222,18 @@ export default function EligibilityPrep({ ctx }) {
             </div>
           </div>
         ) : (
-          <div className="ep-muted ep-pad">Eligibility has not been requested yet.</div>
+          <div className="ep-muted ep-pad">
+            Eligibility has not been requested yet. It is sent automatically when you continue from the Policy step.
+          </div>
         )}
       </Section>
 
-      <Section id="ep-requirements" title="Payer requirements" meta="Documents and forms the payer asked for in its eligibility answer">
+      <Section
+        id="ep-requirements"
+        title="Payer requirements"
+        meta="Documents and forms the payer asked for in its eligibility answer"
+        tip="Collect these now. You attach them on the Preauth and Claim steps; missing ones are the most common reason for a query."
+      >
         {requirements.length ? (
           <div className="ep-table-wrap">
             <table className="ep-table">
@@ -1209,6 +1278,7 @@ export default function EligibilityPrep({ ctx }) {
       <Section
         id="ep-treatment"
         title="Planned treatment"
+        tip="Taken from the doctor's notes for this admission. Excluded means the policy won't pay for that line."
         meta={caseData?.procedures?.source ? `From ${caseData.procedures.source.replace(/_/g, " ")}` : null}
       >
         {treatment.length ? (
@@ -1256,11 +1326,19 @@ export default function EligibilityPrep({ ctx }) {
             </table>
           </div>
         ) : (
-          <div className="ep-muted ep-pad">No procedures found in clinical records for this visit.</div>
+          <NextStep tone="warn" title="No planned procedure recorded for this visit">
+            Ask the doctor to add the planned procedure or treatment in the hospital system, then press <strong>Re-run
+            eligibility</strong> at the top so the insurer can check it.
+          </NextStep>
         )}
       </Section>
 
-      <Section id="ep-packages" title="Package catalogue" meta="Every package the plan allows at this hospital">
+      <Section
+        id="ep-packages"
+        title="Package catalogue"
+        meta="Every package the plan allows at this hospital"
+        tip="Search by name or code to find the package for a procedure and its rate."
+      >
         <PackageCatalogue
           correlationId={planCorrelationId}
           categories={categories}
@@ -1285,6 +1363,11 @@ export default function EligibilityPrep({ ctx }) {
             variant="primary"
             size="small"
             disabled={!movedOn && !canProceed}
+            disabledReason={
+              polling
+                ? "Waiting for the insurer's answer to the eligibility check."
+                : "Eligibility must finish first. Use Re-run eligibility at the top if it failed."
+            }
             onClick={() => navigate(movedOn ? `../${movedOn}` : "../review")}
           >
             {movedOn

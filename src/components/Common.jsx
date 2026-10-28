@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useId } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useReadOnly, READ_ONLY_TITLE } from "../readOnly";
 import {
@@ -11,7 +12,12 @@ import {
   Plus,
   Trash2,
   Paperclip,
+  Lightbulb,
+  AlertTriangle,
+  XCircle,
 } from "lucide-react";
+import { glossary } from "../help/glossary.js";
+import { useTips } from "../help/tips.js";
 import { formatMoney, safeHref } from "../format.js";
 import { MAX_ATTACHMENT_MB } from "../api/config.js";
 
@@ -54,28 +60,154 @@ export const Button = ({
   size = "medium",
   title,
   write = false,
+  disabledReason,
 }) => {
   const readOnly = useReadOnly();
   const blocked = write && readOnly;
   const off = disabled || blocked;
+  const reason = blocked ? READ_ONLY_TITLE : off ? disabledReason : null;
   const sizeClasses = {
     small: "py-1 px-3 text-xs",
     medium: "",
     large: "py-3 px-6 text-lg",
   };
 
-  return (
+  const button = (
     <motion.button
       whileHover={!off ? { scale: 1.02 } : {}}
       whileTap={!off ? { scale: 0.98 } : {}}
       className={`btn-modern btn-${variant}-modern ${sizeClasses[size]} ${className}`}
       onClick={onClick}
       disabled={off}
-      title={blocked ? READ_ONLY_TITLE : title}
+      title={reason || title}
     >
       {Icon && <Icon size={size === "small" ? 14 : 18} />}
       {children}
     </motion.button>
+  );
+  if (!reason || blocked) return button;
+  return (
+    <span className="btn-reason-wrap" title={reason}>
+      {button}
+      <InfoTip text={reason} label="Why is this unavailable?" />
+    </span>
+  );
+};
+
+export const InfoTip = ({ term, title, text, more, label }) => {
+  const entry = term ? glossary(term) : null;
+  const heading = title ?? entry?.term;
+  const body = text ?? entry?.short;
+  const extra = more ?? entry?.more;
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const popId = useId();
+
+  useEffect(() => {
+    if (!pos) return undefined;
+    const close = (e) => {
+      if (e.type === "keydown" && e.key !== "Escape") return;
+      if (e.type === "mousedown" && (popRef.current?.contains(e.target) || btnRef.current?.contains(e.target))) return;
+      setPos(null);
+      if (e.type === "keydown") btnRef.current?.focus();
+    };
+    const dismiss = () => setPos(null);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("resize", dismiss);
+    };
+  }, [pos]);
+
+  if (!body) return null;
+
+  const toggle = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (pos) {
+      setPos(null);
+      return;
+    }
+    const r = btnRef.current.getBoundingClientRect();
+    const width = Math.min(300, window.innerWidth - 32);
+    const left = Math.min(Math.max(16, r.left + r.width / 2 - width / 2), window.innerWidth - width - 16);
+    const below = r.bottom + 8;
+    setPos({ left, width, top: below, flip: below + 160 > window.innerHeight && r.top > 200, anchorTop: r.top });
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className={`info-tip-btn${pos ? " is-open" : ""}`}
+        aria-label={label || (heading ? `What is ${heading}?` : "More information")}
+        aria-expanded={!!pos}
+        aria-controls={pos ? popId : undefined}
+        onClick={toggle}
+      >
+        <Info size={13} />
+      </button>
+      {pos &&
+        createPortal(
+          <div
+            ref={popRef}
+            id={popId}
+            role="tooltip"
+            className="info-tip-pop"
+            style={{
+              left: pos.left,
+              width: pos.width,
+              ...(pos.flip ? { bottom: window.innerHeight - pos.anchorTop + 8 } : { top: pos.top }),
+            }}
+          >
+            {heading && <div className="info-tip-title">{heading}</div>}
+            <div>{body}</div>
+            {extra && <div className="info-tip-more">{extra}</div>}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+};
+
+export const Tip = ({ children, className = "" }) => {
+  const { showTips } = useTips();
+  if (!showTips || !children) return null;
+  return (
+    <p className={`help-tip ${className}`}>
+      <Lightbulb size={13} aria-hidden="true" />
+      <span>{children}</span>
+    </p>
+  );
+};
+
+const NEXT_STEP_ICONS = { info: Info, warn: AlertTriangle, bad: XCircle, ok: CheckCircle2 };
+
+export const NextStep = ({ tone = "info", title, children, steps = [], actions, className = "" }) => {
+  const Icon = NEXT_STEP_ICONS[tone] || Info;
+  return (
+    <div className={`next-step is-${tone} ${className}`} role={tone === "bad" ? "alert" : undefined}>
+      <Icon size={16} className="next-step-icon" aria-hidden="true" />
+      <div className="next-step-body">
+        {title && <div className="next-step-title">{title}</div>}
+        {children && <div className="next-step-text">{children}</div>}
+        {steps.length > 0 && (
+          <ol className="next-step-list">
+            {steps.filter(Boolean).map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+        )}
+        {actions && <div className="next-step-actions">{actions}</div>}
+      </div>
+    </div>
   );
 };
 

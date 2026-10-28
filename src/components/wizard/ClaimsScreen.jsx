@@ -4,7 +4,7 @@ import { Send, ArrowRight, AlertCircle, CheckCircle2, ChevronDown, Edit2 } from 
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, formatMoney, NextStep } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
 import PayerForms from "../case/PayerForms";
@@ -544,10 +544,29 @@ export default function ClaimsScreen({ ctx }) {
   ];
 
   const readiness = [
-    { label: "Approved preauth", ok: hasPreauthRef, note: claimDraft?.preauth_ref || "missing" },
-    { label: "Patient details", ok: patientContextMissing.length === 0, note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null },
-    { label: "Clinical & billing records", ok: hisBlockers.length === 0 },
-    { label: "Discharge documents", ok: !hasMissingDocs, note: docs.length ? `${attachedDocs} of ${docs.length}` : null },
+    {
+      label: "Approved preauth",
+      ok: hasPreauthRef,
+      note: claimDraft?.preauth_ref || "missing",
+      fix: "A claim needs an approved preauth. Check the Approval step for the payer's decision.",
+    },
+    {
+      label: "Patient details",
+      ok: patientContextMissing.length === 0,
+      note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null,
+      fix: "Fill in the Missing patient details form on Review claim.",
+    },
+    {
+      label: "Clinical & billing records",
+      ok: hisBlockers.length === 0,
+      fix: "Complete the discharge summary and final bill in the hospital system, then reload.",
+    },
+    {
+      label: "Discharge documents",
+      ok: !hasMissingDocs,
+      note: docs.length ? `${attachedDocs} of ${docs.length}` : null,
+      fix: "Upload each required document on the Discharge documents tab.",
+    },
     dischargeIntimation && { label: "Discharge claim sent", ok: dischargeDone, bad: dischargeRejected || dischargeFailed, note: dischargeRejected ? "rejected" : dischargeFailed ? "failed" : dischargePolling ? "awaiting payer" : null },
     { label: "Final claim sent", ok: !!finalCorrelationId },
   ].filter(Boolean);
@@ -585,6 +604,47 @@ export default function ClaimsScreen({ ctx }) {
     setSubmitError(null);
     setShowReleaseDrawer(true);
   };
+
+  const guide =
+    activeTab === "draft"
+      ? !hasPreauthRef
+        ? { tone: "warn", title: "No approved preauth yet", text: "The payer must approve the preauth before you can claim. Check the Approval step." }
+        : { tone: "info", title: "Step 1 of 4: check the claim", text: "Check the stay dates, final bill and diagnosis below. They come from the hospital system; fix any mistake there first." }
+      : activeTab === "discharge"
+        ? dischargeRejected
+          ? { tone: "bad", title: "The payer rejected the discharge papers", text: "Read the reason below, fix or add the documents, then press Resubmit discharge claim." }
+          : dischargeFailed
+            ? { tone: "bad", title: "The discharge papers didn't reach the payer", text: "Check the documents and press Submit discharge claim again." }
+            : {
+                tone: "info",
+                title: "Step 2 of 4: discharge documents",
+                text: "Upload the discharge summary, final bill and the documents listed. PMJAY and most insurers need these before the final claim.",
+              }
+        : activeTab === "final"
+          ? finalCorrelationId
+            ? { tone: "info", title: "Final claim sent", text: "Private insurers must decide within 3 hours of the final claim (IRDAI). See the Decision tab." }
+            : overCeiling
+              ? {
+                  tone: "warn",
+                  title: "The bill is more than the approved amount",
+                  text: "File an enhancement first so the payer can approve the extra, or tick the box to claim anyway; the payer will cut the excess.",
+                }
+              : { tone: "info", title: "Step 3 of 4: send the final claim", text: "This asks the payer to pay the final bill. Check the amount, then press Submit final claim." }
+          : !claimDecided
+            ? { tone: "info", title: "Waiting for the payer's decision", text: "You can leave this page; the decision appears here and in the Work Queue." }
+            : isClaimApproved
+              ? { tone: "ok", title: "Claim approved", text: "The payer will pay. Track the money on the Payment step." }
+              : isPartialApproval
+                ? {
+                    tone: "warn",
+                    title: "Claim approved for less than the bill",
+                    text: "See what was cut below. If the cut is wrong, use Ask for the balance with your reason; otherwise bill the patient the difference.",
+                  }
+                : isClaimQueried
+                  ? { tone: "warn", title: "The payer has a question", text: "Press Respond to query and send what it asks for. The payment waits until you answer." }
+                  : isClaimRejected
+                    ? { tone: "bad", title: "Claim rejected", text: "Read the payer's reason below. If you can fix it or disagree, press Ask for a reprocess." }
+                    : null;
 
   const secondary = [];
   if (activeTab === "final" && overCeiling) secondary.push({ label: "File an enhancement", onClick: () => navigate("../enhancement") });
@@ -634,7 +694,7 @@ export default function ClaimsScreen({ ctx }) {
   );
 
   const waitingSection = (title, correlationId) => (
-    <Section id="cl-waiting" title={title}>
+    <Section id="cl-waiting" title={title} info="waiting">
       <Fields
         cols={2}
         rows={[
@@ -664,6 +724,12 @@ export default function ClaimsScreen({ ctx }) {
           </button>
         ))}
       </nav>
+
+      {guide && (
+        <NextStep tone={guide.tone} title={guide.title} className="ds-guide">
+          {guide.text}
+        </NextStep>
+      )}
 
       <div className="pd-layout">
         <div className="pd-main">
@@ -936,6 +1002,7 @@ export default function ClaimsScreen({ ctx }) {
                   {r.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
                   <span>{r.label}</span>
                   {r.note && <span className="pd-ready-note">{r.note}</span>}
+                  {!r.ok && r.fix && <span className="pd-ready-fix">{r.fix}</span>}
                 </li>
               ))}
             </ul>
@@ -944,7 +1011,15 @@ export default function ClaimsScreen({ ctx }) {
               {(activeTab === "final" || activeTab === "decision") && submitError && <div className="ep-notice is-bad">{submitError}</div>}
               {activeTab === "discharge" && dischargeSubmitError && <div className="ep-notice is-bad">{dischargeSubmitError}</div>}
               {primary && (
-                <Button variant="primary" icon={primary.icon} disabled={primary.disabled} write={primary.write} onClick={primary.onClick} className="pd-submit-btn">
+                <Button
+                  variant="primary"
+                  icon={primary.icon}
+                  disabled={primary.disabled}
+                  disabledReason="Resolve the items marked above first. Each one says how."
+                  write={primary.write}
+                  onClick={primary.onClick}
+                  className="pd-submit-btn"
+                >
                   {primary.label}
                 </Button>
               )}

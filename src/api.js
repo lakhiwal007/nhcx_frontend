@@ -1144,6 +1144,7 @@ const mock = {
         },
       };
     }
+    if (data.member_id === "ERROR") throw new Error("The insurance registry did not answer in time (gateway timeout).");
     const MOCK_MEMBER_ID_ON_FILE = "MEMB-123456";
     if (data.member_id && data.member_id !== MOCK_MEMBER_ID_ON_FILE) {
       return {
@@ -1798,6 +1799,10 @@ const mock = {
       await delay(300);
       const base = { correlation_id, purpose: "discovery", payer_id: discovery.payer_id, submitted_at: discovery.sent_at };
       if (Date.now() - new Date(discovery.sent_at).getTime() < 3000) return { ...base, status: "pending", covers: [] };
+      if (discovery.policy_number === "NOCOVER") return { ...base, status: "complete", covers: [] };
+      if (discovery.policy_number === "REFUSE") {
+        return { ...base, status: "failed", covers: [], errors: [{ code: "PAYR-1008", message: "Beneficiary not found for the given policy" }] };
+      }
       const shared = {
         policy_code: discovery.policy_number || "PMJAY/HP/S/G",
         plan_name: "PMJAY for Himachal",
