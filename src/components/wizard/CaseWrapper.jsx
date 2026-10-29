@@ -8,12 +8,13 @@ import { Button, EmptyState, LoadingBlock } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
 import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
-import CaseCommsBar from "../case/CaseCommsBar";
-import CaseNotesDrawer, { PinnedNoteStrip } from "../case/CaseNotes";
+import AttentionTray from "../case/AttentionTray";
+import CaseNotesDrawer from "../case/CaseNotes";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo } from "../case/caseStages";
+import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo, nowHint } from "../case/caseStages";
 import "../case/case-workspace.css";
+import "../case/case-v2.css";
 
 import PayerPolicy from "./PayerPolicy";
 import CoverageDiscovery from "./CoverageDiscovery";
@@ -249,47 +250,42 @@ export default function CaseWrapper() {
 
 
   return (
-    <div className="cx-root">
-      <div className="cx-stack">
+    <div className="cx-root cv-root">
+      <div className="cv-top">
+        <CaseFileHeader
+          patient={patient}
+          caseState={caseState}
+          effectiveCase={effectiveCase}
+          preauthRef={preauthRef}
+          approvedAmount={approvedAmount}
+          moneyLedger={timeline?.money_ledger || null}
+          statusPill={caseClosed ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
+        />
         <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
+      </div>
 
-        <section className="cx-stage">
-          <CaseFileHeader
-            patient={patient}
-            caseState={caseState}
-            effectiveCase={effectiveCase}
-            preauthRef={preauthRef}
-            approvedAmount={approvedAmount}
-            moneyLedger={timeline?.money_ledger || null}
+      <div className="cv-page">
+          <AttentionTray
+            communications={communications}
+            notes={notes}
+            readOnly={readOnly}
+            caseClosed={caseClosed}
+            hint={nowHint(stages)}
+            onOpenComm={setOpenCommId}
+            onOpenNotes={() => setNotesOpen(true)}
           />
 
-          {readOnly && (
-            <div className="ep-notice">View only — this account can see the case but not send, answer or change anything on it.</div>
-          )}
-
-          <CaseCommsBar communications={communications} onOpen={setOpenCommId} />
-
-          <PinnedNoteStrip notes={notes} onOpen={() => setNotesOpen(true)} />
-
-          <div className="cx-stage-head">
+          <div className="cv-stage-head">
             <div>
-              <div className="cx-eyebrow">
-                {activeStage?.branch
-                  ? "Branch step"
-                  : activeStage?.num
-                    ? `Stage ${activeStage.num} of 6`
-                    : "Cashless case"}
-              </div>
-              <h1 className="cx-stage-title">{activeStage?.label || "Case"}</h1>
-              {activeStage?.hint && <p className="cx-stage-hint">{activeStage.hint}</p>}
+              <h1 className="cv-stage-title">{activeStage?.label || "Case"}</h1>
+              {activeStage?.hint && <p className="cv-stage-hint">{activeStage.hint}</p>}
             </div>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <div className="cv-stage-actions">
               {ledgerCaseId && (
                 <Button variant="outline" size="small" icon={StickyNote} onClick={() => setNotesOpen(true)}>
                   {notes.length ? `Notes (${notes.length})` : "Notes"}
                 </Button>
               )}
-              {/* The stage's status note lives on the lifecycle rail; not repeated here. */}
               {currentStepPath === "timeline" ? (
                 <Button variant="outline" size="small" onClick={() => navigate(-1)}>Back to case</Button>
               ) : (
@@ -299,13 +295,6 @@ export default function CaseWrapper() {
               )}
             </div>
           </div>
-
-          {caseClosed && (
-            <div className="ep-notice cx-closed-note">
-              This case is settled, so it is read-only. Actions that would change the payer's decision are hidden;
-              an appeal is still possible from Reprocess.
-            </div>
-          )}
 
           <div className="cx-stage-body">
             <AnimatePresence mode="wait">
@@ -339,7 +328,6 @@ export default function CaseWrapper() {
               </motion.div>
             </AnimatePresence>
           </div>
-        </section>
       </div>
 
       <CaseNotesDrawer

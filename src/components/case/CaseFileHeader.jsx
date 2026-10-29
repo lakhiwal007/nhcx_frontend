@@ -1,156 +1,90 @@
-import { User, Hash, Building2, AlertTriangle } from "lucide-react";
+import { useState } from "react";
+import { Copy, Check } from "lucide-react";
 import PayerName from "../PayerName";
-import { formatMoney, formatDate, formatAge, humanize, formatCaseRef } from "../../format.js";
+import { formatMoney, formatAge, humanize, formatCaseRef } from "../../format.js";
 
 const money = (v) => (v == null ? null : formatMoney(v));
 
-// The persistent money strip — billed → authorized ceiling (cumulative across
-// preauth + enhancements) → approved → collect-from-patient → settled. Anchored
-// under the identity band so the desk sees the money picture on every stage,
-// not only in the audit-trail tab. Renders nothing until a ledger figure exists.
-function CaseMoneyStrip({ ledger }) {
-  if (!ledger) return null;
-
-  const ceiling = ledger.authorized_ceiling;
-  const ceilingComponents = ceiling?.components?.length
-    ? ceiling.components.map((c) => `${c.ref || "auth"}: ${money(c.value)}`).join("  ·  ")
-    : null;
-
-  const cells = [
-    { label: "Billed", value: ledger.billed?.value },
-    {
-      label: "Authorized",
-      value: ceiling?.value,
-      tag: ceiling?.cumulative ? "cumulative" : null,
-      title: ceilingComponents,
-    },
-    { label: "Approved", value: ledger.approved?.value },
-    { label: "Settled", value: ledger.settlement?.net },
-  ].filter((c) => c.value != null);
-
-  const collect = ledger.reconciliation?.to_collect_from_patient;
-  const overCeiling = ledger.reconciliation?.variance_vs_authorized;
-
-  if (cells.length === 0 && collect == null) return null;
-
+function IdChip({ label, value }) {
+  const [copied, setCopied] = useState(false);
+  if (!value) return null;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(String(value));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  };
   return (
-    <div className="cx-ledger">
-      {cells.map((c) => (
-        <div key={c.label} className="cx-ledger-cell" title={c.title || undefined}>
-          <span className="cx-ledger-key">
-            {c.label}
-            {c.tag && <span className="cx-ledger-tag">{c.tag}</span>}
-          </span>
-          <span className="cx-ledger-val" style={c.color ? { color: c.color } : undefined}>
-            {money(c.value)}
-          </span>
-        </div>
-      ))}
-      {overCeiling != null && overCeiling > 0 && (
-        <div className="cx-ledger-cell cx-ledger-over" title="Billed above the sanctioned amount">
-          <span className="cx-ledger-key">
-            <AlertTriangle size={10} /> Over ceiling
-          </span>
-          <span className="cx-ledger-val">{money(overCeiling)}</span>
-        </div>
-      )}
-      {collect != null && (
-        <div className="cx-ledger-collect">
-          <span className="cx-ledger-key">
-            Patient payable{ledger.patient_payable?.confidence ? ` · ${ledger.patient_payable.confidence}` : ""}
-          </span>
-          <span className="cx-ledger-collect-val">{money(collect)}</span>
-        </div>
-      )}
-    </div>
+    <button type="button" className="cv-id-chip" onClick={copy} title={`Copy ${label}`}>
+      <span className="cv-id-chip-key">{label}</span>
+      <span className="cv-mono">{value}</span>
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+    </button>
   );
 }
 
-// The identity strip — the patient chart condensed to a single band above the
-// stage. Replaces the old left-rail chart card; carries the same data inline.
-export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, approvedAmount, moneyLedger }) {
-  const policyNumber =
-    caseState.policy?.policy_number ||
-    effectiveCase.policy_number;
-  const payerName = caseState.payer?.name;
+function figures(ledger, approvedAmount) {
+  const rows = [
+    { label: "Billed", value: ledger?.billed?.value },
+    { label: "Authorised", value: ledger?.authorized_ceiling?.value },
+    { label: "Approved", value: ledger?.approved?.value ?? approvedAmount },
+    { label: "Settled", value: ledger?.settlement?.net },
+  ].filter((r) => r.value != null);
+  const collect = ledger?.reconciliation?.to_collect_from_patient;
+  if (collect != null) rows.push({ label: "Patient pays", value: collect, warn: collect > 0 });
+  return rows;
+}
+
+export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, approvedAmount, moneyLedger, statusPill }) {
+  const [showIds, setShowIds] = useState(false);
+  const policyNumber = caseState.policy?.policy_number || effectiveCase.policy_number;
   const payerId = effectiveCase.payer_id;
-  // Resumed cases only carry payer_id, not the full payer object from the
-  // search dropdown — PayerName resolves the friendly name from a shared cache.
-  const payer = payerName || payerId ? <PayerName id={payerId} name={payerName} /> : null;
-  // The facility (X-Provider-Id) every call on this case is scoped to.
-  const facility =
-    localStorage.getItem("nhcx_default_facility_name") ||
-    localStorage.getItem("nhcx_default_provider_id") ||
-    "";
+  const payerName = caseState.payer?.name;
   const abha = patient.abha_number || patient.abha;
+  const meta = [humanize(patient.gender, null), patient.dob ? formatAge(patient.dob) : null].filter(Boolean);
+  const cells = figures(moneyLedger, approvedAmount);
 
   return (
-    <>
-    <div className="cx-id">
-      <div className="cx-id-person">
-        <div className="cx-id-avatar">{patient.name?.[0]?.toUpperCase() || "?"}</div>
-        <div style={{ minWidth: 0 }}>
-          <h2 className="cx-id-name">{patient.name}</h2>
-          <div className="cx-id-meta">
-            <span>
-              <User size={11} style={{ marginRight: 4 }} />
-              {humanize(patient.gender, "—")}
-            </span>
-            {patient.dob && (
-              <span title={`Born ${formatDate(patient.dob)}`}>
-                {formatAge(patient.dob)} · {formatDate(patient.dob)}
-              </span>
-            )}
-            {facility && (
-              <span className="cx-id-facility">
-                <Building2 size={11} />
-                {facility}
-              </span>
-            )}
+    <div className="cv-head">
+      <div className="cv-head-person">
+        <div className="cv-avatar" aria-hidden="true">{patient.name?.[0]?.toUpperCase() || "?"}</div>
+        <div className="cv-head-text">
+          <div className="cv-head-title">
+            <h2 className="cv-head-name">{patient.name}</h2>
+            {statusPill}
           </div>
-        </div>
-      </div>
-
-      <div className="cx-id-chips">
-        {caseState.cashless_case_id && (
-          <span className="cx-chip" title="Case number">
-            <Hash size={10} />
-            {formatCaseRef(caseState.cashless_case_id)}
-          </span>
-        )}
-        {caseState.claim_id && <span className="cx-chip" title="Claim number">Claim {caseState.claim_id}</span>}
-        <span className="cx-chip" title="Patient number">Patient {patient.child_id}</span>
-      </div>
-
-      <div className="cx-id-facts">
-        <div className="cx-id-fact">
-          <span className="cx-file-mono">Payer</span>
-          <span className="cx-file-val">{payer || "-"}</span>
-        </div>
-        <div className="cx-id-fact">
-          <span className="cx-file-mono">Policy</span>
-          <span className="cx-file-val">{policyNumber || "-"}</span>
-        </div>
-        <div className="cx-id-fact">
-          <span className="cx-file-mono">Preauth Ref</span>
-          <span className="cx-file-val">{preauthRef || "-"}</span>
-        </div>
-        <div className="cx-id-fact">
-          <span className="cx-file-mono">ABHA</span>
-          <span className="cx-file-val">{abha || "-"}</span>
-        </div>
-        {/* The money strip below carries Approved once the ledger has it. */}
-        {approvedAmount != null && moneyLedger?.approved?.value == null && (
-          <div className="cx-id-fact">
-            <span className="cx-file-mono">Approved</span>
-            <span className="cx-file-val" style={{ fontWeight: 800 }}>
-              {formatMoney(approvedAmount)}
-            </span>
+          <div className="cv-head-meta">
+            {meta.length > 0 && <span>{meta.join(" · ")}</span>}
+            {(payerId || payerName) && <span><PayerName id={payerId} name={payerName} /></span>}
+            {policyNumber && <span className="cv-mono">{policyNumber}</span>}
+            <button type="button" className="cv-link" onClick={() => setShowIds((v) => !v)} aria-expanded={showIds}>
+              {showIds ? "Hide ids" : "Ids"}
+            </button>
           </div>
-        )}
+          {showIds && (
+            <div className="cv-id-row">
+              <IdChip label="Case" value={caseState.cashless_case_id && formatCaseRef(caseState.cashless_case_id)} />
+              <IdChip label="Claim" value={caseState.claim_id} />
+              <IdChip label="Patient" value={patient.child_id} />
+              <IdChip label="Preauth ref" value={preauthRef} />
+              <IdChip label="ABHA" value={abha} />
+            </div>
+          )}
+        </div>
       </div>
+      {cells.length > 0 && (
+        <dl className="cv-figures">
+          {cells.map((c) => (
+            <div key={c.label} className={`cv-figure${c.warn ? " is-warn" : ""}`}>
+              <dt>{c.label}</dt>
+              <dd>{money(c.value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
     </div>
-    <CaseMoneyStrip ledger={moneyLedger} />
-    </>
   );
 }

@@ -18,24 +18,6 @@ const NOTE_CATEGORIES = [
 const MAX_LENGTH = 2000;
 const categoryLabel = (v) => NOTE_CATEGORIES.find((c) => c.value === v)?.label || v;
 
-export function PinnedNoteStrip({ notes, onOpen }) {
-  const pinned = notes.filter((n) => n.pinned);
-  if (pinned.length === 0) return null;
-  const latest = pinned[0];
-  return (
-    <button type="button" className="cx-pinned-note" onClick={onOpen}>
-      <Pin size={13} aria-hidden="true" />
-      <span className="cx-pinned-note-body">
-        <strong>{categoryLabel(latest.category)}:</strong> {latest.body}
-      </span>
-      <span className="cx-pinned-note-meta">
-        {latest.author_name || "Staff"} · {formatRelative(latest.created_at)}
-        {pinned.length > 1 ? ` · +${pinned.length - 1} pinned` : ""}
-      </span>
-    </button>
-  );
-}
-
 export default function CaseNotesDrawer({ open, onClose, cashlessCaseId, notes, loaded, loadError, onChanged }) {
   const readOnly = useReadOnly();
   const [body, setBody] = useState("");

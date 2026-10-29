@@ -415,7 +415,41 @@ const MOCK_PMJAY_SPECIALTIES = [
   },
 ];
 
-const MOCK_PMJAY_BENEFITS = MOCK_PMJAY_SPECIALTIES.flatMap((s) =>
+const MOCK_EXTRA_SPECIALTIES = [
+  ["SB", "Orthopaedics"], ["SO", "Obstetrics & Gynaecology"], ["SU", "Urology"], ["SV", "Cardio-thoracic surgery"],
+  ["MC", "Cardiology"], ["SE", "Ophthalmology"], ["SL", "ENT"], ["MO", "Medical Oncology"], ["SC", "Surgical Oncology"],
+  ["MN", "Neonatal care"], ["MR", "Radiation Oncology"], ["SP", "Paediatric Surgery"], ["SS", "Plastic & Burns"],
+  ["MM", "Mental disorders"], ["ER", "Emergency room"], ["SR", "Polytrauma"], ["SG2", "Gastro surgery"], ["MG2", "Gastroenterology"],
+  ["MD", "Dermatology"], ["IN", "Interventional Neuroradiology"], ["SM", "Oral & maxillofacial"], ["MP2", "Paediatric cancer"],
+];
+
+const MOCK_SYNTHETIC_SPECIALTIES = MOCK_EXTRA_SPECIALTIES.map(([code, display], si) => ({
+  code,
+  display,
+  packages: Array.from({ length: 6 + ((si * 7) % 9) }, (_, i) =>
+    mockPackage(
+      `${code}${String(100 + i).padStart(3, "0")}A`,
+      `${display} package ${i + 1}`,
+      2000 + ((si * 37 + i * 911) % 60) * 500,
+      {
+        ProcedureType: i % 3 === 0 ? "Medical" : "Surgical",
+        ApprovalNotRequired: i % 7 === 0 ? "Y" : "N",
+        EnhancementAllowed: i % 4 === 0 ? "Y" : "N",
+        IsDayCare: i % 5 === 0 ? "Y" : "N",
+        ...(i % 6 === 0 ? { ImplantApplicable: "Y" } : {}),
+        ...(i % 3 === 0 ? { StratificationAllowed: "Y" } : {}),
+      },
+      i % 2 === 0 ? [mockDoc("INF", "Clinical information", "MAND0101", "Clinical notes")] : [],
+    ),
+  ),
+}));
+
+const MOCK_COVER_BENEFITS = [
+  { code: "87612001", display: "Blood", category_code: "MG", category_display: "General Medicine", rate: 5000 },
+  { code: "ICU-DAY", display: "ICU per day", category_code: "MG", category_display: "General Medicine", rate: 4500 },
+].map((b, i) => ({ id: `COVER-${i + 1}`, seq: i + 1, kind: "Benefit", currency: "INR", conditions: {}, supporting_info: [], extras: [], ...b }));
+
+const MOCK_PMJAY_BENEFITS = [...MOCK_PMJAY_SPECIALTIES, ...MOCK_SYNTHETIC_SPECIALTIES].flatMap((s) =>
   s.packages.map((p, i) => ({
     id: `${s.code}-${i + 1}`,
     seq: i + 1,
@@ -483,6 +517,50 @@ const mockPayerForm = (caseId, form) => {
   };
 };
 
+const MOCK_YES = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
+const MOCK_BENEFIT_FLAGS = {
+  needs_preauth: (b) => !MOCK_YES(b.conditions?.ApprovalNotRequired),
+  day_care: (b) => MOCK_YES(b.conditions?.IsDayCare),
+  implants: (b) => MOCK_YES(b.conditions?.ImplantApplicable) || (b.extras || []).some((e) => e.type === "Implant"),
+  tiers: (b) => MOCK_YES(b.conditions?.StratificationAllowed) || (b.extras || []).some((e) => e.type === "Stratification"),
+  cyclic: (b) => MOCK_YES(b.conditions?.CyclicProcedure),
+  has_form: (b) => (b.supporting_info || []).some((d) => d.form),
+};
+
+function mockBenefitStats() {
+  const rows = MOCK_PMJAY_BENEFITS;
+  return Object.fromEntries([["total", rows.length], ...Object.entries(MOCK_BENEFIT_FLAGS).map(([k, fn]) => [k, rows.filter(fn).length])]);
+}
+
+const MOCK_PLAN_STATES = {
+  not_requested: { status: "pending", plan_status: "not_requested", correlation_id: null, skip_reason: "The facility has no HFR ID, so the plan request was skipped." },
+  already: { status: "pending", plan_status: "not_requested", correlation_id: null, refused: true, message: "An earlier request for this policy is still being fetched (PAYR-1406)." },
+  asking: { status: "pending", plan_status: "fetching", requested_at: new Date(Date.now() - 12 * 60000).toISOString() },
+  late: { status: "pending", plan_status: "fetching", requested_at: new Date(Date.now() - 74 * 60000).toISOString() },
+  no_plan: { status: "complete", plan_status: "empty", error_message: "The payer reply carries no InsurancePlan. The payer has no package master filed under this policy." },
+  no_packages: { status: "complete", plan_status: "empty", error_message: "The payer's package master lists no packages." },
+  refused: { status: "failed", plan_status: "error", error_message: "PAYR-1401: Policy not allowed for the hospital" },
+  unreachable: { status: "failed", plan_status: "error", error_message: "Could not read the payer's encryption certificate from the registry." },
+};
+
+const mockPlanState = (plan) => {
+  const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("plan_state") : null;
+  return key && MOCK_PLAN_STATES[key] ? { correlation_id: plan.correlation_id, plan: plan.plan, ...MOCK_PLAN_STATES[key] } : plan;
+};
+
+const MOCK_PAYER_ASKS = {
+  preauth: [
+    { kind: "document", source: "ruling", category: "DIA", code: "MAND0601", display: "USG abdomen report", stage: "pre", for_code: "47562", status: "missing", blocking: true, reason: "not attached" },
+    { kind: "document", source: "plan", category: "POI", code: "ADN", display: "Aadhaar / PMJAY e-card", stage: "pre", status: "missing", blocking: false },
+    { kind: "form", source: "ruling", code: "STG-SG039", display: "Cholecystectomy STG questionnaire", stage: "pre", form_url: "https://nha.gov.in/fhir/Questionnaire/STG-SG039", questions: 3, required: 3, answered: 0, answered_required: 0, status: "unanswered", blocking: true, reason: "not filled" },
+    { kind: "form", source: "consent", code: "100024", display: "Authentication Consent", stage: "pre", form_url: "https://nha.gov.in/fhir/Questionnaire/100024", questions: 2, required: 1, answered: 0, answered_required: 0, status: "unanswered", blocking: true, reason: "the signed declaration is not uploaded" },
+  ],
+  claim: [
+    { kind: "document", source: "ruling", category: "INF", code: "ODN", display: "Discharge summary", stage: "post", status: "missing", blocking: true, reason: "not attached" },
+    { kind: "form", source: "plan", code: "DISCHARGE", display: "Discharge information", stage: "post", form_url: "https://nha.gov.in/fhir/Questionnaire/DISCHARGE", questions: 1, required: 1, answered: 0, answered_required: 0, status: "unanswered", blocking: false },
+  ],
+};
+
 const MOCK_PMJAY_PLAN = {
   plan_status: "ready",
   plan: {
@@ -499,6 +577,22 @@ const MOCK_PMJAY_PLAN = {
     status: "active",
     identifier: "POL-91711234567890-2026",
     period: { start: "2026-01-01", end: "2026-12-31" },
+    profile: {
+      identifiers: [{ type: "NH", value: "POL-91711234567890-2026" }, { type: "XV", value: "PMJAY-KA-2026-01" }],
+      status: "active",
+      type: { code: "07", display: "Universal Health Policy" },
+      alias: [],
+      period: { start: "2026-01-01", end: "2026-12-31" },
+      owned_by: "National Health Authority",
+      coverage_area: [],
+      network: [],
+      contact: [],
+      endpoint: [],
+      plan_type: { code: "03", display: "Group" },
+      plan_identifier: [],
+      general_cost: [{ cost: 500000, currency: "INR" }],
+      coverage_count: 26,
+    },
   },
   policy_documents: [
     mockDoc("POI", "Proof of identity", "ADN", "Aadhaar / PMJAY e-card"),
@@ -506,7 +600,9 @@ const MOCK_PMJAY_PLAN = {
     mockDoc("ODN", "Other documents", "ODN", "Authentication Consent"),
     mockDoc("ODN", "Other documents", "ODN", "Discharge Information", "post"),
   ],
-  categories: MOCK_PMJAY_SPECIALTIES.map((s) => ({ code: s.code, display: s.display, count: s.packages.length })),
+  categories: [...MOCK_PMJAY_SPECIALTIES, ...MOCK_SYNTHETIC_SPECIALTIES].map((s) => ({ code: s.code, display: s.display, count: s.packages.length })),
+  exclusions: [{ category: "Specific exclusion", statements: ["Treatment for cosmetic reasons"], items: ["Cosmetic surgery"] }],
+  stats: mockBenefitStats(),
   benefit_count: MOCK_PMJAY_BENEFITS.length,
   form_count: 3,
   requested_at: "2026-05-04T10:40:12+05:30",
@@ -1268,11 +1364,11 @@ const mock = {
           },
         ],
       },
-      insurance_plan: {
+      insurance_plan: mockPlanState({
         status: "complete",
         correlation_id: "550e8400-e29b-41d4-a716-446655440000",
         ...MOCK_PMJAY_PLAN,
-      },
+      }),
       coverage_eligibility: {
         status: "complete",
         validation: {
@@ -1516,6 +1612,7 @@ const mock = {
   preparePreauth: async (params = {}) => {
     await delay(800);
     return {
+      payer_asks: MOCK_PAYER_ASKS.preauth,
       admissibility: {
         status: "checked",
         plan_fetched_at: "2026-10-27T10:00:00+05:30",
@@ -1739,13 +1836,17 @@ const mock = {
     if (!url) return { correlation_id, forms };
     return MOCK_PLAN_FORMS.find((f) => f.url === url) || null;
   },
-  getInsurancePlanBenefits: async (correlation_id, { category, q, limit = 50, offset = 0 } = {}) => {
+  getInsurancePlanBenefits: async (correlation_id, { category, q, kind, procedure_type, flags, limit = 50, offset = 0 } = {}) => {
     await delay(300);
     const term = String(q || "").trim().toLowerCase();
-    const rows = MOCK_PMJAY_BENEFITS.filter(
+    const wanted = String(flags || "").split(",").filter(Boolean);
+    const source = kind === "Benefit" ? MOCK_COVER_BENEFITS : MOCK_PMJAY_BENEFITS;
+    const rows = source.filter(
       (b) =>
         (!category || b.category_code === category) &&
-        (term.length < 2 || b.code.toLowerCase().includes(term) || b.display.toLowerCase().includes(term)),
+        (term.length < 2 || b.code.toLowerCase().includes(term) || b.display.toLowerCase().includes(term)) &&
+        (!procedure_type || String(b.conditions?.ProcedureType || "").toLowerCase() === procedure_type.toLowerCase()) &&
+        wanted.every((f) => !MOCK_BENEFIT_FLAGS[f] || MOCK_BENEFIT_FLAGS[f](b)),
     );
     return {
       correlation_id,
@@ -1904,6 +2005,8 @@ const mock = {
   prepareClaimDraft: async (params = {}) => {
     await delay(800);
     return {
+      payer_asks: MOCK_PAYER_ASKS.claim,
+      cashless_case_id: params.cashless_case_id || 4,
       claim_id: params.claim_id || 101,
       payer_id: "1518@hcx",
       policy_number: "POL-91711234567890-2026",

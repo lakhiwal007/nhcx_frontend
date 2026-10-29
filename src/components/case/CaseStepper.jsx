@@ -1,160 +1,65 @@
 import { Check, Lock } from "lucide-react";
 
-// The Case Stepper — a sticky vertical lifecycle rail. A header summarises
-// progress; each stage is a row (circle + label + note) with the viewed stage
-// raised as a tile; branch nodes (Enhancement, Reprocess) sit indented with a
-// dashed ring. Stages and their clickability are computed by buildStages();
-// this component only presents them.
-const nowHint = (stages) => {
-  const urgent = stages.find((s) => s.tone === "urgent" && !s.branch);
-  if (urgent) {
-    const note = String(urgent.note || "");
-    if (urgent.id === "status" && /query/i.test(note)) return { tone: "urgent", text: "The payer asked a question. Open Approval and press Respond to query." };
-    if (urgent.id === "status" && /reject/i.test(note)) return { tone: "urgent", text: "The preauth was rejected. Open Approval to read why, then resubmit or treat the patient as cash." };
-    if (urgent.id === "status" && /cancel/i.test(note)) return { tone: "urgent", text: "The preauth was cancelled. Start a new case if the patient is admitted again." };
-    if (urgent.id === "claim") return { tone: "urgent", text: "Open Claim to read the payer's decision. If you disagree, ask for a reprocess." };
-  }
-  if (stages.some((s) => s.live && !s.done)) {
-    return { tone: "wait", text: "Nothing to do right now: the payer is deciding. The answer appears here and in the Work Queue." };
-  }
-  return null;
-};
+const ticked = (s) => s.state === "done" || s.done;
 
 export default function CaseStepper({ stages, onNavigate }) {
   const core = stages.filter((s) => !s.branch);
-  // Count what the rail shows as ticked, so the header never disagrees with
-  // the circles below it (buildStages ticks stages passed on the way to the
-  // one being viewed, not only those with their own completion signal).
-  const isTicked = (s) => s.state === "done" || s.done;
-  const doneCount = core.filter(isTicked).length;
-  // The first stage still to do. When it isn't the stage being viewed it
-  // gets a "Next" marker, since the two can differ.
-  const next = core.find((s) => !isTicked(s)) || null;
-  // While the next stage is already open, its description is on screen, so
-  // the card looks one step further ahead instead.
-  const viewingNext = next?.state === "active";
-  const upcoming = viewingNext ? core[core.indexOf(next) + 1] || null : next;
+  const branches = stages.filter((s) => s.branch);
+  const next = core.find((s) => !ticked(s)) || null;
 
   return (
-    <nav className="cx-rail" aria-label="Case lifecycle">
-      <div className="cx-rail-head">
-        <div className="cx-rail-title">Case lifecycle</div>
-        <div className="cx-rail-progress-text">
-          {doneCount} of {core.length} complete
-        </div>
-        <div className="cx-rail-progress" aria-hidden="true">
-          {core.map((s) => (
-            <span key={s.id} className={isTicked(s) ? "is-done" : s === next ? "is-next" : ""} />
-          ))}
-        </div>
-      </div>
-
-      <ol className="cx-rail-track">
-        {stages.map((s, i) => {
-          const isNext = s === next && s.state !== "active";
-          const ariaLabel = s.branch
-            ? `${s.label}${s.note ? ` - ${s.note}` : ""}`
-            : `Stage ${s.num}: ${s.label}${s.note ? ` - ${s.note}` : ""}`;
-          const tooltip = s.clickable
-            ? s.hint
-            : `${s.hint ? `${s.hint} ` : ""}${isNext ? "Opens from the current stage once it is done." : "Unlocks once the earlier stages are done."}`;
-          // The connector drawn inside step i runs down to step i+1's circle,
-          // so its fill reflects whether progress has reached i+1.
-          const following = stages[i + 1];
-          const filled = following && (following.state === "done" || following.state === "active" || following.done);
+    <nav className="cv-chain" aria-label="Case lifecycle">
+      <ol className="cv-chain-track">
+        {core.map((s, i) => {
+          const done = ticked(s);
+          const active = s.state === "active";
+          const isNext = s === next && !active;
+          const left = i > 0 && (done || active || ticked(core[i - 1]));
+          const right = i < core.length - 1 && (ticked(core[i + 1]) || core[i + 1].state === "active");
+          const tone = s.tone === "urgent" && !done ? " is-urgent" : s.live && !done ? " is-live" : "";
+          const title = s.clickable ? s.hint : `${s.hint ? `${s.hint} ` : ""}Unlocks once the earlier stages are done.`;
           return (
-            <li
-              key={s.id}
-              className={`cx-vstep is-${s.state}${s.branch ? " is-branch" : ""}${isNext ? " is-next" : ""}`}
-            >
-              {following && (
-                <span
-                  className={`cx-vstep-connector${filled ? " is-filled" : ""}${following.branch || s.branch ? " is-dashed" : ""}`}
-                  aria-hidden="true"
-                />
-              )}
+            <li key={s.id} className={`cv-step${done ? " is-done" : ""}${active ? " is-active" : ""}${isNext ? " is-next" : ""}${tone}`}>
               <button
                 type="button"
-                className="cx-vstep-btn"
+                className="cv-step-btn"
                 disabled={!s.clickable}
                 onClick={() => s.clickable && onNavigate(s.path)}
-                aria-current={s.state === "active" ? "step" : undefined}
-                aria-label={ariaLabel}
-                title={tooltip}
+                aria-current={active ? "step" : undefined}
+                aria-label={`Stage ${s.num}: ${s.label}${s.note ? ` - ${s.note}` : ""}`}
+                title={title}
               >
-                <span className="cx-vstep-circle" aria-hidden="true">
-                  {/* A completed stage keeps its checkmark while you are viewing it.
-                      Without this, opening a done stage from the rail turns its tick
-                      back into a bare number while later stages stay ticked, which
-                      reads as the case having regressed. */}
-                  {s.state === "done" || s.done ? (
-                    <Check size={13} strokeWidth={3} />
-                  ) : s.branch ? (
-                    "+"
-                  ) : (
-                    s.num
-                  )}
-                </span>
-                <span className="cx-vstep-body">
-                  <span className="cx-vstep-label-row">
-                    <span className="cx-vstep-label">{s.label}</span>
-                    <StageTag stage={s} isNext={isNext} />
+                <span className="cv-step-line">
+                  <span className={`cv-step-seg${i === 0 ? " is-blank" : left ? " is-filled" : ""}`} />
+                  <span className="cv-step-dot" aria-hidden="true">
+                    {done ? <Check size={14} strokeWidth={3} /> : !s.clickable && !isNext ? <Lock size={12} /> : s.num}
                   </span>
-                  {s.note && (
-                    <span className={`cx-vstep-note${s.tone ? ` tone-${s.tone}` : ""}`} title={s.note}>
-                      {s.note}
-                    </span>
-                  )}
+                  <span className={`cv-step-seg${i === core.length - 1 ? " is-blank" : right ? " is-filled" : ""}`} />
                 </span>
-                {!s.clickable && !isNext && <Lock size={12} className="cx-vstep-lock" aria-hidden="true" />}
+                <span className="cv-step-label">{s.label}</span>
+                <span className="cv-step-note">{s.note || (isNext ? "Next" : " ")}</span>
               </button>
             </li>
           );
         })}
       </ol>
-
-      {(() => {
-        const now = nowHint(stages);
-        return now ? (
-          <div className={`cx-rail-now is-${now.tone}`}>
-            <div className="cx-rail-next-eyebrow">{now.tone === "urgent" ? "Do this now" : "Waiting on the payer"}</div>
-            <p className="cx-rail-next-hint">{now.text}</p>
-          </div>
-        ) : null;
-      })()}
-      {(upcoming || !next) && (
-        <div className={`cx-rail-next${next ? "" : " is-complete"}`}>
-          {upcoming ? (
-            <>
-              <div className="cx-rail-next-eyebrow">{viewingNext ? "After this" : "Up next"}</div>
-              <div className="cx-rail-next-label">{upcoming.label}</div>
-              {upcoming.hint && <p className="cx-rail-next-hint">{upcoming.hint}</p>}
-            </>
-          ) : (
-            <>
-              <div className="cx-rail-next-eyebrow">All stages complete</div>
-              <p className="cx-rail-next-hint">This case has been settled and closed.</p>
-            </>
-          )}
+      {branches.length > 0 && (
+        <div className="cv-chain-branches">
+          {branches.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className={`cv-branch${b.state === "active" ? " is-active" : ""}${ticked(b) ? " is-done" : ""}`}
+              disabled={!b.clickable}
+              onClick={() => b.clickable && onNavigate(b.path)}
+              title={b.hint}
+            >
+              {ticked(b) ? <Check size={12} strokeWidth={3} /> : "+"} {b.label}
+              {b.note ? <span className="cv-branch-note">{b.note}</span> : null}
+            </button>
+          ))}
         </div>
       )}
     </nav>
   );
-}
-
-// One short tag beside the stage name, in priority order: something needs the
-// user, the payer is working on it, the case's next stage, or an optional branch.
-function StageTag({ stage, isNext }) {
-  if (stage.tone === "urgent" && !stage.done) return <span className="cx-vstep-tag is-urgent">Action</span>;
-  if (stage.live) {
-    return (
-      <span className="cx-vstep-tag is-live">
-        <span className="cx-live-dot" aria-hidden="true" />
-        Live
-      </span>
-    );
-  }
-  if (isNext) return <span className="cx-vstep-tag is-next">Next</span>;
-  if (stage.branch && !stage.done) return <span className="cx-vstep-tag is-optional">Optional</span>;
-  return null;
 }

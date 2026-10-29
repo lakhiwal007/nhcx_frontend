@@ -7,7 +7,6 @@
    app while keeping its bespoke layout. Everything still lives under
    .cx-root so any case-only structural CSS stays scoped.
    ========================================================================== */
-
 .cx-root {
   /* ── Local aliases onto the global tokens (no separate palette/fonts) ── */
   --cx-paper: var(--bg-main);
@@ -69,686 +68,49 @@
 /* ── Layout: lifecycle rail beside the content canvas ──────────────────
    align-items: stretch (the default) so the rail runs the full height of
    the stage column instead of shrink-wrapping to its steps. */
-.cx-stack {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  gap: 20px;
-}
 
 /* ── Identity strip — the patient chart condensed to one band ───────────
    Replaces the old left-rail chart card. Sits above the stage head and
    carries everything that box held (identity, ids, payer/policy/ref) on a
    single line that wraps gracefully, so the working content leads. */
-.cx-id {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 20px;
-  padding: 10px 16px;
-  margin-bottom: 18px;
-  background: var(--cx-surface);
-  border: 1px solid var(--cx-line);
-  border-radius: var(--cx-radius);
-  box-shadow: var(--cx-shadow);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-.cx-id:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
-}
-
-.cx-id-person {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-width: 0;
-}
-.cx-id-avatar {
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
-  background: var(--cx-primary);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--cx-font-display);
-  font-weight: 700;
-  font-size: 15px;
-}
-.cx-id-name {
-  font-family: var(--cx-font-display);
-  font-weight: 700;
-  font-size: 16px;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-.cx-id-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 3px 9px;
-  margin-top: 3px;
-  font-size: 11.5px;
-  color: var(--cx-ink-soft);
-}
-.cx-id-meta svg {
-  vertical-align: -1px;
-}
-
-.cx-id-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 
 /* facility marker — the provider this case is scoped to */
-.cx-id-facility {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-family: var(--cx-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--cx-ink-soft);
-}
-.cx-id-facility svg {
-  flex-shrink: 0;
-  color: var(--cx-primary);
-}
 
 /* key/value facts pushed to the trailing edge of the strip */
-.cx-id-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 22px;
-  margin-left: auto;
-}
-.cx-id-fact {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.cx-file-mono {
-  font-family: var(--cx-font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--cx-ink-soft);
-}
-.cx-file-val {
-  font-family: var(--cx-font-mono);
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--cx-ink);
-  word-break: break-word;
-}
-
-.cx-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--cx-font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: var(--radius-xs);
-  background: var(--cx-primary-soft);
-  color: var(--cx-primary);
-  letter-spacing: 0.02em;
-}
 
 /* ── Persistent money strip — billed → authorized → approved → settled, plus
    the collect-from-patient number the discharge desk reads. Sits directly
    under the identity band, styled as a lighter companion to it. ─────────── */
-.cx-ledger {
-  display: flex;
-  align-items: stretch;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  padding: 8px 16px;
-  margin-top: -8px;
-  margin-bottom: 18px;
-  background: var(--cx-surface);
-  border: 1px solid var(--cx-line);
-  border-top: none;
-  border-radius: 0 0 var(--cx-radius) var(--cx-radius);
-}
-.cx-ledger-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 2px 12px 2px 0;
-}
-.cx-ledger-cell + .cx-ledger-cell {
-  border-left: 1px solid var(--cx-line);
-  padding-left: 12px;
-}
-.cx-ledger-key {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--cx-font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--cx-ink-soft);
-}
-.cx-ledger-tag {
-  font-size: 8px;
-  padding: 0 4px;
-  border-radius: var(--radius-xs);
-  background: var(--cx-primary-soft);
-  color: var(--cx-primary);
-  letter-spacing: 0.03em;
-}
-.cx-ledger-val {
-  font-family: var(--cx-font-mono);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--cx-ink);
-}
-.cx-ledger-over .cx-ledger-key,
-.cx-ledger-over .cx-ledger-val {
-  color: var(--warning);
-}
-.cx-ledger-collect {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-left: auto;
-  padding: 4px 14px;
-  border-radius: var(--radius-md);
-  background: var(--cx-primary-soft);
-  border: 1px solid color-mix(in srgb, var(--cx-primary) 35%, transparent);
-}
-.cx-ledger-collect .cx-ledger-key {
-  color: var(--cx-primary);
-}
-.cx-ledger-collect-val {
-  font-family: var(--cx-font-mono);
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--cx-primary);
-}
 
 /* ── The Case Stepper — a sticky vertical lifecycle rail ────────────────
    Header (progress) → stage list → "Up next" card pinned to the bottom.
    Stages stack at their natural height; the viewed stage is a raised tile
    (same language as the app sidebar's active item). Sticks to the viewport
    as the stage content scrolls past it. */
-.cx-rail {
-  flex: 0 0 224px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-self: flex-start;
-  position: sticky;
-  top: var(--cx-rail-top);
-  height: var(--cx-rail-h);
-  margin: calc(-1 * var(--app-gutter)) 0 calc(-1 * var(--app-gutter))
-    calc(-1 * var(--app-gutter));
-  padding: 18px 12px 12px;
-  background: var(--cx-surface);
-  border-right: 1px solid var(--cx-line);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-
-.cx-rail-head {
-  padding: 0 6px;
-}
-
-.cx-rail-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--cx-ink-soft);
-}
-
-.cx-rail-progress-text {
-  margin-top: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--cx-ink);
-}
-
-.cx-rail-progress {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 3px;
-  margin-top: 8px;
-}
-.cx-rail-progress span {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--cx-line);
-}
-.cx-rail-progress span.is-done { background: var(--cx-approve); }
-.cx-rail-progress span.is-next { background: color-mix(in srgb, var(--cx-primary) 55%, var(--cx-line)); }
 
 /* Stage list */
-.cx-rail-track {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cx-vstep {
-  position: relative;
-}
 
 /* Vertical connector from this circle down to the next one. The circle is
    26px wide at 10px from the row's left edge, so its centre is x = 23. */
-.cx-vstep-connector {
-  position: absolute;
-  left: 22px;
-  top: 34px;
-  bottom: -10px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--cx-line);
-}
-.cx-vstep-connector.is-filled {
-  background: var(--cx-approve);
-}
-.cx-vstep-connector.is-dashed {
-  background: none;
-  border-left: 2px dashed var(--cx-line-strong);
-  width: 0;
-}
-.cx-vstep-connector.is-dashed.is-filled {
-  border-left-color: var(--cx-approve);
-}
-
-.cx-vstep-btn {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 8px 8px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: none;
-  font-family: var(--cx-font-body);
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-.cx-vstep-btn:not([disabled]):hover {
-  background: color-mix(in srgb, var(--cx-ink) 5%, transparent);
-}
-.cx-vstep-btn[disabled] {
-  cursor: not-allowed;
-}
-.cx-vstep-btn:focus-visible {
-  outline: 2px solid var(--cx-primary);
-  outline-offset: -2px;
-}
 
 /* Viewed stage: raised tile */
-.cx-vstep.is-active .cx-vstep-btn {
-  background: var(--bg-card);
-  border-color: var(--cx-line);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-}
 
 /* Branch stages sit indented off the main line */
-.cx-vstep.is-branch .cx-vstep-btn {
-  margin-left: 14px;
-  width: calc(100% - 14px);
-}
-
-.cx-vstep-circle {
-  position: relative;
-  z-index: 1;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-family: var(--cx-font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--cx-surface);
-  border: 2px solid var(--cx-line-strong);
-  color: var(--cx-ink-soft);
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-.cx-vstep.is-active .cx-vstep-circle {
-  background: var(--bg-card);
-}
-.cx-vstep-btn:not([disabled]):hover .cx-vstep-circle {
-  border-color: var(--cx-primary);
-  color: var(--cx-primary);
-}
-.cx-vstep.is-done .cx-vstep-circle,
-.cx-vstep.is-done .cx-vstep-btn:not([disabled]):hover .cx-vstep-circle {
-  background: var(--cx-approve);
-  border-color: var(--cx-approve);
-  color: #fff;
-}
-.cx-vstep.is-active .cx-vstep-circle {
-  border-color: var(--cx-primary);
-  color: var(--cx-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cx-primary) 18%, transparent);
-}
-.cx-vstep.is-next .cx-vstep-circle {
-  border-color: var(--cx-primary);
-  color: var(--cx-primary);
-}
-.cx-vstep.is-branch .cx-vstep-circle {
-  width: 22px;
-  height: 22px;
-  margin-top: 2px;
-  border-style: dashed;
-}
 
 /* Started but not finished — the payer has paid something without settling.
    Reachable and clearly underway, but never the green of a closed stage. */
-.cx-vstep.is-progress .cx-vstep-circle {
-  border-color: var(--cx-wait);
-  color: var(--cx-wait);
-  background: color-mix(in srgb, var(--cx-wait) 12%, var(--cx-surface));
-}
-
-.cx-vstep-body {
-  flex: 1;
-  min-width: 0;
-  padding-top: 3px;
-}
-
-.cx-vstep-label-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.cx-vstep-label {
-  font-family: var(--cx-font-display);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--cx-ink);
-}
-.cx-vstep.is-active .cx-vstep-label {
-  font-weight: 700;
-}
-.cx-vstep.is-upcoming:not(.is-next) .cx-vstep-label {
-  color: var(--cx-ink-soft);
-  font-weight: 500;
-}
-
-.cx-vstep-note {
-  display: block;
-  margin-top: 2px;
-  font-size: 11.5px;
-  line-height: 1.35;
-  color: var(--cx-ink-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cx-vstep-note.tone-approve { color: var(--cx-approve); }
-.cx-vstep-note.tone-wait { color: var(--cx-wait); }
-.cx-vstep-note.tone-urgent { color: var(--cx-urgent); }
-.cx-vstep-note.tone-live { color: var(--cx-pulse); }
-
-.cx-vstep-lock {
-  flex-shrink: 0;
-  margin-top: 6px;
-  color: var(--cx-ink-soft);
-  opacity: 0.6;
-}
 
 /* Small status tag beside the stage name */
-.cx-vstep-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
-  border: 1px solid transparent;
-}
-.cx-vstep-tag.is-urgent {
-  color: var(--cx-urgent);
-  background: color-mix(in srgb, var(--cx-urgent) 12%, transparent);
-}
-.cx-vstep-tag.is-live {
-  color: var(--cx-wait);
-  background: color-mix(in srgb, var(--cx-wait) 12%, transparent);
-}
-.cx-vstep-tag.is-next {
-  color: var(--cx-primary);
-  background: color-mix(in srgb, var(--cx-primary) 10%, transparent);
-}
-.cx-vstep-tag.is-optional {
-  color: var(--cx-ink-soft);
-  border-color: var(--cx-line-strong);
-  border-style: dashed;
-}
-
-.cx-live-dot {
-  position: relative;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.cx-live-dot::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: currentColor;
-  animation: cx-live-ping 1.6s ease-out infinite;
-}
 @keyframes cx-live-ping {
   0% { transform: scale(1); opacity: 0.7; }
   80%, 100% { transform: scale(2.6); opacity: 0; }
 }
 
 /* "Up next" card pinned to the bottom of the rail */
-.cx-rail-next {
-  margin-top: auto;
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--cx-primary) 22%, transparent);
-  background: color-mix(in srgb, var(--cx-primary) 6%, var(--cx-surface));
-}
-.cx-rail-next.is-complete {
-  border-color: color-mix(in srgb, var(--cx-approve) 30%, transparent);
-  background: color-mix(in srgb, var(--cx-approve) 8%, var(--cx-surface));
-}
-.cx-rail-next-eyebrow {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--cx-primary);
-}
-.cx-rail-next.is-complete .cx-rail-next-eyebrow {
-  color: var(--cx-approve);
-}
-.cx-rail-next-label {
-  margin-top: 2px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--cx-ink);
-}
-.cx-rail-next-hint {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--cx-ink-soft);
-}
-
-.cx-commsbar {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  margin-bottom: 18px;
-  border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--cx-primary) 32%, transparent);
-  border-left: 3px solid var(--cx-primary);
-  background: color-mix(in srgb, var(--cx-primary) 7%, var(--bg-card));
-}
-.cx-commsbar.is-action {
-  border-color: color-mix(in srgb, var(--cx-urgent) 38%, transparent);
-  border-left-color: var(--cx-urgent);
-  background: color-mix(in srgb, var(--cx-urgent) 7%, var(--bg-card));
-}
-.cx-commsbar.is-quiet {
-  align-items: center;
-  padding: 7px 12px;
-  margin-bottom: 12px;
-  border-color: var(--border);
-  border-left-color: var(--border);
-  background: transparent;
-}
-.cx-commsbar-icon {
-  display: flex;
-  flex-shrink: 0;
-  margin-top: 1px;
-  color: var(--cx-primary);
-}
-.cx-commsbar.is-action .cx-commsbar-icon { color: var(--cx-urgent); }
-.cx-commsbar.is-quiet .cx-commsbar-icon { margin-top: 0; color: var(--text-muted); }
-.cx-commsbar-quiet-label {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.cx-commsbar-body {
-  flex: 1;
-  min-width: 0;
-}
-.cx-commsbar-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 13px;
-}
-.cx-commsbar-flag {
-  font-family: var(--cx-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 2px 7px;
-  border-radius: var(--radius-pill);
-  color: var(--cx-urgent);
-  border: 1px solid color-mix(in srgb, var(--cx-urgent) 45%, transparent);
-}
-.cx-commsbar-time {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--cx-ink-soft);
-  white-space: nowrap;
-}
-.cx-commsbar-latest {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-top: 3px;
-  min-width: 0;
-}
-.cx-commsbar-topic {
-  font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.cx-commsbar-preview {
-  font-size: 12.5px;
-  color: var(--cx-ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-.cx-commsbar-rest {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.cx-commsbar-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--cx-ink-soft);
-  background: var(--bg-main);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-}
-.cx-commsbar-chip:hover {
-  color: var(--cx-primary);
-  border-color: var(--cx-primary);
-}
-
-@media (max-width: 640px) {
-  .cx-commsbar { flex-wrap: wrap; }
-  .cx-commsbar-time { margin-left: 0; }
-}
 
 /* Mobile: collapse to an icon-only rail — still sticky, still clickable.
    The active stage's name is already carried by the stage heading above
    the content pane, so nothing is lost, just de-duplicated. */
-@media (max-width: 768px) {
-  .cx-rail {
-    flex-basis: 56px;
-    padding: 14px 6px;
-    margin: -14px 0 -24px -16px;
-  }
-  .cx-rail-head,
-  .cx-rail-next,
-  .cx-vstep-body,
-  .cx-vstep-lock {
-    display: none;
-  }
-  .cx-vstep-btn,
-  .cx-vstep.is-branch .cx-vstep-btn {
-    justify-content: center;
-    margin-left: 0;
-    width: 100%;
-    padding: 6px 0;
-  }
-  .cx-vstep-connector {
-    left: 50%;
-    top: 32px;
-    transform: translateX(-1px);
-  }
-}
 
 /* ── Stage workspace (right pane) ─────────────────────────────────────── */
 .cx-stage {
@@ -762,15 +124,6 @@
   gap: 16px;
   flex-wrap: wrap;
   margin-bottom: 14px;
-}
-.cx-eyebrow {
-  font-family: var(--cx-font-body);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--cx-primary);
-  margin-bottom: 3px;
 }
 .cx-stage-title {
   font-family: var(--cx-font-display);
@@ -796,9 +149,6 @@
 }
 
 /* ── Reduced motion ───────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  .cx-live-dot::after { animation: none; opacity: 0; }
-}
 
 /* ============================================================================
    Phase B — adopt the new typography & shapes for existing step content.
@@ -887,42 +237,6 @@
 .cx-root .wizard-step {
   display: flex;
   flex-direction: column;
-}
-
-.cx-pinned-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  margin: -6px 0 14px;
-  padding: 7px 12px;
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-main);
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-}
-.cx-pinned-note:hover {
-  background: var(--bg-main);
-}
-.cx-pinned-note > svg {
-  flex-shrink: 0;
-  color: var(--text-muted);
-}
-.cx-pinned-note-body {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.cx-pinned-note-meta {
-  flex-shrink: 0;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
 }
 
 .cn-compose {
@@ -1038,19 +352,4 @@
 }
 .cn-error {
   margin-bottom: 12px;
-}
-
-.cx-rail-now {
-  margin-top: auto;
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--cx-wait) 30%, transparent);
-  background: color-mix(in srgb, var(--cx-wait) 8%, var(--cx-surface));
-}
-.cx-rail-now.is-urgent {
-  border-color: color-mix(in srgb, var(--cx-urgent) 35%, transparent);
-  background: color-mix(in srgb, var(--cx-urgent) 8%, var(--cx-surface));
-}
-.cx-rail-now + .cx-rail-next {
-  margin-top: 8px;
 }

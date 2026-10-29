@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Send, ArrowRight, AlertCircle, CheckCircle2, ChevronDown, Edit2 } from "lucide-react";
+import { Send, ArrowRight, AlertCircle, ChevronDown, Edit2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { Button, DocumentChecklist, LoadingBlock, formatMoney, NextStep } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
-import { Section, Fields } from "../case/CaseFile";
-import PayerForms from "../case/PayerForms";
+import { Section } from "../case/CaseFile";
+import PayerAsks from "../case/PayerAsks";
+import { liveAsks } from "../case/askStatus";
 import { Drawer } from "../Overlay";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
@@ -93,7 +94,7 @@ function PatientContextForm({ claimId, onResolved }) {
 export default function ClaimsScreen({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { caseState, updateCaseState, cashlessCase, moneyLedger, timelineEvents, refreshTimeline } = ctx;
+  const { caseState, updateCaseState, cashlessCase, moneyLedger, timelineEvents, refreshTimeline, caseClosed } = ctx;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
 
   const [loading, setLoading] = useState(true);
@@ -134,6 +135,7 @@ export default function ClaimsScreen({ ctx }) {
   // over-ceiling excess is recovered from the patient (or needs an enhancement),
   // so the desk must confirm before the final claim goes out (J2 guard).
   const [ackOverCeiling, setAckOverCeiling] = useState(false);
+  const [askForms, setAskForms] = useState([]);
 
   const claimId = caseState.claim_id || location.state?.claim_id;
   const resolvedClaimId = claimId || caseState.claim_id || null;
@@ -517,7 +519,20 @@ export default function ClaimsScreen({ ctx }) {
   }
 
   const docs = claimDraft?.supporting_documents || [];
-  const attachedDocs = docs.filter((d) => d.url).length;
+  const asks = liveAsks(claimDraft?.payer_asks, docs, askForms);
+  const askCodes = new Set(asks.filter((a) => a.kind === "document").map((a) => String(a.code).toUpperCase()));
+  const otherDocs = docs.filter((d) => !askCodes.has(String(d.code || "").toUpperCase()));
+  const blockingAsks = asks.filter((a) => a.blocking);
+  const askDocs = asks.filter((a) => a.kind === "document");
+  const askFormRows = asks.filter((a) => a.kind === "form");
+  const attachAsk = (row, uploaded) => {
+    setClaimDraft((prev) => {
+      const list = prev.supporting_documents || [];
+      const idx = list.findIndex((d) => String(d.code || "").toUpperCase() === String(row.code).toUpperCase());
+      const entry = { code: row.code, category: row.category || null, name: row.display, optional: false, ...uploaded };
+      return { ...prev, supporting_documents: idx >= 0 ? list.map((d, i) => (i === idx ? { ...d, ...entry } : d)) : [...list, entry] };
+    });
+  };
   const dischargeRejected = dischargeStatus?.decision === "REJECTED";
   const dischargeFailed = dischargeStatus?.status === "failed";
   const dischargeIntimation = cashlessCase?.discharge_intimation !== false;
@@ -561,11 +576,22 @@ export default function ClaimsScreen({ ctx }) {
       ok: hisBlockers.length === 0,
       fix: "Complete the discharge summary and final bill in the hospital system, then reload.",
     },
+    askDocs.length > 0 && {
+      label: "Payer documents",
+      ok: askDocs.every((a) => a.status === "attached"),
+      bad: askDocs.some((a) => a.blocking),
+      note: `${askDocs.filter((a) => a.status === "attached").length} of ${askDocs.length}`,
+    },
+    askFormRows.length > 0 && {
+      label: "Payer forms",
+      ok: askFormRows.every((a) => a.status === "answered"),
+      bad: askFormRows.some((a) => a.blocking),
+      note: `${askFormRows.filter((a) => a.status === "answered").length} of ${askFormRows.length} complete`,
+    },
     {
-      label: "Discharge documents",
-      ok: !hasMissingDocs,
-      note: docs.length ? `${attachedDocs} of ${docs.length}` : null,
-      fix: "Upload each required document on the Discharge documents tab.",
+      label: "Hospital documents",
+      ok: !otherDocs.some((d) => !d.optional && !d.url),
+      note: otherDocs.length ? `${otherDocs.filter((d) => d.url).length} of ${otherDocs.length}` : null,
     },
     dischargeIntimation && { label: "Discharge claim sent", ok: dischargeDone, bad: dischargeRejected || dischargeFailed, note: dischargeRejected ? "rejected" : dischargeFailed ? "failed" : dischargePolling ? "awaiting payer" : null },
     { label: "Final claim sent", ok: !!finalCorrelationId },
@@ -586,7 +612,7 @@ export default function ClaimsScreen({ ctx }) {
   } else if (activeTab === "final") {
     primary = finalCorrelationId
       ? { label: "View decision", onClick: () => setActiveTab("decision"), icon: ArrowRight }
-      : { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: !canSubmitFinal || submitting, icon: Send, write: true };
+      : { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: !canSubmitFinal || blockingAsks.length > 0 || submitting, icon: Send, write: true };
   } else if (claimDecided) {
     primary = isClaimApproved || isPartialApproval
       ? { label: "View payment status", onClick: () => navigate("../payment"), icon: ArrowRight }
@@ -655,389 +681,335 @@ export default function ClaimsScreen({ ctx }) {
   }
 
   const billTable = (
-    <div className="ep-table-wrap">
-      <table className="ep-table ds-lines-table">
+    <div className="cv-tw cv-in-card">
+      <table>
         <thead>
           <tr>
             <th>Service</th>
-            <th className="ep-num">Qty</th>
-            <th className="ep-num">Unit price</th>
-            <th className="ep-num">Amount</th>
+            <th className="is-num">Qty</th>
+            <th className="is-num">Unit price</th>
+            <th className="is-num">Amount</th>
           </tr>
         </thead>
         <tbody>
           {(claimDraft?.items || []).map((item, i) => (
             <tr key={i}>
-              <td className="ep-col-name">
-                <div className="ep-strong">{item.service_name}</div>
-                <div className="ep-muted">{[item.service_code, item.category].filter(Boolean).join(" · ")}</div>
+              <td>
+                <strong>{item.service_name}</strong>
+                <div className="cv-card-meta">{[item.service_code, item.category].filter(Boolean).join(" · ")}</div>
               </td>
-              <td className="ep-num ep-mono">{item.quantity}</td>
-              <td className="ep-num ep-mono">{formatMoney(item.unit_price)}</td>
-              <td className="ep-num ep-mono">{formatMoney(item.net_amount)}</td>
+              <td className="is-num">{item.quantity}</td>
+              <td className="is-num">{formatMoney(item.unit_price)}</td>
+              <td className="is-num" style={{ fontWeight: 600 }}>{formatMoney(item.net_amount)}</td>
             </tr>
           ))}
           {!claimDraft?.items?.length && (
-            <tr>
-              <td colSpan={4} className="ep-muted">No billable items on the final bill.</td>
+            <tr><td colSpan={4} className="cv-card-meta">No billable items on the final bill.</td></tr>
+          )}
+          <tr className="is-total">
+            <td colSpan={3}>Final bill</td>
+            <td className="is-num">{formatMoney(claimDraft?.total_amount)}</td>
+          </tr>
+          {authorizedCeiling != null && (
+            <tr className="is-total">
+              <td colSpan={3}>Authorised{moneyLedger?.authorized_ceiling?.cumulative ? " (pre-auth and enhancements)" : ""}</td>
+              <td className="is-num">{formatMoney(authorizedCeiling)}</td>
+            </tr>
+          )}
+          {overCeiling && (
+            <tr className="is-total">
+              <td colSpan={3} style={{ color: "var(--warning)" }}>Above the authorised amount</td>
+              <td className="is-num" style={{ color: "var(--warning)" }}>+{formatMoney(ceilingExcess)}</td>
             </tr>
           )}
         </tbody>
-        <tfoot>
-          <tr className="pd-total-row">
-            <td colSpan={3}>Final bill</td>
-            <td className="ep-num ep-mono">{formatMoney(claimDraft?.total_amount)}</td>
-          </tr>
-        </tfoot>
       </table>
     </div>
   );
 
-  const waitingSection = (title, correlationId) => (
-    <Section id="cl-waiting" title={title} info="waiting">
-      <Fields
-        cols={2}
-        rows={[
-          { label: "Status", value: "Waiting for the payer's decision" },
-          { label: "Checking every", value: `${POLL_INTERVAL_MS / 1000} seconds` },
-          { label: "Request ID", value: correlationId, mono: true },
-        ]}
-      />
-    </Section>
+  const card = (title, body, opts = {}) => (
+    <section className="cv-card" aria-label={title}>
+      <div className="cv-card-head">
+        <h2 className="cv-card-title">{title}</h2>
+        {opts.chip}
+        {opts.meta && <span className="cv-card-meta">{opts.meta}</span>}
+      </div>
+      {body}
+    </section>
   );
 
+  const waitingSection = (title, correlationId) =>
+    card(
+      title,
+      <div className="cv-card-body">
+        <div className="cv-kv"><span>Status</span><span>Waiting for the payer's decision</span></div>
+        <div className="cv-kv"><span>Checking every</span><span>{POLL_INTERVAL_MS / 1000} seconds</span></div>
+        <div className="cv-kv"><span>Request</span><span className="cv-mono">{correlationId}</span></div>
+      </div>,
+      { chip: <span className="cv-chip is-info">Waiting</span> },
+    );
+
   return (
-    <div className="wizard-step pd-screen">
-      <nav className="cl-steps" aria-label="Claim steps">
-        {steps.map((st, i) => (
-          <button
-            key={st.id}
-            type="button"
-            className={`cl-step${activeTab === st.id ? " is-on" : ""}${st.done ? " is-done" : ""}${st.bad ? " is-bad" : ""}`}
-            aria-current={activeTab === st.id ? "step" : undefined}
-            onClick={() => setActiveTab(st.id)}
-          >
-            <span className="cl-step-num" aria-hidden="true">
-              {st.done ? <CheckCircle2 size={14} /> : i + 1}
-            </span>
-            {st.label}
-          </button>
-        ))}
-      </nav>
+    <div className="cv-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="cv-card">
+        <div className="cv-tabs" role="tablist" aria-label="Claim steps" style={{ borderBottom: 0 }}>
+          {steps.map((st, i) => (
+            <button key={st.id} type="button" role="tab" className="cv-tab" aria-selected={activeTab === st.id} onClick={() => setActiveTab(st.id)}>
+              <span className={`cv-chip ${st.bad ? "is-bad" : st.done ? "is-ok" : activeTab === st.id ? "is-info" : "is-todo"}`} style={{ marginRight: 8 }}>
+                {st.done ? "✓" : i + 1}
+              </span>
+              {st.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {guide && (
-        <NextStep tone={guide.tone} title={guide.title} className="ds-guide">
-          {guide.text}
-        </NextStep>
+        <div className={`cv-notice is-${guide.tone === "ok" ? "ok" : guide.tone}`}>
+          <div className="cv-notice-title">{guide.title}</div>
+          <div className="cv-notice-body">{guide.text}</div>
+        </div>
       )}
 
-      <div className="pd-layout">
-        <div className="pd-main">
+      <div className="cv-split">
+        <div className="cv-main">
           {activeTab === "draft" && (
             <>
               {hisBlockers.length > 0 && (
-                <div className="ep-notice is-bad">
-                  <strong>Clinical or billing records are incomplete</strong> ({hisBlockers.join(", ")}). Complete them in
-                  the HIS before submitting this claim.
-                </div>
+                <div className="cv-notice is-bad"><div className="cv-notice-body">The clinical or billing records are incomplete ({hisBlockers.join(", ")}). Complete them in the hospital system before claiming.</div></div>
               )}
               {patientContextMissing.length > 0 && (
-                <div className="ep-notice is-bad">
-                  {patientContextMissing.length} patient detail{patientContextMissing.length === 1 ? " is" : "s are"} missing
-                  ({patientContextMissing.join(", ")}).
-                  <button type="button" className="pd-inline-link" onClick={() => setShowContextDrawer(true)}>
-                    Add them →
-                  </button>
+                <div className="cv-notice is-bad">
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <span className="cv-notice-body" style={{ flex: 1 }}>{patientContextMissing.length} patient detail{patientContextMissing.length === 1 ? " is" : "s are"} missing ({patientContextMissing.join(", ")}).</span>
+                    <button type="button" className="cv-btn" onClick={() => setShowContextDrawer(true)}>Add them</button>
+                  </div>
                 </div>
               )}
               {!hasPreauthRef && (
-                <div className="ep-notice is-bad">
-                  This claim has no approved preauth reference. Submit the preauth and wait for its approval first.
-                </div>
+                <div className="cv-notice is-bad"><div className="cv-notice-body">This claim has no approved pre-auth reference. The pre-auth must be approved first.</div></div>
               )}
-              <Section id="cl-stay" title="Stay">
-                <Fields
-                  cols={3}
-                  rows={[
-                    { label: "Admission", value: claimDraft?.admission_date ? formatDate(claimDraft.admission_date) : null },
-                    { label: "Discharge", value: claimDraft?.discharge_date ? formatDate(claimDraft.discharge_date) : "Not discharged" },
-                    { label: "Preauth reference", value: claimDraft?.preauth_ref || "Missing", mono: !!claimDraft?.preauth_ref, tone: claimDraft?.preauth_ref ? undefined : "bad" },
-                  ]}
-                />
-              </Section>
-              <Section id="cl-bill" title="Final bill">
-                {billTable}
-              </Section>
-              <Section id="cl-justification" title="Clinical justification" meta="Coded from the clinical notes; sent with the claim">
-                {justification.length ? (
-                  <Fields cols={1} rows={justification.map(([label, codes]) => ({ label, value: codes.map((c) => c.name || c.code).join(", ") }))} />
-                ) : (
-                  <div className="ep-muted ep-pad">No coded complaints, findings, investigations or medications on the clinical note.</div>
-                )}
-              </Section>
-              <PayerForms caseId={resolvedCashlessCaseId} stage="claim" />
-              {claimDraft?.discharge_summary && (
-                <Section id="cl-discharge-summary" title="Discharge summary">
-                  <Fields
-                    cols={1}
-                    rows={[
-                      { label: "Condition", value: claimDraft.discharge_summary.condition },
-                      { label: "Advice", value: claimDraft.discharge_summary.advice },
-                      { label: "Follow-up", value: claimDraft.discharge_summary.followup_on ? formatDate(claimDraft.discharge_summary.followup_on) : null },
-                      { label: "Summary", value: claimDraft.discharge_summary.summary_html?.replace(/<[^>]*>/g, "") },
-                    ]}
-                  />
-                </Section>
+              {card(
+                "Discharge",
+                <>
+                  <div className="cv-row">
+                    <span className={`cv-chip cv-row-badge ${claimDraft?.discharge_date ? "is-ok" : "is-warn"}`}>{claimDraft?.discharge_date ? "Done" : "Open"}</span>
+                    <div className="cv-row-body">
+                      <div className="cv-row-title">Stay</div>
+                      <div className="cv-row-sub">
+                        {[claimDraft?.admission_date && `Admitted ${formatDate(claimDraft.admission_date)}`, claimDraft?.discharge_date ? `discharged ${formatDate(claimDraft.discharge_date)}` : "not discharged yet"].filter(Boolean).join(" · ")}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cv-row">
+                    <span className={`cv-chip cv-row-badge ${justification.length ? "is-ok" : "is-warn"}`}>{justification.length ? "Done" : "Thin"}</span>
+                    <div className="cv-row-body">
+                      <div className="cv-row-title">Clinical justification</div>
+                      <div className="cv-row-sub">
+                        {justification.length ? justification.map(([label, codes]) => `${label}: ${codes.map((c) => c.name || c.code).join(", ")}`).join(" · ") : "No coded complaints, findings or tests on the clinical note"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cv-row">
+                    <span className={`cv-chip cv-row-badge ${hasPreauthRef ? "is-ok" : "is-bad"}`}>{hasPreauthRef ? "Done" : "Missing"}</span>
+                    <div className="cv-row-body">
+                      <div className="cv-row-title">Pre-auth on file</div>
+                      <div className="cv-row-sub">
+                        {hasPreauthRef ? [claimDraft?.preauth_ref, authorizedCeiling != null && `${formatMoney(authorizedCeiling)} authorised`].filter(Boolean).join(" · ") : "No approved pre-auth"}
+                      </div>
+                    </div>
+                  </div>
+                  {claimDraft?.discharge_summary && (
+                    <div className="cv-row">
+                      <span className="cv-chip cv-row-badge is-ok">Done</span>
+                      <div className="cv-row-body">
+                        <div className="cv-row-title">Discharge summary</div>
+                        <div className="cv-row-sub">
+                          {[claimDraft.discharge_summary.condition, claimDraft.discharge_summary.advice, claimDraft.discharge_summary.followup_on && `follow-up ${formatDate(claimDraft.discharge_summary.followup_on)}`].filter(Boolean).join(" · ")}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>,
               )}
+              {card("Final bill against the authorised amount", billTable, {
+                chip: overCeiling ? <span className="cv-chip is-warn">{formatMoney(ceilingExcess)} over</span> : authorizedCeiling != null ? <span className="cv-chip is-ok">Within</span> : null,
+              })}
             </>
           )}
 
           {activeTab === "discharge" && (
             <>
               {dischargeFailed && (
-                <div className="ep-notice is-bad">
-                  <strong>The discharge claim could not be delivered.</strong>{" "}
-                  {dischargeStatus.error_message || "The request did not reach the payer."}
-                </div>
+                <div className="cv-notice is-bad"><div className="cv-notice-title">The discharge claim was not delivered</div><div className="cv-notice-body">{dischargeStatus.error_message || "The request did not reach the payer."}</div></div>
               )}
               {dischargeRejected && (
-                <div className="ep-notice is-bad">
-                  <strong>The payer rejected the discharge claim.</strong> No final claim exists yet, so there is nothing to
-                  appeal; correct and resend the discharge intimation instead.
-                </div>
+                <div className="cv-notice is-bad"><div className="cv-notice-title">The payer rejected the discharge claim</div><div className="cv-notice-body">No final claim exists yet, so there is nothing to appeal; correct and resend the discharge intimation instead.</div></div>
               )}
-              <Section
-                id="cl-docs"
-                title="Discharge documents"
-                meta={docs.length ? `${attachedDocs} of ${docs.length} attached` : null}
-              >
-                <div className="pd-docs">
+              <PayerAsks
+                caseId={resolvedCashlessCaseId}
+                stage="claim"
+                title="What the payer asks for at claim"
+                asks={claimDraft?.payer_asks}
+                documents={docs}
+                readOnly={caseClosed}
+                onAttach={attachAsk}
+                onFormsChange={setAskForms}
+              />
+              {card(
+                "Other files",
+                <div className="cv-card-body">
                   <DocumentChecklist
-                    documents={claimDraft?.supporting_documents}
+                    documents={otherDocs}
                     onUpload={handleUpload}
                     onAddDocument={addDocument}
-                    onRenameDocument={renameDocument}
-                    onRemoveDocument={removeDocument}
+                    onRenameDocument={(i, name) => renameDocument(docs.indexOf(otherDocs[i]), name)}
+                    onRemoveDocument={(i) => removeDocument(docs.indexOf(otherDocs[i]))}
                     hideSummary
                   />
-                </div>
-              </Section>
-              {dischargePolling && waitingSection("Discharge claim sent", dischargeCorrelationId)}
-              {dischargeStatus?.status === "complete" && !dischargeRejected && (
-                <Section id="cl-discharge-result" title="Discharge claim">
-                  <Fields
-                    cols={2}
-                    rows={[
-                      { label: "Decision", value: dischargeStatus.decision ? String(dischargeStatus.decision).replace(/_/g, " ").toLowerCase() : "Received" },
-                      { label: "Request ID", value: dischargeCorrelationId, mono: true },
-                    ]}
-                  />
-                </Section>
+                </div>,
+                { meta: "From the hospital records, or added here. Sent with the claim." },
               )}
+              {dischargePolling && waitingSection("Discharge claim sent", dischargeCorrelationId)}
+              {dischargeStatus?.status === "complete" && !dischargeRejected &&
+                card(
+                  "Discharge claim",
+                  <div className="cv-card-body">
+                    <div className="cv-kv"><span>Decision</span><span>{dischargeStatus.decision ? String(dischargeStatus.decision).replace(/_/g, " ").toLowerCase() : "Received"}</span></div>
+                    <div className="cv-kv"><span>Request</span><span className="cv-mono">{dischargeCorrelationId}</span></div>
+                  </div>,
+                )}
             </>
           )}
 
           {activeTab === "final" && (
             <>
-              <Section id="cl-final-bill" title="Final bill">
-                {billTable}
-              </Section>
-              <Section id="cl-ceiling" title="Against the authorized amount">
-                <dl className="ds-statement">
-                  <div>
-                    <dt>Final bill</dt>
-                    <dd className="ep-mono">{formatMoney(billedTotal)}</dd>
-                  </div>
-                  {authorizedCeiling != null && (
-                    <div>
-                      <dt>
-                        Authorized ceiling
-                        {moneyLedger?.authorized_ceiling?.cumulative && <span className="ep-muted"> · preauth + enhancements</span>}
-                      </dt>
-                      <dd className="ep-mono">{formatMoney(authorizedCeiling)}</dd>
-                    </div>
-                  )}
-                  {authorizedCeiling != null && (
-                    <div className="is-total">
-                      <dt className={overCeiling ? "is-bad" : undefined}>{overCeiling ? "Above the ceiling" : "Within the ceiling"}</dt>
-                      <dd className={`ep-mono${overCeiling ? " is-bad" : ""}`}>{overCeiling ? formatMoney(ceilingExcess) : "—"}</dd>
-                    </div>
-                  )}
-                </dl>
-                {overCeiling && (
-                  <div className="cl-ack">
-                    <p>
-                      The payer will not cover the {formatMoney(ceilingExcess)} above the sanctioned amount. Collect it from
-                      the patient, or file an enhancement to raise the ceiling first.
-                    </p>
-                    <label>
-                      <input type="checkbox" checked={ackOverCeiling} onChange={(e) => setAckOverCeiling(e.target.checked)} />
-                      I acknowledge the {formatMoney(ceilingExcess)} excess and will collect it from the patient.
-                    </label>
-                  </div>
-                )}
-              </Section>
+              {card("Final bill against the authorised amount", billTable, {
+                chip: overCeiling ? <span className="cv-chip is-warn">{formatMoney(ceilingExcess)} over</span> : null,
+              })}
+              {overCeiling && (
+                <div className="cv-notice is-warn">
+                  <div className="cv-notice-body">The payer will not cover the {formatMoney(ceilingExcess)} above the authorised amount. Collect it from the patient, or file an enhancement first.</div>
+                  <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, fontWeight: 600 }}>
+                    <input type="checkbox" checked={ackOverCeiling} onChange={(e) => setAckOverCeiling(e.target.checked)} />
+                    I will collect the {formatMoney(ceilingExcess)} from the patient.
+                  </label>
+                </div>
+              )}
             </>
           )}
 
           {activeTab === "decision" && (
             <>
               {!finalCorrelationId ? (
-                <Section id="cl-no-final" title="No final claim yet">
-                  <p className="ds-empty">Submit the final claim to receive the payer's decision here.</p>
-                  <div className="ds-empty-actions">
-                    <Button variant="outline" size="small" onClick={() => setActiveTab("final")}>
-                      Go to final claim
-                    </Button>
-                  </div>
-                </Section>
+                card(
+                  "No final claim yet",
+                  <div className="cv-card-body">
+                    <div>Send the final claim to receive the payer's decision here.</div>
+                    <button type="button" className="cv-btn" style={{ marginTop: 12 }} onClick={() => setActiveTab("final")}>Go to final claim</button>
+                  </div>,
+                )
               ) : !claimStatus || polling ? (
                 waitingSection("Final claim sent", finalCorrelationId)
               ) : claimStatus.status === "failed" ? (
-                <div className="ep-notice is-bad">
-                  <strong>The final claim could not be delivered.</strong>{" "}
-                  {claimStatus.error_message || "The request did not reach the payer."}
-                  <button type="button" className="pd-inline-link" onClick={() => setActiveTab("final")}>
-                    Back to final claim →
-                  </button>
+                <div className="cv-notice is-bad">
+                  <div className="cv-notice-title">The final claim was not delivered</div>
+                  <div className="cv-notice-body">{claimStatus.error_message || "The request did not reach the payer."}</div>
+                  <div className="cv-notice-actions"><button type="button" className="cv-btn" onClick={() => setActiveTab("final")}>Back to final claim</button></div>
                 </div>
               ) : (
                 <>
-                  <Section id="cl-amounts" title="Amount breakdown">
-                    <dl className="ds-statement">
-                      <div>
-                        <dt>Claimed</dt>
-                        <dd className="ep-mono">{formatMoney(claimRequested)}</dd>
-                      </div>
-                      {claimTotals.eligible?.value != null && claimRequested != null && claimRequested > claimTotals.eligible.value && (
-                        <div>
-                          <dt>Disallowed</dt>
-                          <dd className="ep-mono">− {formatMoney(claimRequested - claimTotals.eligible.value)}</dd>
-                        </div>
-                      )}
-                      {claimTotals.copay?.value > 0 && (
-                        <div>
-                          <dt>Co-payment</dt>
-                          <dd className="ep-mono">− {formatMoney(claimTotals.copay.value)}</dd>
-                        </div>
-                      )}
-                      {claimTotals.deductible?.value > 0 && (
-                        <div>
-                          <dt>Deductible</dt>
-                          <dd className="ep-mono">− {formatMoney(claimTotals.deductible.value)}</dd>
-                        </div>
-                      )}
-                      <div className="is-total">
-                        <dt>Approved</dt>
-                        <dd className="ep-mono">{formatMoney(claimApproved)}</dd>
-                      </div>
-                    </dl>
-                  </Section>
-                  {claimStatus.process_notes?.length > 0 && (
-                    <Section id="cl-notes" title="Payer notes">
-                      <ol className="ds-notes">
+                  {card("Final bill against the authorised amount", billTable)}
+                  {claimStatus.process_notes?.length > 0 &&
+                    card(
+                      "Payer notes",
+                      <div className="cv-card-body">
                         {claimStatus.process_notes.map((n, i) => (
-                          <li key={n.number ?? i}>
-                            <span className="ep-mono ep-muted">{n.number ?? i + 1}</span>
-                            <span>{n.text}</span>
-                          </li>
+                          <div key={n.number ?? i} className="cv-kv"><span className="cv-mono">{n.number ?? i + 1}</span><span style={{ fontWeight: 400 }}>{n.text}</span></div>
                         ))}
-                      </ol>
-                    </Section>
+                      </div>,
+                    )}
+                  {card(
+                    "Payer response",
+                    <div className="cv-card-body cv-cols">
+                      <div>
+                        <div className="cv-kv"><span>Decision</span><span>{claimDecision ? String(claimDecision).replace(/_/g, " ").toLowerCase() : "—"}</span></div>
+                        <div className="cv-kv"><span>Raw outcome</span><span className="cv-mono">{claimProvenance?.raw_outcome ?? claimStatus.outcome ?? "—"}</span></div>
+                        <div className="cv-kv"><span>Reason codes</span><span className="cv-mono">{claimProvenance?.reason_codes?.join(", ") || "—"}</span></div>
+                      </div>
+                      <div>
+                        <div className="cv-kv"><span>Payer reference</span><span className="cv-mono">{claimStatus.claim_response_ref || "—"}</span></div>
+                        <div className="cv-kv"><span>Sent</span><span>{claimStatus.submitted_at ? formatDateTime(claimStatus.submitted_at) : "—"}</span></div>
+                        <div className="cv-kv"><span>Request</span><span className="cv-mono">{finalCorrelationId}</span></div>
+                      </div>
+                    </div>,
+                    { meta: "As received over NHCX" },
                   )}
-                  <Section id="cl-response" title="Payer response" meta="As received over NHCX">
-                    <Fields
-                      cols={3}
-                      rows={[
-                        { label: "Classified decision", value: claimDecision ? String(claimDecision).replace(/_/g, " ").toLowerCase() : null },
-                        { label: "Raw outcome", value: claimProvenance?.raw_outcome ?? claimStatus.outcome, mono: true },
-                        { label: "Reason codes", value: claimProvenance?.reason_codes?.join(", "), mono: true },
-                        { label: "Payer claim reference", value: claimStatus.claim_response_ref, mono: true },
-                        { label: "Payment status", value: claimStatus.payment_status ? String(claimStatus.payment_status).replace(/^PAYMENT_/, "").toLowerCase() : null },
-                        { label: "Sent", value: claimStatus.submitted_at ? formatDateTime(claimStatus.submitted_at) : null },
-                        { label: "Request ID", value: finalCorrelationId, mono: true },
-                      ]}
-                    />
-                  </Section>
                 </>
               )}
             </>
           )}
         </div>
 
-        <aside className="pd-side">
-          <section className="ep-section pd-request">
-            <header className="ep-section-head">
-              <h3 className="ep-section-title">Claim</h3>
-            </header>
-            {activeTab === "decision" && claimDecided ? (
-              <>
-                <div className={`ds-verdict is-${isClaimApproved ? "ok" : isClaimRejected ? "bad" : "warn"}`}>
-                  <span className="ep-dot" aria-hidden="true" />
-                  <span className="ds-verdict-label ep-cap">{String(claimDecision).replace(/_/g, " ").toLowerCase()}</span>
+        <aside className="cv-aside cv-card" aria-label="Claim">
+          {claimDecided ? (
+            <div className="cv-pane">
+              <div className="cv-card-meta">Payer decision</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 30, fontWeight: 700 }}>{claimApproved != null ? formatMoney(claimApproved) : "—"}</span>
+                <span className={`cv-chip ${isClaimApproved ? "is-ok" : isClaimRejected ? "is-bad" : "is-warn"}`} style={{ textTransform: "capitalize" }}>{String(claimDecision).replace(/_/g, " ").toLowerCase()}</span>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <div className="cv-kv"><span>Claimed</span><span>{formatMoney(claimRequested)}</span></div>
+                {claimTotals.eligible?.value != null && <div className="cv-kv"><span>Eligible</span><span>{formatMoney(claimTotals.eligible.value)}</span></div>}
+                {claimTotals.copay?.value > 0 && <div className="cv-kv"><span>Co-payment</span><span>− {formatMoney(claimTotals.copay.value)}</span></div>}
+                {claimTotals.deductible?.value > 0 && <div className="cv-kv"><span>Deductible</span><span>− {formatMoney(claimTotals.deductible.value)}</span></div>}
+                <div className="cv-kv"><span>Approved</span><span>{formatMoney(claimApproved)}</span></div>
+                {claimStatus?.payment_status && <div className="cv-kv"><span>Payment</span><span style={{ textTransform: "capitalize" }}>{String(claimStatus.payment_status).replace(/^PAYMENT_/, "").toLowerCase()}</span></div>}
+              </div>
+            </div>
+          ) : (
+            <div className="cv-pane">
+              <div className="cv-card-meta">Final bill</div>
+              <div style={{ fontSize: 30, fontWeight: 700, marginTop: 4 }}>{formatMoney(claimDraft?.total_amount)}</div>
+              {authorizedCeiling != null && (
+                <div className="cv-card-meta" style={{ color: overCeiling ? "var(--warning)" : undefined }}>
+                  {overCeiling ? `${formatMoney(ceilingExcess)} above` : "Within"} the {formatMoney(authorizedCeiling)} authorised
                 </div>
-                {claimApproved != null && (
-                  <div className="pd-amount">
-                    <div className="ep-muted">Approved</div>
-                    <div className="pd-amount-value ep-mono">{formatMoney(claimApproved)}</div>
-                    {claimRequested != null && <div className="ep-muted">of {formatMoney(claimRequested)} claimed</div>}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="pd-amount">
-                <div className="ep-muted">Final bill</div>
-                <div className="pd-amount-value ep-mono">{formatMoney(claimDraft?.total_amount)}</div>
-                {authorizedCeiling != null && (
-                  <div className={overCeiling ? "is-bad" : "ep-muted"}>
-                    {overCeiling ? `${formatMoney(ceilingExcess)} above` : "Within"} the {formatMoney(authorizedCeiling)} authorized
-                  </div>
-                )}
+              )}
+            </div>
+          )}
+          <div className="cv-pane">
+            <div className="cv-sub" style={{ fontSize: 15 }}>Ready to claim</div>
+            {readiness.map((r) => (
+              <div key={r.label} className="cv-ready-item">
+                <span className={`cv-ready-mark ${r.ok ? "is-ok" : r.bad ? "is-bad" : "is-warn"}`}>{r.ok ? "✓" : "!"}</span>
+                <span style={{ flex: 1 }}>{r.label}</span>
+                {r.note && <span className="cv-ready-note">{r.note}</span>}
+              </div>
+            ))}
+          </div>
+          <div className="cv-pane" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {(activeTab === "final" || activeTab === "decision") && submitError && <div className="cv-notice is-bad"><div className="cv-notice-body">{submitError}</div></div>}
+            {activeTab === "discharge" && dischargeSubmitError && <div className="cv-notice is-bad"><div className="cv-notice-body">{dischargeSubmitError}</div></div>}
+            {activeTab === "final" && !finalCorrelationId && blockingAsks.length > 0 && (
+              <div className="cv-card-meta" style={{ color: "var(--error)" }}>
+                The payer asked for {blockingAsks.map((a) => a.display).join(", ")}; finish {blockingAsks.length === 1 ? "it" : "them"} on Discharge documents to send.
               </div>
             )}
-
-            <ul className="pd-ready" aria-label="Claim readiness">
-              {readiness.map((r) => (
-                <li key={r.label} className={r.ok ? "is-ok" : r.bad ? "is-todo" : "is-soft"}>
-                  {r.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                  <span>{r.label}</span>
-                  {r.note && <span className="pd-ready-note">{r.note}</span>}
-                  {!r.ok && r.fix && <span className="pd-ready-fix">{r.fix}</span>}
-                </li>
-              ))}
-            </ul>
-
-            <div className="pd-submit">
-              {(activeTab === "final" || activeTab === "decision") && submitError && <div className="ep-notice is-bad">{submitError}</div>}
-              {activeTab === "discharge" && dischargeSubmitError && <div className="ep-notice is-bad">{dischargeSubmitError}</div>}
-              {primary && (
-                <Button
-                  variant="primary"
-                  icon={primary.icon}
-                  disabled={primary.disabled}
-                  disabledReason="Resolve the items marked above first. Each one says how."
-                  write={primary.write}
-                  onClick={primary.onClick}
-                  className="pd-submit-btn"
-                >
-                  {primary.label}
-                </Button>
-              )}
-              {secondary.length > 0 && (
-                <ul className="ds-actions">
-                  {secondary.map((a) => (
-                    <li key={a.label}>
-                      <button type="button" onClick={a.onClick}>
-                        {a.icon && <a.icon size={14} />}
-                        {a.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {releaseMessage && <div className="ep-muted">{releaseMessage}</div>}
-            </div>
-          </section>
+            {primary && (
+              <Button variant="primary" icon={primary.icon} disabled={primary.disabled} disabledReason="Resolve the items marked above first." write={primary.write} onClick={primary.onClick} className="pd-submit-btn">
+                {primary.label}
+              </Button>
+            )}
+            {secondary.map((a) => (
+              <button key={a.label} type="button" className="cv-btn" onClick={a.onClick}>
+                {a.icon && <a.icon size={14} />}
+                {a.label}
+              </button>
+            ))}
+            {releaseMessage && <div className="cv-card-meta">{releaseMessage}</div>}
+          </div>
         </aside>
       </div>
 

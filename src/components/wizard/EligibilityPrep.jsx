@@ -1,65 +1,30 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, AlertCircle, RefreshCw } from "lucide-react";
+import { ArrowRight, AlertCircle } from "lucide-react";
 import { api } from "../../api";
-import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
+import { useReadOnly } from "../../readOnly";
 import { usePoll } from "../../hooks/usePoll";
-import { Card, Button, LoadingBlock, TablePagination, InfoTip, Tip, NextStep } from "../Common";
-import Dropdown from "../Dropdown";
-import { Section, Fields } from "../case/CaseFile";
-import { formatDate, formatMoney } from "../../format.js";
+import { usePlanForms } from "../../hooks/usePlanForms";
+import { Card, Button, LoadingBlock } from "../Common";
+import { formatMoney } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
-import PayrErrorList from "../PayrErrorList";
-import { Drawer } from "../Overlay";
 import { eligibilityBeneficiaries, eligibilityRequirements } from "../../caseStatus";
+import PlanCard from "../eligibility/PlanCard";
+import EligibilityResponses from "../eligibility/EligibilityResponses";
+import Members from "../eligibility/Members";
+import FormDrawer from "../eligibility/FormDrawer";
+import { deriveChecks } from "../eligibility/checks";
+import { planState } from "../eligibility/planProfile";
 
 const POLL_INTERVAL_MS = 7000;
 const TERMINAL_STATUSES = ["complete", "failed"];
 
-// Stop polling at a terminal status, OR when the backend signals `resubmit`
-// - that state won't resolve on its own, so the user must re-run the
-// eligibility check rather than wait. `resubmit` now appears both when
-// `status` is `partial` (a sub-check failed) and when `status` is `pending`
-// past the server timeout with no payer callback ("stale pending" - the
-// request was likely lost).
 const shouldStopPolling = (res) =>
   TERMINAL_STATUSES.includes(res?.status) ||
   (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
 
-// ─── The payer's package master ───────────────────────────────────────────
-// The case payload carries only the plan summary; packages are paged from
-// GET insurance_plan/{correlation_id}/benefits.
-const docLabel = (d) => ({ label: d.display || d.code || "Document", code: d.display && d.code !== d.display ? d.code : null });
+const yes = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
 
-const packageRow = (b) => {
-  const rate = Number(b.rate);
-  return {
-    key: b.id ?? `${b.category_code || ""}:${b.code}`,
-    code: b.code || null,
-    name: b.display || b.code || "Unnamed",
-    specialty: b.category_display || b.category_code || null,
-    rate: Number.isFinite(rate) && rate > 0 ? rate : null,
-    rules: Object.fromEntries(Object.entries(b.conditions || {}).map(([k, v]) => [k, v == null ? v : String(v).trim()])),
-    docs: (b.supporting_info || []).map(docLabel).filter((d, i, a) => a.findIndex((x) => x.label === d.label) === i),
-  };
-};
-
-const yn = (v) => (v == null ? null : /^y/i.test(v) ? "Yes" : /^n/i.test(v) ? "No" : v);
-
-// ApprovalNotRequired is phrased negatively: "N" means preauth IS required.
-const preauthFromRules = (rules) =>
-  rules.ApprovalNotRequired == null ? null : /^y/i.test(rules.ApprovalNotRequired) ? "Not required" : "Required";
-
-const ruleNotes = (r) =>
-  [
-    /^y/i.test(r.IsDayCare || "") && "Day care",
-    /^y/i.test(r.ImplantApplicable || "") && "Implant",
-    /^y/i.test(r.StratificationAllowed || "") && "Stratified",
-    /^y/i.test(r.CyclicProcedure || "") && `Cyclic${r.MaximumCyclesAllowed ? ` ×${r.MaximumCyclesAllowed}` : ""}`,
-    r.QuantityAllowed && `Qty ≤ ${r.QuantityAllowed}`,
-  ].filter(Boolean);
-
-// Planned procedures matched to their packages, one lookup per code.
 function usePlannedPackages(correlationId, codes) {
   const [byCode, setByCode] = useState({});
   const key = codes.join("|");
@@ -73,7 +38,7 @@ function usePlannedPackages(correlationId, codes) {
           .then((res) => [code, (res?.benefits || []).find((b) => String(b.code) === code) || null])
           .catch(() => [code, null]),
       ),
-    ).then((pairs) => live && setByCode(Object.fromEntries(pairs.map(([c, b]) => [c, b && packageRow(b)]))));
+    ).then((pairs) => live && setByCode(Object.fromEntries(pairs)));
     return () => {
       live = false;
     };
@@ -81,541 +46,63 @@ function usePlannedPackages(correlationId, codes) {
   return byCode;
 }
 
-const period = (start, end) => (start || end ? `${formatDate(start)} – ${formatDate(end)}` : null);
-
-// ─── Coverage eligibility ─────────────────────────────────────────────────
-// Real backend returns nested validation/benefits/auth_requirements; flat is
-// legacy mock.
-function deriveChecks(ce, benefitsTimedOut) {
-  if (!ce) return null;
-  const pick = (sub) => sub || (ce.validation || ce.benefits || ce.auth_requirements ? null : ce);
-  const stateOf = (sub) => {
-    if (!sub) return "pending";
-    if (sub.status === "complete") return sub.errors?.length ? "error" : "done";
-    if (sub.status === "failed") return "error";
-    return "pending";
-  };
-  const itemsOf = (sub) =>
-    (sub?.insurance_items || []).flatMap((ins) => (ins.items || []).map((it) => ({ ...it, _coverage: ins.coverage })));
-  const validation = pick(ce.validation);
-  const benefits = pick(ce.benefits);
-  const auth = pick(ce.auth_requirements);
-  const coverage =
-    validation?.insurance_items?.find((ins) => ins.coverage_details) ||
-    benefits?.insurance_items?.find((ins) => ins.coverage_details) ||
-    validation?.insurance_items?.[0] ||
-    null;
-  return {
-    coverage,
-    inforce: validation?.inforce ?? coverage?.inforce ?? null,
-    validation: { sub: validation, state: stateOf(validation), items: itemsOf(validation) },
-    benefits: { sub: benefits, state: benefitsTimedOut ? "unavailable" : stateOf(benefits), items: itemsOf(benefits) },
-    auth: {
-      sub: auth,
-      state: stateOf(auth),
-      items: itemsOf(auth).length ? itemsOf(auth) : itemsOf(benefits),
-      required: auth?.auth_required ?? ce.auth_required ?? null,
-    },
-  };
-}
-
-// ─── Presentational pieces ────────────────────────────────────────────────
-function SubList({ title, items, empty }) {
+function PlannedTreatment({ procedures, packages, checks, source, planReady }) {
   return (
-    <div className="ep-sublist">
-      <div className="ep-sublist-title">
-        {title} {items.length > 0 && <span className="ep-count">{items.length}</span>}
+    <section className="cv-card" aria-label="Planned treatment">
+      <div className="cv-card-head">
+        <h2 className="cv-card-title">4. Planned treatment</h2>
+        {procedures.length > 0 ? <span className="cv-chip is-ok">{procedures.length} planned</span> : <span className="cv-chip is-warn">None recorded</span>}
+        {source && <span className="cv-card-meta">From {source.replace(/_/g, " ")}</span>}
       </div>
-      {items.length ? (
-        <ul>
-          {items.map((it, i) => (
-            <li key={i}>
-              <span>{it.label}</span>
-              {it.code && <span className="ep-code">{it.code}</span>}
-            </li>
-          ))}
-        </ul>
+      {procedures.length === 0 ? (
+        <div className="cv-card-body">
+          No planned procedure is recorded for this visit. Ask the doctor to add it in the hospital system, then re-run the checks so the payer can rule on it.
+        </div>
       ) : (
-        <div className="ep-muted">{empty}</div>
-      )}
-    </div>
-  );
-}
-
-// Section jump-bar; highlights the section currently at the top of the pane.
-const SECTIONS = [
-  { id: "ep-policy", label: "Policy & member" },
-  { id: "ep-plan", label: "Insurance plan" },
-  { id: "ep-eligibility", label: "Eligibility checks" },
-  { id: "ep-requirements", label: "Payer requirements" },
-  { id: "ep-treatment", label: "Planned treatment" },
-  { id: "ep-packages", label: "Package catalogue" },
-];
-
-function JumpBar() {
-  const [active, setActive] = useState(SECTIONS[0].id);
-  useEffect(() => {
-    const scroller = document.querySelector(".content");
-    if (!scroller) return;
-    const onScroll = () => {
-      const top = scroller.getBoundingClientRect().top + 140;
-      let current = SECTIONS[0].id;
-      for (const s of SECTIONS) {
-        const el = document.getElementById(s.id);
-        if (el && el.getBoundingClientRect().top <= top) current = s.id;
-      }
-      setActive(current);
-    };
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    return () => scroller.removeEventListener("scroll", onScroll);
-  }, []);
-  return (
-    <nav className="ep-jump" aria-label="Sections">
-      {SECTIONS.map((s) => (
-        <button
-          key={s.id}
-          type="button"
-          className={active === s.id ? "is-on" : ""}
-          onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-        >
-          {s.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-const CHECKS = [
-  { id: "validation", label: "Validation", question: "Is the policy in force?" },
-  { id: "benefits", label: "Benefits", question: "What cover and limits apply?" },
-  { id: "auth", label: "Auth requirements", question: "Does the treatment need preauth?" },
-];
-
-function checkSummary(id, c, inforce) {
-  if (c.state === "pending") return "Awaiting insurer";
-  if (c.state === "error") return "Failed";
-  if (c.state === "unavailable") return "No response in time";
-  if (id === "validation") return inforce == null ? "Answered" : inforce ? "In force" : "Not in force";
-  if (id === "benefits") return c.items.length ? `${c.items.length} benefit line${c.items.length === 1 ? "" : "s"}` : "No item limits";
-  return c.required == null ? "Answered" : c.required ? "Preauth required" : "Not required";
-}
-
-function ItemsTable({ items, mode }) {
-  if (!items.length) return <div className="ep-muted ep-pad-y">The insurer returned no item lines for this check.</div>;
-  return (
-    <div className="ep-table-wrap">
-      <table className="ep-table">
-        <thead>
-          <tr>
-            <th>Service</th>
-            {mode === "auth" ? (
-              <>
-                <th>Preauth</th>
-                <th>Documents for preauth</th>
-              </>
-            ) : (
-              <>
-                <th>Covered</th>
-                <th className="ep-num">Allowed</th>
-                <th className="ep-num">Used</th>
-                <th className="ep-num">Available</th>
-              </>
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, i) => {
-            const b = it.benefit?.[0];
-            const allowed = b?.allowed?.value;
-            const used = b?.used?.value;
-            return (
-              <tr key={i}>
-                <td>
-                  <div className="ep-strong">{it.product_or_service?.display || it.product_or_service?.code || "—"}</div>
-                  <div className="ep-muted">
-                    {[it.product_or_service?.code, it.category?.display || it.category?.code].filter(Boolean).join(" · ")}
-                  </div>
-                  {mode !== "auth" &&
-                    (it.benefit || []).slice(1).map((x, j) => (
-                      <div key={j} className="ep-muted">
-                        {x.type?.display || "Benefit"}: {formatMoney(x.allowed?.value)} allowed · {formatMoney(x.used?.value)} used
-                      </div>
-                    ))}
-                </td>
-                {mode === "auth" ? (
-                  <>
-                    <td className="ep-nowrap">{it.authorization_required == null ? "—" : it.authorization_required ? "Required" : "Not required"}</td>
-                    <td>
-                      {(it.authorization_supporting || []).length
-                        ? it.authorization_supporting.map((d) => d.display || d.code).join(", ")
-                        : "—"}
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className={it.excluded ? "is-bad ep-nowrap" : "ep-nowrap"}>{it.excluded ? "Excluded" : "Covered"}</td>
-                    <td className="ep-num ep-mono">{formatMoney(allowed)}</td>
-                    <td className="ep-num ep-mono">{formatMoney(used)}</td>
-                    <td className="ep-num ep-mono ep-strong">{allowed != null ? formatMoney(allowed - (used || 0)) : "—"}</td>
-                  </>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function CheckDetail({ id, check, inforce, coverage }) {
-  const sub = check.sub || {};
-  const cd = coverage?.coverage_details || {};
-  return (
-    <div className="ep-check-detail">
-      <Fields
-        cols={2}
-        rows={[
-          { label: "Status", value: <span className="ep-cap">{sub.status || "pending"}</span> },
-          { label: "Outcome", value: sub.outcome },
-          { label: "Disposition", value: sub.disposition },
-          id === "validation" && { label: "In force", value: inforce == null ? null : inforce ? "Yes" : "No", tone: inforce === false ? "bad" : undefined },
-          id === "auth" && { label: "Preauth required", value: check.required == null ? null : check.required ? "Yes" : "No" },
-          { label: "Request ID", value: sub.correlation_id, mono: true },
-        ]}
-      />
-      {id === "validation" && (
-        <>
-          <div className="ep-detail-title">Coverage resolved by the insurer</div>
-          <Fields
-            cols={2}
-            rows={[
-              { label: "Coverage plan", value: cd.plan_name || cd.plan },
-              { label: "Member ID", value: cd.member_id, mono: true },
-              { label: "Sum insured", value: cd.sum_insured ? formatMoney(Number(cd.sum_insured)) : null, mono: true },
-              { label: "Coverage status", value: cd.status && <span className="ep-cap">{cd.status}</span> },
-              { label: "Benefit period", value: period(coverage?.benefit_period?.start, coverage?.benefit_period?.end) },
-              { label: "Coverage reference", value: coverage?.coverage, mono: true },
-              // plan / subplan classes are the plan and sum insured above
-              ...(cd.classes || [])
-                .filter((c) => c?.value && !["plan", "subplan"].includes(c.type))
-                .map((c) => ({ label: c.name || c.type, value: c.value })),
-            ]}
-          />
-          {check.items.length > 0 && <ItemsTable items={check.items} mode="benefits" />}
-          {!cd.plan && !cd.plan_name && !cd.member_id && check.state === "done" && (
-            <div className="ep-muted ep-pad-y">The insurer confirmed eligibility without coverage details.</div>
-          )}
-        </>
-      )}
-      {id === "benefits" && check.state !== "pending" && <ItemsTable items={check.items} mode="benefits" />}
-      {id === "auth" && check.state !== "pending" && <ItemsTable items={check.items} mode="auth" />}
-      {check.state === "pending" && <div className="ep-muted ep-pad-y">Waiting for the insurer's answer to this check.</div>}
-      {check.state === "unavailable" && (
-        <div className="ep-notice is-warn">The insurer didn't answer this check in time. Coverage details may be incomplete; you can still proceed to preauth.</div>
-      )}
-      {sub.errors?.length > 0 && <PayrErrorList errors={sub.errors} />}
-    </div>
-  );
-}
-
-const photoSrc = (photo) =>
-  !photo ? null : /^https?:/i.test(photo) ? photo : `data:image/${photo.startsWith("iVBOR") ? "png" : "jpeg"};base64,${photo}`;
-
-const NEWBORN_PROOFS = [
-  { value: "BCF", label: "Birth certificate" },
-  { value: "DCB", label: "Government hospital discharge card" },
-];
-
-function NewbornCase({ newborn, saving, canEdit, onChange }) {
-  const on = !!newborn;
-  return (
-    <div className="ep-notice">
-      <label className="ep-nowrap">
-        <input type="checkbox" checked={on} disabled={!canEdit || saving} onChange={(e) => onChange(e.target.checked ? { proof_code: "BCF" } : null)} />{" "}
-        <strong>Newborn on a parent's card (PMJAY)</strong>
-      </label>
-      <div className="ep-muted">
-        For a baby of 6 or under with no member id of their own. Choose the parent below as the patient; the baby goes into the pre-auth and
-        claim as the parent's linked newborn, with the name, gender and date of birth from the hospital records.
-      </div>
-      {on && (
-        <label className="ep-nowrap">
-          Proof of birth{" "}
-          <select
-            className="input-modern"
-            value={newborn.proof_code || "BCF"}
-            disabled={!canEdit || saving}
-            onChange={(e) => onChange({ ...newborn, proof_code: e.target.value })}
-          >
-            {NEWBORN_PROOFS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-    </div>
-  );
-}
-
-function Members({ members, chosenId, choosing, onChoose, canChoose, chooseLabel }) {
-  return (
-    <div className="ep-table-wrap">
-      <table className="ep-table">
-        <thead>
-          <tr>
-            <th className="ep-col-name">Member</th>
-            <th>Member ID</th>
-            <th>Relationship</th>
-            <th>Gender · born</th>
-            <th>ABHA</th>
-            <th>In the bed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m) => (
-            <tr key={m.member_id || `${m.name}|${m.dob}`} className={chosenId && chosenId === m.member_id ? "is-planned" : undefined}>
-              <td className="ep-col-name">
-                <div className="ep-pkg-name">
-                  {photoSrc(m.photo) && <img src={photoSrc(m.photo)} alt="" width={28} height={28} />}
-                  {m.name || "—"}
-                  {m.checked && <span className="ep-label">Checked</span>}
-                </div>
-                {m.address && <div className="ep-muted">{m.address}</div>}
-              </td>
-              <td className="ep-mono ep-nowrap">{m.member_id || "—"}</td>
-              <td className="ep-cap">{m.relationship || "—"}</td>
-              <td className="ep-nowrap">
-                <span className="ep-cap">{m.gender || "—"}</span>
-                {m.dob ? ` · ${formatDate(m.dob)}` : ""}
-              </td>
-              <td className="ep-mono ep-nowrap">{m.abha_number || "—"}</td>
-              <td className="ep-nowrap">
-                {chosenId && chosenId === m.member_id ? (
-                  "This patient"
-                ) : canChoose && m.member_id ? (
-                  <button type="button" className="ep-action" disabled={!!choosing} onClick={() => onChoose(m)}>
-                    {choosing === m.member_id ? "Saving…" : chooseLabel}
-                  </button>
-                ) : (
-                  "—"
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-const STAGE_LABEL = { pre: "Pre-auth", post: "Claim" };
-
-function FormDrawer({ correlationId, url, onClose }) {
-  const [form, setForm] = useState({ url: null, data: null, error: null });
-  useEffect(() => {
-    if (!correlationId || !url) return;
-    let live = true;
-    api
-      .getInsurancePlanForms(correlationId, url)
-      .then((res) => live && setForm({ url, data: res, error: res ? null : "The payer's plan holds no such form." }))
-      .catch((err) => live && setForm({ url, data: null, error: err?.message || "Could not load the form." }));
-    return () => {
-      live = false;
-    };
-  }, [correlationId, url]);
-  const loaded = form.url === url;
-  const data = loaded ? form.data : null;
-  return (
-    <Drawer
-      open={!!url}
-      onClose={onClose}
-      width={720}
-      title={data?.title || "Payer form"}
-      subtitle={data ? [data.form_id, STAGE_LABEL[data.stage]].filter(Boolean).join(" · ") : url}
-    >
-      {!loaded ? (
-        <LoadingBlock text="Loading the payer's form…" />
-      ) : form.error ? (
-        <div className="ep-notice is-bad">{form.error}</div>
-      ) : (
-        <div className="ep-table-wrap">
-          <table className="ep-table">
+        <div className="cv-tw cv-in-card">
+          <table>
             <thead>
               <tr>
-                <th className="ep-col-name">Question</th>
-                <th>Answer</th>
+                <th>Procedure</th>
+                <th>In the plan</th>
+                <th className="is-num">Plan rate</th>
+                <th className="is-num">Payer allows</th>
+                <th>Pre-auth</th>
+                <th>Asked with it</th>
               </tr>
             </thead>
             <tbody>
-              {(data?.items || []).map((it) => (
-                <tr key={it.linkId}>
-                  <td className="ep-col-name" style={{ paddingLeft: `${12 + (it.depth || 0) * 16}px` }}>
-                    <div className={it.type === "group" ? "ep-strong" : undefined}>{it.text || it.linkId}</div>
-                    {it.options?.length > 0 && (
-                      <div className="ep-muted">
-                        {it.options.join(" · ")}
-                        {it.initial ? ` (default ${it.initial})` : ""}
-                      </div>
-                    )}
-                  </td>
-                  <td className="ep-nowrap">
-                    <span className="ep-cap">{it.type === "group" ? "Section" : it.type || "—"}</span>
-                    {it.type !== "group" && it.required ? " · required" : ""}
-                  </td>
-                </tr>
-              ))}
+              {procedures.map((proc, i) => {
+                const pkg = packages[String(proc.code)];
+                const benefit = checks?.benefits.items.find((it) => String(it.product_or_service?.code) === String(proc.code));
+                const auth = checks?.auth.items.find((it) => String(it.product_or_service?.code) === String(proc.code));
+                const needs = auth?.authorization_required ?? (pkg ? !yes(pkg.conditions?.ApprovalNotRequired) : null);
+                const docs = [
+                  ...(auth?.authorization_supporting || []).map((d) => d.display || d.code),
+                  ...(pkg?.supporting_info || []).map((d) => d.display || d.code),
+                ].filter((d, j, a) => d && a.indexOf(d) === j);
+                return (
+                  <tr key={i}>
+                    <td>
+                      <strong>{proc.name}</strong> <span className="cv-mono cv-card-meta">{proc.code}</span>
+                    </td>
+                    <td>
+                      {!planReady ? "—" : pkg ? <span className="cv-chip is-ok">Yes</span> : String(proc.code) in packages ? <span className="cv-chip is-warn">Not in plan</span> : "…"}
+                    </td>
+                    <td className="is-num">{pkg?.rate != null ? formatMoney(pkg.rate) : "—"}</td>
+                    <td className="is-num">
+                      {benefit?.excluded ? <span className="cv-chip is-bad">Excluded</span> : benefit?.benefit?.[0]?.allowed?.value != null ? formatMoney(benefit.benefit[0].allowed.value) : "—"}
+                    </td>
+                    <td>{needs == null ? "—" : <span className={`cv-chip ${needs ? "is-warn" : "is-todo"}`}>{needs ? "Needed" : "Not needed"}</span>}</td>
+                    <td>{docs.length ? docs.join(", ") : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
-    </Drawer>
-  );
-}
-
-function usePlanForms(correlationId, formCount) {
-  const [forms, setForms] = useState({ key: null, rows: [] });
-  useEffect(() => {
-    if (!correlationId || !formCount) return;
-    let live = true;
-    api
-      .getInsurancePlanForms(correlationId)
-      .then((res) => live && setForms({ key: correlationId, rows: res?.forms || [] }))
-      .catch(() => live && setForms({ key: correlationId, rows: [] }));
-    return () => {
-      live = false;
-    };
-  }, [correlationId, formCount]);
-  return forms.key === correlationId ? forms.rows : [];
-}
-
-const CATALOGUE_PAGE = 12;
-
-function PackageCatalogue({ correlationId, categories, packageCount, plannedCodes }) {
-  const [query, setQuery] = useState("");
-  const [specialty, setSpecialty] = useState("");
-  const [page, setPage] = useState(0);
-  const [result, setResult] = useState({ key: null, rows: [], total: 0, error: null });
-  const q = query.trim();
-  const term = q.length >= 2 ? q : "";
-  const requestKey = [correlationId, specialty, term, page].join("|");
-
-  useEffect(() => {
-    if (!correlationId || !packageCount) return;
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      api
-        .getInsurancePlanBenefits(
-          correlationId,
-          { category: specialty || undefined, q: term || undefined, limit: CATALOGUE_PAGE, offset: page * CATALOGUE_PAGE },
-          controller.signal,
-        )
-        .then((res) => setResult({ key: requestKey, rows: (res?.benefits || []).map(packageRow), total: res?.total ?? 0, error: null }))
-        .catch((err) => {
-          if (err?.name !== "AbortError") setResult({ key: requestKey, rows: [], total: 0, error: err?.message || "Could not load packages." });
-        });
-    }, term ? 300 : 0);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [correlationId, packageCount, specialty, term, page, requestKey]);
-
-  if (!packageCount) return <div className="ep-muted ep-pad">The insurer's plan lists no packages.</div>;
-
-  const loading = result.key !== requestKey;
-  const pageRows = loading ? [] : result.rows;
-  const specialties = categories.filter((c) => c.code);
-
-  return (
-    <>
-      <div className="ep-toolbar">
-        <input
-          className="input-modern ep-search"
-          placeholder="Search package name or code…"
-          aria-label="Search packages"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setPage(0);
-          }}
-        />
-        {specialties.length > 1 && (
-          <div style={{ width: "240px" }}>
-            <Dropdown
-              compact
-              ariaLabel="Specialty"
-              value={specialty}
-              options={[
-                { value: "", label: "All specialties" },
-                ...specialties.map((s) => ({ value: s.code, label: `${s.display || s.code} (${s.count})` })),
-              ]}
-              onChange={(v) => {
-                setSpecialty(v);
-                setPage(0);
-              }}
-            />
-          </div>
-        )}
-        <span className="ep-muted ep-toolbar-count">
-          {loading ? "Loading…" : `${result.total} of ${packageCount} packages`}
-        </span>
-      </div>
-      {!loading && result.error && <div className="ep-notice is-bad">{result.error}</div>}
-      <div className="ep-table-wrap">
-        <table className="ep-table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th className="ep-col-name">Package</th>
-              <th>Specialty</th>
-              <th>Type</th>
-              <th className="ep-num">Rate</th>
-              <th>Preauth</th>
-              <th>Enhancement</th>
-              <th>Documents</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageRows.map((r) => {
-              const notes = ruleNotes(r.rules);
-              return (
-                <tr key={r.key} className={plannedCodes.has(String(r.code)) ? "is-planned" : undefined}>
-                  <td className="ep-mono ep-nowrap">{r.code || "—"}</td>
-                  <td className="ep-col-name">
-                    <div className="ep-pkg-name">
-                      {r.name}
-                      {plannedCodes.has(String(r.code)) && <span className="ep-label">Planned</span>}
-                    </div>
-                    {notes.length > 0 && <div className="ep-muted">{notes.join(" · ")}</div>}
-                  </td>
-                  <td className="ep-muted">{r.specialty || "—"}</td>
-                  <td>{r.rules.ProcedureType || "—"}</td>
-                  <td className="ep-num ep-mono">{r.rate != null ? formatMoney(r.rate) : "—"}</td>
-                  <td>{preauthFromRules(r.rules) || "—"}</td>
-                  <td>{yn(r.rules.EnhancementAllowed) || "—"}</td>
-                  <td className="ep-muted" title={r.docs.map((d) => d.label).join("\n") || undefined}>
-                    {r.docs.length ? `${r.docs.length} required` : "—"}
-                  </td>
-                </tr>
-              );
-            })}
-            {!pageRows.length && !loading && (
-              <tr>
-                <td colSpan={8} className="ep-muted">
-                  No packages match this search.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="ep-pager">
-        <TablePagination page={page} pageSize={CATALOGUE_PAGE} total={result.total} onPageChange={setPage} label="packages" />
-      </div>
-    </>
+    </section>
   );
 }
 
@@ -632,7 +119,6 @@ export default function EligibilityPrep({ ctx }) {
   const [error, setError] = useState(null);
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
   const [movedOn, setMovedOn] = useState(null);
-  const [activeCheck, setActiveCheck] = useState("validation");
   const [openForm, setOpenForm] = useState(null);
   const [choosing, setChoosing] = useState(null);
   const [memberError, setMemberError] = useState(null);
@@ -773,7 +259,7 @@ export default function EligibilityPrep({ ctx }) {
     }
   };
 
-  const fetchPlanAgain = async () => {
+  const fetchPlan = async (refresh = true) => {
     const childId = caseData?.child_id || patient?.child_id;
     const payerId = caseData?.payer_id || payer?.code;
     const policyNumber = caseData?.policy_number || policy?.policy_number;
@@ -785,7 +271,7 @@ export default function EligibilityPrep({ ctx }) {
         payer_id: payerId,
         policy_number: policyNumber,
         ...(caseData?.cashless_case_id ? { cashless_case_id: caseData.cashless_case_id } : {}),
-        refresh: true,
+        refresh,
       });
       if (res.status === "refused") {
         setPlanFetch({
@@ -935,515 +421,124 @@ export default function EligibilityPrep({ ctx }) {
   const isPending = caseData?.status === "pending";
   const isFailed = caseData?.status === "failed";
   const benefitsTimedOut = isPartial && caseData?.next_actions?.includes("prepare_preauth");
-  // next_actions "resubmit" = either a partial sub-check failed, or a pending
-  // case went stale past the server timeout with no payer callback (the
-  // request was likely lost). Neither will resolve on its own - the user
-  // must re-run the eligibility check.
   const needsResubmit = (isPartial || isPending) && caseData?.next_actions?.includes("resubmit");
   const isStalePending = isPending && needsResubmit;
-  // Prepare never hard-fails — a `failed` status with "retry" in next_actions
-  // means the InsurancePlan/CE submission itself errored (bad cert, gateway
-  // down, etc.) and the case is waiting for a re-POST, not a dead end.
   const needsRetry = isFailed && caseData?.next_actions?.includes("retry");
   const canProceed = caseData?.next_actions?.includes("prepare_preauth") && (isComplete || isPartial);
   const movedOnLabel = movedOn ? STEP_FORWARD_LABEL[movedOn] : null;
 
   const plan = caseData?.insurance_plan;
+  const state = planState(plan);
   const checks = deriveChecks(caseData?.coverage_eligibility, benefitsTimedOut);
-  const canRerun = !(forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy)));
-  const rerunTitle = !caseData?.cashless_case_id && (!payer || !policy) ? "Select payer & policy to re-run" : undefined;
-
+  const canRerun = !(forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy))) && !readOnly && !caseClosed;
   const inforce = checks?.inforce;
   const verdict = needsRetry
-    ? {
-        tone: "bad",
-        label: "Check failed",
-        text: caseData?.prepare_error?.message || "The eligibility submission couldn't be completed.",
-        next: "Press Retry preparation. If it fails again, go back to the Policy step and check the policy, or share this message with your IT team.",
-      }
+    ? { tone: "bad", label: "Check failed", text: caseData?.prepare_error?.message || "The eligibility request could not be sent.", next: "Press Retry. If it fails again, go back to the Policy step and check the policy, or share this message with IT." }
     : isStalePending
-      ? {
-          tone: "warn",
-          label: "No insurer response",
-          text: "The request may have been lost. Re-run the check to retry.",
-          next: "Press Re-run eligibility. If the insurer still doesn't answer, call its helpdesk; its system may be down.",
-        }
+      ? { tone: "warn", label: "No answer from the payer", text: "The request may have been lost.", next: "Press Re-run checks. If the payer still does not answer, call its helpdesk." }
       : inforce === false
-        ? {
-            tone: "bad",
-            label: "Not eligible",
-            text: "The insurer reports the policy as not in force.",
-            next: "The policy is not active today, so the insurer won't pay. Ask the patient for a renewed or different policy and pick it on the Policy step, or treat the patient as cash.",
-          }
+        ? { tone: "bad", label: "Not eligible", text: "The payer reports the policy as not in force.", next: "Ask the patient for a renewed or different policy and pick it on the Policy step, or treat the patient as cash." }
         : polling || isPending
-          ? {
-              tone: "pending",
-              label: "Awaiting insurer",
-              text: "Results fill in as each check returns.",
-              tip: "Insurers usually answer within a minute or two. You can read the plan and treatment below while you wait.",
-            }
+          ? { tone: "info", label: "Waiting for the payer", text: "Answers fill in as each check returns, usually within a minute or two." }
           : inforce || isComplete
-            ? {
-                tone: "ok",
-                label: "Eligible",
-                text: "The policy is in force for this admission.",
-                tip: "Next: check the member, the planned treatment and the payer's requirements below, then continue to the preauth draft.",
-              }
-            : { tone: "pending", label: "Not confirmed", text: "Refresh to fetch the latest answer.", tip: "Press Refresh to ask for the insurer's latest answer." };
+            ? { tone: "ok", label: "Eligible", text: "The policy is in force for this admission." }
+            : { tone: "todo", label: "Not confirmed", text: "Refresh to fetch the latest answer." };
 
-  const cd = checks?.coverage?.coverage_details || {};
-  const bp = checks?.coverage?.benefit_period;
   const ce = caseData?.coverage_eligibility;
-  const wallet = ce?.validation?.wallet || ce?.benefits?.wallet || ce?.auth_requirements?.wallet || null;
-  const sumInsured = wallet?.sum_insured ?? (cd.sum_insured ? Number(cd.sum_insured) : null);
-  const details = plan?.plan_details || {};
-  const summary = plan?.plan || {};
-  const packageCount = plan?.benefit_count || 0;
-  const categories = plan?.categories || [];
-  const planDocs = (plan?.policy_documents || []).filter((d) => d.stage !== "post").map(docLabel);
-  const claimDocs = (plan?.policy_documents || []).filter((d) => d.stage === "post").map(docLabel);
-  const planEmpty = plan?.plan_status === "empty";
-  const planError =
-    !planEmpty && (plan?.plan_status === "error" || plan?.errors?.length)
-      ? plan?.error_message || plan?.errors?.map((e) => e.message || e.code).join(" · ")
-      : null;
-
-  // Planned procedures, each matched to its package and to the payer's lines.
-  const procedures = caseData?.procedures?.items || [];
-  const plannedCodes = new Set(procedures.map((p) => String(p.code)));
-  const treatment = procedures.map((proc) => {
-    const pkg = plannedPackages[String(proc.code)] || null;
-    const benefitLine = checks?.benefits.items.find((it) => String(it.product_or_service?.code) === String(proc.code));
-    const authLine = checks?.auth.items.find((it) => String(it.product_or_service?.code) === String(proc.code));
-    const preauth =
-      authLine?.authorization_required != null
-        ? authLine.authorization_required
-          ? "Required"
-          : "Not required"
-        : preauthFromRules(pkg?.rules || {});
-    const docs = [
-      ...(authLine?.authorization_supporting || []).map((d) => d.display || d.code),
-      ...(pkg?.docs || []).map((d) => d.label),
-    ].filter((d, i, a) => d && a.indexOf(d) === i);
-    return { proc, pkg, benefitLine, preauth, docs };
-  });
-
-  const activeDef = CHECKS.find((c) => c.id === activeCheck) || CHECKS[0];
   const members = eligibilityBeneficiaries(ce);
   const requirements = eligibilityRequirements(ce);
   const chosenMemberId = caseState.beneficiaryMemberId || caseData?.beneficiary_member_id || (members.length === 1 ? members[0].member_id : null);
   const formTitle = (url) => planForms.find((f) => f.url === url)?.title;
+  const procedures = caseData?.procedures?.items || [];
+  const plannedCodes = new Set(procedures.map((p) => String(p.code)));
+  const discovery = caseState.policy?.source === "discovery" ? caseState.policy : null;
+  const canFetch = !caseClosed && !readOnly && !!(caseData?.child_id || patient?.child_id);
+  const fetchResult = planFetch?.message
+    ? { tone: planFetch.state === "failed" ? "is-bad" : planFetch.state === "refused" ? "is-warn" : "is-info", text: `${planFetch.code ? `${planFetch.code}: ` : ""}${planFetch.message}` }
+    : null;
+  const rerunLabel = forceRefreshing ? "Re-running…" : needsRetry ? "Retry" : "Re-run checks";
+  const canRerunNow = !caseClosed && !polling && (isComplete || isFailed || needsResubmit);
 
   return (
-    <div className="wizard-step ep-screen">
-      {/* One-line verdict + re-run; everything else lives in the sections */}
-      <div className={`ep-verdict is-${verdict.tone}`}>
-        <span className="ep-dot" aria-hidden="true" />
-        <span className="ep-verdict-label">{verdict.label}</span>
-        <span className="ep-verdict-text">{verdict.text}</span>
-        <span className="ep-verdict-actions">
-          {caseClosed ? null : !polling && (isComplete || isFailed || needsResubmit) ? (
-            <button type="button" className="ep-action" disabled={!canRerun || readOnly} title={readOnly ? READ_ONLY_TITLE : rerunTitle} onClick={handleForceRefresh}>
-              <RefreshCw size={13} />
-              {forceRefreshing ? "Re-running…" : needsRetry ? "Retry preparation" : "Re-run eligibility"}
-            </button>
-          ) : !polling && !isComplete && !isFailed ? (
-            <button type="button" className="ep-action" onClick={manualRefresh}>
-              <RefreshCw size={13} />
-              Refresh
-            </button>
-          ) : null}
-        </span>
-      </div>
-      {verdict.next && (
-        <NextStep tone={verdict.tone === "bad" ? "bad" : "warn"} className="ep-next" title="What to do now">
-          {verdict.next}
-        </NextStep>
-      )}
-      {verdict.tip && <Tip className="ep-verdict-tip">{verdict.tip}</Tip>}
-      {needsResubmit && !isStalePending && (
-        <div className="ep-notice is-warn">
-          One or more eligibility checks didn't complete and won't resolve on their own. Re-run the eligibility check.
-        </div>
-      )}
-      {movedOn && (
-        <div className="ep-notice">This case has moved on to {movedOnLabel}. The details below are as last checked.</div>
-      )}
-
-      <JumpBar />
-
-      <Section
-        id="ep-policy"
-        title="Policy & member"
-        meta="As resolved by the insurer's eligibility response"
-        info="policy"
-        tip="Check that the member ID and name match the patient's insurance card."
-      >
-        <Fields
-          cols={3}
-          rows={[
-            { label: "Policy number", value: caseData?.policy_number || policy?.policy_number, mono: true },
-            { label: "Payer", value: caseState.payer?.name || caseData?.payer_id, sub: caseState.payer?.name && caseData?.payer_id ? caseData.payer_id : null },
-            { label: "Member ID", value: cd.member_id || policy?.member_id, mono: true, info: "member_id" },
-            { label: "Coverage plan", value: cd.plan_name || cd.plan },
-            { label: "Sum insured", value: sumInsured != null ? formatMoney(sumInsured) : null, mono: true, info: "sum_insured" },
-            wallet && { label: "Used so far", value: formatMoney(wallet.used), mono: true },
-            wallet && { label: "Balance", value: formatMoney(wallet.balance), mono: true, tone: wallet.balance <= 0 ? "bad" : undefined, info: "balance" },
-            { label: "Benefit period", value: period(bp?.start, bp?.end) },
-            { label: "Coverage status", value: cd.status && <span className="ep-cap">{cd.status}</span>, tone: cd.status && !/active/i.test(cd.status) ? "bad" : undefined },
-            {
-              label: "In force",
-              value: inforce == null ? (checks?.validation.state === "pending" ? "Awaiting insurer" : null) : inforce ? "Yes" : "No",
-              tone: inforce === false ? "bad" : undefined,
-              info: { title: "In force", text: "Yes means the policy is active today and the insurer can pay for this admission. No means it has lapsed or not started." },
-            },
-            { label: "Coverage reference", value: checks?.coverage?.coverage, mono: true },
-          ]}
-        />
-        {members.length > 0 && (
-          <>
-            <NewbornCase
-              newborn={caseData?.newborn || null}
-              saving={savingNewborn}
-              canEdit={!caseClosed && !readOnly && !!caseData?.cashless_case_id}
-              onChange={handleNewborn}
-            />
-            <div className="ep-detail-title">
-              {members.length > 1 ? `Members on the card (${members.length}) — choose who is admitted` : "Member on the card"}
-            </div>
-            {memberError && <div className="ep-notice is-bad">{memberError}</div>}
-            {members.length > 1 && !chosenMemberId && (
-              <NextStep tone="warn" title="Choose who is admitted">
-                This family card covers {members.length} people. Press <strong>This is the patient</strong> on the admitted person's
-                row. The preauth is filed for that person, so a wrong choice bills the wrong member.
-              </NextStep>
+    <div className="cv-screen" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div className={`cv-notice is-${verdict.tone === "todo" ? "info" : verdict.tone}`}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <span className={`cv-chip is-${verdict.tone}`}>{verdict.label}</span>
+          <span className="cv-notice-body">{verdict.text}</span>
+          <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {!polling && !isComplete && !isFailed && !needsResubmit && (
+              <button type="button" className="cv-btn" onClick={manualRefresh}>Refresh</button>
             )}
+            <button
+              type="button"
+              className="cv-btn is-primary"
+              disabled={!movedOn && !canProceed}
+              title={!movedOn && !canProceed ? (polling ? "Waiting for the payer's answer." : "The checks must finish first.") : undefined}
+              onClick={() => navigate(movedOn ? `../${movedOn}` : "../review")}
+            >
+              {movedOn ? `Continue to ${movedOnLabel}` : "Continue to pre-auth"}
+              <ArrowRight size={14} />
+            </button>
+          </span>
+        </div>
+        {verdict.next && <div className="cv-notice-hint" style={{ marginTop: 8 }}><strong>What to do:</strong> {verdict.next}</div>}
+        {needsResubmit && !isStalePending && <div className="cv-notice-hint" style={{ marginTop: 8 }}>One or more checks did not finish and will not on their own. Re-run the checks.</div>}
+        {movedOn && <div className="cv-notice-hint" style={{ marginTop: 8 }}>This case has moved on to {movedOnLabel}; what follows is as last checked.</div>}
+      </div>
+
+      <PlanCard
+        plan={plan}
+        state={state}
+        plannedCodes={plannedCodes}
+        canFetch={canFetch}
+        sending={planFetch?.state === "sending"}
+        fetchResult={fetchResult}
+        onFetch={() => fetchPlan(state.key !== "not_requested")}
+      />
+
+      <EligibilityResponses
+        checks={checks}
+        requirements={requirements}
+        discovery={discovery}
+        formTitle={formTitle}
+        onOpenForm={planCorrelationId ? setOpenForm : null}
+        onDiscover={caseClosed || readOnly ? null : () => navigate("../discover")}
+        onRerun={canRerunNow ? handleForceRefresh : null}
+        rerunLabel={rerunLabel}
+        rerunDisabled={!canRerun}
+      />
+
+      <div className="cv-split">
+        <div className="cv-main">
+          {members.length > 0 && (
             <Members
               members={members}
               chosenId={chosenMemberId}
               choosing={choosing}
               onChoose={handleChooseMember}
-              chooseLabel={caseData?.newborn ? "This is the parent" : "This is the patient"}
               canChoose={(members.length > 1 || !!caseData?.newborn) && !caseClosed && !readOnly && !!caseData?.cashless_case_id}
+              newborn={caseData?.newborn || null}
+              savingNewborn={savingNewborn}
+              canEditNewborn={!caseClosed && !readOnly && !!caseData?.cashless_case_id}
+              onNewborn={handleNewborn}
+              error={memberError}
             />
-          </>
-        )}
-      </Section>
-
-      <Section
-        id="ep-plan"
-        title="Insurance plan"
-        info="insurance_plan"
-        tip="The payer's packages, rates, documents and forms for this policy. It is fetched once per policy and reused."
-        meta={
-          plan
-            ? [
-                (plan.plan_status || plan.status) && <span key="s" className="ep-cap">{plan.plan_status || plan.status}</span>,
-                plan.fetched_at && <span key="u">Fetched {formatDate(plan.fetched_at)}</span>,
-                plan.reused_from && <span key="c">Reused from an earlier fetch</span>,
-                plan.correlation_id && (
-                  <span key="r" className="ep-mono" title={plan.correlation_id}>
-                    {plan.correlation_id.slice(0, 8)}
-                  </span>
-                ),
-              ].filter(Boolean)
-            : null
-        }
-      >
-        {planError && (
-          <NextStep tone="bad" title="The insurer couldn't send its plan">
-            {plan?.error_code ? `${plan.error_code}: ` : ""}
-            {planError} Press <strong>Fetch plan again</strong>. If it keeps failing, share this message with your IT team.
-          </NextStep>
-        )}
-        {planEmpty && plan?.error_message && <div className="ep-notice is-warn">{plan.error_message}</div>}
-        {planFetch?.message && (
-          <div className={`ep-notice${planFetch.state === "refused" ? " is-warn" : planFetch.state === "failed" ? " is-bad" : ""}`}>
-            {planFetch.code ? `${planFetch.code}: ` : ""}
-            {planFetch.message}
-          </div>
-        )}
-        {!caseClosed && plan && plan.status !== "pending" && (
-          <div className="ep-toolbar">
-            <button type="button" className="ep-action" disabled={planFetch?.state === "sending" || readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={fetchPlanAgain}>
-              <RefreshCw size={13} />
-              {planFetch?.state === "sending" ? "Asking the payer…" : "Fetch plan again"}
-            </button>
-          </div>
-        )}
-        {!plan || plan.status === "pending" ? (
-          <>
-            {plan?.message && <div className="ep-notice is-warn">{plan.message}</div>}
-            <div className="ep-muted ep-pad">
-              Waiting for the insurer to send its plan. Large plans can take a few minutes; refresh this page later if it doesn't
-              appear.
-            </div>
-          </>
-        ) : (
-          <>
-            <Fields
-              cols={3}
-              rows={[
-                { label: "Plan", value: summary.plan_title || details.name },
-                { label: "Plan type", value: summary.plan_type },
-                { label: "Plan ID", value: summary.plan_identifier || details.id, mono: true },
-                { label: "Policy number on plan", value: details.identifier || summary.policy_code, mono: true },
-                { label: "Family sum insured", value: summary.sum_insured != null ? formatMoney(summary.sum_insured) : null, mono: true },
-                { label: "Plan period", value: period(details.period?.start, details.period?.end) },
-                { label: "Plan status", value: details.status && <span className="ep-cap">{details.status}</span>, tone: details.status && !/active/i.test(details.status) ? "bad" : undefined },
-                { label: "Beneficiary verification", value: summary.proof_of_presence_required ? "Required" : null },
-                {
-                  label: "Coverage",
-                  value: packageCount
-                    ? `${packageCount} package${packageCount === 1 ? "" : "s"}${categories.length ? ` across ${categories.length} specialt${categories.length === 1 ? "y" : "ies"}` : ""}`
-                    : null,
-                },
-              ]}
-            />
-            <div className="ep-sublists">
-              <SubList title="Required for every case" items={planDocs} empty="No plan-level documents listed." />
-              <SubList title="Required at claim" items={claimDocs} empty="No claim-stage documents listed." />
-            </div>
-            {planForms.length > 0 && (
-              <>
-                <div className="ep-detail-title">
-                  Payer forms ({planForms.length})
-                  <InfoTip term="payer_forms" />
-                </div>
-                <div className="ep-table-wrap">
-                  <table className="ep-table">
-                    <thead>
-                      <tr>
-                        <th className="ep-col-name">Form</th>
-                        <th>Kind</th>
-                        <th>Due at</th>
-                        <th className="ep-num">Questions</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {planForms.map((f) => (
-                        <tr key={f.url}>
-                          <td className="ep-col-name">
-                            <div className="ep-strong">{f.title || f.form_id || f.url}</div>
-                            {f.form_id && f.title && <div className="ep-muted ep-mono">{f.form_id}</div>}
-                          </td>
-                          <td className={f.kind === "stg" ? undefined : "ep-cap"}>{f.kind === "stg" ? "STG" : f.kind || "—"}</td>
-                          <td>{STAGE_LABEL[f.stage] || "—"}</td>
-                          <td className="ep-num ep-mono">{f.item_count ?? "—"}</td>
-                          <td className="ep-nowrap">
-                            <button type="button" className="ep-action" onClick={() => setOpenForm(f.url)}>
-                              View questions
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </Section>
-
-      <Section
-        id="ep-eligibility"
-        title="Eligibility checks"
-        meta="Three questions sent to the insurer for this admission"
-        info="eligibility"
-        tip="Click a check to see the insurer's answer to it."
-      >
-        {checks ? (
-          <div className="ep-checks">
-            <div className="ep-check-list" role="tablist" aria-label="Eligibility checks">
-              {CHECKS.map((c) => {
-                const check = checks[c.id];
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeCheck === c.id}
-                    className={`ep-check is-${check.state}${activeCheck === c.id ? " is-on" : ""}`}
-                    onClick={() => setActiveCheck(c.id)}
-                  >
-                    <span className="ep-check-name">
-                      <span className="ep-dot" aria-hidden="true" />
-                      {c.label}
-                    </span>
-                    <span className="ep-check-q">{c.question}</span>
-                    <span className="ep-check-a">{checkSummary(c.id, check, inforce)}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="ep-check-pane" role="tabpanel" aria-label={activeDef.label}>
-              <CheckDetail id={activeDef.id} check={checks[activeDef.id]} inforce={inforce} coverage={checks.coverage} />
-            </div>
-          </div>
-        ) : (
-          <div className="ep-muted ep-pad">
-            Eligibility has not been requested yet. It is sent automatically when you continue from the Policy step.
-          </div>
-        )}
-      </Section>
-
-      <Section
-        id="ep-requirements"
-        title="Payer requirements"
-        meta="Documents and forms the payer asked for in its eligibility answer"
-        tip="Collect these now. You attach them on the Preauth and Claim steps; missing ones are the most common reason for a query."
-      >
-        {requirements.length ? (
-          <div className="ep-table-wrap">
-            <table className="ep-table">
-              <thead>
-                <tr>
-                  <th className="ep-col-name">Requirement</th>
-                  <th>Kind</th>
-                  <th>Due at</th>
-                  <th>For package</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {requirements.map((r, i) => (
-                  <tr key={i}>
-                    <td className="ep-col-name">
-                      <div className="ep-strong">{r.display || formTitle(r.form_url) || r.code || r.text || "—"}</div>
-                      {r.code && r.display && <div className="ep-muted ep-mono">{r.code}</div>}
-                    </td>
-                    <td className="ep-cap">{r.kind || "—"}</td>
-                    <td>{r.at_preauth ? "Pre-auth" : STAGE_LABEL[r.stage] || "—"}</td>
-                    <td className="ep-mono">{r.for_code || "Every package"}</td>
-                    <td className="ep-nowrap">
-                      {r.form_url && planCorrelationId ? (
-                        <button type="button" className="ep-action" onClick={() => setOpenForm(r.form_url)}>
-                          View questions
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="ep-muted ep-pad">
-            {checks ? "The payer asked for no documents or forms." : "Eligibility has not been requested yet."}
-          </div>
-        )}
-      </Section>
-
-      <Section
-        id="ep-treatment"
-        title="Planned treatment"
-        tip="Taken from the doctor's notes for this admission. Excluded means the policy won't pay for that line."
-        meta={caseData?.procedures?.source ? `From ${caseData.procedures.source.replace(/_/g, " ")}` : null}
-      >
-        {treatment.length ? (
-          <div className="ep-table-wrap">
-            <table className="ep-table">
-              <thead>
-                <tr>
-                  <th className="ep-col-name">Package</th>
-                  <th>Type</th>
-                  <th className="ep-num">Package rate</th>
-                  <th className="ep-num">Payer allows</th>
-                  <th>Preauth</th>
-                  <th>Enhancement</th>
-                  <th>Documents needed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {treatment.map(({ proc, pkg, benefitLine, preauth, docs }, i) => (
-                  <tr key={i}>
-                    <td className="ep-col-name">
-                      <div className="ep-strong">{proc.name}</div>
-                      <div className="ep-muted">
-                        {[proc.code, pkg?.specialty || proc.category].filter(Boolean).join(" · ")}
-                        {!pkg && packageCount > 0 && String(proc.code) in plannedPackages && " · not in the plan's package list"}
-                      </div>
-                      {pkg && ruleNotes(pkg.rules).length > 0 && <div className="ep-muted">{ruleNotes(pkg.rules).join(" · ")}</div>}
-                    </td>
-                    <td>{pkg?.rules.ProcedureType || "—"}</td>
-                    <td className="ep-num ep-mono">{pkg?.rate != null ? formatMoney(pkg.rate) : "—"}</td>
-                    <td className="ep-num ep-mono">
-                      {benefitLine?.excluded ? (
-                        <span className="is-bad">Excluded</span>
-                      ) : benefitLine?.benefit?.[0]?.allowed?.value != null ? (
-                        formatMoney(benefitLine.benefit[0].allowed.value)
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="ep-nowrap">{preauth || "—"}</td>
-                    <td>{yn(pkg?.rules.EnhancementAllowed) || "—"}</td>
-                    <td>{docs.length ? docs.join(", ") : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <NextStep tone="warn" title="No planned procedure recorded for this visit">
-            Ask the doctor to add the planned procedure or treatment in the hospital system, then press <strong>Re-run
-            eligibility</strong> at the top so the insurer can check it.
-          </NextStep>
-        )}
-      </Section>
-
-      <Section
-        id="ep-packages"
-        title="Package catalogue"
-        meta="Every package the plan allows at this hospital"
-        tip="Search by name or code to find the package for a procedure and its rate."
-      >
-        <PackageCatalogue
-          correlationId={planCorrelationId}
-          categories={categories}
-          packageCount={planCorrelationId ? packageCount : 0}
-          plannedCodes={plannedCodes}
-        />
-      </Section>
-
-      <FormDrawer correlationId={planCorrelationId} url={openForm} onClose={() => setOpenForm(null)} />
-
-      <div className="ep-footer">
-        <Button variant="text" onClick={() => navigate("../payer")}>
-          ← Back to policy
-        </Button>
-        <div className="ep-footer-right">
-          {!movedOn && !canProceed && (
-            <span className="ep-muted">
-              {polling ? "Waiting for the insurer to answer…" : "Eligibility must complete before preauth."}
-            </span>
           )}
-          <Button
-            variant="primary"
-            size="small"
-            disabled={!movedOn && !canProceed}
-            disabledReason={
-              polling
-                ? "Waiting for the insurer's answer to the eligibility check."
-                : "Eligibility must finish first. Use Re-run eligibility at the top if it failed."
-            }
-            onClick={() => navigate(movedOn ? `../${movedOn}` : "../review")}
-          >
-            {movedOn
-              ? `Continue to ${movedOnLabel}`
-              : polling
-                ? "Awaiting eligibility…"
-                : canProceed
-                  ? "Proceed to preauth draft"
-                  : isComplete
-                    ? "Preparing…"
-                    : "Eligibility pending"}
-            <ArrowRight size={14} />
-          </Button>
+          <PlannedTreatment
+            procedures={procedures}
+            packages={plannedPackages}
+            checks={checks}
+            source={caseData?.procedures?.source}
+            planReady={state.key === "ready"}
+          />
         </div>
       </div>
+
+      <div>
+        <Button variant="text" onClick={() => navigate("../payer")}>← Back to policy</Button>
+      </div>
+
+      <FormDrawer correlationId={planCorrelationId} url={openForm} onClose={() => setOpenForm(null)} />
     </div>
   );
 }

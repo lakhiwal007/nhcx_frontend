@@ -236,3 +236,18 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     return { ...s, state, clickable };
   });
 }
+
+export function nowHint(stages) {
+  const urgent = stages.find((s) => s.tone === "urgent" && !s.branch);
+  if (urgent) {
+    const note = String(urgent.note || "");
+    if (urgent.id === "status" && /query/i.test(note)) return { tone: "urgent", text: "The payer asked a question. Open Approval and press Respond to query." };
+    if (urgent.id === "status" && /reject/i.test(note)) return { tone: "urgent", text: "The preauth was rejected. Open Approval to read why, then resubmit or treat the patient as cash." };
+    if (urgent.id === "status" && /cancel/i.test(note)) return { tone: "urgent", text: "The preauth was cancelled. Start a new case if the patient is admitted again." };
+    if (urgent.id === "claim") return { tone: "urgent", text: "Open Claim to read the payer's decision. If you disagree, ask for a reprocess." };
+  }
+  if (stages.some((s) => s.live && !s.done)) {
+    return { tone: "wait", text: "Nothing to do right now: the payer is deciding. The answer appears here and in the Work Queue." };
+  }
+  return null;
+}
