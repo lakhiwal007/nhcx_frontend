@@ -322,7 +322,45 @@ function CheckDetail({ id, check, inforce, coverage }) {
 const photoSrc = (photo) =>
   !photo ? null : /^https?:/i.test(photo) ? photo : `data:image/${photo.startsWith("iVBOR") ? "png" : "jpeg"};base64,${photo}`;
 
-function Members({ members, chosenId, choosing, onChoose, canChoose }) {
+const NEWBORN_PROOFS = [
+  { value: "BCF", label: "Birth certificate" },
+  { value: "DCB", label: "Government hospital discharge card" },
+];
+
+function NewbornCase({ newborn, saving, canEdit, onChange }) {
+  const on = !!newborn;
+  return (
+    <div className="ep-notice">
+      <label className="ep-nowrap">
+        <input type="checkbox" checked={on} disabled={!canEdit || saving} onChange={(e) => onChange(e.target.checked ? { proof_code: "BCF" } : null)} />{" "}
+        <strong>Newborn on a parent's card (PMJAY)</strong>
+      </label>
+      <div className="ep-muted">
+        For a baby of 6 or under with no member id of their own. Choose the parent below as the patient; the baby goes into the pre-auth and
+        claim as the parent's linked newborn, with the name, gender and date of birth from the hospital records.
+      </div>
+      {on && (
+        <label className="ep-nowrap">
+          Proof of birth{" "}
+          <select
+            className="input-modern"
+            value={newborn.proof_code || "BCF"}
+            disabled={!canEdit || saving}
+            onChange={(e) => onChange({ ...newborn, proof_code: e.target.value })}
+          >
+            {NEWBORN_PROOFS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </div>
+  );
+}
+
+function Members({ members, chosenId, choosing, onChoose, canChoose, chooseLabel }) {
   return (
     <div className="ep-table-wrap">
       <table className="ep-table">
@@ -359,7 +397,7 @@ function Members({ members, chosenId, choosing, onChoose, canChoose }) {
                   "This patient"
                 ) : canChoose && m.member_id ? (
                   <button type="button" className="ep-action" disabled={!!choosing} onClick={() => onChoose(m)}>
-                    {choosing === m.member_id ? "Saving…" : "This is the patient"}
+                    {choosing === m.member_id ? "Saving…" : chooseLabel}
                   </button>
                 ) : (
                   "—"
@@ -598,6 +636,7 @@ export default function EligibilityPrep({ ctx }) {
   const [openForm, setOpenForm] = useState(null);
   const [choosing, setChoosing] = useState(null);
   const [memberError, setMemberError] = useState(null);
+  const [savingNewborn, setSavingNewborn] = useState(false);
   const [planFetch, setPlanFetch] = useState(null);
 
   const hasInitialized = useRef(false);
@@ -717,6 +756,20 @@ export default function EligibilityPrep({ ctx }) {
       setMemberError(err.message || "Could not record the patient.");
     } finally {
       setChoosing(null);
+    }
+  };
+
+  const handleNewborn = async (next) => {
+    if (!caseData?.cashless_case_id) return;
+    setSavingNewborn(true);
+    setMemberError(null);
+    try {
+      await api.patchCashlessPatientContext(caseData.cashless_case_id, { patient_context: { newborn: next } });
+      setCaseData((prev) => (prev ? { ...prev, newborn: next } : prev));
+    } catch (err) {
+      setMemberError(err.message || "Could not record the newborn case.");
+    } finally {
+      setSavingNewborn(false);
     }
   };
 
@@ -1049,6 +1102,12 @@ export default function EligibilityPrep({ ctx }) {
         />
         {members.length > 0 && (
           <>
+            <NewbornCase
+              newborn={caseData?.newborn || null}
+              saving={savingNewborn}
+              canEdit={!caseClosed && !readOnly && !!caseData?.cashless_case_id}
+              onChange={handleNewborn}
+            />
             <div className="ep-detail-title">
               {members.length > 1 ? `Members on the card (${members.length}) — choose who is admitted` : "Member on the card"}
             </div>
@@ -1064,7 +1123,8 @@ export default function EligibilityPrep({ ctx }) {
               chosenId={chosenMemberId}
               choosing={choosing}
               onChoose={handleChooseMember}
-              canChoose={members.length > 1 && !caseClosed && !readOnly && !!caseData?.cashless_case_id}
+              chooseLabel={caseData?.newborn ? "This is the parent" : "This is the patient"}
+              canChoose={(members.length > 1 || !!caseData?.newborn) && !caseClosed && !readOnly && !!caseData?.cashless_case_id}
             />
           </>
         )}

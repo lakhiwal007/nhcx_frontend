@@ -34,6 +34,13 @@ const MISSING_FIELD_MAP = {
   "policy_number": ["policy_number"],
 };
 
+const NEWBORN_MISSING = {
+  "newborn.name": "the baby's name is missing in the hospital records",
+  "newborn.gender": "the baby's gender is missing in the hospital records",
+  "newborn.dob": "the baby's date of birth is missing in the hospital records",
+  "newborn.proof_of_birth": "attach the proof of birth in Documents below",
+};
+
 // Fields that cannot be resolved from the UI — must be fixed in the HIS
 const HIS_BLOCKERS = new Set(["diagnoses", "items", "preauth_ref"]);
 
@@ -315,7 +322,8 @@ export default function PreauthDraft({ ctx }) {
     return <LoadingBlock text="Building preauth draft…" />;
   }
 
-  const patientContextMissing = missingFields.filter((f) => !HIS_BLOCKERS.has(f.toLowerCase()));
+  const newbornMissing = missingFields.filter((f) => f.startsWith("newborn."));
+  const patientContextMissing = missingFields.filter((f) => !HIS_BLOCKERS.has(f.toLowerCase()) && !f.startsWith("newborn."));
   const hisBlockers = missingFields.filter((f) => HIS_BLOCKERS.has(f.toLowerCase()));
   const hasMissingFields = missingFields.length > 0;
   const hasMissingDocs = draft?.supporting_documents?.some((d) => !d.optional && !d.url);
@@ -403,6 +411,15 @@ export default function PreauthDraft({ ctx }) {
       {eligibility && eligibility.status !== "complete" && (
         <div className="ep-notice is-warn">
           Eligibility is incomplete. The draft was built from the eligibility data available so far.
+        </div>
+      )}
+      {newbornMissing.length > 0 && !preauthAlreadyLive && (
+        <div className="ep-notice is-warn">
+          Newborn case:{" "}
+          {newbornMissing
+            .map((f) => NEWBORN_MISSING[f] || f)
+            .join("; ")}
+          .
         </div>
       )}
       {memberUnchosen && !preauthAlreadyLive && (
