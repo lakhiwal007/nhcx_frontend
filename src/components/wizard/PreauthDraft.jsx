@@ -123,6 +123,55 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
   );
 }
 
+const PLAN_CHECK_ORDER = { block: 0, warn: 1, info: 2, ok: 3 };
+
+// Documents attached since the report was built count as attached.
+function planChecks(admissibility, documents) {
+  const attached = new Set(
+    (documents || []).filter((d) => d.url || d.attachment).map((d) => String(d.code || "").toUpperCase()).filter(Boolean),
+  );
+  return (admissibility?.checks || [])
+    .map((c) =>
+      c.kind === "document_missing" && attached.has(String(c.code || "").toUpperCase())
+        ? { ...c, level: "ok", kind: "document_attached", message: c.message.replace(/ is asked for at pre-authorisation and is not attached\.$/, " is attached.") }
+        : c,
+    )
+    .sort((a, b) => PLAN_CHECK_ORDER[a.level] - PLAN_CHECK_ORDER[b.level]);
+}
+
+function PlanCheck({ admissibility, checks }) {
+  if (!admissibility) return null;
+  const open = checks.filter((c) => c.level === "block" || c.level === "warn").length;
+  return (
+    <Section
+      id="pd-plan-check"
+      title="Against the payer's plan"
+      tip="Checked against the insurance plan held for this case. Only a package priced at zero or less stops the send; the rest is for you to judge."
+      meta={
+        admissibility.status !== "checked" ? "Not checked" : open ? <span className="is-bad">{open} to look at</span> : "Nothing to look at"
+      }
+    >
+      <div className="ep-pad">
+        {admissibility.status !== "checked" ? (
+          <div className="ep-notice">{admissibility.reason}</div>
+        ) : (
+          <ul className="pd-ready" aria-label="Plan checks">
+            {checks.map((c, i) => (
+              <li key={`${c.kind}-${c.code || i}`} className={c.level === "ok" ? "is-ok" : c.level === "info" ? "is-soft" : "is-todo"}>
+                {c.level === "ok" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                <span>{c.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {admissibility.exclusions?.length > 0 && (
+          <div className="ep-muted">Excluded by the plan: {admissibility.exclusions.join("; ")}.</div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 export default function PreauthDraft({ ctx }) {
   const navigate = useNavigate();
   const { caseState, updateCaseState, cashlessCase, caseClosed } = ctx;
@@ -327,7 +376,11 @@ export default function PreauthDraft({ ctx }) {
   const hisBlockers = missingFields.filter((f) => HIS_BLOCKERS.has(f.toLowerCase()));
   const hasMissingFields = missingFields.length > 0;
   const hasMissingDocs = draft?.supporting_documents?.some((d) => !d.optional && !d.url);
-  const canSubmit = !hasMissingFields && !hasMissingDocs && !submitting;
+  const admissibility = draft?.admissibility || null;
+  const checks = planChecks(admissibility, draft?.supporting_documents);
+  const planBlocked = checks.some((c) => c.level === "block");
+  const planOpen = checks.filter((c) => c.level === "warn" || c.level === "block").length;
+  const canSubmit = !hasMissingFields && !hasMissingDocs && !planBlocked && !submitting;
 
   const docs = draft?.supporting_documents || [];
   const payerAsks = eligibilityRequirements(cashlessCase?.coverage_eligibility).filter((r) => r.at_preauth || r.stage === "pre");
@@ -367,6 +420,13 @@ export default function PreauthDraft({ ctx }) {
       ok: !hasMissingDocs,
       note: requiredDocs.length ? `${attachedRequired} of ${requiredDocs.length}` : null,
       fix: "Upload each required document under Supporting documents.",
+    },
+    {
+      label: "Against the payer's plan",
+      ok: admissibility?.status === "checked" && planOpen === 0,
+      soft: !planBlocked,
+      note: !admissibility || admissibility.status !== "checked" ? "not checked" : planOpen ? `${planOpen} to look at` : null,
+      fix: planBlocked ? "Fix the package priced at zero or less." : "Read Against the payer's plan; you can still send.",
     },
     {
       label: "Eligibility checked",
@@ -444,6 +504,8 @@ export default function PreauthDraft({ ctx }) {
               }}
             />
           )}
+
+          <PlanCheck admissibility={admissibility} checks={checks} />
 
           <Section id="pd-admission" title="Admission" info="preauth" tip="Check the dates and ward. They come from the hospital system.">
             <Fields

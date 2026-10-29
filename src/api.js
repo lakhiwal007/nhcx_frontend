@@ -1516,6 +1516,18 @@ const mock = {
   preparePreauth: async (params = {}) => {
     await delay(800);
     return {
+      admissibility: {
+        status: "checked",
+        plan_fetched_at: "2026-10-27T10:00:00+05:30",
+        blocking: false,
+        checks: [
+          { level: "ok", kind: "package_in_plan", code: "SG045A", message: "Appendicectomy (open) (SG045A) is in the payer's plan." },
+          { level: "warn", kind: "package_not_in_plan", code: "XX999", message: "Wound dressing (XX999) is not in the payer's plan. The payer may refuse it (PAYR-1204)." },
+          { level: "warn", kind: "document_missing", code: "USG", message: "Ultrasound report is asked for at pre-authorisation and is not attached." },
+          { level: "info", kind: "enhancement_not_allowed", code: "SG045A", message: "Appendicectomy (open) allows no enhancement later (PAYR-1011)." },
+        ],
+        exclusions: ["Cosmetic surgery"],
+      },
       claim_id: params.claim_id || 101,
       payer_id: params.payer_id || "1518@hcx",
       policy_number: params.policy_number || "POL-91711234567890-2026",
