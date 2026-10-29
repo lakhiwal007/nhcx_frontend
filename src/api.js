@@ -2986,6 +2986,11 @@ const mock = {
     await delay(700);
     return { facility_code, private_key_set: true };
   },
+  rotateFacilityCertificate: async (facility_code, data) => {
+    await delay(700);
+    if (!data.private_key_pem?.includes("PRIVATE KEY")) throw new Error("Invalid PEM: PEM is not a private key");
+    return { facility_code, private_key_set: true, abdm_registered: true, registry_matches: true };
+  },
   startFacilityOnboarding: async (data) => {
     await delay(700);
     return { facility_code: data.facility_code, participant_code: `${data.facility_code}@hcx`, transaction_id: "mock-txn-create", facility_name: data.name || null };
@@ -3194,6 +3199,8 @@ const real = {
     http.put(`/facilities/${facility_code}`, data),
   uploadFacilityKey: (facility_code, data) =>
     http.put(`/facilities/${facility_code}/private_key`, data),
+  rotateFacilityCertificate: (facility_code, data) =>
+    http.post(`/facilities/${facility_code}/certificate/rotate`, data),
   // NHCX production onboarding: create + passcode, then certificate + passcode.
   startFacilityOnboarding: (data) => http.post("/facilities/onboarding/start", data),
   confirmFacilityOnboarding: (data) => http.post("/facilities/onboarding/confirm", data),

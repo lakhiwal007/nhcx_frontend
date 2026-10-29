@@ -390,6 +390,84 @@ function KeyUploadDrawer({ facility, open, onClose, onUploaded }) {
   );
 }
 
+function CertificateRotationDrawer({ facility, open, onClose, onRotated }) {
+  const [form, setForm] = useState({ private_key_pem: "", encryption_cert: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const handleRotate = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api.rotateFacilityCertificate(facility.facility_code, {
+        private_key_pem: form.private_key_pem.trim(),
+        encryption_cert: form.encryption_cert.trim(),
+      });
+      setResult(saved);
+      onRotated();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const ready = form.private_key_pem.trim() && form.encryption_cert.trim();
+
+  return (
+    <Drawer
+      width={620}
+      stack
+      open={open}
+      onClose={onClose}
+      title={`Rotate certificate — ${facility?.name || facility?.facility_code}`}
+      subtitle="Replaces this hospital's key and the certificate NHCX holds for it in one step. The old key keeps opening payer answers sealed to the old certificate."
+      footer={
+        result ? (
+          <Button variant="primary" onClick={onClose}>
+            Done
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button write variant="primary" icon={Key} disabled={!ready || saving} onClick={handleRotate}>
+              {saving ? "Rotating…" : "Rotate certificate"}
+            </Button>
+          </>
+        )
+      }
+    >
+      {result ? (
+        <div className={result.registry_matches ? "ep-notice" : "ep-notice is-warn"}>
+          {result.registry_matches
+            ? "NHCX now holds the new certificate. Payers that cached the old one for up to a day still get through."
+            : "The new key is saved and NHCX took the certificate, but NHCX's registry still shows a different one. Check again later, or rotate again with the same key."}
+        </div>
+      ) : (
+        <div className="st-grid">
+          <GenerateKeypairButton
+            facilityCode={facility?.facility_code}
+            facilityName={facility?.name}
+            onGenerated={({ private_key_pem, encryption_cert }) => setForm({ private_key_pem, encryption_cert })}
+          />
+          <FormField label="Encryption Certificate (Base64 or PEM)" required wide>
+            <textarea className="input-modern st-textarea" rows={4} value={form.encryption_cert} onChange={set("encryption_cert")} />
+          </FormField>
+          <FormField label="Private Key PEM" required hint="Must belong to the certificate." wide>
+            <textarea className="input-modern st-textarea" rows={6} placeholder={PEM_PLACEHOLDER} value={form.private_key_pem} onChange={set("private_key_pem")} />
+          </FormField>
+        </div>
+      )}
+      {error && <div className="ep-notice is-bad">{error}</div>}
+    </Drawer>
+  );
+}
+
 // NHCX production takes a participant only through two passcode-confirmed
 // halves: create against the HFR record, then register the certificate and
 // callback address. The passcodes go to the mobile on the HFR record.
@@ -835,6 +913,7 @@ export default function Settings({
   const [formError, setFormError] = useState(null);
 
   const [keyDrawerFacility, setKeyDrawerFacility] = useState(null);
+  const [rotateFacility, setRotateFacility] = useState(null);
   const [editLoadingCode, setEditLoadingCode] = useState(null);
 
   const [facilitySearch, setFacilitySearch] = useState("");
@@ -1240,7 +1319,7 @@ export default function Settings({
                             <button type="button" className="ep-action" onClick={() => openEdit(f)}>
                               <Edit2 size={13} /> Edit
                             </button>
-                            <button type="button" className="ep-action" onClick={() => setKeyDrawerFacility(f)}>
+                            <button type="button" className="ep-action" onClick={() => (f.private_key_set ? setRotateFacility(f) : setKeyDrawerFacility(f))}>
                               <Key size={13} /> {f.private_key_set ? "Rotate" : "Upload"}
                             </button>
                           </div>
@@ -1300,6 +1379,14 @@ export default function Settings({
         open={!!keyDrawerFacility}
         onClose={() => setKeyDrawerFacility(null)}
         onUploaded={loadFacilities}
+      />
+
+      <CertificateRotationDrawer
+        key={`rotate-${rotateFacility?.facility_code || "none"}`}
+        facility={rotateFacility}
+        open={!!rotateFacility}
+        onClose={() => setRotateFacility(null)}
+        onRotated={loadFacilities}
       />
     </div>
   );
