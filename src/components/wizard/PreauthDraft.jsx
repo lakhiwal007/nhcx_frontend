@@ -324,7 +324,7 @@ export default function PreauthDraft({ ctx }) {
   const docs = draft?.supporting_documents || [];
   const payerAsks = eligibilityRequirements(cashlessCase?.coverage_eligibility).filter((r) => r.at_preauth || r.stage === "pre");
   const cardMembers = eligibilityBeneficiaries(cashlessCase?.coverage_eligibility);
-  const memberUnchosen = cardMembers.length > 1 && !caseState.beneficiaryMemberId;
+  const memberUnchosen = cardMembers.length > 1 && !(caseState.beneficiaryMemberId || cashlessCase?.beneficiary_member_id);
   const requiredDocs = docs.filter((d) => !d.optional);
   const attachedRequired = requiredDocs.filter((d) => d.url).length;
   const eligibility = draft?.eligibility;

@@ -712,6 +712,7 @@ export default function EligibilityPrep({ ctx }) {
       );
       await api.patchCashlessPatientContext(caseData.cashless_case_id, { patient_context });
       updateCaseState({ beneficiaryMemberId: member.member_id });
+      setCaseData((prev) => (prev ? { ...prev, beneficiary_member_id: member.member_id } : prev));
     } catch (err) {
       setMemberError(err.message || "Could not record the patient.");
     } finally {
@@ -977,7 +978,7 @@ export default function EligibilityPrep({ ctx }) {
   const activeDef = CHECKS.find((c) => c.id === activeCheck) || CHECKS[0];
   const members = eligibilityBeneficiaries(ce);
   const requirements = eligibilityRequirements(ce);
-  const chosenMemberId = caseState.beneficiaryMemberId || (members.length === 1 ? members[0].member_id : null);
+  const chosenMemberId = caseState.beneficiaryMemberId || caseData?.beneficiary_member_id || (members.length === 1 ? members[0].member_id : null);
   const formTitle = (url) => planForms.find((f) => f.url === url)?.title;
 
   return (

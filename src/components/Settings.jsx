@@ -13,6 +13,7 @@ import {
   PanelTop,
   SearchX,
   Sparkles,
+  Stethoscope,
 } from "lucide-react";
 import { api, ALL_FACILITIES_MODE_KEY, callbackBaseUrl } from "../api";
 import { getDeepLinkClinicId } from "../sessionBootstrap";
@@ -608,6 +609,195 @@ function OnboardingWizard({ open, start, onClose, onDone }) {
 }
 
 // Key and ABDM status: plain text when fine, colour only when something is wrong.
+function practitionerForm(doctor) {
+  const master = doctor.master || {};
+  return {
+    hpr_id: master.hpr_id || "",
+    qualification_display: master.qualification_display || (doctor.qualifications || []).join(", "),
+    specialty_code: master.specialty_code || "",
+    specialty_display: master.specialty_display || doctor.specialization || "",
+  };
+}
+
+function PractitionerDrawer({ facilityCode, doctor, onClose, onSaved }) {
+  const [form, setForm] = useState(() => practitionerForm(doctor));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
+  const hprDigits = (form.hpr_id || "").replace(/[\s-]/g, "");
+  const hprValid = /^\d{14}$/.test(hprDigits);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api.savePractitioner(facilityCode, doctor.doctor_id, { ...form, hpr_id: hprDigits, active: true });
+      onSaved(saved);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Drawer
+      width={560}
+      stack
+      open
+      onClose={onClose}
+      title={`HPR id — ${doctor.name || doctor.doctor_id}`}
+      subtitle="Sent as this doctor's identity in every pre-auth and claim. PMJAY looks the doctor up by it."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" disabled={!hprValid || saving} onClick={handleSave}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </>
+      }
+    >
+      <div className="st-grid">
+        <FormField label="HPR id" required wide hint="The 14-digit Healthcare Professionals Registry id. Hyphens are fine.">
+          <TextInput value={form.hpr_id} onChange={set("hpr_id")} placeholder="71-1234-5678-9012" monospace />
+        </FormField>
+        <FormField label="Degrees" wide hint="As written, e.g. MBBS, MS (Ortho). The highest degree named is sent.">
+          <TextInput value={form.qualification_display} onChange={set("qualification_display")} placeholder="MBBS, MD (General Medicine)" />
+        </FormField>
+        <FormField label="Specialty SNOMED code" hint="Optional. Sent as the care-team specialty.">
+          <TextInput value={form.specialty_code} onChange={set("specialty_code")} placeholder="394537008" monospace />
+        </FormField>
+        <FormField label="Specialty name">
+          <TextInput value={form.specialty_display} onChange={set("specialty_display")} placeholder="Paediatric specialty" />
+        </FormField>
+      </div>
+      {form.hpr_id && !hprValid && <div className="ep-notice is-warn">An HPR id has 14 digits.</div>}
+      {error && <div className="ep-notice is-bad">{error}</div>}
+    </Drawer>
+  );
+}
+
+function PractitionerSection({ facility, canEdit }) {
+  const [doctors, setDoctors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
+  const facilityCode = facility.facility_code;
+
+  useEffect(() => {
+    let live = true;
+    api
+      .listPractitioners(facilityCode)
+      .then((res) => live && setDoctors(res?.practitioners || []))
+      .catch((err) => live && setLoadError(err.message || "Could not load the doctors."))
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [facilityCode]);
+
+  const replace = (saved) => setDoctors((list) => list.map((d) => (d.doctor_id === saved.doctor_id ? saved : d)));
+
+  const toggleActive = async (doctor) => {
+    setTogglingId(doctor.doctor_id);
+    try {
+      replace(await api.savePractitioner(facilityCode, doctor.doctor_id, { hpr_id: doctor.master.hpr_id, active: !doctor.master.active }));
+    } catch (err) {
+      setLoadError(err.message);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const inHis = doctors.filter((d) => d.in_his);
+  const missing = inHis.filter((d) => !d.master?.active).length;
+
+  return (
+    <Section
+      id="st-practitioners"
+      title="Doctors' HPR ids"
+      meta={!loading && inHis.length > 0 && (missing ? `${missing} of ${inHis.length} without an HPR id` : "Every doctor has an HPR id")}
+    >
+      <div className="ep-pad">
+        <div className="ep-notice">
+          The HIS holds no HPR ids, so a doctor without one here goes to the payer under their registration number, which PMJAY refuses.
+          {!canEdit && " Only this facility's clinic admin can change them."}
+        </div>
+      </div>
+      {loadError && <div className="ep-notice is-bad st-notice">{loadError}</div>}
+      {loading ? (
+        <LoadingBlock text="Loading doctors…" />
+      ) : doctors.length === 0 ? (
+        <EmptyState icon={Stethoscope} iconSize={44} iconOpacity={0.25} title="No doctors found" description="The HIS lists no doctors for this facility." />
+      ) : (
+        <div className="ep-table-wrap">
+          <table className="ep-table st-table">
+            <thead>
+              <tr>
+                <th>Doctor</th>
+                <th>HPR id</th>
+                <th>Degrees · Specialty</th>
+                <th className="st-col-actions" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {doctors.map((d) => {
+                const master = d.master;
+                const retired = master && !master.active;
+                return (
+                  <tr key={d.doctor_id}>
+                    <td>
+                      <span className="ep-strong">{d.name || `Doctor ${d.doctor_id}`}</span>
+                      <span className="ep-field-sub">
+                        {[d.registration_no, d.specialization, !d.in_his && "no longer in the HIS"].filter(Boolean).join(" · ") || d.doctor_id}
+                      </span>
+                    </td>
+                    <td className="ep-mono">
+                      {!master ? <span className="is-bad">Missing</span> : retired ? <span className="ep-muted">{master.hpr_id} · retired</span> : master.hpr_id}
+                    </td>
+                    <td>
+                      {master ? (
+                        <>
+                          <span>{master.qualification_display || "—"}</span>
+                          <span className="ep-field-sub">{master.specialty_display || master.specialty_code || "—"}</span>
+                        </>
+                      ) : (
+                        <span className="ep-muted">—</span>
+                      )}
+                    </td>
+                    <td className="st-col-actions">
+                      {canEdit && (
+                        <div className="st-row-actions">
+                          {d.in_his && (
+                            <button type="button" className="ep-action" onClick={() => setEditing(d)}>
+                              <Edit2 size={13} /> {master ? "Edit" : "Add"}
+                            </button>
+                          )}
+                          {master && (
+                            <button type="button" className="ep-action" disabled={togglingId === d.doctor_id} onClick={() => toggleActive(d)}>
+                              {master.active ? "Retire" : "Reinstate"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {editing && <PractitionerDrawer key={editing.doctor_id} facilityCode={facilityCode} doctor={editing} onClose={() => setEditing(null)} onSaved={replace} />}
+    </Section>
+  );
+}
+
 function KeyStatus({ set }) {
   return set ? <span className="ep-muted">Uploaded</span> : <span className="is-bad">Missing</span>;
 }
@@ -803,6 +993,7 @@ export default function Settings({
   const hasSessionFacilities = sessionFacilities?.length > 0;
   // The fallback picker reuses the admin list, so it has no per-facility edit/key actions.
   const pickerFacilities = hasSessionFacilities ? sessionFacilities : needsFallbackPicker ? facilities : [];
+  const activeFacility = readOnly ? null : pickerFacilities.find(isActiveFacility);
 
   return (
     <div className="ep-screen st-screen">
@@ -913,6 +1104,8 @@ export default function Settings({
           )}
         </Section>
       )}
+
+      {activeFacility && <PractitionerSection key={activeFacility.facility_code} facility={activeFacility} canEdit={hasSessionFacilities && canManage(activeFacility.facility_code)} />}
 
       <Section id="st-appearance" title="Appearance">
         <dl className="ep-fields cols-1 st-prefs">

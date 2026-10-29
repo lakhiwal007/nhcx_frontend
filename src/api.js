@@ -628,6 +628,19 @@ const mockNotes = (cashless_case_id) => {
   return MOCK_NOTES[cashless_case_id];
 };
 
+const mockPractitioners = [
+  {
+    doctor_id: "11", name: "Dr Asha Rao", registration_no: "KMC-1201", specialization: "Paediatrician", in_his: true,
+    master: { hpr_id: "71123456789012", qualification_display: "MBBS, MD (Paediatrics)", specialty_code: "394537008", specialty_display: "Paediatric specialty", active: true, updated_at: "2026-10-29T09:00:00+05:30" },
+  },
+  { doctor_id: "12", name: "Dr Vikram Shah", registration_no: "KMC-2290", specialization: "General Surgeon", in_his: true, master: null },
+  { doctor_id: "14", name: "Dr Meera Iyer", specialization: "Anaesthetist", in_his: true, master: null },
+  {
+    doctor_id: "9", name: "Dr Former Consultant", in_his: false,
+    master: { hpr_id: "71000000000009", qualification_display: "MBBS, MS (Ortho)", active: false, updated_at: "2026-06-01T09:00:00+05:30" },
+  },
+];
+
 const mock = {
   // ─── Health ────────────────────────────────────────────────────────────────
   healthCheck: async () => {
@@ -2986,6 +2999,19 @@ const mock = {
     await delay(700);
     return { facility_code, hcx_participant_code: `${facility_code}@hcx`, transaction_id: "mock-txn-update", status: "PENDING" };
   },
+  listPractitioners: async (facility_code) => {
+    await delay(500);
+    return { facility_code, practitioners: mockPractitioners };
+  },
+  savePractitioner: async (facility_code, doctor_id, data) => {
+    await delay(500);
+    const hpr_id = String(data.hpr_id || "").replace(/[\s-]/g, "");
+    if (!/^\d{14}$/.test(hpr_id)) throw new Error("The HPR id must be the doctor's 14-digit HPR id");
+    const doctor = mockPractitioners.find((d) => d.doctor_id === String(doctor_id));
+    const master = { ...(doctor.master || { active: true }), ...data, hpr_id, updated_at: new Date().toISOString() };
+    doctor.master = master;
+    return { ...doctor };
+  },
   activateFacilityOnboarding: async (facility_code, data) => {
     await delay(700);
     if (data.passcode === "000000") throw new Error("NHCX Gateway error: Invalid passcode");
@@ -3175,6 +3201,9 @@ const real = {
     http.post(`/facilities/${facility_code}/onboarding/register`, data),
   activateFacilityOnboarding: (facility_code, data) =>
     http.post(`/facilities/${facility_code}/onboarding/activate`, data),
+  listPractitioners: (facility_code) => http.get(`/facilities/${facility_code}/practitioners`),
+  savePractitioner: (facility_code, doctor_id, data) =>
+    http.put(`/facilities/${facility_code}/practitioners/${doctor_id}`, data),
 
   // ─── Escape hatch for Work Queue task actions ────────────────────────────────
   rawPost: (fullPath, body = {}) => http.rawPost(fullPath, body),
