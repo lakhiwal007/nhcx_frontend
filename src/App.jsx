@@ -43,6 +43,7 @@ import Communications from "./components/Communications";
 import Payments from "./components/Payments";
 import Analytics from "./components/Analytics";
 import SettingsPage from "./components/Settings";
+import CommandNav, { DisplayMenu } from "./components/CommandNav";
 import { stageInfo } from "./components/case/caseStages";
 import CaseWrapper from "./components/wizard/CaseWrapper";
 import { LoadingBlock } from "./components/Common";
@@ -453,56 +454,7 @@ export default function App() {
                 </div>
                 <span className="command-brand-name">NHCX Service</span>
               </div>
-              <nav className="command-nav">
-                {navItems.map(({ to, icon: Icon, label, badge, badgeTone }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    title={label}
-                    className={({ isActive }) => `command-nav-pill${isActive ? " active" : ""}`}
-                  >
-                    {({ isActive }) => (
-                      <>
-                        {isActive && (
-                          <motion.span
-                            className="command-nav-active"
-                            layoutId={prefersReducedMotion ? undefined : "command-active-pill"}
-                            transition={{ type: "spring", stiffness: 500, damping: 42 }}
-                          />
-                        )}
-                        <Icon size={16} />
-                        <span className="command-nav-label">{label}</span>
-                        {badge > 0 && (
-                          <span
-                            className="command-nav-badge"
-                            style={{ background: badgeTone === "info" ? "var(--info)" : urgentTaskCount > 0 ? "var(--error)" : "var(--warning)" }}
-                          >
-                            {badge > 99 ? "99+" : badge}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                ))}
-                <NavLink
-                  to="/settings"
-                  title="Settings"
-                  className={({ isActive }) => `command-nav-pill command-nav-pill--icon${isActive ? " active" : ""}`}
-                >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && (
-                        <motion.span
-                          className="command-nav-active"
-                          layoutId={prefersReducedMotion ? undefined : "command-active-pill"}
-                          transition={{ type: "spring", stiffness: 500, damping: 42 }}
-                        />
-                      )}
-                      <Settings size={16} />
-                    </>
-                  )}
-                </NavLink>
-              </nav>
+              <CommandNav items={navItems} urgent={urgentTaskCount > 0} reduceMotion={prefersReducedMotion} />
             </div>
 
             <div className="command-bar-right">
@@ -520,21 +472,7 @@ export default function App() {
                 {!hasProvider ? <Building2 size={13} /> : allFacilitiesMode ? <Globe size={13} /> : <Building2 size={13} />}
                 <span className="command-facility-label">{hasProvider ? facilityLabel : "No facility"}</span>
               </button>
-              <TipsToggle />
-              <button onClick={toggleTheme} className="command-icon-btn" title="Toggle theme">
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.span
-                    key={theme}
-                    style={{ display: "flex" }}
-                    initial={prefersReducedMotion ? false : { rotate: -90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={prefersReducedMotion ? { opacity: 0 } : { rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-                  </motion.span>
-                </AnimatePresence>
-              </button>
+              <DisplayMenu theme={theme} onToggleTheme={toggleTheme} />
               <button
                 className="command-icon-btn"
                 onClick={() => navigate("/work-queue")}
