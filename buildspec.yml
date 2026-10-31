@@ -2,7 +2,7 @@ version: 0.2
 
 env:
   variables:
-    VITE_BASE_URL: "/nhcx/api/v1/insurance"
+    VITE_BASE_URL: "https://api-nhcx-beta.docterz.in/nhcx/api/v1/insurance"
     VITE_USE_MOCK: "false"
 
 phases:
