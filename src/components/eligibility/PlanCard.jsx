@@ -231,6 +231,7 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
   const forms = usePlanForms(correlationId, plan?.form_count);
   const cover = useCoverBenefits(tab === "cover" ? correlationId : null);
   const gaps = ready ? missingRequired(plan) : [];
+  const missingForms = plan?.missing_forms || [];
   const counts = {
     packages: plan?.benefit_count,
     docs: (plan?.policy_documents || []).length + forms.length,
@@ -272,6 +273,20 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
           {fetchResult && (
             <div className="cv-card-intro">
               <span className={`cv-chip ${fetchResult.tone}`}>{fetchResult.text}</span>
+            </div>
+          )}
+          {(plan?.subsetted || missingForms.length > 0) && (
+            <div className="cv-notice is-warn">
+              {plan?.subsetted && <div className="cv-notice-title">The payer sent a shortened plan</div>}
+              <div className="cv-notice-body">
+                {[
+                  plan?.subsetted && "It is marked as a summary, so packages or forms may be missing.",
+                  missingForms.length > 0 &&
+                    `The plan names ${missingForms.length} ${missingForms.length === 1 ? "form" : "forms"} it did not include: ${missingForms.map((f) => (f.title ? `${f.title} (${f.ref})` : `form ${f.ref}`)).join(", ")}.`,
+                  missingForms.some((f) => f.ref === "100024" || f.ref === "100466") &&
+                    "Without the consent forms, a PMJAY pre-auth or claim can only go with a biometric scan. Fetch the plan again; if they are still missing, ask the payer.",
+                ].filter(Boolean).join(" ")}
+              </div>
             </div>
           )}
           <div className="cv-tabs" role="tablist" aria-label="Insurance plan">

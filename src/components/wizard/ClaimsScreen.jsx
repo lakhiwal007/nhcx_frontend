@@ -54,7 +54,7 @@ function DischargeDetailsForm({ claimId, discharge, rules, readOnly, onSaved }) 
   const [error, setError] = useState(null);
 
   const set = (key) => (e) => setValues((p) => ({ ...p, [key]: e.target.value }));
-  const lm100 = ["LAMA", "DAMA"].includes(values.type) && LM100_STAGES.includes(values.stage);
+  const lm100 = ["LAMA", "DAMA"].includes(values.type) && (rules?.lm100_stages || LM100_STAGES).includes(values.stage);
   const rates = rules?.lm100_rates || [];
 
   const save = async () => {
