@@ -28,6 +28,119 @@ const PATIENT_CONTEXT_FIELDS = [
 // the HIS-blocker banner only surfaces diagnoses/items.
 const HIS_BLOCKERS = new Set(["diagnoses", "items", "preauth_ref"]);
 
+const DISCHARGE_TYPES = [
+  { value: "DTH", label: "Home (normal discharge)" },
+  { value: "DTM", label: "Death" },
+  { value: "LAMA", label: "Left against medical advice (LAMA)" },
+  { value: "DAMA", label: "Discharged against medical advice (DAMA)" },
+];
+const DISCHARGE_STAGES = ["Before Surgery", "During Surgery", "After Surgery"];
+const LM100_STAGES = ["Before Surgery", "During Surgery"];
+
+const toLocalInput = (iso) => (iso ? String(iso).slice(0, 16) : "");
+const fromLocalInput = (value) => (value ? `${value}:00+05:30` : null);
+
+function DischargeDetailsForm({ claimId, discharge, rules, readOnly, onSaved }) {
+  const initial = () => ({
+    type: discharge?.type || "",
+    stage: discharge?.stage || "",
+    surgery_at: toLocalInput(discharge?.surgery_at),
+    death_at: toLocalInput(discharge?.death_at),
+    discharged_at: toLocalInput(discharge?.discharged_at),
+    stratification: discharge?.stratification || "",
+  });
+  const [values, setValues] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const set = (key) => (e) => setValues((p) => ({ ...p, [key]: e.target.value }));
+  const lm100 = ["LAMA", "DAMA"].includes(values.type) && LM100_STAGES.includes(values.stage);
+  const rates = rules?.lm100_rates || [];
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const body = {
+        type: values.type || null,
+        stage: values.stage || null,
+        surgery_at: fromLocalInput(values.surgery_at),
+        death_at: values.type === "DTM" ? fromLocalInput(values.death_at) : null,
+        discharged_at: fromLocalInput(values.discharged_at),
+        stratification: lm100 ? values.stratification || null : null,
+      };
+      const discharge = Object.fromEntries(Object.entries(body).filter(([, v]) => v));
+      const res = await api.patchPatientContext(claimId, { patient_context: { discharge } });
+      onSaved(res.missing_fields ?? []);
+    } catch (err) {
+      setError(err.message || "The discharge details could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="pd-form">
+        <label className="pd-form-field">
+          <span>How the patient left</span>
+          <select className="input-modern pd-input" value={values.type} disabled={readOnly} onChange={set("type")}>
+            <option value="">Choose…</option>
+            {DISCHARGE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </label>
+        <label className="pd-form-field">
+          <span>Stage</span>
+          <select className="input-modern pd-input" value={values.stage} disabled={readOnly} onChange={set("stage")}>
+            <option value="">Choose…</option>
+            {DISCHARGE_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label className="pd-form-field">
+          <span>Discharge date and time</span>
+          <input className="input-modern pd-input" type="datetime-local" value={values.discharged_at} disabled={readOnly} onChange={set("discharged_at")} />
+        </label>
+        <label className="pd-form-field">
+          <span>Surgery date and time (if any)</span>
+          <input className="input-modern pd-input" type="datetime-local" value={values.surgery_at} disabled={readOnly} onChange={set("surgery_at")} />
+        </label>
+        {values.type === "DTM" && (
+          <label className="pd-form-field">
+            <span>Date and time of death</span>
+            <input className="input-modern pd-input" type="datetime-local" value={values.death_at} disabled={readOnly} onChange={set("death_at")} />
+          </label>
+        )}
+        {lm100 && (
+          <label className="pd-form-field">
+            <span>Ward for the LM100 claim</span>
+            <select className="input-modern pd-input" value={values.stratification} disabled={readOnly} onChange={set("stratification")}>
+              <option value="">Choose…</option>
+              {rates.map((r) => <option key={r.code} value={r.code}>{`${r.label || r.code} · ${formatMoney(r.rate)} a day`}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      {lm100 && (
+        <div className="cv-notice is-warn" style={{ marginTop: 10 }}>
+          <div className="cv-notice-body">
+            {rates.length
+              ? "PMJAY pays a LAMA or DAMA before or during surgery as one LM100 line: the days admitted at the chosen ward's rate. Every other item on the bill drops out of this claim."
+              : "PMJAY pays this discharge as LM100, but the payer's plan held for this case has no LM100 rates. Fetch the plan again on Eligibility."}
+          </div>
+        </div>
+      )}
+      {error && <div className="cv-notice is-bad" style={{ marginTop: 10 }}><div className="cv-notice-body">{error}</div></div>}
+      {!readOnly && (
+        <div className="pd-form-actions">
+          <Button write variant="primary" size="small" disabled={saving} onClick={save}>
+            {saving ? "Saving…" : "Save discharge details"}
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
 function PatientContextForm({ claimId, onResolved }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
@@ -429,7 +542,9 @@ export default function ClaimsScreen({ ctx }) {
   // Split missing_fields: patient-context fields are resolvable inline via the
   // patient-context PATCH; HIS blockers (diagnoses/items) must be fixed in the
   // HIS and must NOT route to the patient-context form.
-  const patientContextMissing = missingFields.filter((f) => !HIS_BLOCKERS.has(f.toLowerCase()));
+  const patientContextMissing = missingFields.filter((f) => !HIS_BLOCKERS.has(f.toLowerCase()) && !f.startsWith("discharge."));
+  const dischargeMissing = missingFields.filter((f) => f.startsWith("discharge."));
+  const dischargeRules = claimDraft?.discharge_rules;
   const hisBlockers = missingFields.filter(
     (f) => HIS_BLOCKERS.has(f.toLowerCase()) && f.toLowerCase() !== "preauth_ref",
   );
@@ -570,6 +685,12 @@ export default function ClaimsScreen({ ctx }) {
       ok: patientContextMissing.length === 0,
       note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null,
       fix: "Fill in the Missing patient details form on Review claim.",
+    },
+    dischargeRules?.required && {
+      label: "Discharge details",
+      ok: dischargeMissing.length === 0,
+      note: dischargeMissing.length ? `${dischargeMissing.length} missing` : null,
+      fix: "Say how the patient left on Review claim: home, death, LAMA or DAMA, the stage, and the times.",
     },
     {
       label: "Clinical & billing records",
@@ -831,6 +952,21 @@ export default function ClaimsScreen({ ctx }) {
                     </div>
                   )}
                 </>,
+              )}
+              {dischargeRules?.required && card(
+                "How the patient left",
+                <DischargeDetailsForm
+                  key={JSON.stringify(claimDraft?.discharge || {})}
+                  claimId={claimDraft?.claim_id || claimId}
+                  discharge={claimDraft?.discharge}
+                  rules={dischargeRules}
+                  readOnly={caseClosed}
+                  onSaved={(remaining) => {
+                    setMissingFields(remaining);
+                    loadDraft(claimDraft?.claim_id || claimId);
+                  }}
+                />,
+                { chip: <span className={`cv-chip ${dischargeMissing.length ? "is-warn" : "is-ok"}`}>{dischargeMissing.length ? `${dischargeMissing.length} missing` : "Done"}</span> },
               )}
               {card("Final bill against the authorised amount", billTable, {
                 chip: overCeiling ? <span className="cv-chip is-warn">{formatMoney(ceilingExcess)} over</span> : authorizedCeiling != null ? <span className="cv-chip is-ok">Within</span> : null,

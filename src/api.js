@@ -2005,6 +2005,15 @@ const mock = {
   prepareClaimDraft: async (params = {}) => {
     await delay(800);
     return {
+      discharge: { discharged_at: "2026-05-04T14:15:00+05:30" },
+      discharge_rules: {
+        required: true,
+        lm100: false,
+        lm100_rates: [
+          { code: "STRAT006b", label: "HDU", rate: 2700 },
+          { code: "STRAT006a", label: "ICU", rate: 4500 },
+        ],
+      },
       payer_asks: MOCK_PAYER_ASKS.claim,
       cashless_case_id: params.cashless_case_id || 4,
       claim_id: params.claim_id || 101,
