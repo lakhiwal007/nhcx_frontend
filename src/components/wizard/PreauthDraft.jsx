@@ -244,7 +244,7 @@ export default function PreauthDraft({ ctx }) {
     const updated = base.map((it, i) => {
       if (i !== idx) return it;
       const val = Number(raw);
-      const next = { ...it, [field]: isNaN(val) ? raw : val };
+      const next = { ...it, [field]: field === "service_name" || isNaN(val) ? raw : val };
       if (field === "quantity" || field === "unit_price") {
         const qty = Number(field === "quantity" ? val : it.quantity) || 0;
         const price = Number(field === "unit_price" ? val : it.unit_price) || 0;
@@ -378,6 +378,7 @@ export default function PreauthDraft({ ctx }) {
   const checks = planChecks(admissibility, docs).filter((c) => !c.kind.startsWith("document"));
   const planBlocked = checks.some((c) => c.level === "block");
   const planNotes = checks.filter((c) => c.level === "warn" || c.level === "block");
+  const unspecifiedCodes = new Set(checks.filter((c) => c.kind === "unspecified_package").map((c) => String(c.code || "").toUpperCase()));
   const blockingAsks = asks.filter((a) => a.blocking);
   const warnAsks = asks.filter((a) => !a.blocking && a.status !== "attached" && a.status !== "answered");
   const askDocs = asks.filter((a) => a.kind === "document");
@@ -625,8 +626,12 @@ export default function PreauthDraft({ ctx }) {
                   {displayItems.map((item, i) => (
                     <tr key={i}>
                       <td>
-                        <strong>{item.service_name}</strong>
-                        <div className="cv-card-meta">{[item.service_code, item.category, item.service_start_date && formatDate(item.service_start_date)].filter(Boolean).join(" · ")}</div>
+                        {unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && !readOnly ? (
+                          <input className="cv-ctl" style={{ width: "100%" }} aria-label="Procedure name" placeholder="Name the procedure, and the ward if it matters" value={item.service_name || ""} onChange={(e) => updateItem(i, "service_name", e.target.value)} />
+                        ) : (
+                          <strong>{item.service_name}</strong>
+                        )}
+                        <div className="cv-card-meta">{[item.service_code, unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && "unspecified package: the name and amount go as typed", item.category, item.service_start_date && formatDate(item.service_start_date)].filter(Boolean).join(" · ")}</div>
                       </td>
                       <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="1" aria-label="Quantity" value={item.quantity} onChange={(e) => updateItem(i, "quantity", e.target.value)} /></td>
                       <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="0" aria-label="Unit price" value={item.unit_price} onChange={(e) => updateItem(i, "unit_price", e.target.value)} /></td>

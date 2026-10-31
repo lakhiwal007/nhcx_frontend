@@ -422,7 +422,7 @@ h3,
     align-items: center;
     gap: 28px;
     min-width: 0;
-    overflow: hidden;
+    flex: 1 1 auto;
 }
 
 .command-brand {
@@ -452,18 +452,119 @@ h3,
 }
 
 .command-nav {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 4px;
     min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    flex: 1 1 auto;
 }
 
-.command-nav::-webkit-scrollbar {
-    display: none;
+.command-nav-measure {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    gap: 4px;
+    width: 0;
+    overflow: hidden;
+    visibility: hidden;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+@media (max-width: 1199px) {
+    .command-brand-name {
+        display: none;
+    }
+
+    .command-bar-left {
+        gap: 16px;
+    }
+}
+
+.command-more {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.command-more > .command-nav-pill {
+    background: none;
+    border: 0;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.command-more > .command-nav-pill.is-open {
+    color: white;
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.command-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 230px;
+    padding: 6px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    z-index: calc(var(--z-sidebar) + 1);
+}
+
+.command-menu.is-right {
+    left: auto;
+    right: 0;
+    min-width: 300px;
+}
+
+.command-menu-row .tips-toggle {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.command-menu-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.command-menu-item:hover {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.command-menu-item.is-active {
+    background: var(--primary-light);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.command-menu-item .command-nav-badge {
+    margin-left: auto;
+}
+
+.command-menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text-muted);
 }
 
 .command-nav-pill {
@@ -527,7 +628,7 @@ h3,
     display: flex;
     align-items: center;
     gap: 7px;
-    max-width: 220px;
+    max-width: 180px;
     font-size: 12px;
     font-weight: 600;
     padding: 6px 12px;

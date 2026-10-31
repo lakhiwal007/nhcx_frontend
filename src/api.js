@@ -3082,6 +3082,7 @@ const mock = {
       environment: data.environment || "sandbox",
       registry_id: data.registry_id || null,
       hfr_id: data.hfr_id || null,
+      ownership: data.ownership || null,
       abdm_registration: {
         success: true,
         response: { participant_code },
