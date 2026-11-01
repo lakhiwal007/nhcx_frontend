@@ -379,6 +379,7 @@ export default function PreauthDraft({ ctx }) {
     total: effectiveTotal,
     unbilled: unbilledProcedures.length,
     linesBlocked: hisBlockers.some((f) => /items/i.test(f)),
+    unnamedLines: displayItems.some((item) => unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && !String(item.service_name || "").trim()),
     planChecked: admissibility?.status === "checked",
     planBlocked,
     planNotes: planNotes.length,

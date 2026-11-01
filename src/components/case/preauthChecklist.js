@@ -43,6 +43,7 @@ function clinicalRows(f) {
 function linesRow(f) {
   const row = { id: "lines", group: "cost", name: "Lines" };
   if (!f.lines || f.total <= 0 || f.linesBlocked) return { ...row, tone: "bad", fact: f.lines ? "No amount" : "No lines", blocks: true };
+  if (f.unnamedLines) return { ...row, tone: "bad", fact: "Name the procedure", blocks: true };
   if (f.unbilled) return { ...row, tone: "warn", fact: `${f.unbilled} unbilled` };
   return { ...row, tone: "ok", fact: formatMoney(f.total) };
 }
