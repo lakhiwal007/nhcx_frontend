@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Home, RefreshCw, AlertCircle } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { api } from "../../api";
 import { usePoll } from "../../hooks/usePoll";
-import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
-import { Button, LoadingBlock, formatMoney, NextStep } from "../Common";
+import { useReadOnly } from "../../readOnly";
+import { LoadingBlock, formatMoney, NextStep } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { ackState, groupPaymentEvents, stageLabel } from "../../paymentEvents.js";
 import { projectCaseStatus } from "../case/caseStages";
-import { Section } from "../case/CaseFile";
+import CaseChecklist from "../case/CaseChecklist";
+import { useCasePane } from "../case/useCasePane";
+import { buildPaymentChecklist, firstPaymentItem } from "../case/paymentChecklist";
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -28,6 +30,7 @@ function noPaymentReason(claimLeg) {
 export default function PaymentReconciliation({ ctx }) {
   const navigate = useNavigate();
   const readOnly = useReadOnly();
+  const { picked, paneRef, openItem } = useCasePane();
   const { caseState, cashlessCase, setCashlessCase, moneyLedger, refreshTimeline } = ctx;
   const caseId = caseState.cashless_case_id;
   const claimId = cashlessCase?.claim_id ?? caseState.claim_id;
@@ -180,261 +183,318 @@ export default function PaymentReconciliation({ ctx }) {
   const latestUtr = hasEvents ? settledPayments.concat(openPayments).map((p) => p.utr).filter(Boolean).shift() || null : settlement.utr ?? null;
   const missingUtr = settledPayments.some((p) => !p.utr);
 
-  const verdict = isNotFound
-    ? { tone: "pending", label: "Awaiting payment" }
-    : allSettled
-      ? { tone: shortBy ? "warn" : "ok", label: shortBy ? "Settled short" : "Settled" }
-      : settledPayments.length
-        ? { tone: "pending", label: `${settledPayments.length} of ${payments.length} settled` }
-        : { tone: "pending", label: stageLabel(paymentData?.latest_stage) ? `Payment ${stageLabel(paymentData.latest_stage)}` : "Payment in progress" };
+  const backToCases = (
+    <button type="button" className="cv-btn" onClick={() => navigate("/dashboard")}>Back to cases</button>
+  );
+  const checkAgain = (
+    <button type="button" className="cv-btn is-primary" disabled={refreshing} onClick={refresh}>
+      <RefreshCw size={14} /> {refreshing ? "Checking…" : "Check again"}
+    </button>
+  );
+  const updateNote = loadError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not updated:</strong> {loadError} Still trying.</div>;
+
+  if (isNotFound) {
+    return (
+      <div className="cv-elig">
+        <div className="cv-notice cv-verdict is-info">
+          <div className="cv-verdict-row">
+            <span className="cv-chip is-info">Awaiting payment</span>
+            <span className="cv-notice-body">The payer sends payment notices on its own schedule, usually hours to days after approval. This page updates by itself.</span>
+            <span className="cv-verdict-actions">{backToCases}{checkAgain}</span>
+          </div>
+          {updateNote}
+        </div>
+      </div>
+    );
+  }
+
+  const verdict = allSettled
+    ? { tone: shortBy ? "warn" : "ok", label: shortBy ? "Settled short" : "Settled" }
+    : { tone: "info", label: settledPayments.length ? `${settledPayments.length} of ${payments.length} settled` : `Payment ${stageLabel(paymentData?.latest_stage) || "in progress"}` };
+  const note = ackFailed
+    ? "The payer has not been told this payment arrived. Retry the acknowledgement."
+    : shortBy
+      ? "Paid less than approved. If TDS or a deduction you agree with does not explain it, ask for the balance."
+      : missingUtr
+        ? "The payer has not sent a UTR, so this payment cannot be matched to the bank statement yet."
+        : allSettled
+          ? "Match the UTR with the hospital's bank statement. Nothing else is needed for this case."
+          : "More notices may follow. Each is acknowledged automatically and this page updates by itself.";
 
   const statement = [
-    approved != null && { label: "Approved by payer", value: approved },
-    gross != null && { label: "Gross paid", value: gross },
-    tds > 0 && { label: "TDS deducted", value: -tds },
-    net != null && { label: "Net credited", value: net, total: true },
-    inProgress != null && { label: "In progress", value: inProgress },
-  ].filter(Boolean);
+    ["Approved by payer", approved != null && formatMoney(approved)],
+    ["Gross paid", gross != null && formatMoney(gross)],
+    ["TDS deducted", tds > 0 && `− ${formatMoney(tds)}`],
+    ["Net credited", net != null && formatMoney(net)],
+    ["In progress", inProgress != null && formatMoney(inProgress)],
+    ["Short of approved amount", shortBy != null && formatMoney(shortBy)],
+    [ledger.patient_payable?.formula ? `Patient payable (${ledger.patient_payable.formula})` : "Patient payable", toCollect > 0 && formatMoney(toCollect)],
+  ].filter(([, value]) => value);
 
-  const guide = isNotFound
-    ? null
-    : allSettled
-      ? shortBy
-        ? {
-            tone: "warn",
-            title: "Paid less than approved",
-            text: "Compare the amounts below. If the shortfall isn't explained by TDS or a deduction you agree with, go to the Claim step and use Ask for the balance.",
-          }
-        : missingUtr
-          ? { tone: "warn", title: "No UTR from the payer", text: "The payer has not sent a UTR, so this payment cannot be matched to the bank statement yet." }
-          : { tone: "ok", title: "Paid in full", text: "Match the UTR below with the hospital's bank statement. Nothing else is needed for this case." }
-      : { tone: "info", title: "The payer is paying in stages", text: "More notices may follow. Each one is acknowledged automatically; this page updates by itself." };
+  const notices = paymentData?.events || [];
+  const breakdown = payments.flatMap((pay) => (pay.history || []).flatMap((n) => (n.detail_items || []).map((item) => ({ ...item, payment: pay.payment_reference }))));
+  const failedPayments = payments.filter((p) => ackOf(p) === "failed");
+  const onlyFailed = failedPayments.length === 1 ? failedPayments[0] : null;
+  const retryable = (pay) => !readOnly && !!(pay.payment_reference || pay.notice_identifier);
+
+  const groups = buildPaymentChecklist({
+    allSettled,
+    shortBy,
+    net,
+    utr: latestUtr,
+    missingUtr,
+    payments: payments.length,
+    notices: notices.length,
+    ackFailed,
+    ackPending,
+  });
+  const open = firstPaymentItem(groups, picked);
+  const paneFor = (id) => ({ hidden: open !== id });
 
   return (
-    <div className="wizard-step pd-screen">
-      {guide && (
-        <NextStep tone={guide.tone} title={guide.title} className="ds-guide">
-          {guide.text}
-        </NextStep>
-      )}
-      {loadError && <div className="ep-notice is-bad">{loadError} Still trying.</div>}
-      {ackFailed > 0 && (
-        <div className="ep-notice is-bad">
-          {ackFailed} payment acknowledgement{ackFailed === 1 ? "" : "s"} failed to reach the payer. Retry from the
-          payments table below.
+    <div className="cv-elig">
+      <div className={`cv-notice cv-verdict is-${verdict.tone}`}>
+        <div className="cv-verdict-row">
+          <span className={`cv-chip is-${verdict.tone}`}>{verdict.label}</span>
+          <span className="cv-notice-body">
+            {net != null ? <><strong>{formatMoney(net)}</strong> credited</> : "Nothing credited yet"}
+            {inProgress != null ? ` · ${formatMoney(inProgress)} in progress` : ""}
+            {latestUtr && <span className="cv-mono cv-card-meta cv-bar-ref">{latestUtr}</span>}
+          </span>
+          <span className="cv-verdict-actions">
+            {backToCases}
+            {failedPayments.length > 1 ? (
+              <button type="button" className="cv-btn is-primary" onClick={() => openItem("acks")}>Open acknowledgements</button>
+            ) : onlyFailed && retryable(onlyFailed) ? (
+              <button type="button" className="cv-btn is-primary" disabled={acknowledging[onlyFailed.group_key]} onClick={() => handleAcknowledge(onlyFailed)}>
+                {acknowledging[onlyFailed.group_key] ? "Retrying…" : "Retry acknowledgement"}
+              </button>
+            ) : shortBy && !readOnly ? (
+              <button type="button" className="cv-btn is-primary" onClick={() => navigate("../claim", { state: { openAction: "request_claim_release", releaseAmount: shortBy } })}>Ask for the balance</button>
+            ) : !allSettled ? (
+              checkAgain
+            ) : null}
+          </span>
         </div>
-      )}
+        <div className={`cv-notice-hint cv-verdict-note${ackFailed ? " is-bad" : ""}`}>{note}</div>
+        {updateNote}
+      </div>
 
-      <div className="pd-layout">
-        <div className="pd-main">
-          {isNotFound ? (
-            <Section id="pay-none" title="No payment yet" info="payment_notice">
-              <p className="ds-empty">
-                The payer sends payment notices on its own schedule, typically hours to days after the claim is
-                approved. Each notice is acknowledged automatically when it arrives.
-              </p>
-              <div className="ds-empty-actions">
-                <Button variant="outline" size="small" icon={RefreshCw} disabled={refreshing} onClick={refresh}>
-                  Check again
-                </Button>
+      <div className="cv-work">
+        <CaseChecklist groups={groups} open={open} onOpen={openItem} label="Payment checklist" />
+
+        <div className="cv-work-pane" ref={paneRef}>
+          <div {...paneFor("amounts")}>
+            <section className="cv-card" aria-label="Amounts">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Amounts</h2>
+                <span className="cv-card-meta">TDS is tax the payer deducts and deposits for the hospital</span>
               </div>
-            </Section>
-          ) : (
-            <>
-              <Section
-                id="pay-settlement"
-                title="Settlement"
-                info="utr"
-                tip="TDS is tax the payer deducts and deposits for the hospital; net credited is what reaches the bank."
-              >
-                <dl className="ds-statement">
-                  {statement.map((r) => (
-                    <div key={r.label} className={r.total ? "is-total" : undefined}>
-                      <dt>{r.label}</dt>
-                      <dd className="ep-mono">{r.value < 0 ? `− ${formatMoney(-r.value)}` : formatMoney(r.value)}</dd>
-                    </div>
-                  ))}
-                  {shortBy != null && (
-                    <div>
-                      <dt className="is-bad">Short of approved amount</dt>
-                      <dd className="ep-mono is-bad">{formatMoney(shortBy)}</dd>
-                    </div>
-                  )}
-                  {toCollect > 0 && (
-                    <div>
-                      <dt>
-                        Patient payable
-                        {ledger.patient_payable?.formula && <span className="ep-muted"> · {ledger.patient_payable.formula}</span>}
-                      </dt>
-                      <dd className="ep-mono">{formatMoney(toCollect)}</dd>
-                    </div>
-                  )}
-                </dl>
-              </Section>
+              <div className="cv-card-body">
+                {statement.map(([label, value]) => (
+                  <div key={label} className="cv-kv"><span>{label}</span><span>{value}</span></div>
+                ))}
+              </div>
+            </section>
+          </div>
 
-              <Section
-                id="pay-notices"
-                title="Payments"
-                meta={`${payments.length} payment${payments.length === 1 ? "" : "s"}${paymentData?.total_events > payments.length ? ` · ${paymentData.total_events} notices` : ""}`}
-              >
-                <div className="ep-table-wrap">
-                  <table className="ep-table ds-lines-table">
+          <div {...paneFor("utr")}>
+            <section className="cv-card" aria-label="UTR">
+              <div className="cv-card-head"><h2 className="cv-card-title">UTR</h2></div>
+              <div className="cv-tw cv-in-card">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Payment</th>
+                      <th>UTR</th>
+                      <th style={{ width: 90 }}>Type</th>
+                      <th style={{ width: 130 }}>Paid on</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((pay) => (
+                      <tr key={pay.group_key}>
+                        <td className="cv-mono">{pay.payment_reference || "—"}</td>
+                        <td className="cv-mono">{pay.utr || (pay.settled ? "Missing" : "—")}</td>
+                        <td>{pay.utr_type || "—"}</td>
+                        <td>{pay.payment_date ? formatDate(pay.payment_date) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div {...paneFor("payments")}>
+            <section className="cv-card" aria-label="Payments">
+              <div className="cv-card-head"><h2 className="cv-card-title">Payments</h2></div>
+              <div className="cv-tw cv-in-card">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Payment</th>
+                      <th style={{ width: 110 }}>Stage</th>
+                      <th style={{ width: 110 }}>Notice</th>
+                      <th style={{ width: 110 }}>Gross</th>
+                      <th style={{ width: 100 }}>TDS</th>
+                      <th style={{ width: 110 }}>Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((pay) => (
+                      <tr key={pay.group_key}>
+                        <td>
+                          <div className="cv-mono">{pay.payment_reference || "—"}</div>
+                          <div className="cv-card-meta">{[pay.claim_reference, pay.recon_identifier, pay.payment_status].filter(Boolean).join(" · ")}</div>
+                        </td>
+                        <td className="ep-cap">{stageLabel(pay.payment_stage) || "—"}</td>
+                        <td>{formatMoney(pay.notice_amount)}</td>
+                        <td>{formatMoney(pay.gross_amount)}</td>
+                        <td>{formatMoney(pay.tds_amount)}</td>
+                        <td>{formatMoney(pay.net_payment_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {breakdown.length > 0 && (
+                <div className="cv-tw cv-in-card">
+                  <table aria-label="Payment breakdown">
                     <thead>
                       <tr>
-                        <th>Payment</th>
-                        <th>Stage</th>
-                        <th className="ep-num">Gross</th>
-                        <th className="ep-num">TDS</th>
-                        <th className="ep-num">Net</th>
-                        <th>Acknowledgement</th>
+                        <th>Breakdown</th>
+                        <th style={{ width: 130 }}>Date</th>
+                        <th style={{ width: 110 }}>Amount</th>
+                        <th>Reason</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {payments.map((pay) => {
-                        const ref = pay.payment_reference || pay.notice_identifier;
-                        const key = pay.group_key;
-                        const ackResult = ackResults[key];
-                        const isAcknowledging = acknowledging[key];
-                        const ack = ackOf(pay);
-                        const ackError = pay.history?.filter((n) => n.acknowledgement_error).pop()?.acknowledgement_error;
-                        const editing = showOverrides[key] && !readOnly;
-                        // Every notice the payer sent for this payment, shown inline.
-                        const historyOpen = pay.notice_count > 1 && pay.history?.length > 0;
-                        return (
-                          <Fragment key={key}>
-                            <tr>
-                              <td className="ep-col-name">
-                                <div className="ep-strong ep-mono">{ref || "—"}</div>
-                                <div className="ep-muted">
-                                  {[pay.payment_date && formatDate(pay.payment_date), pay.utr && `UTR ${pay.utr}`, pay.utr_type].filter(Boolean).join(" · ")}
-                                </div>
-                              </td>
-                              <td className="ep-cap">{stageLabel(pay.payment_stage) || "—"}</td>
-                              <td className="ep-num ep-mono">{formatMoney(pay.gross_amount)}</td>
-                              <td className="ep-num ep-mono">{pay.tds_amount != null ? formatMoney(pay.tds_amount) : "—"}</td>
-                              <td className="ep-num ep-mono ep-strong">{formatMoney(pay.net_payment_amount)}</td>
-                              <td>
-                                {ack === "done" ? (
-                                  "Acknowledged"
-                                ) : ack === "sent" ? (
-                                  "Acknowledgement sent"
-                                ) : ack === "pending" ? (
-                                  <span className="ep-muted">In progress</span>
-                                ) : (
-                                  <div className="pay-ack">
-                                    <span className="is-bad">Failed</span>
-                                    {ref && (
-                                      <button type="button" className="ep-action" disabled={isAcknowledging || readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={() => handleAcknowledge(pay)}>
-                                        {isAcknowledging ? "Retrying…" : "Retry"}
-                                      </button>
-                                    )}
-                                    {ref && !readOnly && (
-                                      <button type="button" className="pd-inline-link" onClick={() => setShowOverrides((p) => ({ ...p, [key]: !p[key] }))}>
-                                        {editing ? "Close" : "Edit values"}
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                                {ackError && ack === "failed" && <div className="ep-muted">{ackError}</div>}
-                                {ackResult && !ackResult.success && <div className="is-bad">{ackResult.message}</div>}
-                              </td>
-                            </tr>
-                            {historyOpen && (
-                              <tr className="pay-subrow">
-                                <td colSpan={6}>
-                                  <div className="ep-muted pay-subrow-title">Notices received for this payment</div>
-                                  {pay.history.map((notice, ni) => (
-                                    <div key={notice.correlation_id || ni} className="pay-notice">
-                                      <span className="ep-cap">{stageLabel(notice.payment_stage)}</span>
-                                      <span className="ep-muted">
-                                        {notice.received_at ? formatDateTime(notice.received_at) : notice.payment_date ? formatDate(notice.payment_date) : "—"}
-                                      </span>
-                                      <span className="ep-mono">{formatMoney(notice.net_payment_amount)}</span>
-                                      <span className="ep-muted">{notice.acknowledgement_status === "submitted" ? "Acknowledged" : notice.acknowledgement_status || "Not acknowledged"}</span>
-                                      <span className="ep-mono ep-muted pay-notice-id">{notice.correlation_id}</span>
-                                    </div>
-                                  ))}
-                                </td>
-                              </tr>
-                            )}
-                            {editing && (
-                              <tr className="pay-subrow">
-                                <td colSpan={6}>
-                                  <div className="pay-overrides">
-                                    <label>
-                                      <span>Claim number</span>
-                                      <input className="input-modern pd-input" placeholder="Override claim number" value={ackOverrides[key]?.claim_number || ""} onChange={(e) => updateOverride(key, "claim_number", e.target.value)} />
-                                    </label>
-                                    <label>
-                                      <span>Amount received</span>
-                                      <input className="input-modern pd-input ep-mono" type="number" placeholder="Override amount" value={ackOverrides[key]?.amount_received || ""} onChange={(e) => updateOverride(key, "amount_received", e.target.value)} />
-                                    </label>
-                                    <label>
-                                      <span>UTR</span>
-                                      <input className="input-modern pd-input ep-mono" placeholder="Override UTR" value={ackOverrides[key]?.utr || ""} onChange={(e) => updateOverride(key, "utr", e.target.value)} />
-                                    </label>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
+                      {breakdown.map((item, i) => (
+                        <tr key={i}>
+                          <td>{item.type_display || item.type || "—"}</td>
+                          <td>{item.date ? formatDate(item.date) : "—"}</td>
+                          <td>{formatMoney(item.amount)}</td>
+                          <td>{item.reason || "—"}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
-              </Section>
-            </>
-          )}
-        </div>
+              )}
+            </section>
+          </div>
 
-        <aside className="pd-side">
-          <section className="ep-section pd-request">
-            <header className="ep-section-head">
-              <h3 className="ep-section-title">Payment</h3>
-            </header>
-            <div className={`ds-verdict is-${verdict.tone}`}>
-              <span className="ep-dot" aria-hidden="true" />
-              <span className="ds-verdict-label ep-cap">{verdict.label}</span>
-            </div>
-            {latestUtr && (
-              <div className="ds-ref">
-                <span className="ep-muted">UTR</span>
-                <span className="ep-mono">{latestUtr}</span>
+          <div {...paneFor("notices")}>
+            <section className="cv-card" aria-label="Notices">
+              <div className="cv-card-head"><h2 className="cv-card-title">Notices</h2></div>
+              <div className="cv-tw cv-in-card">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Payment</th>
+                      <th style={{ width: 110 }}>Stage</th>
+                      <th style={{ width: 170 }}>Received</th>
+                      <th style={{ width: 110 }}>Net</th>
+                      <th style={{ width: 130 }}>Acknowledged</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {notices.map((notice, i) => (
+                      <tr key={notice.event_key || notice.correlation_id || i}>
+                        <td className="cv-mono">{notice.payment_reference || "—"}</td>
+                        <td className="ep-cap">{stageLabel(notice.payment_stage) || "—"}</td>
+                        <td>{notice.received_at ? formatDateTime(notice.received_at) : "—"}</td>
+                        <td>{formatMoney(notice.net_payment_amount)}</td>
+                        <td>{notice.acknowledgement_status === "submitted" ? "Yes" : notice.acknowledgement_status === "failed" ? "Failed" : "In progress"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-            {missingUtr && <div className="ep-notice is-bad">UTR missing</div>}
-            {net != null && (
-              <div className="pd-amount">
-                <div className="ep-muted">Net credited</div>
-                <div className="pd-amount-value ep-mono">{formatMoney(net)}</div>
-                {approved != null && <div className="ep-muted">of {formatMoney(approved)} approved</div>}
+            </section>
+          </div>
+
+          <div {...paneFor("acks")}>
+            <section className="cv-card" aria-label="Acknowledgements">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Acknowledgements</h2>
+                <span className="cv-card-meta">Sent automatically; retry only when one fails</span>
               </div>
-            )}
-            {!isNotFound && (
-              <ul className="pd-ready" aria-label="Acknowledgements">
-                <li className={ackFailed ? "is-todo" : ackPending ? "is-soft" : "is-ok"}>
-                  {ackFailed || ackPending ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}
-                  <span>
-                    {ackFailed
-                      ? `${ackFailed} acknowledgement${ackFailed === 1 ? "" : "s"} failed`
-                      : ackPending
-                        ? `${ackPending} acknowledgement${ackPending === 1 ? "" : "s"} pending`
-                        : "All notices acknowledged"}
-                  </span>
-                </li>
-              </ul>
-            )}
-            <div className="pd-submit">
-              <Button variant={allSettled ? "primary" : "outline"} icon={allSettled ? Home : undefined} onClick={() => navigate("/dashboard")} className="pd-submit-btn">
-                {allSettled ? "Done — back to cases" : "Back to cases"}
-              </Button>
-              <button type="button" className="pd-text-btn" disabled={refreshing} onClick={refresh}>
-                <RefreshCw size={13} /> Refresh payment status
-              </button>
-            </div>
-          </section>
-        </aside>
+              <div className="cv-tw cv-in-card">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Payment</th>
+                      <th style={{ width: 130 }}>Status</th>
+                      <th style={{ width: 170 }}>Acknowledged at</th>
+                      <th style={{ width: 210 }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((pay) => {
+                      const key = pay.group_key;
+                      const ack = ackOf(pay);
+                      const result = ackResults[key];
+                      const ackError = pay.history?.filter((n) => n.acknowledgement_error).pop()?.acknowledgement_error;
+                      const canRetry = ack === "failed" && retryable(pay);
+                      const editing = showOverrides[key] && canRetry;
+                      return (
+                        <Fragment key={key}>
+                          <tr>
+                            <td>
+                              <div className="cv-mono">{pay.payment_reference || pay.notice_identifier || "—"}</div>
+                              {ack === "failed" && ackError && <div className="cv-card-meta">{ackError}</div>}
+                              {result && !result.success && <div className="is-bad">{result.message}</div>}
+                            </td>
+                            <td>
+                              <span className={`cv-chip ${ack === "failed" ? "is-bad" : ack === "pending" ? "is-info" : "is-ok"}`}>
+                                {ack === "failed" ? "Failed" : ack === "pending" ? "In progress" : ack === "sent" ? "Sent" : "Acknowledged"}
+                              </span>
+                            </td>
+                            <td>{pay.acknowledged_at ? formatDateTime(pay.acknowledged_at) : "—"}</td>
+                            <td>
+                              {canRetry ? (
+                                <div className="pay-ack">
+                                  <button type="button" className="cv-btn" disabled={acknowledging[key]} onClick={() => handleAcknowledge(pay)}>
+                                    {acknowledging[key] ? "Retrying…" : "Retry"}
+                                  </button>
+                                  <button type="button" className="pd-inline-link" onClick={() => setShowOverrides((p) => ({ ...p, [key]: !p[key] }))}>
+                                    {editing ? "Close" : "Edit values"}
+                                  </button>
+                                </div>
+                              ) : "—"}
+                            </td>
+                          </tr>
+                          {editing && (
+                            <tr className="pay-subrow">
+                              <td colSpan={4}>
+                                <div className="pay-overrides">
+                                  <label>
+                                    <span>Claim number</span>
+                                    <input className="input-modern pd-input" placeholder="Override claim number" value={ackOverrides[key]?.claim_number || ""} onChange={(e) => updateOverride(key, "claim_number", e.target.value)} />
+                                  </label>
+                                  <label>
+                                    <span>Amount received</span>
+                                    <input className="input-modern pd-input ep-mono" type="number" placeholder="Override amount" value={ackOverrides[key]?.amount_received || ""} onChange={(e) => updateOverride(key, "amount_received", e.target.value)} />
+                                  </label>
+                                  <label>
+                                    <span>UTR</span>
+                                    <input className="input-modern pd-input ep-mono" placeholder="Override UTR" value={ackOverrides[key]?.utr || ""} onChange={(e) => updateOverride(key, "utr", e.target.value)} />
+                                  </label>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </div>
   );
