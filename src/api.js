@@ -733,6 +733,20 @@ const mockCaseOpen = () => {
   }
 };
 
+const mockLedger = (ledger) => {
+  const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ledger") : null;
+  if (key === "zero") return { ...ledger, disallowed: { value: 0 }, copay: { value: 0 }, patient_payable: { value: 0, confidence: "final", formula: ledger.patient_payable.formula }, reconciliation: { variance_vs_authorized: 0, to_collect_from_patient: 0 } };
+  if (key === "unknown") {
+    const rest = { ...ledger };
+    delete rest.patient_payable;
+    delete rest.reconciliation;
+    return rest;
+  }
+  if (key === "estimate") return { ...ledger, patient_payable: { ...ledger.patient_payable, confidence: "estimated" } };
+  if (key === "early") return { currency: ledger.currency, billed: ledger.billed };
+  return ledger;
+};
+
 const mockHeldTasks = () => {
   if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("held") !== "1") return [];
   return [{ id: 901, task_type: "submit_final_claim", workflow: "claim", status: "held", title: "Submit final claim", metadata: { hold: { reason: "Preauth cancellation awaiting payer response" } } }];
@@ -1975,7 +1989,7 @@ const mock = {
       claim_id: 101,
       child_id: 12,
       generated_at: new Date().toISOString(),
-      money_ledger: {
+      money_ledger: mockLedger({
         currency: "INR",
         billed: { value: 50000 },
         eligible: { value: 45000 },
@@ -1987,7 +2001,7 @@ const mock = {
         patient_payable: { value: 10000, confidence: "final", formula: "copay + disallowed" },
         settlement: mockCaseOpen() ? null : { gross: 40000, tds: 400, net: 39600, utr: "UTR123456789", settled: true, short_payment: true },
         reconciliation: { variance_vs_authorized: 10000, to_collect_from_patient: 10000 },
-      },
+      }),
       total_count: filtered.length,
       limit: params.limit || 200,
       offset: params.offset || 0,
