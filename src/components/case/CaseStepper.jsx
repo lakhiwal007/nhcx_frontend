@@ -1,6 +1,7 @@
 import { Check, Lock } from "lucide-react";
 
 const ticked = (s) => s.state === "done" || s.done;
+const tooltip = (s, extra) => [s.note && `${s.note}.`, s.hint, extra].filter(Boolean).join(" ");
 
 export default function CaseStepper({ stages, onNavigate }) {
   const core = stages.filter((s) => !s.branch);
@@ -14,12 +15,12 @@ export default function CaseStepper({ stages, onNavigate }) {
           const done = ticked(s);
           const active = s.state === "active";
           const isNext = s === next && !active;
-          const left = i > 0 && (done || active || ticked(core[i - 1]));
-          const right = i < core.length - 1 && (ticked(core[i + 1]) || core[i + 1].state === "active");
+          const joined = i > 0 && (done || active || ticked(core[i - 1]));
           const tone = s.tone === "urgent" && !done ? " is-urgent" : s.live && !done ? " is-live" : "";
-          const title = s.clickable ? s.hint : `${s.hint ? `${s.hint} ` : ""}Unlocks once the earlier stages are done.`;
+          const title = tooltip(s, !s.clickable && "Unlocks once the earlier stages are done.");
           return (
             <li key={s.id} className={`cv-step${done ? " is-done" : ""}${active ? " is-active" : ""}${isNext ? " is-next" : ""}${tone}`}>
+              {i > 0 && <span className={`cv-step-seg${joined ? " is-filled" : ""}`} aria-hidden="true" />}
               <button
                 type="button"
                 className="cv-step-btn"
@@ -29,15 +30,10 @@ export default function CaseStepper({ stages, onNavigate }) {
                 aria-label={`Stage ${s.num}: ${s.label}${s.note ? ` - ${s.note}` : ""}`}
                 title={title}
               >
-                <span className="cv-step-line">
-                  <span className={`cv-step-seg${i === 0 ? " is-blank" : left ? " is-filled" : ""}`} />
-                  <span className="cv-step-dot" aria-hidden="true">
-                    {done ? <Check size={14} strokeWidth={3} /> : !s.clickable && !isNext ? <Lock size={12} /> : s.num}
-                  </span>
-                  <span className={`cv-step-seg${i === core.length - 1 ? " is-blank" : right ? " is-filled" : ""}`} />
+                <span className="cv-step-dot" aria-hidden="true">
+                  {done ? <Check size={12} strokeWidth={3} /> : !s.clickable && !isNext ? <Lock size={10} /> : s.num}
                 </span>
                 <span className="cv-step-label">{s.label}</span>
-                <span className="cv-step-note">{s.note || (isNext ? "Next" : " ")}</span>
               </button>
             </li>
           );
@@ -52,10 +48,9 @@ export default function CaseStepper({ stages, onNavigate }) {
               className={`cv-branch${b.state === "active" ? " is-active" : ""}${ticked(b) ? " is-done" : ""}`}
               disabled={!b.clickable}
               onClick={() => b.clickable && onNavigate(b.path)}
-              title={b.hint}
+              title={tooltip(b)}
             >
               {ticked(b) ? <Check size={12} strokeWidth={3} /> : "+"} {b.label}
-              {b.note ? <span className="cv-branch-note">{b.note}</span> : null}
             </button>
           ))}
         </div>

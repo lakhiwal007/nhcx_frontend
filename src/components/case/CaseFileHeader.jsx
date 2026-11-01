@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import PayerName from "../PayerName";
 import { formatMoney, formatAge, humanize, formatCaseRef } from "../../format.js";
 
@@ -21,7 +21,7 @@ function IdChip({ label, value }) {
     <button type="button" className="cv-id-chip" onClick={copy} title={`Copy ${label}`}>
       <span className="cv-id-chip-key">{label}</span>
       <span className="cv-mono">{value}</span>
-      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied && <Check size={12} />}
     </button>
   );
 }
@@ -39,7 +39,6 @@ function figures(ledger, approvedAmount) {
 }
 
 export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, approvedAmount, moneyLedger, statusPill }) {
-  const [showIds, setShowIds] = useState(false);
   const policyNumber = caseState.policy?.policy_number || effectiveCase.policy_number;
   const payerId = effectiveCase.payer_id;
   const payerName = caseState.payer?.name;
@@ -50,29 +49,19 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
   return (
     <div className="cv-head">
       <div className="cv-head-person">
-        <div className="cv-avatar" aria-hidden="true">{patient.name?.[0]?.toUpperCase() || "?"}</div>
-        <div className="cv-head-text">
-          <div className="cv-head-title">
-            <h2 className="cv-head-name">{patient.name}</h2>
-            {statusPill}
-          </div>
-          <div className="cv-head-meta">
-            {meta.length > 0 && <span>{meta.join(" · ")}</span>}
-            {(payerId || payerName) && <span><PayerName id={payerId} name={payerName} /></span>}
-            {policyNumber && <span className="cv-mono">{policyNumber}</span>}
-            <button type="button" className="cv-link" onClick={() => setShowIds((v) => !v)} aria-expanded={showIds}>
-              {showIds ? "Hide ids" : "Ids"}
-            </button>
-          </div>
-          {showIds && (
-            <div className="cv-id-row">
-              <IdChip label="Case" value={caseState.cashless_case_id && formatCaseRef(caseState.cashless_case_id)} />
-              <IdChip label="Claim" value={caseState.claim_id} />
-              <IdChip label="Patient" value={patient.child_id} />
-              <IdChip label="Preauth ref" value={preauthRef} />
-              <IdChip label="ABHA" value={abha} />
-            </div>
-          )}
+        <h2 className="cv-head-name">{patient.name}</h2>
+        {statusPill}
+        <div className="cv-head-meta">
+          {meta.length > 0 && <span>{meta.join(" · ")}</span>}
+          {(payerId || payerName) && <span><PayerName id={payerId} name={payerName} /></span>}
+        </div>
+        <div className="cv-id-row">
+          <IdChip label="Case" value={caseState.cashless_case_id && formatCaseRef(caseState.cashless_case_id)} />
+          <IdChip label="Claim" value={caseState.claim_id} />
+          <IdChip label="Patient" value={patient.child_id} />
+          <IdChip label="Preauth ref" value={preauthRef} />
+          <IdChip label="Policy" value={policyNumber} />
+          <IdChip label="ABHA" value={abha} />
         </div>
       </div>
       {cells.length > 0 && (
