@@ -16,7 +16,6 @@ import { liveAsks } from "../case/askStatus";
 import { Drawer, Modal } from "../Overlay";
 import { buildQueryResponseBody, documentFromFile } from "../../queryResponse.js";
 import PayrErrorList from "../PayrErrorList";
-import PreauthEnhancement from "./PreauthEnhancement";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
 const POLL_INTERVAL_MS = 7000;
@@ -67,7 +66,6 @@ export default function PreauthStatus({ ctx }) {
   const [pollError, setPollError] = useState(null);
   const [polling, setPolling] = useState(true);
   const [pollElapsed, setPollElapsed] = useState(0);
-  const [showEnhancement, setShowEnhancement] = useState(false);
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showResubmitDrawer, setShowResubmitDrawer] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -404,7 +402,7 @@ export default function PreauthStatus({ ctx }) {
       } else if (action === "respond_preauth_query") {
         setShowQueryDrawer(true);
       } else if (action === "resubmit_enhancement") {
-        setShowEnhancement(true);
+        navigate("../enhancement", { replace: true });
       }
     }
   }, [location.state?.openAction, resolvedCashlessCaseId, claim_id, statusData?.claim_id, cashlessCase?.claim_id, isQueried, isRejected, isPartial, updateCaseState]);
@@ -541,7 +539,7 @@ export default function PreauthStatus({ ctx }) {
     else if (id === "refresh") restartPoll(correlationId);
     else if (id === "gateway") handleGatewayStatus();
     else if (id === "draft") navigate("../review");
-    else if (id === "enhance") setShowEnhancement(true);
+    else if (id === "enhance") navigate("../enhancement");
     else if (id === "message") setShowSendModal(true);
     else if (id === "recheck") handleRecheckEligibility();
     else if (id === "cancel") setShowCancelModal(true);
@@ -1085,9 +1083,6 @@ export default function PreauthStatus({ ctx }) {
         cashlessCaseId={cashless_case_id}
       />
 
-      <Modal open={showEnhancement} onClose={() => setShowEnhancement(false)} title="Request preauth enhancement" width={680}>
-        <PreauthEnhancement ctx={ctx} onClose={() => setShowEnhancement(false)} onSubmitted={restartPoll} />
-      </Modal>
     </div>
   );
 }

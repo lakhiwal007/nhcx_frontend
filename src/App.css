@@ -3984,26 +3984,10 @@ select.pd-input {
     gap: 1px;
 }
 
-.ep-table tr.en-excluded td {
+tr.en-excluded td {
     color: var(--text-muted);
     text-decoration: line-through;
     text-decoration-color: color-mix(in srgb, var(--text-muted) 60%, transparent);
-}
-
-.en-url {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 16px 14px;
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-.en-footer {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-top: 4px;
 }
 
 .ds-ref.ds-ref-top {

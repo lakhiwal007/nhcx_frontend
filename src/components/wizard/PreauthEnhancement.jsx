@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
-import { Button, DocumentChecklist, LoadingBlock, formatMoney, NextStep } from "../Common";
+import { DocumentChecklist, LoadingBlock, formatMoney, NextStep } from "../Common";
 import { formatDate } from "../../format.js";
-import { Section } from "../case/CaseFile";
 import { CLAIM_WITH_PAYER } from "../case/caseStages";
 import PatientDetailsForm from "../case/PatientDetailsForm";
+import CaseChecklist from "../case/CaseChecklist";
+import { useCasePane } from "../case/useCasePane";
+import { buildEnhancementChecklist, firstEnhancementItem } from "../case/enhancementChecklist";
 
 // Fields only the hospital system can fill in.
 const HIS_BLOCKERS = new Set(["diagnoses", "items", "preauth_ref"]);
@@ -24,7 +26,7 @@ function unavailableReason(legs) {
   return null;
 }
 
-export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
+export default function PreauthEnhancement({ ctx }) {
   const navigate = useNavigate();
   const { caseState, updateCaseState, caseClosed, cashlessCase, draftFiles, setDraftFiles } = ctx;
   const { cashless_case_id, claim_id } = caseState;
@@ -32,12 +34,8 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const locked = readOnly || caseClosed;
   const filesKey = cashless_case_id || claim_id ? `${cashless_case_id || claim_id}:enhancement` : null;
 
-  // Used both as a modal inside PreauthStatus (onClose provided) and as a routed
-  // screen at /case/:id/enhancement (from the stepper's Enhancement branch and
-  // the "File Enhancement" button on the claim screen). In the routed case there
-  // is no onClose, so Cancel/Close and the post-submit hand-off must navigate
-  // back to the Decision screen rather than being dead no-ops.
-  const close = onClose || (() => navigate("../status"));
+  const { picked, paneRef, openItem } = useCasePane();
+  const close = () => navigate("../status");
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -82,7 +80,8 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   };
 
   useEffect(() => {
-    load();
+    const timer = setTimeout(load, 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -99,9 +98,10 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   // checkboxes change the amount, not just the procedures list. New items are
   // matched to their procedure by service_code/service_name; an item with no
   // matching unchecked procedure is always kept (never silently dropped).
+  const procedureKept = (proc, i) => !!checkedProcedures[i] && !leftOutLines[proc.code ?? proc.name];
   const uncheckedProcKeys = new Set(
     (preview?.new_procedures || [])
-      .map((p, i) => (checkedProcedures[i] ? null : p.code ?? p.name))
+      .map((p, i) => (procedureKept(p, i) ? null : p.code ?? p.name))
       .filter((k) => k != null),
   );
   const lineOf = (item) => {
@@ -129,7 +129,7 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const selectedProcs = (preview.new_procedures || []).filter((_, i) => checkedProcedures[i]);
+      const selectedProcs = (preview.new_procedures || []).filter(procedureKept);
       const body = {
         ...(cashless_case_id ? { cashless_case_id } : { claim_id }),
         total_amount: revisedTotal,
@@ -142,16 +142,9 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
         setSubmitError(res.message || res.error?.message || "The enhancement could not be submitted.");
         return;
       }
-      // As a modal inside PreauthStatus, onSubmitted is that screen's own
-      // restartPoll - it must be the one to resume polling, since `polling`
-      // is local state there that a plain updateCaseState can't reach (this
-      // instance doesn't remount, so nothing else would ever resume it).
-      // Routed (no onSubmitted), navigating to ../status remounts
-      // PreauthStatus fresh, so clearing preauthDecision here just avoids a
-      // stale flash before that screen's own poll resolves.
+      // Approval remounts on the way back and polls the new request.
       if (filesKey) setDraftFiles(filesKey, []);
-      if (onSubmitted) onSubmitted(res.correlation_id);
-      else updateCaseState({ preauthCorrelationId: res.correlation_id, preauthDecision: null });
+      updateCaseState({ preauthCorrelationId: res.correlation_id, preauthDecision: null });
       close();
     } catch (err) {
       setSubmitError(err.message || "The enhancement could not be submitted.");
@@ -163,10 +156,6 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   if (loading) {
     return <LoadingBlock compact />;
   }
-
-  // Routed as its own step it gets the side panel; inside the Decision
-  // screen's dialog the same sections stack with the actions at the foot.
-  const routed = !onClose;
 
   if (loadError || preview?.status === "not_found") {
     return (
@@ -185,23 +174,16 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
     );
   }
 
-  if (!preview.enhanceable) {
+  if (unavailable || !preview.enhanceable) {
     return (
-      <div className="wizard-step pd-screen">
-        <Section id="en-none" title="Enhancement not available">
-          <p className="ds-empty">{preview.reason || "No new procedures or billing found since the approved preauth."}</p>
-          <NextStep tone="info" title="How to ask for more">
-            An enhancement needs something new to justify it: a new procedure, or bills above the approved amount. Ask the
-            doctor to record the new procedure or the billing desk to add the charges in the hospital system, then open this
-            again.
-          </NextStep>
-          <div className="ds-empty-actions">
-            <Button variant="outline" size="small" onClick={close}>
-              {routed ? "Back to approval" : "Close"}
-            </Button>
-          </div>
-        </Section>
-      </div>
+      <NextStep
+        tone={unavailable ? "warn" : "info"}
+        title={unavailable ? "Enhancement not available" : preview.reason || "Nothing new to ask for"}
+        actions={<button type="button" className="cv-btn" onClick={close}>Back to approval</button>}
+      >
+        {unavailable ||
+          "An enhancement needs something new to justify it: a new procedure, or bills above the approved amount. Ask the doctor to record the new procedure or the billing desk to add the charges in the hospital system, then open this again."}
+      </NextStep>
     );
   }
 
@@ -211,219 +193,210 @@ export default function PreauthEnhancement({ ctx, onClose, onSubmitted }) {
   const authorizedTotal = preview.authorized?.total_amount;
   const approvedSoFar = preview.authorized?.approved_amount;
 
-  const statement = (
-    <dl className="ds-statement">
-      <div>
-        <dt>
-          Previously requested
-          {approvedSoFar != null && <span className="ep-muted"> · {formatMoney(approvedSoFar)} approved</span>}
-        </dt>
-        <dd className="ep-mono">{formatMoney(authorizedTotal)}</dd>
-      </div>
-      {revisedDelta != null && (
-        <div>
-          <dt>New scope</dt>
-          <dd className="ep-mono">{revisedDelta >= 0 ? "+ " : "− "}{formatMoney(Math.abs(revisedDelta))}</dd>
-        </div>
-      )}
-      <div className="is-total">
-        <dt>Revised request</dt>
-        <dd className="ep-mono">{formatMoney(revisedTotal)}</dd>
-      </div>
-    </dl>
-  );
-
-  const actions = (
-    <>
-      {submitError && (
-        <NextStep tone="bad" title="Not sent">
-          {submitError} Fix what the message names and submit again.
-        </NextStep>
-      )}
-      <Button write
-        variant="primary"
-        icon={Send}
-        disabled={!canSubmit}
-        title={caseClosed ? "The case is settled" : undefined}
-        onClick={handleSubmit}
-        className="pd-submit-btn"
-      >
-        {submitting ? "Submitting…" : "Submit enhancement"}
-      </Button>
-      <button type="button" className="pd-text-btn" onClick={close}>
-        {routed ? "Back to approval" : "Cancel"}
-      </button>
-    </>
-  );
-
-  const sections = (
-    <>
-      {unavailable && <div className="ep-notice is-warn">{unavailable}</div>}
-      {hisBlockers.length > 0 && (
-        <div className="ep-notice is-bad">The hospital records are missing: {hisBlockers.join(", ")}. Complete them in the hospital system, then open this again.</div>
-      )}
-      {patientMissing.length > 0 && (
-        <PatientDetailsForm
-          claimId={claim_id}
-          cashlessCaseId={cashless_case_id}
-          missingFields={patientMissing}
-          locked={locked}
-          onResolved={(remaining) => {
-            setMissingFields(remaining);
-            if (remaining.length === 0) load();
-          }}
-        />
-      )}
-      {!routed && (
-        <Section
-          id="en-amounts"
-          title="Amount"
-          info="enhancement"
-          tip="The extra amount you are asking for, on top of what the payer already approved."
-        >
-          {statement}
-        </Section>
-      )}
-
-      {newProcs.length > 0 && (
-        <Section
-          id="en-procs"
-          title="New procedures"
-          meta="Untick a procedure to leave it and its lines out"
-          tip="Only treatment added since the approval is sent. Untick anything that isn't needed."
-        >
-          <ul className="en-procs">
-            {newProcs.map((proc, i) => (
-              <li key={i}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!checkedProcedures[i]}
-                    disabled={locked}
-                    onChange={(e) => setCheckedProcedures((p) => ({ ...p, [i]: e.target.checked }))}
-                  />
-                  <span>
-                    <span className="ep-strong">{proc.name}</span>
-                    <span className="ep-muted">{[proc.code, proc.date && formatDate(proc.date)].filter(Boolean).join(" · ")}</span>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {newItems.length > 0 && (
-        <Section id="en-items" title="New line items">
-          <div className="ep-table-wrap">
-            <table className="ep-table ds-lines-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 40 }} aria-label="Include" />
-                  <th>Service</th>
-                  <th className="ep-num" style={{ width: 90 }}>Qty</th>
-                  <th className="ep-num" style={{ width: 130 }}>Unit price</th>
-                  <th className="ep-num">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {newItems.map((item) => {
-                  const key = itemKey(item);
-                  const line = lineOf(item);
-                  const excluded = excludedItem(item);
-                  const edit = (field) => (e) => setLineEdits((p) => ({ ...p, [key]: { ...p[key], [field]: Number(e.target.value) } }));
-                  return (
-                    <tr key={key} className={excluded ? "en-excluded" : undefined}>
-                      <td>
-                        <input type="checkbox" aria-label={`Include ${item.service_name}`} checked={!leftOutLines[key]} disabled={locked} onChange={(e) => setLeftOutLines((p) => ({ ...p, [key]: !e.target.checked }))} />
-                      </td>
-                      <td className="ep-col-name">
-                        <div className="ep-strong">{item.service_name}</div>
-                        <div className="ep-muted">
-                          {[item.service_code, item.category, excluded && "left out"].filter(Boolean).join(" · ")}
-                        </div>
-                      </td>
-                      <td className="ep-num"><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="1" aria-label="Quantity" value={line.quantity ?? ""} disabled={locked || excluded} onChange={edit("quantity")} /></td>
-                      <td className="ep-num"><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="0" aria-label="Unit price" value={line.unit_price ?? ""} disabled={locked || excluded} onChange={edit("unit_price")} /></td>
-                      <td className="ep-num ep-mono">{formatMoney(line.net_amount)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
-
-      {authorizedItems.length > 0 && (
-        <Section id="en-authorised" title="Already authorised">
-          <div className="ep-table-wrap">
-            <table className="ep-table ds-lines-table">
-              <thead>
-                <tr>
-                  <th>Service</th>
-                  <th className="ep-num">Qty</th>
-                  <th className="ep-num">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {authorizedItems.map((item) => (
-                  <tr key={itemKey(item)}>
-                    <td className="ep-col-name"><div className="ep-strong">{item.service_name}</div><div className="ep-muted">{item.service_code}</div></td>
-                    <td className="ep-num ep-mono">{item.quantity}</td>
-                    <td className="ep-num ep-mono">{formatMoney(item.net_amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
-
-      <Section id="en-docs" title="Documents sent with it" tip="Attach notes or reports that show why the extra treatment is needed.">
-        <div className="ep-pad">
-          <DocumentChecklist
-            documents={allDocs}
-            onUpload={(doc, uploaded) => setDocuments((list) => list.map((d) => (d.code === doc.code ? { ...d, ...uploaded } : d)))}
-            onAddDocument={() => setDocuments((list) => [...list, { code: `CUSTOM-${Date.now()}`, name: "", category: "additional", optional: true, custom: true }])}
-            onRenameDocument={(i, name) => setDocuments((list) => list.map((d, n) => (n === i ? { ...d, name } : d)))}
-            onRemoveDocument={(i) => setDocuments((list) => list.filter((_, n) => n !== i))}
-            readOnly={locked}
-            hideSummary
-          />
-        </div>
-      </Section>
-    </>
-  );
-
-  if (!routed) {
-    return (
-      <div className="pd-screen">
-        {sections}
-        <div className="en-footer">{actions}</div>
-      </div>
-    );
-  }
+  const groups = buildEnhancementChecklist({
+    patientMissing: patientMissing.length,
+    hisMissing: hisBlockers.length,
+    procedures: newProcs.length,
+    proceduresKept: newProcs.filter(procedureKept).length,
+    lines: newItems.length,
+    linesKept: newItems.filter((it) => !excludedItem(it)).length,
+    delta: revisedDelta,
+    authorised: authorizedItems.length,
+    missingDocs: missingDocs.length,
+    attachedDocs: allDocs.filter((d) => d.url).length,
+  });
+  const blockers = groups.flatMap((g) => g.rows).filter((r) => r.blocks);
+  const open = picked || firstEnhancementItem(groups);
+  const paneFor = (id) => ({ hidden: open !== id });
+  const barState = locked ? ["Not sent", "is-todo", "info"] : blockers.length > 0 ? [`${blockers.length} must be done`, "is-bad", "bad"] : ["Ready to send", "is-ok", "ok"];
 
   return (
-    <div className="wizard-step pd-screen">
-      <div className="pd-layout">
-        <div className="pd-main">{sections}</div>
-        <aside className="pd-side">
-          <section className="ep-section pd-request">
-            <header className="ep-section-head">
-              <h3 className="ep-section-title">Enhancement request</h3>
-            </header>
-            {preview.preauth_ref && (
-              <div className="ds-ref ds-ref-top">
-                <span className="ep-muted">Enhancing</span>
-                <span className="ep-mono">{preview.preauth_ref}</span>
-              </div>
+    <div className="cv-elig">
+      <div className={`cv-notice cv-verdict is-${barState[2]}`}>
+        <div className="cv-verdict-row">
+          <span className={`cv-chip ${barState[1]}`}>{barState[0]}</span>
+          <span className="cv-notice-body">
+            <strong>{formatMoney(revisedTotal)}</strong> revised
+            {revisedDelta != null ? ` · ${revisedDelta >= 0 ? "+" : "−"} ${formatMoney(Math.abs(revisedDelta))}` : ""}
+            {preview.preauth_ref && <span className="cv-mono cv-card-meta cv-bar-ref">{preview.preauth_ref}</span>}
+          </span>
+          <span className="cv-verdict-actions">
+            <button type="button" className="cv-btn" onClick={close}><ArrowLeft size={14} /> Back to approval</button>
+            {!caseClosed && (
+              <button type="button" className="cv-btn is-primary" disabled={!canSubmit} title={!canSubmit && !submitting ? "Finish the items marked in red first." : undefined} onClick={handleSubmit}>
+                <Send size={15} /> {submitting ? "Submitting…" : "Submit enhancement"}
+              </button>
             )}
-            {statement}
-            <div className="pd-submit">{actions}</div>
-          </section>
-        </aside>
+          </span>
+        </div>
+        {hisBlockers.length > 0 && <div className="cv-notice-hint cv-verdict-note is-bad">The hospital records are missing: {hisBlockers.join(", ")}. Complete them in the hospital system, then open this again.</div>}
+        {submitError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not sent:</strong> {submitError} Fix what the message names and submit again.</div>}
+      </div>
+
+      <div className="cv-work">
+        <CaseChecklist groups={groups} open={open} onOpen={openItem} label="Enhancement checklist" />
+
+        <div className="cv-work-pane" ref={paneRef}>
+          {patientMissing.length > 0 && (
+            <div {...paneFor("details")}>
+              <PatientDetailsForm
+                claimId={claim_id}
+                cashlessCaseId={cashless_case_id}
+                missingFields={patientMissing}
+                locked={locked}
+                onResolved={(remaining) => {
+                  setMissingFields(remaining);
+                  if (remaining.length === 0) load();
+                }}
+              />
+            </div>
+          )}
+
+          {newProcs.length > 0 && (
+            <div {...paneFor("procedures")}>
+              <section className="cv-card" aria-label="New procedures">
+                <div className="cv-card-head">
+                  <h2 className="cv-card-title">New procedures</h2>
+                  <span className="cv-card-meta">Untick a procedure to leave it and its lines out.</span>
+                </div>
+                <ul className="en-procs">
+                  {newProcs.map((proc, i) => (
+                    <li key={i}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={procedureKept(proc, i)}
+                          disabled={locked}
+                          onChange={(e) => {
+                            setCheckedProcedures((p) => ({ ...p, [i]: e.target.checked }));
+                            setLeftOutLines((p) => ({ ...p, [proc.code ?? proc.name]: false }));
+                          }}
+                        />
+                        <span>
+                          <span className="ep-strong">{proc.name}</span>
+                          <span className="ep-muted">{[proc.code, proc.date && formatDate(proc.date)].filter(Boolean).join(" · ")}</span>
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          )}
+
+          {newItems.length > 0 && (
+            <div {...paneFor("lines")}>
+              <section className="cv-card" aria-label="New line items">
+                <div className="cv-card-head">
+                  <h2 className="cv-card-title">New line items</h2>
+                  <span className="cv-card-meta">Untick a line to leave it out, or correct its quantity and price.</span>
+                </div>
+                <div className="cv-tw cv-in-card">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40 }} aria-label="Include" />
+                        <th>Service</th>
+                        <th style={{ width: 100 }}>Qty</th>
+                        <th style={{ width: 140 }}>Unit price</th>
+                        <th className="is-num" style={{ width: 130 }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {newItems.map((item) => {
+                        const key = itemKey(item);
+                        const line = lineOf(item);
+                        const excluded = excludedItem(item);
+                        const edit = (field) => (e) => setLineEdits((p) => ({ ...p, [key]: { ...p[key], [field]: Number(e.target.value) } }));
+                        return (
+                          <tr key={key} className={excluded ? "en-excluded" : undefined}>
+                            <td>
+                              <input type="checkbox" aria-label={`Include ${item.service_name}`} checked={!leftOutLines[key]} disabled={locked} onChange={(e) => setLeftOutLines((p) => ({ ...p, [key]: !e.target.checked }))} />
+                            </td>
+                            <td>
+                              <strong>{item.service_name}</strong>
+                              <div className="cv-card-meta">{[item.service_code, item.category, excluded && "left out"].filter(Boolean).join(" · ")}</div>
+                            </td>
+                            <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="1" aria-label="Quantity" value={line.quantity ?? ""} disabled={locked || excluded} onChange={edit("quantity")} /></td>
+                            <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="0" aria-label="Unit price" value={line.unit_price ?? ""} disabled={locked || excluded} onChange={edit("unit_price")} /></td>
+                            <td className="is-num" style={{ fontWeight: 600 }}>{formatMoney(line.net_amount)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          )}
+
+          <div {...paneFor("revised")}>
+            <section className="cv-card" aria-label="Revised amount">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Revised amount</h2>
+                <span className="cv-card-meta">What you are asking for on top of the earlier request.</span>
+              </div>
+              <div className="cv-card-body">
+                <div className="cv-kv">
+                  <span>Previously requested{approvedSoFar != null ? ` · ${formatMoney(approvedSoFar)} approved` : ""}</span>
+                  <span>{formatMoney(authorizedTotal)}</span>
+                </div>
+                {revisedDelta != null && (
+                  <div className="cv-kv"><span>New scope</span><span>{revisedDelta >= 0 ? "+ " : "− "}{formatMoney(Math.abs(revisedDelta))}</span></div>
+                )}
+                <div className="cv-kv"><span>Revised request</span><span>{formatMoney(revisedTotal)}</span></div>
+              </div>
+            </section>
+          </div>
+
+          {authorizedItems.length > 0 && (
+            <div {...paneFor("authorised")}>
+              <section className="cv-card" aria-label="Already authorised">
+                <div className="cv-card-head"><h2 className="cv-card-title">Already authorised</h2></div>
+                <div className="cv-tw cv-in-card">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Service</th>
+                        <th className="is-num">Qty</th>
+                        <th className="is-num">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {authorizedItems.map((item) => (
+                        <tr key={itemKey(item)}>
+                          <td><strong>{item.service_name}</strong><div className="cv-card-meta">{item.service_code}</div></td>
+                          <td className="is-num">{item.quantity}</td>
+                          <td className="is-num">{formatMoney(item.net_amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          )}
+
+          <div {...paneFor("documents")}>
+            <section className="cv-card" aria-label="Documents">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Documents sent with it</h2>
+                <span className="cv-card-meta">Attached files stay until sent, but reloading the page drops them.</span>
+              </div>
+              <div className="cv-card-body">
+                <DocumentChecklist
+                  documents={allDocs}
+                  onUpload={(doc, uploaded) => setDocuments((list) => list.map((d) => (d.code === doc.code ? { ...d, ...uploaded } : d)))}
+                  onAddDocument={() => setDocuments((list) => [...list, { code: `CUSTOM-${Date.now()}`, name: "", category: "additional", optional: true, custom: true }])}
+                  onRenameDocument={(i, name) => setDocuments((list) => list.map((d, n) => (n === i ? { ...d, name } : d)))}
+                  onRemoveDocument={(i) => setDocuments((list) => list.filter((_, n) => n !== i))}
+                  readOnly={locked}
+                  hideSummary
+                />
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </div>
   );
