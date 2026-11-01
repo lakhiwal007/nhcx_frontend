@@ -1,116 +1,214 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Home, RefreshCw, AlertCircle } from "lucide-react";
 import { api } from "../../api";
+import { usePoll } from "../../hooks/usePoll";
 import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
 import { Button, LoadingBlock, formatMoney, NextStep } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
-import { groupPaymentEvents, stageLabel } from "../../paymentEvents.js";
+import { ackState, groupPaymentEvents, stageLabel } from "../../paymentEvents.js";
+import { projectCaseStatus } from "../case/caseStages";
 import { Section } from "../case/CaseFile";
+
+const POLL_INTERVAL_MS = 30000;
+
+const grossOf = (p) => p.gross_amount ?? p.total_payment_amount ?? p.notice_amount ?? 0;
+const netOf = (p) => p.net_payment_amount ?? p.total_payment_amount ?? p.notice_amount ?? 0;
+const total = (list, of) => list.reduce((sum, p) => sum + (Number(of(p)) || 0), 0);
+
+// Why no payment is coming, when the claim says so. Null means the screen waits.
+function noPaymentReason(claimLeg) {
+  if (claimLeg === "rejected") return { title: "The claim was rejected", text: "No payment will follow unless an appeal succeeds.", label: "Open Reprocess", to: "../reprocess" };
+  if (claimLeg === "queried") return { title: "The claim has an open query", text: "The payer will not pay until it is answered.", label: "Back to claim", to: "../claim" };
+  if (claimLeg === "submitting") return { title: "The claim is with the payer", text: "Payment follows once the payer approves it.", label: "Back to claim", to: "../claim" };
+  if (claimLeg === "draft" || claimLeg === "error") return { title: "No claim has been sent", text: "Payment follows an approved final claim.", label: "Back to claim", to: "../claim" };
+  return null;
+}
 
 export default function PaymentReconciliation({ ctx }) {
   const navigate = useNavigate();
   const readOnly = useReadOnly();
-  const { caseState, moneyLedger } = ctx;
-
-  const claimId = caseState.claim_id || caseState.draftData?.claim_id;
-  const claimCorrelationId = caseState.claimCorrelationId;
+  const { caseState, cashlessCase, setCashlessCase, moneyLedger, refreshTimeline } = ctx;
+  const caseId = caseState.cashless_case_id;
+  const claimId = cashlessCase?.claim_id ?? caseState.claim_id;
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [paymentData, setPaymentData] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [acknowledging, setAcknowledging] = useState({});
   const [ackResults, setAckResults] = useState({});
-  // Advanced ack override state keyed by payment_reference
+  // Advanced ack override state keyed by payment group
   const [ackOverrides, setAckOverrides] = useState({});
   const [showOverrides, setShowOverrides] = useState({});
+  const seenRef = useRef(null);
 
   const fetchPayment = async () => {
-    if (!claimId && !claimCorrelationId) {
+    if (!claimId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
     try {
-      const res = claimId
-        ? await api.searchPaymentStatus({ claim_id: claimId })
-        : await api.getPaymentStatus(claimCorrelationId);
-      setPaymentData(res);
-    } catch (_) {
+      setPaymentData(await api.searchPaymentStatus({ claim_id: claimId }));
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err.message || "The payment status could not be read.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchPayment();
-  }, []);
+  const refresh = async () => {
+    setRefreshing(true);
+    await fetchPayment();
+    setRefreshing(false);
+  };
 
-  const handleAcknowledge = async (event) => {
-    const ref = event.payment_reference;
-    setAcknowledging((prev) => ({ ...prev, [ref]: true }));
+  useEffect(() => {
+    const timer = setTimeout(fetchPayment, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claimId]);
+
+  // A new notice moves the case: the chain and the money strip follow it.
+  const noticeKey = paymentData ? `${paymentData.latest_stage}:${paymentData.total_events}` : null;
+  useEffect(() => {
+    if (!noticeKey) return;
+    const seen = seenRef.current;
+    seenRef.current = noticeKey;
+    if (!seen || seen === noticeKey) return;
+    refreshTimeline?.();
+    if (caseId) {
+      api.getCashlessStatus(caseId)
+        .then((res) => setCashlessCase((prev) => (prev ? { ...prev, ...projectCaseStatus(res) } : prev)))
+        .catch(() => {});
+    }
+  }, [noticeKey, caseId, refreshTimeline, setCashlessCase]);
+
+  const payments = groupPaymentEvents(paymentData?.events || []);
+  const ackOf = (pay) => (ackResults[pay.group_key]?.success ? "sent" : ackState(pay));
+  const ackFailed = payments.filter((p) => ackOf(p) === "failed").length;
+  const ackPending = payments.filter((p) => ackOf(p) === "pending").length;
+  const settledPayments = payments.filter((p) => p.settled);
+  const openPayments = payments.filter((p) => !p.settled);
+  const allSettled = payments.length > 0 && openPayments.length === 0;
+  const isNotFound = !loadError && (!paymentData || paymentData.status === "not_found" || paymentData.total_events === 0);
+  const claimLeg = cashlessCase?.legs?.claim;
+  const noPayment = isNotFound ? noPaymentReason(claimLeg) : null;
+
+  usePoll(fetchPayment, {
+    active: !loading && claimId && !noPayment && !(allSettled && ackPending === 0) ? claimId : null,
+    intervalMs: POLL_INTERVAL_MS,
+    immediate: false,
+  });
+
+  const handleAcknowledge = async (pay) => {
+    const key = pay.group_key;
+    const overrides = ackOverrides[key] || {};
+    const amount = overrides.amount_received;
+    if (amount && !(Number(amount) > 0)) {
+      setAckResults((prev) => ({ ...prev, [key]: { success: false, message: "Enter an amount above zero." } }));
+      return;
+    }
+    setAcknowledging((prev) => ({ ...prev, [key]: true }));
     try {
-      const overrides = ackOverrides[ref] || {};
-      const body = { payment_reference: ref };
+      const body = { payment_reference: pay.payment_reference || pay.notice_identifier };
       if (overrides.claim_number) body.claim_number = overrides.claim_number;
-      if (overrides.amount_received) body.amount_received = Number(overrides.amount_received);
+      if (amount) body.amount_received = Number(amount);
       if (overrides.utr) body.utr = overrides.utr;
       const res = await api.acknowledgePayment(body);
-      setAckResults((prev) => ({ ...prev, [ref]: { success: true, correlation_id: res.correlation_id } }));
+      if (res?.status === "failed") throw new Error(res.message || "The acknowledgement was refused.");
+      setAckResults((prev) => ({ ...prev, [key]: { success: true, correlation_id: res?.correlation_id } }));
+      setShowOverrides((prev) => ({ ...prev, [key]: false }));
       await fetchPayment();
     } catch (err) {
-      setAckResults((prev) => ({ ...prev, [ref]: { success: false, message: err.message } }));
+      setAckResults((prev) => ({ ...prev, [key]: { success: false, message: err.message } }));
     } finally {
-      setAcknowledging((prev) => ({ ...prev, [ref]: false }));
+      setAcknowledging((prev) => ({ ...prev, [key]: false }));
     }
   };
 
-  const updateOverride = (ref, field, value) => {
-    setAckOverrides((prev) => ({ ...prev, [ref]: { ...(prev[ref] || {}), [field]: value } }));
+  const updateOverride = (key, field, value) => {
+    setAckOverrides((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), [field]: value } }));
   };
 
   if (loading) {
     return <LoadingBlock text="Fetching payment status…" />;
   }
 
-  const isNotFound = !paymentData || paymentData.status === "not_found" || paymentData.total_events === 0;
-  const payments = groupPaymentEvents(paymentData?.events || []);
+  if (loadError && !paymentData) {
+    return (
+      <NextStep
+        tone="bad"
+        title="The payment status could not be read"
+        actions={
+          <>
+            <button type="button" className="cv-btn" disabled={refreshing} onClick={refresh}>Retry</button>
+            <button type="button" className="cv-btn" onClick={() => navigate("../claim")}>Back to claim</button>
+          </>
+        }
+      >
+        {loadError}
+      </NextStep>
+    );
+  }
+
+  if (noPayment) {
+    return (
+      <NextStep
+        tone="info"
+        title={noPayment.title}
+        actions={<button type="button" className="cv-btn" onClick={() => navigate(noPayment.to)}>{noPayment.label}</button>}
+      >
+        {noPayment.text}
+      </NextStep>
+    );
+  }
+
   const ledger = moneyLedger || {};
   const settlement = ledger.settlement || {};
-  const sum = (key) => payments.reduce((s, p) => s + (Number(p[key]) || 0), 0);
-  const gross = settlement.gross ?? (payments.length ? sum("gross_amount") : null);
-  const tds = settlement.tds ?? (payments.length ? sum("tds_amount") : null);
-  const net = settlement.net ?? (payments.length ? sum("net_payment_amount") : null);
+  // Only settled money counts as paid, and the ledger holds only the last
+  // settled notice, so the payments themselves are the authority.
+  const hasEvents = payments.length > 0;
+  const gross = hasEvents ? (settledPayments.length ? total(settledPayments, grossOf) : null) : settlement.gross ?? null;
+  const tds = hasEvents ? total(settledPayments, (p) => p.tds_amount) : settlement.tds ?? null;
+  const net = hasEvents ? (settledPayments.length ? total(settledPayments, netOf) : null) : settlement.net ?? null;
+  const inProgress = openPayments.length ? total(openPayments, grossOf) : null;
   const approved = ledger.approved?.value ?? null;
-  const shortBy = approved != null && gross != null && gross < approved ? approved - gross : null;
+  const shortBy = allSettled && approved != null && gross != null && gross < approved ? approved - gross : null;
   const toCollect = ledger.reconciliation?.to_collect_from_patient ?? ledger.patient_payable?.value ?? null;
-  const latestUtr = settlement.utr || payments.map((p) => p.utr).filter(Boolean).pop() || null;
-  const ackFailed = payments.filter((p) => p.acknowledgement_status === "failed" && !ackResults[p.payment_reference]?.success).length;
-  const ackPending = payments.filter((p) => p.acknowledgement_status === "pending").length;
+  const latestUtr = hasEvents ? settledPayments.concat(openPayments).map((p) => p.utr).filter(Boolean).shift() || null : settlement.utr ?? null;
+  const missingUtr = settledPayments.some((p) => !p.utr);
 
   const verdict = isNotFound
     ? { tone: "pending", label: "Awaiting payment" }
-    : paymentData?.settled
+    : allSettled
       ? { tone: shortBy ? "warn" : "ok", label: shortBy ? "Settled short" : "Settled" }
-      : { tone: "pending", label: stageLabel(paymentData?.latest_stage) ? `Payment ${stageLabel(paymentData.latest_stage)}` : "Payment in progress" };
+      : settledPayments.length
+        ? { tone: "pending", label: `${settledPayments.length} of ${payments.length} settled` }
+        : { tone: "pending", label: stageLabel(paymentData?.latest_stage) ? `Payment ${stageLabel(paymentData.latest_stage)}` : "Payment in progress" };
 
   const statement = [
     approved != null && { label: "Approved by payer", value: approved },
     gross != null && { label: "Gross paid", value: gross },
     tds > 0 && { label: "TDS deducted", value: -tds },
     net != null && { label: "Net credited", value: net, total: true },
+    inProgress != null && { label: "In progress", value: inProgress },
   ].filter(Boolean);
 
   const guide = isNotFound
     ? null
-    : paymentData?.settled
+    : allSettled
       ? shortBy
         ? {
             tone: "warn",
             title: "Paid less than approved",
             text: "Compare the amounts below. If the shortfall isn't explained by TDS or a deduction you agree with, go to the Claim step and use Ask for the balance.",
           }
-        : { tone: "ok", title: "Paid in full", text: "Match the UTR below with the hospital's bank statement. Nothing else is needed for this case." }
-      : { tone: "info", title: "The payer is paying in stages", text: "More notices may follow. Each one is acknowledged automatically; check back later." };
+        : missingUtr
+          ? { tone: "warn", title: "No UTR from the payer", text: "The payer has not sent a UTR, so this payment cannot be matched to the bank statement yet." }
+          : { tone: "ok", title: "Paid in full", text: "Match the UTR below with the hospital's bank statement. Nothing else is needed for this case." }
+      : { tone: "info", title: "The payer is paying in stages", text: "More notices may follow. Each one is acknowledged automatically; this page updates by itself." };
 
   return (
     <div className="wizard-step pd-screen">
@@ -119,6 +217,7 @@ export default function PaymentReconciliation({ ctx }) {
           {guide.text}
         </NextStep>
       )}
+      {loadError && <div className="ep-notice is-bad">{loadError} Still trying.</div>}
       {ackFailed > 0 && (
         <div className="ep-notice is-bad">
           {ackFailed} payment acknowledgement{ackFailed === 1 ? "" : "s"} failed to reach the payer. Retry from the
@@ -135,7 +234,7 @@ export default function PaymentReconciliation({ ctx }) {
                 approved. Each notice is acknowledged automatically when it arrives.
               </p>
               <div className="ds-empty-actions">
-                <Button variant="outline" size="small" icon={RefreshCw} onClick={fetchPayment}>
+                <Button variant="outline" size="small" icon={RefreshCw} disabled={refreshing} onClick={refresh}>
                   Check again
                 </Button>
               </div>
@@ -192,15 +291,17 @@ export default function PaymentReconciliation({ ctx }) {
                     </thead>
                     <tbody>
                       {payments.map((pay) => {
-                        const ref = pay.payment_reference;
-                        const ackResult = ackResults[ref];
-                        const isAcknowledging = acknowledging[ref];
-                        const needsRetry = pay.acknowledgement_status === "failed" && !ackResult?.success;
-                        const editing = showOverrides[ref];
+                        const ref = pay.payment_reference || pay.notice_identifier;
+                        const key = pay.group_key;
+                        const ackResult = ackResults[key];
+                        const isAcknowledging = acknowledging[key];
+                        const ack = ackOf(pay);
+                        const ackError = pay.history?.filter((n) => n.acknowledgement_error).pop()?.acknowledgement_error;
+                        const editing = showOverrides[key] && !readOnly;
                         // Every notice the payer sent for this payment, shown inline.
                         const historyOpen = pay.notice_count > 1 && pay.history?.length > 0;
                         return (
-                          <Fragment key={pay.group_key}>
+                          <Fragment key={key}>
                             <tr>
                               <td className="ep-col-name">
                                 <div className="ep-strong ep-mono">{ref || "—"}</div>
@@ -213,23 +314,29 @@ export default function PaymentReconciliation({ ctx }) {
                               <td className="ep-num ep-mono">{pay.tds_amount != null ? formatMoney(pay.tds_amount) : "—"}</td>
                               <td className="ep-num ep-mono ep-strong">{formatMoney(pay.net_payment_amount)}</td>
                               <td>
-                                {pay.acknowledgement_status === "submitted" && !needsRetry ? (
+                                {ack === "done" ? (
                                   "Acknowledged"
-                                ) : pay.acknowledgement_status === "pending" ? (
-                                  <span className="ep-muted">Pending</span>
+                                ) : ack === "sent" ? (
+                                  "Acknowledgement sent"
+                                ) : ack === "pending" ? (
+                                  <span className="ep-muted">In progress</span>
                                 ) : (
                                   <div className="pay-ack">
                                     <span className="is-bad">Failed</span>
-                                    <button type="button" className="ep-action" disabled={isAcknowledging || readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={() => handleAcknowledge(pay)}>
-                                      {isAcknowledging ? "Retrying…" : "Retry"}
-                                    </button>
-                                    <button type="button" className="pd-inline-link" onClick={() => setShowOverrides((p) => ({ ...p, [ref]: !p[ref] }))}>
-                                      {editing ? "Close" : "Edit values"}
-                                    </button>
+                                    {ref && (
+                                      <button type="button" className="ep-action" disabled={isAcknowledging || readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={() => handleAcknowledge(pay)}>
+                                        {isAcknowledging ? "Retrying…" : "Retry"}
+                                      </button>
+                                    )}
+                                    {ref && !readOnly && (
+                                      <button type="button" className="pd-inline-link" onClick={() => setShowOverrides((p) => ({ ...p, [key]: !p[key] }))}>
+                                        {editing ? "Close" : "Edit values"}
+                                      </button>
+                                    )}
                                   </div>
                                 )}
-                                {pay.acknowledgement_error && needsRetry && <div className="ep-muted">{pay.acknowledgement_error}</div>}
-                                {ackResult && <div className={ackResult.success ? "ep-muted" : "is-bad"}>{ackResult.success ? "Acknowledgement sent" : ackResult.message}</div>}
+                                {ackError && ack === "failed" && <div className="ep-muted">{ackError}</div>}
+                                {ackResult && !ackResult.success && <div className="is-bad">{ackResult.message}</div>}
                               </td>
                             </tr>
                             {historyOpen && (
@@ -256,15 +363,15 @@ export default function PaymentReconciliation({ ctx }) {
                                   <div className="pay-overrides">
                                     <label>
                                       <span>Claim number</span>
-                                      <input className="input-modern pd-input" placeholder="Override claim number" value={ackOverrides[ref]?.claim_number || ""} onChange={(e) => updateOverride(ref, "claim_number", e.target.value)} />
+                                      <input className="input-modern pd-input" placeholder="Override claim number" value={ackOverrides[key]?.claim_number || ""} onChange={(e) => updateOverride(key, "claim_number", e.target.value)} />
                                     </label>
                                     <label>
                                       <span>Amount received</span>
-                                      <input className="input-modern pd-input ep-mono" type="number" placeholder="Override amount" value={ackOverrides[ref]?.amount_received || ""} onChange={(e) => updateOverride(ref, "amount_received", e.target.value)} />
+                                      <input className="input-modern pd-input ep-mono" type="number" placeholder="Override amount" value={ackOverrides[key]?.amount_received || ""} onChange={(e) => updateOverride(key, "amount_received", e.target.value)} />
                                     </label>
                                     <label>
                                       <span>UTR</span>
-                                      <input className="input-modern pd-input ep-mono" placeholder="Override UTR" value={ackOverrides[ref]?.utr || ""} onChange={(e) => updateOverride(ref, "utr", e.target.value)} />
+                                      <input className="input-modern pd-input ep-mono" placeholder="Override UTR" value={ackOverrides[key]?.utr || ""} onChange={(e) => updateOverride(key, "utr", e.target.value)} />
                                     </label>
                                   </div>
                                 </td>
@@ -296,6 +403,7 @@ export default function PaymentReconciliation({ ctx }) {
                 <span className="ep-mono">{latestUtr}</span>
               </div>
             )}
+            {missingUtr && <div className="ep-notice is-bad">UTR missing</div>}
             {net != null && (
               <div className="pd-amount">
                 <div className="ep-muted">Net credited</div>
@@ -318,10 +426,10 @@ export default function PaymentReconciliation({ ctx }) {
               </ul>
             )}
             <div className="pd-submit">
-              <Button variant={paymentData?.settled ? "primary" : "outline"} icon={paymentData?.settled ? Home : undefined} onClick={() => navigate("/dashboard")} className="pd-submit-btn">
-                {paymentData?.settled ? "Done — back to cases" : "Back to cases"}
+              <Button variant={allSettled ? "primary" : "outline"} icon={allSettled ? Home : undefined} onClick={() => navigate("/dashboard")} className="pd-submit-btn">
+                {allSettled ? "Done — back to cases" : "Back to cases"}
               </Button>
-              <button type="button" className="pd-text-btn" onClick={fetchPayment}>
+              <button type="button" className="pd-text-btn" disabled={refreshing} onClick={refresh}>
                 <RefreshCw size={13} /> Refresh payment status
               </button>
             </div>

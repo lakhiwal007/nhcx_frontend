@@ -44,6 +44,14 @@ function collapse(history, key) {
   };
 }
 
+// Where a payment's acknowledgement stands, across all its notices: an earlier
+// notice can fail while the latest one goes through.
+export function ackState(payment) {
+  const notices = payment.history?.length ? payment.history : [payment];
+  if (notices.some((n) => n.acknowledgement_status === "failed")) return "failed";
+  return notices.every((n) => n.acknowledgement_status === "submitted") ? "done" : "pending";
+}
+
 export function groupPaymentEvents(events = []) {
   const byReference = new Map();
   events.forEach((event) => {

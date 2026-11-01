@@ -632,6 +632,61 @@ const mockReprocessAnswer = (correlation_id) => {
   return { ...base, status: "pending", decision: null };
 };
 
+// ?pay=<state> on /case/:id/payment: none|initiated|processed|settled|tranches|
+// tranche_open|short|no_utr|ack_pending|ack_failed|ack_old_failed|ack_refused|
+// load_error; rejected|queried|draft have no payment and set the claim leg.
+const MOCK_PAY_LEGS = { rejected: "rejected", queried: "queried", draft: "draft" };
+const mockPayKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("pay") : null);
+
+const mockPayEvent = (over = {}) => ({
+  correlation_id: `pay-${over.payment_stage || "PAYMENT_SETTLED"}-${over.payment_reference || "PAY-2026-00001"}`,
+  claim_id: 101,
+  payment_reference: "PAY-2026-00001",
+  claim_reference: "CLM-101",
+  payment_stage: "PAYMENT_SETTLED",
+  recon_identifier: "RECON-2026-00001",
+  notice_identifier: "NOTICE-2026-00001",
+  notice_amount: 40000,
+  gross_amount: 40000,
+  tds_amount: 400,
+  net_payment_amount: 39600,
+  payment_date: "2026-05-15",
+  payment_status: "cleared",
+  utr: "UTR123456789",
+  utr_type: "NEFT",
+  currency: "INR",
+  acknowledgement_status: "submitted",
+  acknowledged_at: "2026-05-15T09:31:00+05:30",
+  acknowledgement_error: null,
+  received_at: "2026-05-15T09:30:00+05:30",
+  ...over,
+});
+
+const mockPayEvents = (key) => {
+  const started = { payment_stage: "PAYMENT_INITIATED", utr: null, utr_type: null, received_at: "2026-05-14T10:05:00+05:30" };
+  const half = { gross_amount: 20000, tds_amount: 200, net_payment_amount: 19800, notice_amount: 20000 };
+  const second = { ...half, payment_reference: "PAY-2026-00002", utr: "UTR987654321" };
+  const failed = { acknowledgement_status: "failed", acknowledged_at: null, acknowledgement_error: "The payer did not accept the acknowledgement." };
+  switch (key) {
+    case "initiated": return [mockPayEvent(started)];
+    case "processed": return [mockPayEvent({ ...started, payment_stage: "PAYMENT_PROCESSED", acknowledgement_status: "pending", acknowledged_at: null })];
+    case "tranches": return [mockPayEvent(half), mockPayEvent(second)];
+    case "tranche_open": return [mockPayEvent(half), mockPayEvent({ ...second, ...started })];
+    case "short": return [mockPayEvent(started), mockPayEvent({ gross_amount: 35000, tds_amount: 350, net_payment_amount: 34650, notice_amount: 35000 })];
+    case "no_utr": return [mockPayEvent({ utr: null, utr_type: null })];
+    case "ack_pending": return [mockPayEvent({ acknowledgement_status: "pending", acknowledged_at: null })];
+    case "ack_failed":
+    case "ack_refused": return [mockPayEvent(failed)];
+    case "ack_old_failed": return [mockPayEvent({ ...started, ...failed }), mockPayEvent()];
+    default: return [mockPayEvent(started), mockPayEvent({ detail_items: [{ type: "payment", type_display: "Payment", date: "2026-05-15", amount: 40000, reason: "Claim settlement" }] })];
+  }
+};
+
+const mockPayCase = (res) => {
+  const key = mockPayKey();
+  return MOCK_PAY_LEGS[key] ? { ...res, legs: { ...res.legs, claim: MOCK_PAY_LEGS[key] } } : res;
+};
+
 // ?ap=<state> on /case/:id/status forces a pre-auth answer: partial|queried|rejected|
 // cancelled|cancel_refused|failed|not_found|unknown|ambiguous|claim_items|waiting.
 // read_only puts the claim with the payer.
@@ -726,7 +781,7 @@ const mockClaimStatus = (res) => {
 const mockCeState = (status) => {
   const enKey = mockEnhancementKey();
   const legs = mockApprovalKey() === "read_only" || enKey === "claim_sent" ? { claim: "submitting" } : enKey === "queried" ? { preauth: "queried" } : null;
-  const res = mockReprocessCase(mockClaimCase(legs ? { ...status, legs: { ...status.legs, ...legs } } : status));
+  const res = mockPayCase(mockReprocessCase(mockClaimCase(legs ? { ...status, legs: { ...status.legs, ...legs } } : status)));
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ce") : null;
   if (!key) return res;
   const open = { ...res, current_step: "insurance_and_eligibility", next_actions: ["refresh", "prepare_preauth"] };
@@ -2541,6 +2596,14 @@ const mock = {
   // ─── Payment ────────────────────────────────────────────────────────────────
   searchPaymentStatus: async (params = {}) => {
     await delay(700);
+    const payKey = mockPayKey();
+    if (payKey) {
+      window.__mockPaySearches = (window.__mockPaySearches || 0) + 1;
+      if (payKey === "load_error") throw new Error("The payment status could not be read.");
+      if (payKey === "none" || MOCK_PAY_LEGS[payKey]) return { status: "not_found", filters: params, settled: false, total_events: 0, events: [] };
+      const events = mockPayEvents(payKey);
+      return { status: "success", latest_stage: events[events.length - 1].payment_stage, settled: events.some((e) => e.payment_stage === "PAYMENT_SETTLED"), total_events: events.length, events };
+    }
     // Only case 5's claim has been paid. Every other claim gets the backend's
     // real "no notices yet" shape so the empty state is exercised.
     if (params.claim_id != null && String(params.claim_id) !== "102") {
@@ -2628,8 +2691,10 @@ const mock = {
     };
   },
 
-  acknowledgePayment: async () => {
+  acknowledgePayment: async (data) => {
     await delay(800);
+    if (mockPayKey() === "ack_refused") throw new Error("The payer's certificate could not be read.");
+    if (typeof window !== "undefined") window.__mockLastAck = data;
     return {
       correlation_id: "ack-" + Date.now(),
       status: "submitted",

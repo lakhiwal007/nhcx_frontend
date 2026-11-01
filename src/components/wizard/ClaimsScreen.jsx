@@ -643,12 +643,13 @@ export default function ClaimsScreen({ ctx }) {
       }
       setPicked("decision");
       if (action === "request_claim_release" && (isClaimApproved || isPartialApproval)) {
+        if (location.state?.releaseAmount) setReleaseAmount(String(location.state.releaseAmount));
         setShowReleaseDrawer(true);
       } else if (action === "respond_claim_query" && isClaimQueried) {
         setShowQueryDrawer(true);
       }
     }
-  }, [location.state?.openAction, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimApproved, isPartialApproval, updateCaseState, setPicked]);
+  }, [location.state?.openAction, location.state?.releaseAmount, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimApproved, isPartialApproval, updateCaseState, setPicked]);
 
   if (loading) {
     return <LoadingBlock text="Building claim draft…" />;
@@ -703,13 +704,16 @@ export default function ClaimsScreen({ ctx }) {
   ].filter(([, codes]) => codes?.length > 0);
 
   const openReleaseDrawer = () => {
-    setReleaseAmount(balanceOwed > 0 ? String(balanceOwed) : "");
+    setReleaseAmount(releaseOwed > 0 ? String(releaseOwed) : "");
     setReleaseNote("");
     setSubmitError(null);
     setShowReleaseDrawer(true);
   };
 
   const balanceOwed = claimRequested != null && claimApproved != null ? claimRequested - claimApproved : 0;
+  // Once settled, only money short of the approval is still owed.
+  const settledGross = moneyLedger?.settlement?.gross;
+  const releaseOwed = caseClosed ? (claimApproved != null && settledGross != null ? Math.max(0, claimApproved - settledGross) : 0) : balanceOwed;
   const groups = buildClaimChecklist({
     biometric,
     patientMissing: patientContextMissing.length,
@@ -761,7 +765,7 @@ export default function ClaimsScreen({ ctx }) {
   if (primary?.write && caseClosed) primary = null;
 
   const secondary = [];
-  if (claimDecided && (isClaimApproved || isPartialApproval) && balanceOwed > 0) secondary.push({ label: "Ask for the balance", onClick: openReleaseDrawer });
+  if (claimDecided && (isClaimApproved || isPartialApproval) && releaseOwed > 0) secondary.push({ label: "Ask for the balance", onClick: openReleaseDrawer });
   if (claimDecided && (isClaimQueried || isClaimRejected || isPartialApproval) && OUTBOUND_COMMUNICATIONS_ENABLED) {
     secondary.push({ label: "Message payer", icon: Send, onClick: () => setShowSendModal(true) });
   }
