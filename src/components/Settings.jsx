@@ -907,7 +907,7 @@ export default function Settings({
   allFacilitiesMode = false,
   theme = "light",
   onToggleTheme,
-  layoutDirection = "A",
+  layoutDirection = "B",
   onToggleLayoutDirection,
 }) {
   const [facilities, setFacilities] = useState([]);
