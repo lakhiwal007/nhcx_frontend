@@ -87,6 +87,13 @@ export default function CaseWrapper() {
   // signal / classified_by), so each screen doesn't hit /timeline on its own.
   const [timeline, setTimeline] = useState(null);
 
+  // Files attached on a draft, by case. Too large for localStorage, so they last
+  // only while the case is open.
+  const [draftFiles, setDraftFilesState] = useState({});
+  const setDraftFiles = useCallback((key, files) => {
+    setDraftFilesState((prev) => ({ ...prev, [key]: files }));
+  }, []);
+
   const updateCaseState = useCallback((updates) => {
     setCaseState((prev) => {
       const next = { ...prev, ...updates };
@@ -246,6 +253,8 @@ export default function CaseWrapper() {
     refreshTimeline,
     // Settled: screens hide actions that would change the payer's decision.
     caseClosed,
+    draftFiles,
+    setDraftFiles,
   };
 
 

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Save, Plus, Trash2, FileJson, ArrowRight } from "lucide-react";
+import { Send, Plus, Trash2, FileJson, ArrowRight } from "lucide-react";
 import { api } from "../../api";
-import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, NextStep, formatMoney } from "../Common";
 import { formatDate } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL } from "../case/caseStages";
 import { Section } from "../case/CaseFile";
@@ -14,6 +14,7 @@ import { Modal } from "../Overlay";
 import FhirBundleModal from "../FhirBundleModal";
 import PayerName from "../PayerName";
 import { eligibilityBeneficiaries } from "../../caseStatus";
+import { deriveChecks } from "../eligibility/checks";
 
 const PATIENT_CONTEXT_FIELDS = [
   { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
@@ -70,9 +71,10 @@ const serializeDiagnoses = (list) =>
     return out;
   });
 
-function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved }) {
+function PatientContextForm({ claimId, cashlessCaseId, missingFields, locked, onResolved }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const relevantKeys = new Set(
     missingFields.flatMap((m) => MISSING_FIELD_MAP[m.toLowerCase()] ?? [])
@@ -83,6 +85,7 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       let res;
       if (claimId) {
@@ -91,7 +94,8 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
         res = await api.patchCashlessPatientContext(cashlessCaseId, { patient_context: values });
       }
       onResolved(res.missing_fields ?? []);
-    } catch (_) {
+    } catch (err) {
+      setSaveError(err.message || "The details could not be saved.");
     } finally {
       setSaving(false);
     }
@@ -103,7 +107,8 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
       title="Missing patient details"
       meta={<span className="is-bad">Needed before the request can be sent</span>}
     >
-      <div className="pd-form">
+      {saveError && <div className="cv-notice is-bad"><div className="cv-notice-body">{saveError}</div></div>}
+      <fieldset className="pd-form cv-plain" disabled={locked}>
         {allFields.map((f) => (
           <label key={f.key} className="pd-form-field">
             <span>{f.label}</span>
@@ -116,9 +121,9 @@ function PatientContextForm({ claimId, cashlessCaseId, missingFields, onResolved
             />
           </label>
         ))}
-      </div>
+      </fieldset>
       <div className="pd-form-actions">
-        <Button write variant="primary" size="small" disabled={saving} onClick={handleSave}>
+        <Button write variant="primary" size="small" disabled={saving || locked} onClick={handleSave}>
           {saving ? "Saving…" : "Save & refresh draft"}
         </Button>
       </div>
@@ -165,7 +170,7 @@ function ClinicalRow({ id, title, chip, summary, children, openRow, setOpenRow }
 
 export default function PreauthDraft({ ctx }) {
   const navigate = useNavigate();
-  const { caseState, updateCaseState, cashlessCase, caseClosed } = ctx;
+  const { caseState, updateCaseState, cashlessCase, caseClosed, draftFiles, setDraftFiles } = ctx;
   const { payer, policy, cashless_case_id, claim_id, draftData } = caseState;
 
   // This screen stays re-enterable after a preauth has been submitted or decided,
@@ -189,6 +194,7 @@ export default function PreauthDraft({ ctx }) {
   const sentCorrelationId = caseState.preauthCorrelationId || cashlessCase?.preauth?.correlation_id || null;
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [draft, setDraft] = useState(null);
   const [missingFields, setMissingFields] = useState([]);
   const [submitting, setSaving2] = useState(false);
@@ -202,7 +208,10 @@ export default function PreauthDraft({ ctx }) {
   const [askForms, setAskForms] = useState([]);
   const [confirmWarn, setConfirmWarn] = useState(false);
   const [waiveReason, setWaiveReason] = useState("");
+  const [editsSaved, setEditsSaved] = useState(false);
   const readOnly = useReadOnly();
+  const locked = readOnly || caseClosed;
+  const filesKey = cashless_case_id || claim_id;
 
   const [asksReload, setAsksReload] = useState(0);
   const uidRef = useRef(1);
@@ -224,13 +233,27 @@ export default function PreauthDraft({ ctx }) {
       .catch(() => null);
   };
 
+  // Files attached here live only in memory until the send, so they come back
+  // over each draft, which is rebuilt from the hospital records.
+  const withAttachedFiles = (res) => {
+    const list = [...(res.supporting_documents || [])];
+    (draftFiles?.[filesKey] || []).forEach((file) => {
+      const idx = list.findIndex((d) => d.code === file.code);
+      if (idx >= 0) list[idx] = { ...list[idx], ...file };
+      else list.push(file);
+    });
+    return { ...res, supporting_documents: list };
+  };
+
   const loadDraft = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await api.preparePreauth(draftParams());
-      setDraft(res);
+      setDraft(withAttachedFiles(res));
       setMissingFields(res.missing_fields ?? []);
-    } catch (_) {
+    } catch (err) {
+      setLoadError(err.message || "The pre-auth draft could not be built.");
     } finally {
       setLoading(false);
     }
@@ -243,6 +266,23 @@ export default function PreauthDraft({ ctx }) {
     }
     loadDraft();
   }, []);
+
+  // Keep what staff attached when they leave for another step of the case.
+  const documentsNow = draft?.supporting_documents;
+  useEffect(() => {
+    if (!documentsNow || !filesKey) return;
+    setDraftFiles(filesKey, documentsNow.filter((d) => d.attachment || d.custom));
+  }, [documentsNow, filesKey, setDraftFiles]);
+
+  // Edits save themselves. They stay on this browser until the pre-auth is sent.
+  useEffect(() => {
+    if (locked || !(editedDiagnoses || editedItems || editedCareTeam)) return undefined;
+    const timer = setTimeout(() => {
+      updateCaseState({ draftData: { editedDiagnoses, editedItems, editedCareTeam } });
+      setEditsSaved(true);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [locked, editedDiagnoses, editedItems, editedCareTeam, updateCaseState]);
 
   // Derived display values (prefer edited state over server draft)
   const displayDiagnoses = editedDiagnoses ?? draft?.diagnoses ?? [];
@@ -328,10 +368,6 @@ export default function PreauthDraft({ ctx }) {
     }));
   };
 
-  const handleSaveDraft = () => {
-    updateCaseState({ draftData: { editedDiagnoses, editedItems, editedCareTeam } });
-  };
-
   const handleSubmit = async () => {
     setSaving2(true);
     setSubmitError(null);
@@ -366,6 +402,7 @@ export default function PreauthDraft({ ctx }) {
         claim_id: draft.claim_id || claim_id,
         draftData: null,
       });
+      setDraftFiles(filesKey, []);
       navigate("../status", { state: { preauthWarnings: res.warnings || [] } });
     } catch (err) {
       setSubmitError(err.message || "Preauthorization submission failed. Please try again.");
@@ -376,6 +413,22 @@ export default function PreauthDraft({ ctx }) {
 
   if (loading) {
     return <LoadingBlock text="Building preauth draft…" />;
+  }
+
+  if (loadError) {
+    return (
+      <NextStep
+        tone="bad"
+        title="The pre-auth draft could not be built"
+        actions={
+          <button type="button" className="cv-btn" onClick={loadDraft}>
+            Retry
+          </button>
+        }
+      >
+        {loadError}
+      </NextStep>
+    );
   }
 
   const newbornMissing = missingFields.filter((f) => f.startsWith("newborn."));
@@ -399,6 +452,7 @@ export default function PreauthDraft({ ctx }) {
   const cardMembers = eligibilityBeneficiaries(cashlessCase?.coverage_eligibility);
   const memberUnchosen = cardMembers.length > 1 && !(caseState.beneficiaryMemberId || cashlessCase?.beneficiary_member_id);
   const eligibility = draft?.eligibility;
+  const notInForce = eligibility?.inforce === false || deriveChecks(cashlessCase?.coverage_eligibility)?.inforce === false;
   const accommodation = draft?.accommodation || {};
   const justification = [
     ["Chief complaints", draft?.chief_complaints],
@@ -435,10 +489,14 @@ export default function PreauthDraft({ ctx }) {
       soft: !planBlocked,
       note: !admissibility || admissibility.status !== "checked" ? "not checked" : planNotes.length ? `${planNotes.length} to look at` : null,
     },
+    notInForce && { label: "Policy in force", ok: false, note: "not in force" },
     eligibility && eligibility.status !== "complete" && { label: "Eligibility", ok: false, soft: true, note: "incomplete" },
   ].filter(Boolean);
-  const canSubmit = !hasMissingFields && !hasMissingDocs && !planBlocked && blockingAsks.length === 0 && !submitting;
+  // Every hard readiness failure stops the send, not only the ones the payer named.
+  const hardFailure = readiness.some((r) => !r.ok && !r.soft);
+  const canSubmit = !hasMissingFields && !hardFailure && !planBlocked && blockingAsks.length === 0 && !submitting;
   const notices = [
+    notInForce && !preauthAlreadyLive && { tone: "bad", text: "The payer reports this policy as not in force, so a pre-auth cannot be sent. Pick a renewed or different policy, or treat the patient as cash.", action: { label: "Go to Policy", to: "../payer" } },
     preauthAlreadyLive && { tone: "info", text: `A preauth has already been sent${movedOnLabel ? ` and the case has moved on to ${movedOnLabel}` : ""}. This form is rebuilt from current records, not what was sent.`, action: movedOn ? { label: `Go to ${movedOnLabel}`, to: `../${movedOn}` } : null },
     hisBlockers.length > 0 && { tone: "bad", text: `The hospital records are missing: ${hisBlockers.join(", ")}. Ask the doctor or billing desk to add it, then reload this page.` },
     newbornMissing.length > 0 && !preauthAlreadyLive && { tone: "warn", text: `Newborn case: ${newbornMissing.map((f) => NEWBORN_MISSING[f] || f).join("; ")}.` },
@@ -455,7 +513,8 @@ export default function PreauthDraft({ ctx }) {
   };
 
   const send = async () => {
-    if (warnAsks.length > 0 && waiveReason.trim() && caseId) {
+    if (warnAsks.length > 0 && !waiveReason.trim()) return;
+    if (warnAsks.length > 0 && caseId) {
       try {
         await api.createCaseNote(caseId, {
           category: "general",
@@ -469,6 +528,19 @@ export default function PreauthDraft({ ctx }) {
     setConfirmWarn(false);
     await handleSubmit();
   };
+  const waiveList = (
+    <>
+      <ul style={{ margin: 0, paddingLeft: 20 }}>
+        {warnAsks.map((a) => (
+          <li key={`${a.kind}-${a.code || a.form_url}`}>{a.display}</li>
+        ))}
+      </ul>
+      <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className="cv-card-meta">Reason (kept as a case note)</span>
+        <textarea className="cv-ctl" style={{ height: 80, padding: 10 }} value={waiveReason} onChange={(e) => setWaiveReason(e.target.value)} />
+      </label>
+    </>
+  );
   const requestSend = () => (warnAsks.length > 0 ? setConfirmWarn(true) : handleSubmit());
 
   return (
@@ -490,6 +562,7 @@ export default function PreauthDraft({ ctx }) {
               claimId={draft?.claim_id || claim_id}
               cashlessCaseId={cashless_case_id}
               missingFields={patientContextMissing}
+              locked={locked}
               onResolved={(remaining) => {
                 setMissingFields(remaining);
                 if (remaining.length === 0) loadDraft();
@@ -534,6 +607,7 @@ export default function PreauthDraft({ ctx }) {
               chip={principal ? ["Done", "is-ok"] : ["Missing", "is-bad"]}
               summary={principal ? `${principal.name || "—"}${principal.code ? ` (${principal.code})` : ""} · principal${displayDiagnoses.length > 1 ? ` · +${displayDiagnoses.length - 1} more` : ""}` : "No diagnosis on record"}
             >
+              <fieldset className="cv-plain" disabled={locked}>
               <div className="cv-tw">
                 <table>
                   <thead>
@@ -570,7 +644,8 @@ export default function PreauthDraft({ ctx }) {
                   </tbody>
                 </table>
               </div>
-              <button type="button" className="cv-btn" style={{ marginTop: 12 }} onClick={addDiagnosis}><Plus size={14} /> Add diagnosis</button>
+              {!locked && <button type="button" className="cv-btn" style={{ marginTop: 12 }} onClick={addDiagnosis}><Plus size={14} /> Add diagnosis</button>}
+              </fieldset>
             </ClinicalRow>
             <ClinicalRow openRow={openRow} setOpenRow={setOpenRow}
               id="justification"
@@ -593,7 +668,7 @@ export default function PreauthDraft({ ctx }) {
               summary={displayCareTeam.length ? displayCareTeam.map((d) => `${d.doc_name || "—"}${d.speciality_display || d.speciality ? ` (${d.speciality_display || d.speciality})` : ""}`).join(" · ") : "No doctor on record"}
             >
               {displayCareTeam.length > 0 && (
-                <div className="cv-tw">
+                <fieldset className="cv-tw cv-plain" disabled={locked}>
                   <table>
                     <thead>
                       <tr>
@@ -612,7 +687,7 @@ export default function PreauthDraft({ ctx }) {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </fieldset>
               )}
             </ClinicalRow>
           </section>
@@ -626,7 +701,7 @@ export default function PreauthDraft({ ctx }) {
             {unbilledProcedures.length > 0 && (
               <div className="cv-card-intro">Procedures not billed as a line: {unbilledProcedures.map((p) => `${p.name}${p.code ? ` (${p.code})` : ""}`).join(", ")}</div>
             )}
-            <div className="cv-tw cv-in-card">
+            <fieldset className="cv-tw cv-in-card cv-plain" disabled={locked}>
               <table>
                 <thead>
                   <tr>
@@ -640,7 +715,7 @@ export default function PreauthDraft({ ctx }) {
                   {displayItems.map((item, i) => (
                     <tr key={i}>
                       <td>
-                        {unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && !readOnly ? (
+                        {unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && !locked ? (
                           <input className="cv-ctl" style={{ width: "100%" }} aria-label="Procedure name" placeholder="Name the procedure, and the ward if it matters" value={item.service_name || ""} onChange={(e) => updateItem(i, "service_name", e.target.value)} />
                         ) : (
                           <strong>{item.service_name}</strong>
@@ -661,7 +736,7 @@ export default function PreauthDraft({ ctx }) {
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </fieldset>
           </section>
 
           <PayerAsks caseId={caseId} stage="preauth" asks={draft?.payer_asks} documents={docs} readOnly={readOnly || caseClosed} onAttach={attachAsk} onFormsChange={setAskForms} reloadKey={asksReload} />
@@ -669,7 +744,7 @@ export default function PreauthDraft({ ctx }) {
           <section className="cv-card" aria-label="Other files">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Other files</h2>
-              <span className="cv-card-meta">From the hospital records, or added here. Sent as supporting information.</span>
+              <span className="cv-card-meta">From the hospital records, or added here. Sent as supporting information. Files attached on this step stay until it is sent, but reloading the page drops them.</span>
             </div>
             <div className="cv-card-body">
               <DocumentChecklist
@@ -678,6 +753,7 @@ export default function PreauthDraft({ ctx }) {
                 onAddDocument={addDocument}
                 onRenameDocument={(i, name) => renameDocument(docs.indexOf(otherDocs[i]), name)}
                 onRemoveDocument={(i) => removeDocument(docs.indexOf(otherDocs[i]))}
+                readOnly={locked}
                 hideSummary
               />
             </div>
@@ -754,7 +830,7 @@ export default function PreauthDraft({ ctx }) {
                 <button type="button" className="cv-btn is-primary is-wide" disabled={!canSubmit || readOnly} onClick={requestSend}>
                   <Send size={15} /> {submitting ? "Sending…" : "Send preauth"}
                 </button>
-                <button type="button" className="cv-btn" onClick={handleSaveDraft}><Save size={14} /> Save draft</button>
+                {editsSaved && <div className="cv-card-meta">Edits saved on this browser</div>}
               </>
             )}
           </div>
@@ -763,15 +839,7 @@ export default function PreauthDraft({ ctx }) {
 
       <Modal open={confirmWarn} onClose={() => setConfirmWarn(false)} title="Send without these?" subtitle="Only the plan lists them, so the send is allowed, but the payer may query or refuse.">
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <ul style={{ margin: 0, paddingLeft: 20 }}>
-            {warnAsks.map((a) => (
-              <li key={`${a.kind}-${a.code || a.form_url}`}>{a.display}</li>
-            ))}
-          </ul>
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span className="cv-card-meta">Reason (kept as a case note)</span>
-            <textarea className="cv-ctl" style={{ height: 80, padding: 10 }} value={waiveReason} onChange={(e) => setWaiveReason(e.target.value)} />
-          </label>
+          {waiveList}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <button type="button" className="cv-btn" onClick={() => setConfirmWarn(false)}>Go back</button>
             <button type="button" className="cv-btn is-primary" disabled={!waiveReason.trim() || submitting} onClick={send}>Send anyway</button>
@@ -782,10 +850,11 @@ export default function PreauthDraft({ ctx }) {
       <Modal open={confirmResend} onClose={() => setConfirmResend(false)} title="Send a fresh preauth?" subtitle="The payer receives a new preauth request for this case, built from the current records.">
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <p className="cv-card-meta" style={{ margin: 0 }}>To answer a query, resubmit after a rejection or raise the approved amount, use the Approval stage instead. A fresh preauth starts the payer's review over.</p>
+          {warnAsks.length > 0 && waiveList}
           {submitError && <div className="cv-notice is-bad"><div className="cv-notice-body">{submitError}</div></div>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <button type="button" className="cv-btn" onClick={() => setConfirmResend(false)}>Cancel</button>
-            <button type="button" className="cv-btn is-primary" disabled={!canSubmit} onClick={handleSubmit}>{submitting ? "Sending…" : `Send ${formatMoney(effectiveTotal)} preauth`}</button>
+            <button type="button" className="cv-btn is-primary" disabled={!canSubmit || (warnAsks.length > 0 && !waiveReason.trim())} onClick={send}>{submitting ? "Sending…" : `Send ${formatMoney(effectiveTotal)} preauth`}</button>
           </div>
         </div>
       </Modal>

@@ -604,6 +604,31 @@ const mockCeState = (res) => {
   return open;
 };
 
+// ?pa=ready|missing|thin|blocked|empty|load_error on /case/:id/review forces a
+// pre-auth draft state.
+const mockPreauthState = (draft) => {
+  const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("pa") : null;
+  if (key === "load_error") throw new Error("The hospital records could not be read.");
+  if (key === "missing") return { ...draft, missing_fields: ["patient.dob", "patient.member_id"] };
+  if (key === "thin") return { ...draft, care_team: [{ ...draft.care_team[0], registration_no: null }, { doc_id: "DOC-2", doc_name: "Dr. Kiran Shah", speciality: "MD" }] };
+  if (key === "empty") return { ...draft, diagnoses: [], items: [], care_team: [], total_amount: 0 };
+  if (key === "blocked") {
+    const { admissibility } = draft;
+    return { ...draft, admissibility: { ...admissibility, blocking: true, checks: [...admissibility.checks, { level: "block", kind: "package_price", code: "47562", message: "Laparoscopic cholecystectomy is priced at zero in the payer's plan." }] } };
+  }
+  if (key === "ready") {
+    return {
+      ...draft,
+      payer_asks: [],
+      admissibility: { ...draft.admissibility, checks: draft.admissibility.checks.filter((c) => c.level === "ok"), exclusions: [] },
+      supporting_documents: draft.supporting_documents.map((d) => ({ ...d, url: d.url || "https://hospital.example/records/101/report.pdf" })),
+      chief_complaints: [{ code: "R10", name: "Abdominal pain" }],
+      clinical_findings: [{ code: "R19", name: "Tenderness in the right upper quadrant" }],
+    };
+  }
+  return draft;
+};
+
 const MOCK_PAYER_ASKS = {
   preauth: [
     { kind: "document", source: "ruling", category: "DIA", code: "MAND0601", display: "USG abdomen report", stage: "pre", for_code: "47562", status: "missing", blocking: true, reason: "not attached" },
@@ -1740,7 +1765,7 @@ const mock = {
   // ─── Preauthorization ───────────────────────────────────────────────────────
   preparePreauth: async (params = {}) => {
     await delay(800);
-    return {
+    return mockPreauthState({
       payer_asks: MOCK_PAYER_ASKS.preauth,
       admissibility: {
         status: "checked",
@@ -1833,7 +1858,7 @@ const mock = {
         errors: [],
       },
       missing_fields: [],
-    };
+    });
   },
 
   submitPreauth: async (data) => {

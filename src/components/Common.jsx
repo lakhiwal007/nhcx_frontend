@@ -310,13 +310,14 @@ export const Input = ({
  * @category Domain
  */
 // `hideSummary` drops the "N required documents still needed" banner for
-// screens that already state the count elsewhere.
-export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument, hideSummary = false }) => {
+// screens that already state the count elsewhere. `readOnly` shows the list
+// with no way to attach, rename, add or remove.
+export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument, hideSummary = false, readOnly = false }) => {
   const fileInputRef = useRef(null);
   const pendingDocRef = useRef(null);
   const [uploadError, setUploadError] = useState(null);
 
-  if (!documents?.length && !onAddDocument) return null;
+  if (!documents?.length && (!onAddDocument || readOnly)) return null;
   const missingRequired = (documents || []).filter((d) => !d.optional && !d.url);
 
   const handlePick = (doc) => {
@@ -417,7 +418,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
 
               {/* min-width:0 lets long names wrap instead of overflowing the card */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                {doc.custom && onRenameDocument ? (
+                {doc.custom && onRenameDocument && !readOnly ? (
                   <input
                     className="input-modern"
                     style={{ fontSize: "13px", padding: "4px 8px", fontWeight: 600 }}
@@ -466,7 +467,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
                   >
                     <CheckCircle2 size={11} /> Attached
                   </span>
-                ) : (
+                ) : readOnly ? null : (
                   <Button
                     variant="outline"
                     size="small"
@@ -475,7 +476,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
                     {doc.optional ? "Attach" : "Upload"}
                   </Button>
                 )}
-                {doc.custom && onRemoveDocument && (
+                {doc.custom && onRemoveDocument && !readOnly && (
                   <button
                     onClick={() => onRemoveDocument(i)}
                     style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", padding: "2px", display: "flex", flexShrink: 0, transition: "transform 0.15s ease" }}
@@ -490,7 +491,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
           );
         })}
       </div>
-      {onAddDocument && (
+      {onAddDocument && !readOnly && (
         <button
           onClick={onAddDocument}
           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "12px", fontWeight: 700, padding: "6px", marginTop: "var(--space-2)" }}
