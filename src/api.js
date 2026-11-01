@@ -564,6 +564,46 @@ const mockPlanState = (plan) => {
   return key && MOCK_PLAN_STATES[key] ? { correlation_id: plan.correlation_id, plan: plan.plan, ...MOCK_PLAN_STATES[key] } : plan;
 };
 
+// ?ce=open|not_in_force|unknown|partial|failed|single on /case/:id/prep forces an
+// eligibility answer on a case still at that step.
+const mockCeState = (res) => {
+  const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ce") : null;
+  if (!key) return res;
+  const open = { ...res, current_step: "insurance_and_eligibility", next_actions: ["refresh", "prepare_preauth"] };
+  const ce = open.coverage_eligibility;
+  const withInforce = (value) => ({
+    ...open,
+    coverage_eligibility: {
+      ...ce,
+      validation: {
+        ...ce.validation,
+        inforce: value,
+        insurance_items: ce.validation.insurance_items.map((item) => ({ ...item, inforce: value })),
+      },
+    },
+  });
+  if (key === "not_in_force") return withInforce(false);
+  if (key === "unknown") return withInforce(null);
+  if (key === "partial") {
+    return {
+      ...open,
+      status: "partial",
+      next_actions: ["refresh", "resubmit"],
+      coverage_eligibility: { ...ce, benefits: { ...ce.benefits, status: "pending", insurance_items: [] } },
+    };
+  }
+  if (key === "failed") {
+    return { ...open, status: "failed", next_actions: ["refresh", "retry"], prepare_error: { message: "The payer's gateway refused the request." } };
+  }
+  if (key === "single") {
+    return {
+      ...open,
+      coverage_eligibility: { ...ce, validation: { ...ce.validation, beneficiaries: ce.validation.beneficiaries.slice(0, 1) } },
+    };
+  }
+  return open;
+};
+
 const MOCK_PAYER_ASKS = {
   preauth: [
     { kind: "document", source: "ruling", category: "DIA", code: "MAND0601", display: "USG abdomen report", stage: "pre", for_code: "47562", status: "missing", blocking: true, reason: "not attached" },
@@ -1434,7 +1474,7 @@ const mock = {
   getCashlessStatus: async (cashless_case_id) => {
     await delay(1000);
     const journey = MOCK_CASE_JOURNEYS[String(cashless_case_id)] || MOCK_CASE_JOURNEYS.default;
-    return {
+    return mockCeState({
       cashless_case_id,
       claim_id: journey.claim_id,
       child_id: journey.child_id,
@@ -1566,7 +1606,7 @@ const mock = {
       preauth: journey.preauth,
       claim: journey.claim,
       payment: journey.payment ?? null,
-    };
+    });
   },
 
   getCaseTimeline: async (cashless_case_id, params = {}) => {

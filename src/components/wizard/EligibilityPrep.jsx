@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, AlertCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
 import { usePoll } from "../../hooks/usePoll";
 import { usePlanForms } from "../../hooks/usePlanForms";
-import { Card, Button, LoadingBlock } from "../Common";
+import { Button, LoadingBlock, NextStep } from "../Common";
 import { formatMoney } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
 import { eligibilityBeneficiaries, eligibilityRequirements } from "../../caseStatus";
@@ -117,6 +117,7 @@ export default function EligibilityPrep({ ctx }) {
   const [caseData, setCaseData] = useState(null);
   const [polling, setPolling] = useState(false);
   const [forceRefreshing, setForceRefreshing] = useState(false);
+  const [rerunError, setRerunError] = useState(null);
   const [error, setError] = useState(null);
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
   const [movedOn, setMovedOn] = useState(null);
@@ -181,10 +182,7 @@ export default function EligibilityPrep({ ctx }) {
       } catch (err) {
         // Detect sum-insured-exceeded so we can show a targeted recovery UI
         const msg = err.message || "";
-        const isSumInsured =
-          msg.includes("sum_insured_exceeded") ||
-          msg.toLowerCase().includes("exceeds policy sum insured") ||
-          msg.toLowerCase().includes("sum insured");
+        const isSumInsured = msg.includes("sum_insured_exceeded") || msg.toLowerCase().includes("exceeds policy sum insured");
         if (isSumInsured) {
           // Try to extract amounts from the message (e.g. "₹75000 exceeds policy sum insured ₹50000")
           const nums = msg.match(/[\d,]+/g)?.map((n) => Number(n.replace(/,/g, "")));
@@ -298,7 +296,9 @@ export default function EligibilityPrep({ ctx }) {
   };
 
   const manualRefresh = () => {
-    if (!polling && caseData?.cashless_case_id) setPolling(true);
+    if (polling || !caseData?.cashless_case_id) return;
+    pollStatus();
+    setPolling(true);
   };
 
   // Preferred path: GET /cashless/{id}?force_refresh=true - the backend reads
@@ -310,6 +310,7 @@ export default function EligibilityPrep({ ctx }) {
     const caseId = caseData?.cashless_case_id;
     if (!caseId && (!patient || !payer || !policy)) return;
     setForceRefreshing(true);
+    setRerunError(null);
     try {
       const res = caseId
         ? await api.getCashlessStatus(caseId, undefined, true)
@@ -334,7 +335,8 @@ export default function EligibilityPrep({ ctx }) {
       if (!ahead && !shouldStopPolling(res)) {
         setPolling(true);
       }
-    } catch (_) {
+    } catch (err) {
+      setRerunError(err.message || "The checks could not be sent again.");
     } finally {
       setForceRefreshing(false);
     }
@@ -345,75 +347,39 @@ export default function EligibilityPrep({ ctx }) {
   }
 
   if (sumInsuredError) {
+    const { estimated, limit, raw } = sumInsuredError;
     return (
-      <Card>
-        <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start", marginBottom: "var(--space-5)" }}>
-          <AlertCircle color="var(--error)" size={24} style={{ flexShrink: 0, marginTop: "2px" }} />
-          <div>
-            <div style={{ fontWeight: 700, color: "var(--error)", fontSize: "16px", marginBottom: "var(--space-2)" }}>
-              Estimated bill exceeds policy sum insured
-            </div>
-            {sumInsuredError.estimated && sumInsuredError.limit ? (
-              <div style={{ fontSize: "14px", marginBottom: "var(--space-3)" }}>
-                Estimated bill{" "}
-                <strong style={{ color: "var(--error)" }}>{formatMoney(sumInsuredError.estimated)}</strong>
-                {" "}exceeds this policy's sum insured of{" "}
-                <strong>{formatMoney(sumInsuredError.limit)}</strong>.
-              </div>
-            ) : (
-              <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
-                {sumInsuredError.raw}
-              </div>
-            )}
-            <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-              Select a different policy with a higher sum insured, or proceed with the current one if supplemental coverage applies.
-            </div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "var(--space-3)" }}>
-          <Button variant="primary" onClick={() => navigate("../payer")}>
-            Select Different Policy
+      <NextStep
+        tone="bad"
+        title="Estimated bill exceeds policy sum insured"
+        actions={
+          <Button variant="primary" size="small" onClick={() => navigate("../payer")}>
+            Select a different policy
           </Button>
-          <Button variant="outline" onClick={() => { setSumInsuredError(null); setError(null); hasInitialized.current = false; }}>
-            Proceed Anyway
-          </Button>
-        </div>
-      </Card>
+        }
+      >
+        {estimated && limit
+          ? `The estimated bill of ${formatMoney(estimated)} is above this policy's sum insured of ${formatMoney(limit)}.`
+          : raw}{" "}
+        A cashless case cannot be opened on this policy for this bill.
+      </NextStep>
     );
   }
 
   if (error) {
     const notAdmitted = error.toLowerCase().includes("inpatient-only");
     return (
-      <Card>
-        <div
-          style={{
-            display: "flex",
-            gap: "var(--space-3)",
-            alignItems: "center",
-            marginBottom: "var(--space-4)",
-          }}
-        >
-          <AlertCircle color="var(--error)" size={24} />
-          <div>
-            <div style={{ fontWeight: 700, color: "var(--error)" }}>
-              {notAdmitted ? "Patient is not admitted" : "Preparation failed"}
-            </div>
-            <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-              {error}
-            </div>
-          </div>
-        </div>
-        {notAdmitted ? (
-          <Button variant="outline" onClick={() => navigate("/registry")}>
-            ← Back to Patient Registry
+      <NextStep
+        tone="bad"
+        title={notAdmitted ? "Patient is not admitted" : "Preparation failed"}
+        actions={
+          <Button variant="outline" size="small" onClick={() => navigate(notAdmitted ? "/registry" : "../payer")}>
+            {notAdmitted ? "Back to Patient Registry" : "Back to policy"}
           </Button>
-        ) : (
-          <Button variant="outline" onClick={() => navigate("../payer")}>
-            ← Back to Payer
-          </Button>
-        )}
-      </Card>
+        }
+      >
+        {error}
+      </NextStep>
     );
   }
 
@@ -425,7 +391,7 @@ export default function EligibilityPrep({ ctx }) {
   const needsResubmit = (isPartial || isPending) && caseData?.next_actions?.includes("resubmit");
   const isStalePending = isPending && needsResubmit;
   const needsRetry = isFailed && caseData?.next_actions?.includes("retry");
-  const canProceed = caseData?.next_actions?.includes("prepare_preauth") && (isComplete || isPartial);
+  const nextActionsAllow = caseData?.next_actions?.includes("prepare_preauth") && (isComplete || isPartial);
   const movedOnLabel = movedOn ? STEP_FORWARD_LABEL[movedOn] : null;
 
   const plan = caseData?.insurance_plan;
@@ -433,17 +399,23 @@ export default function EligibilityPrep({ ctx }) {
   const checks = deriveChecks(caseData?.coverage_eligibility, benefitsTimedOut);
   const canRerun = !(forceRefreshing || (!caseData?.cashless_case_id && (!payer || !policy))) && !readOnly && !caseClosed;
   const inforce = checks?.inforce;
+  // The backend offers prepare_preauth without reading `inforce`, so a policy
+  // the payer calls not in force is stopped here.
+  const notInForce = inforce === false;
+  const canProceed = nextActionsAllow && !notInForce;
   const verdict = needsRetry
     ? { tone: "bad", label: "Check failed", text: caseData?.prepare_error?.message || "The eligibility request could not be sent.", next: "Press Retry. If it fails again, go back to the Policy step and check the policy, or share this message with IT." }
     : isStalePending
       ? { tone: "warn", label: "No answer from the payer", text: "The request may have been lost.", next: "Press Re-run checks. If the payer still does not answer, call its helpdesk." }
-      : inforce === false
+      : notInForce
         ? { tone: "bad", label: "Not eligible", text: "The payer reports the policy as not in force.", next: "Ask the patient for a renewed or different policy and pick it on the Policy step, or treat the patient as cash." }
         : polling || isPending
           ? { tone: "info", label: "Waiting for the payer", text: "Answers fill in as each check returns, usually within a minute or two." }
-          : inforce || isComplete
+          : inforce
             ? { tone: "ok", label: "Eligible", text: "The policy is in force for this admission." }
-            : { tone: "todo", label: "Not confirmed", text: "Refresh to fetch the latest answer." };
+            : isComplete
+              ? { tone: "todo", label: "Checks complete", text: "The payer did not state whether the policy is in force." }
+              : { tone: "todo", label: "Not confirmed", text: "Refresh to fetch the latest answer." };
 
   const ce = caseData?.coverage_eligibility;
   const members = eligibilityBeneficiaries(ce);
@@ -474,7 +446,15 @@ export default function EligibilityPrep({ ctx }) {
               type="button"
               className="cv-btn is-primary"
               disabled={!movedOn && !canProceed}
-              title={!movedOn && !canProceed ? (polling ? "Waiting for the payer's answer." : "The checks must finish first.") : undefined}
+              title={
+                !movedOn && !canProceed
+                  ? notInForce
+                    ? "The payer reports this policy as not in force."
+                    : polling
+                      ? "Waiting for the payer's answer."
+                      : "The checks must finish first."
+                  : undefined
+              }
               onClick={() => navigate(movedOn ? `../${movedOn}` : "../review")}
             >
               {movedOn ? `Continue to ${movedOnLabel}` : "Continue to pre-auth"}
@@ -485,9 +465,10 @@ export default function EligibilityPrep({ ctx }) {
         {verdict.next && <div className="cv-notice-hint" style={{ marginTop: 8 }}><strong>What to do:</strong> {verdict.next}</div>}
         {needsResubmit && !isStalePending && <div className="cv-notice-hint" style={{ marginTop: 8 }}>One or more checks did not finish and will not on their own. Re-run the checks.</div>}
         {movedOn && <div className="cv-notice-hint" style={{ marginTop: 8 }}>This case has moved on to {movedOnLabel}; what follows is as last checked.</div>}
+        {rerunError && <div className="cv-notice-hint" style={{ marginTop: 8, color: "var(--cv-bad)" }}>{rerunError}</div>}
       </div>
 
-      <BiometricCard caseId={caseData?.cashless_case_id} stage="Preauth" readOnly={!!movedOn} />
+      <BiometricCard caseId={caseData?.cashless_case_id} stage="Preauth" readOnly={readOnly || caseClosed || !!movedOn} />
 
       <PlanCard
         plan={plan}

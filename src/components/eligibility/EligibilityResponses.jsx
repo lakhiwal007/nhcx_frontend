@@ -26,7 +26,7 @@ function tiles(checks, requirements, discovery) {
       id: "validation",
       name: "Validation",
       tone: inforce === false ? "is-bad" : tone(v),
-      badge: v?.state === "pending" ? "Waiting" : v?.state === "error" ? "Failed" : inforce === false ? "Not in force" : "Eligible",
+      badge: v?.state === "pending" ? "Waiting" : v?.state === "error" ? "Failed" : inforce === false ? "Not in force" : inforce ? "Eligible" : "Answered",
       line: v?.state === "done" ? [inforce ? "In force" : null, balance != null ? `${formatMoney(balance)} left` : null].filter(Boolean).join(" · ") || "Answered" : "—",
       when: v?.sub?.received_at || v?.sub?.updated_at,
     },
@@ -76,7 +76,7 @@ function ValidationPanel({ check, checks }) {
       <div>
         <div className="cv-kv"><span>Sum insured</span><span>{money(w.sum_insured ?? cd.sum_insured)}</span></div>
         <div className="cv-kv"><span>Used so far</span><span>{money(w.used)}</span></div>
-        <div className="cv-kv"><span>Balance</span><span style={{ color: w.balance <= 0 ? "var(--error)" : "var(--success)" }}>{money(w.balance)}</span></div>
+        <div className="cv-kv"><span>Balance</span><span style={w.balance == null ? undefined : { color: w.balance <= 0 ? "var(--error)" : "var(--success)" }}>{money(w.balance)}</span></div>
         {classes.map((c) => (
           <div key={c.id || c.type} className="cv-kv"><span>{c.name || c.type}</span><span>{c.value}</span></div>
         ))}

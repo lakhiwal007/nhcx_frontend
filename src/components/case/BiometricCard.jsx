@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "../../api";
+import { usePoll } from "../../hooks/usePoll";
 import { captureFromDevice, sealAadhaar } from "../../biometric";
 import { formatDateTime } from "../../format";
 
@@ -96,24 +97,18 @@ function Card({ caseId, stage, readOnly, onVerified }) {
 
   const attemptId = panel?.attempt?.id;
   const polling = panel?.attempt?.auth_method === "FACE_AUTH" && !captured;
-  useEffect(() => {
-    if (!polling) return;
-    let live = true;
-    const timer = setInterval(() => {
+  usePoll(
+    (signal) =>
       api
         .captureBiometric(caseId, attemptId)
-        .then((res) => live && res?.capture_status === "COMPLETE" && setCaptured(true))
+        .then((res) => !signal.aborted && res?.capture_status === "COMPLETE" && setCaptured(true))
         .catch((err) => {
-          if (!live) return;
+          if (signal.aborted) return;
           setError(err?.message || "Could not read the scan.");
           setPanel(null);
-        });
-    }, POLL_MS);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
-  }, [polling, caseId, attemptId]);
+        }),
+    { active: polling ? attemptId : null, intervalMs: POLL_MS, immediate: false },
+  );
 
   const closePanel = () => {
     setPanel(null);
