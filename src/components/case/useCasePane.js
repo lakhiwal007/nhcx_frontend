@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 
 // The open item of a checklist-and-detail case step. `picked` is null until staff
 // choose or act on an item, so the screen follows its own first item until then.
-export function useCasePane() {
-  const [picked, setPicked] = useState(null);
+export function useCasePane(initial = null) {
+  const [picked, setPicked] = useState(initial);
   const paneRef = useRef(null);
   const openItem = (id) => {
     setPicked(id);

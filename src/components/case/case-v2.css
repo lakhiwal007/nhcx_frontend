@@ -334,3 +334,9 @@
 .cv-plan-check.is-warn { color: var(--cv-warn); }
 .cv-plan-check.is-ok,
 .cv-plan-check.is-info { color: var(--cv-soft); }
+
+.cv-pane-stack { display: flex; flex-direction: column; gap: 12px; }
+.cv-pane-note { margin-top: 12px; }
+.cv-drawer-intro { margin: 0 0 16px; font-size: 14px; color: var(--text-muted); }
+.cv-drawer-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.cv-drawer-note { margin-bottom: 12px; }

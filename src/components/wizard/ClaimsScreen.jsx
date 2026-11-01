@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Send, ArrowRight, Edit2 } from "lucide-react";
+import { Send, Edit2 } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
 import { usePoll } from "../../hooks/usePoll";
-import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, NextStep, formatMoney } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
-import { Section } from "../case/CaseFile";
+import CaseChecklist from "../case/CaseChecklist";
+import { useCasePane } from "../case/useCasePane";
+import { buildClaimChecklist, firstClaimItem } from "../case/claimChecklist";
 import PayerAsks from "../case/PayerAsks";
 import BiometricCard from "../case/BiometricCard";
 import PatientDetailsForm from "../case/PatientDetailsForm";
@@ -191,7 +193,10 @@ export default function ClaimsScreen({ ctx }) {
   const [asksReload, setAsksReload] = useState(0);
   const [missingFields, setMissingFields] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState(location.state?.tab || "draft");
+  // Older links name the tabs this screen used to have.
+  const linkedTab = location.state?.tab;
+  const { picked, setPicked, paneRef, openItem } = useCasePane(linkedTab && linkedTab !== "draft" ? linkedTab : null);
+  const [biometric, setBiometric] = useState(null);
 
   // Discharge flow
   const [dischargeCorrelationId, setDischargeCorrelationId] = useState(caseState.dischargeCorrelationId || null);
@@ -215,7 +220,6 @@ export default function ClaimsScreen({ ctx }) {
   // (interim, wf=14) claim via DC01, not the final claim (workflow 16) —
   // no reprocess option applies since no final claim exists yet.
   const [showDischargeResubmitDrawer, setShowDischargeResubmitDrawer] = useState(false);
-  const [showContextDrawer, setShowContextDrawer] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [queryAnswer, setQueryAnswer] = useState("");
   const [queryDocs, setQueryDocs] = useState([]);
@@ -281,7 +285,6 @@ export default function ClaimsScreen({ ctx }) {
 
   useEffect(() => {
     if (finalCorrelationId) {
-      setActiveTab("decision");
       setPolling(true);
     } else if (dischargeCorrelationId) {
       // Resume polling a discharge submission from a prior session/tab close
@@ -318,7 +321,6 @@ export default function ClaimsScreen({ ctx }) {
         }
         setFinalCorrelationId(correlationId);
         updateCaseState({ claimCorrelationId: correlationId });
-        setActiveTab("decision");
         setPolling(true);
       } catch (_) {}
     };
@@ -474,7 +476,7 @@ export default function ClaimsScreen({ ctx }) {
       updateCaseState({ claimCorrelationId: res.correlation_id });
       setClaimStatus(null);
       if (filesKey) setDraftFiles(filesKey, []);
-      setActiveTab("decision");
+      setPicked("decision");
       setPolling(true);
     } catch (err) {
       setSubmitError(err.message || "Final claim submission failed. Please try again.");
@@ -507,7 +509,7 @@ export default function ClaimsScreen({ ctx }) {
       setClaimStatus(null);
       setFinalCorrelationId(res.correlation_id);
       updateCaseState({ claimCorrelationId: res.correlation_id });
-      setActiveTab("decision");
+      setPicked("decision");
       setPolling(true);
     } catch (err) {
       setSubmitError(err.message || "Query response submission failed. Please try again.");
@@ -627,7 +629,7 @@ export default function ClaimsScreen({ ctx }) {
       if (resolvedClaimId && !caseState.claim_id) {
         updateCaseState({ claim_id: resolvedClaimId });
       }
-      setActiveTab("discharge");
+      setPicked("discharge");
       setShowDischargeResubmitDrawer(true);
       return;
     }
@@ -639,14 +641,14 @@ export default function ClaimsScreen({ ctx }) {
       if (resolvedClaimId && !caseState.claim_id) {
         updateCaseState({ claim_id: resolvedClaimId });
       }
-      setActiveTab("decision");
+      setPicked("decision");
       if (action === "request_claim_release" && (isClaimApproved || isPartialApproval)) {
         setShowReleaseDrawer(true);
       } else if (action === "respond_claim_query" && isClaimQueried) {
         setShowQueryDrawer(true);
       }
     }
-  }, [location.state?.openAction, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimApproved, isPartialApproval, updateCaseState]);
+  }, [location.state?.openAction, resolvedClaimId, resolvedCashlessCaseId, caseState.cashless_case_id, caseState.claim_id, isClaimQueried, isClaimApproved, isPartialApproval, updateCaseState, setPicked]);
 
   if (loading) {
     return <LoadingBlock text="Building claim draft…" />;
@@ -654,16 +656,18 @@ export default function ClaimsScreen({ ctx }) {
 
   if (claimDraft?._error) {
     return (
-      <div className="wizard-step pd-screen">
-        <Section id="cl-error" title="Cannot load the claim">
-          <p className="ds-empty">{claimDraft._error}</p>
-          <div className="ds-empty-actions">
-            <Button variant="outline" size="small" onClick={() => navigate("../status")}>
-              Back to preauth decision
-            </Button>
-          </div>
-        </Section>
-      </div>
+      <NextStep
+        tone="bad"
+        title="The claim could not be loaded"
+        actions={
+          <>
+            <button type="button" className="cv-btn" onClick={() => loadDraft(null, draftParams(null))}>Retry</button>
+            <button type="button" className="cv-btn" onClick={() => navigate("../status")}>Back to pre-auth decision</button>
+          </>
+        }
+      >
+        {claimDraft._error}
+      </NextStep>
     );
   }
 
@@ -672,8 +676,6 @@ export default function ClaimsScreen({ ctx }) {
   const askCodes = new Set(asks.filter((a) => a.kind === "document").map((a) => String(a.code).toUpperCase()));
   const otherDocs = docs.filter((d) => !askCodes.has(String(d.code || "").toUpperCase()));
   const blockingAsks = asks.filter((a) => a.blocking);
-  const askDocs = asks.filter((a) => a.kind === "document");
-  const askFormRows = asks.filter((a) => a.kind === "form");
   const attachAsk = (row, uploaded) => {
     setClaimDraft((prev) => {
       const list = prev.supporting_documents || [];
@@ -689,9 +691,6 @@ export default function ClaimsScreen({ ctx }) {
   const finalSent = !!finalCorrelationId && !finalFailed;
   const docsLocked = locked || finalSent;
   const dischargeIntimation = cashlessCase?.discharge_intimation !== false;
-  const dischargeDone = dischargeIntimation
-    ? !!dischargeCorrelationId && !dischargeRejected && !dischargeFailed
-    : !hasMissingDocs;
   const claimDecided = claimStatus?.status === "complete" && !!claimDecision;
   const claimTotals = claimStatus?.totals || {};
   const claimApproved = claimStatus?.approved_amount ?? claimTotals.benefit?.value ?? claimTotals.approved?.value ?? null;
@@ -703,145 +702,99 @@ export default function ClaimsScreen({ ctx }) {
     ["Medications", claimDraft?.medications],
   ].filter(([, codes]) => codes?.length > 0);
 
-  // The four parts of the claim, each with where it stands.
-  const steps = [
-    { id: "draft", label: "Review claim", done: hasPreauthRef && !hasMissingFields },
-    { id: "discharge", label: "Discharge documents", done: dischargeDone, bad: dischargeRejected || dischargeFailed },
-    { id: "final", label: "Final claim", done: finalSent, bad: finalFailed },
-    { id: "decision", label: "Decision", done: claimDecided, bad: finalFailed || isClaimRejected },
-  ];
-
-  const readiness = [
-    {
-      label: "Approved preauth",
-      ok: hasPreauthRef,
-      note: claimDraft?.preauth_ref || "missing",
-      fix: "A claim needs an approved preauth. Check the Approval step for the payer's decision.",
-    },
-    {
-      label: "Patient details",
-      ok: patientContextMissing.length === 0,
-      note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null,
-      fix: "Fill in the Missing patient details form on Review claim.",
-    },
-    dischargeRules?.required && {
-      label: "Discharge details",
-      ok: dischargeMissing.length === 0,
-      note: dischargeMissing.length ? `${dischargeMissing.length} missing` : null,
-      fix: "Say how the patient left on Review claim: home, death, LAMA or DAMA, the stage, and the times.",
-    },
-    {
-      label: "Clinical & billing records",
-      ok: hisBlockers.length === 0,
-      fix: "Complete the discharge summary and final bill in the hospital system, then reload.",
-    },
-    askDocs.length > 0 && {
-      label: "Payer documents",
-      ok: askDocs.every((a) => a.status === "attached"),
-      bad: askDocs.some((a) => a.blocking),
-      note: `${askDocs.filter((a) => a.status === "attached").length} of ${askDocs.length}`,
-    },
-    askFormRows.length > 0 && {
-      label: "Payer forms",
-      ok: askFormRows.every((a) => a.status === "answered"),
-      bad: askFormRows.some((a) => a.blocking),
-      note: `${askFormRows.filter((a) => a.status === "answered").length} of ${askFormRows.length} complete`,
-    },
-    {
-      label: "Hospital documents",
-      ok: !otherDocs.some((d) => !d.optional && !d.url),
-      note: otherDocs.length ? `${otherDocs.filter((d) => d.url).length} of ${otherDocs.length}` : null,
-    },
-    dischargeIntimation && { label: "Discharge claim sent", ok: dischargeDone, bad: dischargeRejected || dischargeFailed, note: dischargeRejected ? "rejected" : dischargeFailed ? "failed" : dischargePolling ? "awaiting payer" : null },
-    { label: "Final claim sent", ok: finalSent, bad: finalFailed, note: finalFailed ? "not delivered" : null },
-  ].filter(Boolean);
-
-  // One primary action for the part being viewed.
-  let primary = null;
-  if (activeTab === "draft") {
-    primary = { label: "Continue to discharge documents", onClick: () => setActiveTab("discharge"), disabled: !hasPreauthRef || hasMissingFields, icon: ArrowRight };
-  } else if (activeTab === "discharge" && !dischargeIntimation) {
-    primary = { label: "Continue to final claim", onClick: () => setActiveTab("final"), disabled: hasMissingDocs, icon: ArrowRight };
-  } else if (activeTab === "discharge") {
-    primary = dischargeRejected
-      ? { label: "Resubmit discharge claim", onClick: () => setShowDischargeResubmitDrawer(true) }
-      : dischargeCorrelationId && !dischargeFailed
-        ? { label: "Continue to final claim", onClick: () => setActiveTab("final"), icon: ArrowRight }
-        : { label: submitting ? "Submitting…" : "Submit discharge claim", onClick: handleSubmitDischarge, disabled: !canSubmit, icon: Send, write: true };
-  } else if (activeTab === "final") {
-    primary = finalSent
-      ? { label: "View decision", onClick: () => setActiveTab("decision"), icon: ArrowRight }
-      : { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: !canSubmitFinal || blockingAsks.length > 0 || submitting, icon: Send, write: true };
-  } else if (claimDecided) {
-    primary = isClaimApproved || isPartialApproval
-      ? { label: "View payment status", onClick: () => navigate("../payment"), icon: ArrowRight }
-      : isClaimQueried
-        ? { label: "Respond to query", onClick: () => setShowQueryDrawer(true), write: true }
-        : isClaimRejected
-          ? { label: "Ask for a reprocess", onClick: () => navigate("../reprocess") }
-          : null;
-  }
-
   const openReleaseDrawer = () => {
-    const owed = claimRequested != null && claimApproved != null ? claimRequested - claimApproved : null;
-    setReleaseAmount(owed > 0 ? String(owed) : "");
+    setReleaseAmount(balanceOwed > 0 ? String(balanceOwed) : "");
     setReleaseNote("");
     setSubmitError(null);
     setShowReleaseDrawer(true);
   };
 
-  const guide =
-    activeTab === "draft"
-      ? !hasPreauthRef
-        ? { tone: "warn", title: "No approved preauth yet", text: "The payer must approve the preauth before you can claim. Check the Approval step." }
-        : { tone: "info", title: "Step 1 of 4: check the claim", text: "Check the stay dates, final bill and diagnosis below. They come from the hospital system; fix any mistake there first." }
-      : activeTab === "discharge"
-        ? dischargeRejected
-          ? { tone: "bad", title: "The payer rejected the discharge papers", text: "Read the reason below, fix or add the documents, then press Resubmit discharge claim." }
-          : dischargeFailed
-            ? { tone: "bad", title: "The discharge papers didn't reach the payer", text: "Check the documents and press Submit discharge claim again." }
-            : {
-                tone: "info",
-                title: "Step 2 of 4: discharge documents",
-                text: "Upload the discharge summary, final bill and the documents listed. PMJAY and most insurers need these before the final claim.",
-              }
-        : activeTab === "final"
-          ? finalSent
-            ? { tone: "info", title: "Final claim sent", text: "Private insurers must decide within 3 hours of the final claim (IRDAI). See the Decision tab." }
-            : overCeiling
-              ? {
-                  tone: "warn",
-                  title: "The bill is more than the approved amount",
-                  text: "File an enhancement first so the payer can approve the extra, or tick the box to claim anyway; the payer will cut the excess.",
-                }
-              : { tone: "info", title: "Step 3 of 4: send the final claim", text: "This asks the payer to pay the final bill. Check the amount, then press Submit final claim." }
-          : claimStatus?.status === "not_found"
-            ? { tone: "warn", title: "The payer's system has no record of this claim yet", text: "Refresh in a while. If it stays like this, call the payer's helpdesk with the request number below." }
-            : claimStatus?.status === "complete" && !claimDecided
-              ? { tone: "warn", title: "The payer answered without a clear decision", text: "Read the payer's response below, and call its helpdesk if it is not clear." }
-          : !claimDecided
-            ? { tone: "info", title: "Waiting for the payer's decision", text: "You can leave this page; the decision appears here and in the Work Queue." }
-            : isClaimApproved
-              ? { tone: "ok", title: "Claim approved", text: "The payer will pay. Track the money on the Payment step." }
-              : isPartialApproval
-                ? {
-                    tone: "warn",
-                    title: "Claim approved for less than the bill",
-                    text: "See what was cut below. If the cut is wrong, use Ask for the balance with your reason; otherwise bill the patient the difference.",
-                  }
-                : isClaimQueried
-                  ? { tone: "warn", title: "The payer has a question", text: "Press Respond to query and send what it asks for. The payment waits until you answer." }
-                  : isClaimRejected
-                    ? { tone: "bad", title: "Claim rejected", text: "Read the payer's reason below. If you can fix it or disagree, press Ask for a reprocess." }
-                    : null;
+  const balanceOwed = claimRequested != null && claimApproved != null ? claimRequested - claimApproved : 0;
+  const groups = buildClaimChecklist({
+    biometric,
+    patientMissing: patientContextMissing.length,
+    dischargeRequired: !!dischargeRules?.required,
+    dischargeMissing: dischargeMissing.length,
+    dischargeType: claimDraft?.discharge?.type,
+    hasPreauthRef,
+    preauthRef: claimDraft?.preauth_ref,
+    dischargeDate: claimDraft?.discharge_date,
+    justified: justification.reduce((sum, [, codes]) => sum + codes.length, 0),
+    hisBlocked: hisBlockers.length > 0,
+    ceilingExcess,
+    ackOverCeiling,
+    authorised: authorizedCeiling,
+    total: claimDraft?.total_amount,
+    asks,
+    blockingAsks: blockingAsks.length,
+    hasMissingDocs,
+    attachedFiles: otherDocs.filter((d) => d.url).length,
+    dischargeIntimation,
+    dischargeRejected,
+    dischargeFailed,
+    dischargePolling,
+    dischargeSent: !!dischargeCorrelationId,
+    finalFailed,
+    finalSent,
+    decision: claimStatus?.status === "complete" ? claimDecision || "UNKNOWN" : null,
+    notFound: claimStatus?.status === "not_found",
+    locked: docsLocked,
+  });
+  const blockers = groups.flatMap((g) => g.rows).filter((r) => r.blocks);
+  const open = picked || firstClaimItem(groups, { finalSent, locked });
+  const paneFor = (id) => ({ hidden: open !== id });
+
+  // One primary action, from where the case stands. The discharge claim comes
+  // first where the payer takes one; the guide asks not to offer both as equals.
+  let primary = null;
+  if (finalSent) {
+    if (isClaimApproved || isPartialApproval) primary = { label: "View payment status", onClick: () => navigate("../payment") };
+    else if (isClaimQueried) primary = { label: "Respond to query", onClick: () => setShowQueryDrawer(true), write: true };
+    else if (isClaimRejected) primary = { label: "Ask for a reprocess", onClick: () => navigate("../reprocess") };
+  } else if (dischargeRejected) {
+    primary = { label: "Resubmit discharge claim", onClick: () => setShowDischargeResubmitDrawer(true), write: true };
+  } else if (dischargeIntimation && !finalCorrelationId && (!dischargeCorrelationId || dischargeFailed)) {
+    primary = { label: submitting ? "Submitting…" : "Submit discharge claim", onClick: handleSubmitDischarge, disabled: !canSubmit, icon: Send, write: true };
+  } else {
+    primary = { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: blockers.length > 0 || !canSubmitFinal, icon: Send, write: true };
+  }
+  if (primary?.write && caseClosed) primary = null;
 
   const secondary = [];
-  if (activeTab === "final" && overCeiling) secondary.push({ label: "File an enhancement", onClick: () => navigate("../enhancement") });
-  if (activeTab === "decision" && claimDecided) {
-    if (isClaimApproved || isPartialApproval) secondary.push({ label: "Ask for the balance", onClick: openReleaseDrawer });
-    if ((isClaimQueried || isClaimRejected || isPartialApproval) && OUTBOUND_COMMUNICATIONS_ENABLED)
-      secondary.push({ label: "Message payer", icon: Send, onClick: () => setShowSendModal(true) });
+  if (claimDecided && (isClaimApproved || isPartialApproval) && balanceOwed > 0) secondary.push({ label: "Ask for the balance", onClick: openReleaseDrawer });
+  if (claimDecided && (isClaimQueried || isClaimRejected || isPartialApproval) && OUTBOUND_COMMUNICATIONS_ENABLED) {
+    secondary.push({ label: "Message payer", icon: Send, onClick: () => setShowSendModal(true) });
   }
+
+  const decisionWord = claimDecision ? String(claimDecision).replace(/_/g, " ").toLowerCase() : null;
+  const barState = claimDecided
+    ? [decisionWord, isClaimApproved ? "is-ok" : isClaimRejected ? "is-bad" : "is-warn"]
+    : finalSent
+      ? ["Sent", "is-info"]
+      : docsLocked
+        ? ["Not sent", "is-todo"]
+        : finalFailed || dischargeFailed
+          ? ["Not delivered", "is-bad"]
+          : dischargeRejected
+            ? ["Discharge rejected", "is-bad"]
+            : blockers.length > 0
+              ? [`${blockers.length} must be done`, "is-bad"]
+              : ["Ready to send", "is-ok"];
+
+  const notes = [
+    !hasPreauthRef && !docsLocked && { tone: "bad", text: "The payer must approve the pre-auth before you can claim. Check the Approval step." },
+    hisBlockers.length > 0 && { tone: "bad", text: `The clinical or billing records are incomplete (${hisBlockers.join(", ")}). Complete them in the hospital system, then reload.` },
+    dischargeRejected && { tone: "bad", text: "The payer rejected the discharge claim. No final claim exists yet, so there is nothing to appeal; correct and resend it." },
+    dischargeFailed && { tone: "bad", text: `The discharge claim did not reach the payer. ${dischargeStatus?.error_message || ""} Check the documents and submit it again.` },
+    finalFailed && { tone: "bad", text: `The final claim did not reach the payer. ${claimStatus?.error_message || ""} Submit it again.` },
+    claimStatus?.status === "not_found" && { tone: "warn", text: "The payer's system has no record of this claim yet. Refresh in a while, and call its helpdesk if it stays like this." },
+    claimStatus?.status === "complete" && !claimDecided && { tone: "warn", text: "The payer answered without a clear decision. Read its response under Decision, and call its helpdesk if it is not clear." },
+    isPartialApproval && { tone: "warn", text: "Approved for less than the bill. See what was cut under Decision; if the cut is wrong, ask for the balance with your reason, otherwise bill the patient the difference." },
+    isClaimQueried && { tone: "warn", text: "The payer has a question. The payment waits until you answer." },
+    submitError && { tone: "bad", text: submitError },
+    dischargeSubmitError && { tone: "bad", text: dischargeSubmitError },
+    releaseMessage && { tone: "info", text: releaseMessage },
+  ].filter(Boolean);
 
   const billTable = (
     <div className="cv-tw cv-in-card">
@@ -914,304 +867,304 @@ export default function ClaimsScreen({ ctx }) {
     );
 
   return (
-    <div className="cv-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <BiometricCard caseId={resolvedCashlessCaseId} stage="Discharge" readOnly={locked} onVerified={refreshAsks} />
-      <div className="cv-card">
-        <div className="cv-tabs" role="tablist" aria-label="Claim steps" style={{ borderBottom: 0 }}>
-          {steps.map((st, i) => (
-            <button key={st.id} type="button" role="tab" className="cv-tab" aria-selected={activeTab === st.id} onClick={() => setActiveTab(st.id)}>
-              <span className={`cv-chip ${st.bad ? "is-bad" : st.done ? "is-ok" : activeTab === st.id ? "is-info" : "is-todo"}`} style={{ marginRight: 8 }}>
-                {st.done ? "✓" : i + 1}
-              </span>
-              {st.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {guide && (
-        <div className={`cv-notice is-${guide.tone === "ok" ? "ok" : guide.tone}`}>
-          <div className="cv-notice-title">{guide.title}</div>
-          <div className="cv-notice-body">{guide.text}</div>
-        </div>
-      )}
-
-      <div className="cv-split">
-        <div className="cv-main">
-          {activeTab === "draft" && (
-            <>
-              {hisBlockers.length > 0 && (
-                <div className="cv-notice is-bad"><div className="cv-notice-body">The clinical or billing records are incomplete ({hisBlockers.join(", ")}). Complete them in the hospital system before claiming.</div></div>
-              )}
-              {patientContextMissing.length > 0 && (
-                <div className="cv-notice is-bad">
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                    <span className="cv-notice-body" style={{ flex: 1 }}>{patientContextMissing.length} patient detail{patientContextMissing.length === 1 ? " is" : "s are"} missing ({patientContextMissing.join(", ")}).</span>
-                    <button type="button" className="cv-btn" onClick={() => setShowContextDrawer(true)}>Add them</button>
-                  </div>
-                </div>
-              )}
-              {!hasPreauthRef && (
-                <div className="cv-notice is-bad"><div className="cv-notice-body">This claim has no approved pre-auth reference. The pre-auth must be approved first.</div></div>
-              )}
-              {card(
-                "Discharge",
-                <>
-                  <div className="cv-row">
-                    <span className={`cv-chip cv-row-badge ${claimDraft?.discharge_date ? "is-ok" : "is-warn"}`}>{claimDraft?.discharge_date ? "Done" : "Open"}</span>
-                    <div className="cv-row-body">
-                      <div className="cv-row-title">Stay</div>
-                      <div className="cv-row-sub">
-                        {[claimDraft?.admission_date && `Admitted ${formatDate(claimDraft.admission_date)}`, claimDraft?.discharge_date ? `discharged ${formatDate(claimDraft.discharge_date)}` : "not discharged yet"].filter(Boolean).join(" · ")}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="cv-row">
-                    <span className={`cv-chip cv-row-badge ${justification.length ? "is-ok" : "is-warn"}`}>{justification.length ? "Done" : "Thin"}</span>
-                    <div className="cv-row-body">
-                      <div className="cv-row-title">Clinical justification</div>
-                      <div className="cv-row-sub">
-                        {justification.length ? justification.map(([label, codes]) => `${label}: ${codes.map((c) => c.name || c.code).join(", ")}`).join(" · ") : "No coded complaints, findings or tests on the clinical note"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="cv-row">
-                    <span className={`cv-chip cv-row-badge ${hasPreauthRef ? "is-ok" : "is-bad"}`}>{hasPreauthRef ? "Done" : "Missing"}</span>
-                    <div className="cv-row-body">
-                      <div className="cv-row-title">Pre-auth on file</div>
-                      <div className="cv-row-sub">
-                        {hasPreauthRef ? [claimDraft?.preauth_ref, authorizedCeiling != null && `${formatMoney(authorizedCeiling)} authorised`].filter(Boolean).join(" · ") : "No approved pre-auth"}
-                      </div>
-                    </div>
-                  </div>
-                  {claimDraft?.discharge_summary && (
-                    <div className="cv-row">
-                      <span className="cv-chip cv-row-badge is-ok">Done</span>
-                      <div className="cv-row-body">
-                        <div className="cv-row-title">Discharge summary</div>
-                        <div className="cv-row-sub">
-                          {[claimDraft.discharge_summary.condition, claimDraft.discharge_summary.advice, claimDraft.discharge_summary.followup_on && `follow-up ${formatDate(claimDraft.discharge_summary.followup_on)}`].filter(Boolean).join(" · ")}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>,
-              )}
-              {dischargeRules?.required && card(
-                "How the patient left",
-                <DischargeDetailsForm
-                  key={JSON.stringify(claimDraft?.discharge || {})}
-                  claimId={claimDraft?.claim_id || claimId}
-                  discharge={claimDraft?.discharge}
-                  rules={dischargeRules}
-                  readOnly={locked || finalSent}
-                  onSaved={(remaining) => {
-                    setMissingFields(remaining);
-                    loadDraft(claimDraft?.claim_id || claimId);
-                  }}
-                />,
-                { chip: <span className={`cv-chip ${dischargeMissing.length ? "is-warn" : "is-ok"}`}>{dischargeMissing.length ? `${dischargeMissing.length} missing` : "Done"}</span> },
-              )}
-              {card("Final bill against the authorised amount", billTable, {
-                chip: overCeiling ? <span className="cv-chip is-warn">{formatMoney(ceilingExcess)} over</span> : authorizedCeiling != null ? <span className="cv-chip is-ok">Within</span> : null,
-              })}
-            </>
-          )}
-
-          {activeTab === "discharge" && (
-            <>
-              {dischargeFailed && (
-                <div className="cv-notice is-bad"><div className="cv-notice-title">The discharge claim was not delivered</div><div className="cv-notice-body">{dischargeStatus.error_message || "The request did not reach the payer."}</div></div>
-              )}
-              {dischargeRejected && (
-                <div className="cv-notice is-bad"><div className="cv-notice-title">The payer rejected the discharge claim</div><div className="cv-notice-body">No final claim exists yet, so there is nothing to appeal; correct and resend the discharge intimation instead.</div></div>
-              )}
-              <PayerAsks
-                caseId={resolvedCashlessCaseId}
-                stage="claim"
-                title="What the payer asks for at claim"
-                asks={claimDraft?.payer_asks}
-                documents={docs}
-                readOnly={docsLocked}
-                onAttach={attachAsk}
-                onFormsChange={setAskForms}
-                reloadKey={asksReload}
-              />
-              {card(
-                "Other files",
-                <div className="cv-card-body">
-                  <DocumentChecklist
-                    documents={otherDocs}
-                    onUpload={handleUpload}
-                    onAddDocument={addDocument}
-                    onRenameDocument={(i, name) => renameDocument(docs.indexOf(otherDocs[i]), name)}
-                    onRemoveDocument={(i) => removeDocument(docs.indexOf(otherDocs[i]))}
-                    readOnly={docsLocked}
-                    hideSummary
-                  />
-                </div>,
-                { meta: "Sent with the claim. Attached files stay until sent, but reloading the page drops them." },
-              )}
-              {dischargePolling && waitingSection("Discharge claim sent", dischargeCorrelationId)}
-              {dischargeStatus?.status === "complete" && !dischargeRejected &&
-                card(
-                  "Discharge claim",
-                  <div className="cv-card-body">
-                    <div className="cv-kv"><span>Decision</span><span>{dischargeStatus.decision ? String(dischargeStatus.decision).replace(/_/g, " ").toLowerCase() : "Received"}</span></div>
-                    <div className="cv-kv"><span>Request</span><span className="cv-mono">{dischargeCorrelationId}</span></div>
-                  </div>,
-                )}
-            </>
-          )}
-
-          {activeTab === "final" && (
-            <>
-              {card("Final bill against the authorised amount", billTable, {
-                chip: overCeiling ? <span className="cv-chip is-warn">{formatMoney(ceilingExcess)} over</span> : null,
-              })}
-              {overCeiling && (
-                <div className="cv-notice is-warn">
-                  <div className="cv-notice-body">The payer will not cover the {formatMoney(ceilingExcess)} above the authorised amount. Collect it from the patient, or file an enhancement first.</div>
-                  <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, fontWeight: 600 }}>
-                    <input type="checkbox" checked={ackOverCeiling} onChange={(e) => setAckOverCeiling(e.target.checked)} />
-                    I will collect the {formatMoney(ceilingExcess)} from the patient.
-                  </label>
-                </div>
-              )}
-            </>
-          )}
-
-          {activeTab === "decision" && (
-            <>
-              {!finalCorrelationId ? (
-                card(
-                  "No final claim yet",
-                  <div className="cv-card-body">
-                    <div>Send the final claim to receive the payer's decision here.</div>
-                    <button type="button" className="cv-btn" style={{ marginTop: 12 }} onClick={() => setActiveTab("final")}>Go to final claim</button>
-                  </div>,
-                )
-              ) : !claimStatus || polling ? (
-                waitingSection("Final claim sent", finalCorrelationId)
-              ) : claimStatus.status === "not_found" ? (
-                card(
-                  "No answer on record",
-                  <div className="cv-card-body">
-                    <div className="cv-kv"><span>Request</span><span className="cv-mono">{finalCorrelationId}</span></div>
-                    <button type="button" className="cv-btn" style={{ marginTop: 12 }} onClick={() => setPolling(true)}>Refresh</button>
-                  </div>,
-                )
-              ) : claimStatus.status === "failed" ? (
-                <div className="cv-notice is-bad">
-                  <div className="cv-notice-title">The final claim was not delivered</div>
-                  <div className="cv-notice-body">{claimStatus.error_message || "The request did not reach the payer."}</div>
-                  <div className="cv-notice-actions"><button type="button" className="cv-btn" onClick={() => setActiveTab("final")}>Back to final claim</button></div>
-                </div>
-              ) : (
-                <>
-                  {claimStatus.items?.length > 0
-                    ? card("What the payer approved", <ClaimLines status={claimStatus} draftItems={claimDraft?.items} />)
-                    : card("Final bill against the authorised amount", billTable)}
-                  {claimStatus.process_notes?.length > 0 &&
-                    card(
-                      "Payer notes",
-                      <div className="cv-card-body">
-                        {claimStatus.process_notes.map((n, i) => (
-                          <div key={n.number ?? i} className="cv-kv"><span className="cv-mono">{n.number ?? i + 1}</span><span style={{ fontWeight: 400 }}>{n.text}</span></div>
-                        ))}
-                      </div>,
-                    )}
-                  {card(
-                    "Payer response",
-                    <div className="cv-card-body cv-cols">
-                      <div>
-                        <div className="cv-kv"><span>Decision</span><span>{claimDecision ? String(claimDecision).replace(/_/g, " ").toLowerCase() : "—"}</span></div>
-                        <div className="cv-kv"><span>Raw outcome</span><span className="cv-mono">{claimProvenance?.raw_outcome ?? claimStatus.outcome ?? "—"}</span></div>
-                        <div className="cv-kv"><span>Reason codes</span><span className="cv-mono">{claimProvenance?.reason_codes?.join(", ") || "—"}</span></div>
-                      </div>
-                      <div>
-                        <div className="cv-kv"><span>Payer reference</span><span className="cv-mono">{claimStatus.claim_response_ref || "—"}</span></div>
-                        <div className="cv-kv"><span>Sent</span><span>{claimStatus.submitted_at ? formatDateTime(claimStatus.submitted_at) : "—"}</span></div>
-                        <div className="cv-kv"><span>Request</span><span className="cv-mono">{finalCorrelationId}</span></div>
-                      </div>
-                    </div>,
-                    { meta: "As received over NHCX" },
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </div>
-
-        <aside className="cv-aside cv-card" aria-label="Claim">
-          {claimDecided ? (
-            <div className="cv-pane">
-              <div className="cv-card-meta">Payer decision</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 30, fontWeight: 700 }}>{claimApproved != null ? formatMoney(claimApproved) : "—"}</span>
-                <span className={`cv-chip ${isClaimApproved ? "is-ok" : isClaimRejected ? "is-bad" : "is-warn"}`} style={{ textTransform: "capitalize" }}>{String(claimDecision).replace(/_/g, " ").toLowerCase()}</span>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <div className="cv-kv"><span>Claimed</span><span>{formatMoney(claimRequested)}</span></div>
-                {claimTotals.eligible?.value != null && <div className="cv-kv"><span>Eligible</span><span>{formatMoney(claimTotals.eligible.value)}</span></div>}
-                {claimTotals.copay?.value > 0 && <div className="cv-kv"><span>Co-payment</span><span>− {formatMoney(claimTotals.copay.value)}</span></div>}
-                {claimTotals.deductible?.value > 0 && <div className="cv-kv"><span>Deductible</span><span>− {formatMoney(claimTotals.deductible.value)}</span></div>}
-                <div className="cv-kv"><span>Approved</span><span>{formatMoney(claimApproved)}</span></div>
-                {claimStatus?.payment_status && <div className="cv-kv"><span>Payment</span><span style={{ textTransform: "capitalize" }}>{String(claimStatus.payment_status).replace(/^PAYMENT_/, "").toLowerCase()}</span></div>}
-              </div>
-            </div>
-          ) : (
-            <div className="cv-pane">
-              <div className="cv-card-meta">Final bill</div>
-              <div style={{ fontSize: 30, fontWeight: 700, marginTop: 4 }}>{formatMoney(claimDraft?.total_amount)}</div>
-              {authorizedCeiling != null && (
-                <div className="cv-card-meta" style={{ color: overCeiling ? "var(--warning)" : undefined }}>
-                  {overCeiling ? `${formatMoney(ceilingExcess)} above` : "Within"} the {formatMoney(authorizedCeiling)} authorised
-                </div>
-              )}
-            </div>
-          )}
-          <div className="cv-pane">
-            <div className="cv-sub" style={{ fontSize: 15 }}>Ready to claim</div>
-            {readiness.map((r) => (
-              <div key={r.label} className="cv-ready-item">
-                <span className={`cv-ready-mark ${r.ok ? "is-ok" : r.bad ? "is-bad" : "is-warn"}`}>{r.ok ? "✓" : "!"}</span>
-                <span style={{ flex: 1 }}>{r.label}</span>
-                {r.note && <span className="cv-ready-note">{r.note}</span>}
-              </div>
-            ))}
-          </div>
-          <div className="cv-pane" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {(activeTab === "final" || activeTab === "decision") && submitError && <div className="cv-notice is-bad"><div className="cv-notice-body">{submitError}</div></div>}
-            {activeTab === "discharge" && dischargeSubmitError && <div className="cv-notice is-bad"><div className="cv-notice-body">{dischargeSubmitError}</div></div>}
-            {activeTab === "final" && !finalCorrelationId && blockingAsks.length > 0 && (
-              <div className="cv-card-meta" style={{ color: "var(--error)" }}>
-                The payer asked for {blockingAsks.map((a) => a.display).join(", ")}; finish {blockingAsks.length === 1 ? "it" : "them"} on Discharge documents to send.
-              </div>
+    <div className="cv-elig">
+      <div className={`cv-notice cv-verdict is-${barState[1] === "is-todo" ? "info" : barState[1].replace("is-", "")}`}>
+        <div className="cv-verdict-row">
+          <span className={`cv-chip ${barState[1]}`} style={claimDecided ? { textTransform: "capitalize" } : undefined}>{barState[0]}</span>
+          <span className="cv-notice-body">
+            {isClaimApproved || isPartialApproval ? (
+              <>
+                <strong>{claimApproved != null ? formatMoney(claimApproved) : "—"}</strong> approved of {formatMoney(claimRequested)}
+              </>
+            ) : claimDecided ? (
+              <>
+                <strong>{formatMoney(claimRequested)}</strong> claimed
+              </>
+            ) : (
+              <>
+                <strong>{formatMoney(claimDraft?.total_amount)}</strong> final bill
+                {authorizedCeiling != null ? ` · ${formatMoney(authorizedCeiling)} authorised` : ""}
+              </>
             )}
-            {primary && (
-              <Button variant="primary" icon={primary.icon} disabled={primary.disabled} disabledReason="Resolve the items marked above first." write={primary.write} onClick={primary.onClick} className="pd-submit-btn">
-                {primary.label}
-              </Button>
-            )}
+          </span>
+          <span className="cv-verdict-actions">
             {secondary.map((a) => (
               <button key={a.label} type="button" className="cv-btn" onClick={a.onClick}>
                 {a.icon && <a.icon size={14} />}
                 {a.label}
               </button>
             ))}
-            {releaseMessage && <div className="cv-card-meta">{releaseMessage}</div>}
+            {primary && (
+              <button
+                type="button"
+                className="cv-btn is-primary"
+                disabled={primary.disabled || (primary.write && readOnly)}
+                title={primary.disabled ? "Finish the items marked in red first." : undefined}
+                onClick={primary.onClick}
+              >
+                {primary.icon && <primary.icon size={15} />} {primary.label}
+              </button>
+            )}
+          </span>
+        </div>
+        {notes.map((n, i) => (
+          <div key={i} className={`cv-notice-hint cv-verdict-note${n.tone === "bad" ? " is-bad" : ""}`}>{n.text}</div>
+        ))}
+      </div>
+
+      <div className="cv-work">
+        <CaseChecklist groups={groups} open={open} onOpen={openItem} label="Claim checklist" />
+
+        <div className="cv-work-pane" ref={paneRef}>
+          <div {...paneFor("verify")}>
+            <BiometricCard
+              caseId={resolvedCashlessCaseId}
+              stage="Discharge"
+              readOnly={locked}
+              onCard={setBiometric}
+              onVerified={() => {
+                setPicked("verify");
+                refreshAsks();
+              }}
+            />
           </div>
-        </aside>
+
+          {patientContextMissing.length > 0 && (
+            <div {...paneFor("details")}>
+              <PatientDetailsForm
+                claimId={claimDraft?.claim_id || claimId}
+                cashlessCaseId={resolvedCashlessCaseId}
+                missingFields={patientContextMissing}
+                locked={locked}
+                onResolved={(remaining) => {
+                  setMissingFields(remaining);
+                  if (remaining.length === 0) loadDraft(claimDraft?.claim_id || claimId);
+                }}
+              />
+            </div>
+          )}
+
+          {dischargeRules?.required && (
+            <div {...paneFor("left")}>
+              {card(
+                "How the patient left",
+                <div className="cv-card-body">
+                  <DischargeDetailsForm
+                    key={JSON.stringify(claimDraft?.discharge || {})}
+                    claimId={claimDraft?.claim_id || claimId}
+                    discharge={claimDraft?.discharge}
+                    rules={dischargeRules}
+                    readOnly={locked || finalSent}
+                    onSaved={(remaining) => {
+                      setPicked("left");
+                      setMissingFields(remaining);
+                      loadDraft(claimDraft?.claim_id || claimId);
+                    }}
+                  />
+                </div>,
+              )}
+            </div>
+          )}
+
+          <div {...paneFor("stay")}>
+            {card(
+              "Stay & pre-auth",
+              <div className="cv-card-body cv-cols">
+                <div>
+                  <div className="cv-kv"><span>Admitted</span><span>{claimDraft?.admission_date ? formatDate(claimDraft.admission_date) : "—"}</span></div>
+                  <div className="cv-kv"><span>Discharged</span><span>{claimDraft?.discharge_date ? formatDate(claimDraft.discharge_date) : "Not yet"}</span></div>
+                  {claimDraft?.discharge_summary && (
+                    <>
+                      <div className="cv-kv"><span>Condition</span><span>{claimDraft.discharge_summary.condition || "—"}</span></div>
+                      <div className="cv-kv"><span>Advice</span><span>{claimDraft.discharge_summary.advice || "—"}</span></div>
+                      <div className="cv-kv"><span>Follow-up</span><span>{claimDraft.discharge_summary.followup_on ? formatDate(claimDraft.discharge_summary.followup_on) : "—"}</span></div>
+                    </>
+                  )}
+                </div>
+                <div>
+                  <div className="cv-kv"><span>Pre-auth</span><span className="cv-mono">{claimDraft?.preauth_ref || "None approved"}</span></div>
+                  <div className="cv-kv"><span>Authorised</span><span>{authorizedCeiling != null ? formatMoney(authorizedCeiling) : "—"}</span></div>
+                </div>
+              </div>,
+              { meta: "From the hospital records; fix any mistake there first." },
+            )}
+          </div>
+
+          <div {...paneFor("justification")}>
+            {card(
+              "Clinical justification",
+              <div className="cv-card-body">
+                {justification.length ? (
+                  justification.map(([label, codes]) => (
+                    <div key={label} className="cv-kv"><span>{label}</span><span>{codes.map((c) => c.name || c.code).join(", ")}</span></div>
+                  ))
+                ) : (
+                  <div className="cv-card-meta">No complaints, findings or tests are coded on the clinical note.</div>
+                )}
+              </div>,
+            )}
+          </div>
+
+          <div {...paneFor("bill")}>
+            {card("Final bill against the authorised amount", billTable, {
+              chip: overCeiling ? <span className="cv-chip is-warn">{formatMoney(ceilingExcess)} over</span> : authorizedCeiling != null ? <span className="cv-chip is-ok">Within</span> : null,
+            })}
+            {overCeiling && !docsLocked && (
+              <div className="cv-notice is-warn cv-pane-note">
+                <div className="cv-notice-body">The payer will not cover the {formatMoney(ceilingExcess)} above the authorised amount. Collect it from the patient, or file an enhancement first.</div>
+                <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, fontWeight: 600 }}>
+                  <input type="checkbox" checked={ackOverCeiling} onChange={(e) => setAckOverCeiling(e.target.checked)} />
+                  I will collect the {formatMoney(ceilingExcess)} from the patient.
+                </label>
+                <div className="cv-notice-actions">
+                  <button type="button" className="cv-btn" onClick={() => navigate("../enhancement")}>File an enhancement</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div {...paneFor("asks")}>
+            <PayerAsks
+              caseId={resolvedCashlessCaseId}
+              stage="claim"
+              title="What the payer asks for at claim"
+              asks={claimDraft?.payer_asks}
+              documents={docs}
+              readOnly={docsLocked}
+              onAttach={attachAsk}
+              onFormsChange={setAskForms}
+              reloadKey={asksReload}
+            />
+          </div>
+
+          <div {...paneFor("files")}>
+            {card(
+              "Other files",
+              <div className="cv-card-body">
+                <DocumentChecklist
+                  documents={otherDocs}
+                  onUpload={handleUpload}
+                  onAddDocument={addDocument}
+                  onRenameDocument={(i, name) => renameDocument(docs.indexOf(otherDocs[i]), name)}
+                  onRemoveDocument={(i) => removeDocument(docs.indexOf(otherDocs[i]))}
+                  readOnly={docsLocked}
+                  hideSummary
+                />
+              </div>,
+              { meta: "Sent with the claim. Attached files stay until sent, but reloading the page drops them." },
+            )}
+          </div>
+
+          {dischargeIntimation && (
+            <div {...paneFor("discharge")}>
+              {dischargePolling ? (
+                waitingSection("Discharge claim", dischargeCorrelationId)
+              ) : (
+                card(
+                  "Discharge claim",
+                  <div className="cv-card-body">
+                    <div className="cv-kv">
+                      <span>Status</span>
+                      <span>
+                        {dischargeRejected
+                          ? "Rejected by the payer"
+                          : dischargeFailed
+                            ? "Not delivered"
+                            : dischargeStatus?.decision
+                              ? String(dischargeStatus.decision).replace(/_/g, " ").toLowerCase()
+                              : dischargeCorrelationId
+                                ? "Sent"
+                                : "Not sent"}
+                      </span>
+                    </div>
+                    <div className="cv-kv"><span>Request</span><span className="cv-mono">{dischargeCorrelationId || "—"}</span></div>
+                  </div>,
+                  { meta: "Most payers need this, with the discharge papers, before the final claim." },
+                )
+              )}
+            </div>
+          )}
+
+          <div {...paneFor("final")}>
+            {card(
+              "Final claim",
+              <div className="cv-card-body">
+                <div className="cv-kv"><span>Status</span><span>{finalFailed ? "Not delivered" : finalSent ? "Sent" : "Not sent"}</span></div>
+                <div className="cv-kv"><span>Final bill</span><span>{formatMoney(claimDraft?.total_amount)}</span></div>
+                <div className="cv-kv"><span>Files going with it</span><span>{docs.filter((d) => d.url).length}</span></div>
+                {finalCorrelationId && <div className="cv-kv"><span>Request</span><span className="cv-mono">{finalCorrelationId}</span></div>}
+              </div>,
+              { meta: "Asks the payer to pay the final bill. Private insurers must decide within 3 hours (IRDAI)." },
+            )}
+          </div>
+
+          <div {...paneFor("decision")}>
+            {!finalCorrelationId ? (
+              card("No final claim yet", <div className="cv-card-intro">Send the final claim to receive the payer's decision here.</div>)
+            ) : !claimStatus || polling ? (
+              waitingSection("Final claim", finalCorrelationId)
+            ) : claimStatus.status === "not_found" ? (
+              card(
+                "No answer on record",
+                <div className="cv-card-body">
+                  <div className="cv-kv"><span>Request</span><span className="cv-mono">{finalCorrelationId}</span></div>
+                  <button type="button" className="cv-btn cv-pane-action" onClick={() => setPolling(true)}>Refresh</button>
+                </div>,
+              )
+            ) : finalFailed ? (
+              card("Not delivered", <div className="cv-card-intro">{claimStatus.error_message || "The request did not reach the payer."}</div>)
+            ) : (
+              <div className="cv-pane-stack">
+                {card(
+                  "Payer decision",
+                  <div className="cv-card-body">
+                    <div className="cv-kv"><span>Claimed</span><span>{formatMoney(claimRequested)}</span></div>
+                    {claimTotals.eligible?.value != null && <div className="cv-kv"><span>Eligible</span><span>{formatMoney(claimTotals.eligible.value)}</span></div>}
+                    {claimTotals.copay?.value > 0 && <div className="cv-kv"><span>Co-payment</span><span>− {formatMoney(claimTotals.copay.value)}</span></div>}
+                    {claimTotals.deductible?.value > 0 && <div className="cv-kv"><span>Deductible</span><span>− {formatMoney(claimTotals.deductible.value)}</span></div>}
+                    <div className="cv-kv"><span>Approved</span><span>{claimApproved != null ? formatMoney(claimApproved) : "—"}</span></div>
+                    {claimStatus.payment_status && <div className="cv-kv"><span>Payment</span><span style={{ textTransform: "capitalize" }}>{String(claimStatus.payment_status).replace(/^PAYMENT_/, "").toLowerCase()}</span></div>}
+                  </div>,
+                )}
+                {claimStatus.items?.length > 0 && card("Line by line", <ClaimLines status={claimStatus} draftItems={claimDraft?.items} />)}
+                {claimStatus.process_notes?.length > 0 &&
+                  card(
+                    "Payer notes",
+                    <div className="cv-card-body">
+                      {claimStatus.process_notes.map((n, i) => (
+                        <div key={n.number ?? i} className="cv-kv"><span className="cv-mono">{n.number ?? i + 1}</span><span style={{ fontWeight: 400 }}>{n.text}</span></div>
+                      ))}
+                    </div>,
+                  )}
+                {card(
+                  "Payer response",
+                  <div className="cv-card-body cv-cols">
+                    <div>
+                      <div className="cv-kv"><span>Decision</span><span>{decisionWord || "—"}</span></div>
+                      <div className="cv-kv"><span>Raw outcome</span><span className="cv-mono">{claimProvenance?.raw_outcome ?? claimStatus.outcome ?? "—"}</span></div>
+                      <div className="cv-kv"><span>Reason codes</span><span className="cv-mono">{claimProvenance?.reason_codes?.join(", ") || "—"}</span></div>
+                    </div>
+                    <div>
+                      <div className="cv-kv"><span>Payer reference</span><span className="cv-mono">{claimStatus.claim_response_ref || "—"}</span></div>
+                      <div className="cv-kv"><span>Sent</span><span>{claimStatus.submitted_at ? formatDateTime(claimStatus.submitted_at) : "—"}</span></div>
+                      <div className="cv-kv"><span>Request</span><span className="cv-mono">{finalCorrelationId}</span></div>
+                    </div>
+                  </div>,
+                  { meta: "As received over NHCX" },
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Query Drawer ── */}
       <Drawer open={showQueryDrawer} onClose={() => setShowQueryDrawer(false)} title="Respond to Claim Query">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
+        <p className="cv-drawer-intro">
           Answer the payer's question and attach any documents it asked for.
         </p>
         <div style={{ marginBottom: "var(--space-4)" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Clarification</label>
+          <label className="cv-drawer-label">Clarification</label>
           <textarea
             className="input-modern"
             style={{ height: "100px", resize: "vertical" }}
@@ -1231,9 +1184,7 @@ export default function ClaimsScreen({ ctx }) {
           />
         </div>
         {submitError && (
-          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-            {submitError}
-          </div>
+          <div className="cv-notice is-bad cv-drawer-note"><div className="cv-notice-body">{submitError}</div></div>
         )}
         <Button write variant="primary" className="w-full" disabled={!queryAnswer || submitting} onClick={handleQuerySubmit} style={{ justifyContent: "center" }}>
           {submitting ? "Submitting…" : "Submit Response"}
@@ -1242,11 +1193,11 @@ export default function ClaimsScreen({ ctx }) {
 
       {/* ── Balance release drawer ── */}
       <Drawer open={showReleaseDrawer} onClose={() => setShowReleaseDrawer(false)} title="Ask for the balance">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
+        <p className="cv-drawer-intro">
           A decided claim is not sent again. Ask the payer to release what is still owed on it instead.
         </p>
         <div style={{ marginBottom: "14px" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Amount still owed (INR)</label>
+          <label className="cv-drawer-label">Amount still owed (INR)</label>
           <input
             className="input-modern"
             type="number"
@@ -1257,7 +1208,7 @@ export default function ClaimsScreen({ ctx }) {
           />
         </div>
         <div style={{ marginBottom: "var(--space-5)" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Note to the payer (optional)</label>
+          <label className="cv-drawer-label">Note to the payer (optional)</label>
           <textarea
             className="input-modern"
             style={{ height: "80px", resize: "vertical" }}
@@ -1267,9 +1218,7 @@ export default function ClaimsScreen({ ctx }) {
           />
         </div>
         {submitError && (
-          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-            {submitError}
-          </div>
+          <div className="cv-notice is-bad cv-drawer-note"><div className="cv-notice-body">{submitError}</div></div>
         )}
         <Button write variant="primary" className="w-full" disabled={submitting || !(Number(releaseAmount) > 0)} onClick={handleRequestRelease} style={{ justifyContent: "center" }}>
           {submitting ? "Sending…" : "Send to payer"}
@@ -1278,7 +1227,7 @@ export default function ClaimsScreen({ ctx }) {
 
       {/* ── Discharge Resubmit Drawer (DC01 correction — editable items) ── */}
       <Drawer open={showDischargeResubmitDrawer} onClose={() => setShowDischargeResubmitDrawer(false)} title="Resubmit Discharge Claim">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
+        <p className="cv-drawer-intro">
           Correct clinical or billing data on the discharge intimation. Only the fields you change
           are sent; everything else is re-derived from the hospital DB. This resends under NHCX
           workflow DC01 (Discharge Correction Intimation) — it does not touch the final claim.
@@ -1340,33 +1289,11 @@ export default function ClaimsScreen({ ctx }) {
           </div>
         )}
         {dischargeSubmitError && (
-          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-            {dischargeSubmitError}
-          </div>
+          <div className="cv-notice is-bad cv-drawer-note"><div className="cv-notice-body">{dischargeSubmitError}</div></div>
         )}
         <Button write variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>
           {submitting ? "Resubmitting…" : "Resubmit Discharge Claim"}
         </Button>
-      </Drawer>
-
-      {/* ── Patient Context Drawer ── */}
-      <Drawer open={showContextDrawer} onClose={() => setShowContextDrawer(false)} title="Supply Missing Patient Attributes">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
-          These attributes are required by NHCX but could not be resolved from the hospital DB. They are saved to the cashless case and do not need to be re-sent on submission.
-        </p>
-        <PatientDetailsForm
-          claimId={claimDraft?.claim_id || claimId}
-          cashlessCaseId={resolvedCashlessCaseId}
-          missingFields={patientContextMissing}
-          locked={locked}
-          onResolved={(remaining) => {
-            setMissingFields(remaining);
-            if (remaining.length === 0) {
-              setShowContextDrawer(false);
-              loadDraft(claimDraft?.claim_id || claimId);
-            }
-          }}
-        />
       </Drawer>
 
       <SendCommunicationModal
