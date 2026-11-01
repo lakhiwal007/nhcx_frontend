@@ -2026,7 +2026,7 @@ const mock = {
         balance: 450000,
         currency: "INR",
         valid_until: "2027-03-31",
-        members_on_cover: 2,
+        members_on_cover: 4,
       };
       return {
         ...base,
@@ -2034,6 +2034,8 @@ const mock = {
         covers: [
           { ...shared, member_id: discovery.member_id || "MD5SLS4X5", name: "Asha Devi", gender: "female", dob: "1984-02-11", relationship: "Self", abha_number: discovery.abha_number },
           { ...shared, member_id: "MD5SLS4X6", name: "Ravi Devi", gender: "male", dob: "2012-07-04", relationship: "Son" },
+          { ...shared, member_id: "MD5SLS4X7", name: "Meena Devi", gender: "female", dob: "2015-03-19", relationship: "Daughter" },
+          { ...shared, member_id: "MD5SLS4X8", name: "Suresh Kumar", gender: "male", dob: "1980-11-02", relationship: "Spouse" },
         ],
       };
     }
@@ -3331,8 +3333,8 @@ const real = {
     http.post("/cashless/coverage_eligibility/validation", data),
   checkBenefits: (data) =>
     http.post("/cashless/coverage_eligibility/benefits", data),
-  getCoverageEligibilityStatus: (correlation_id) =>
-    http.get(`/cashless/coverage_eligibility/status/${correlation_id}`),
+  getCoverageEligibilityStatus: (correlation_id, signal) =>
+    http.get(`/cashless/coverage_eligibility/status/${correlation_id}`, {}, { signal }),
   discoverCoverage: (data) =>
     http.post("/cashless/coverage_eligibility/check", { ...data, purpose: "discovery" }),
   adoptDiscoveredCover: (correlation_id, data) =>
