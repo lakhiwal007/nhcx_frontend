@@ -36,7 +36,7 @@ const readFile = (file) =>
     reader.readAsDataURL(file);
   });
 
-export default function PayerAsks({ caseId, stage, asks, documents, readOnly, onAttach, onFormsChange, title = "What the payer asks for" }) {
+export default function PayerAsks({ caseId, stage, asks, documents, readOnly, onAttach, onFormsChange, reloadKey, title = "What the payer asks for" }) {
   const [forms, setForms] = useState({ key: null, rows: [], readOnly: false, error: null });
   const [open, setOpen] = useState(null);
   const [error, setError] = useState(null);
@@ -54,7 +54,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
     return () => {
       live = false;
     };
-  }, [caseId, stage, key]);
+  }, [caseId, stage, key, reloadKey]);
 
   const rows = liveAsks(asks, documents, forms.key === key ? forms.rows : []);
   useEffect(() => {
@@ -116,11 +116,11 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
               </div>
             </div>
             {row.kind === "document" ? (
-              <button type="button" className={`cv-btn${done ? "" : " is-primary"}`} disabled={locked} onClick={() => pick(row)}>
+              <button type="button" className="cv-btn" disabled={locked} onClick={() => pick(row)}>
                 {done ? "Replace" : "Attach"}
               </button>
             ) : (
-              <button type="button" className={`cv-btn${done || locked ? "" : " is-primary"}`} disabled={!forms.rows.some((f) => f.url === row.form_url)} onClick={() => setOpen(row.form_url)}>
+              <button type="button" className="cv-btn" disabled={!forms.rows.some((f) => f.url === row.form_url)} onClick={() => setOpen(row.form_url)}>
                 {locked ? "View" : done ? "Edit" : "Fill"}
               </button>
             )}

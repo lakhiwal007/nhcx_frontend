@@ -3,7 +3,7 @@ import { MessageSquare, Pin, Lock, Eye, AlertTriangle, Clock, ChevronDown } from
 import { formatRelative } from "../../format.js";
 import { commHeadline, commPreview } from "../CommunicationDetail";
 
-function itemsFor({ communications, notes, readOnly, caseClosed, hint }) {
+function itemsFor({ communications, notes, heldTasks, readOnly, caseClosed, hint }) {
   const items = [];
   if (hint) {
     items.push({ key: "hint", tone: hint.tone === "urgent" ? "urgent" : "wait", icon: hint.tone === "urgent" ? AlertTriangle : Clock, title: hint.text });
@@ -21,6 +21,15 @@ function itemsFor({ communications, notes, readOnly, caseClosed, hint }) {
         action: { label: c.pending_tasks?.length > 0 ? "Reply" : "Read", comm: c.correlation_id },
       });
     });
+  heldTasks.forEach((t) => {
+    items.push({
+      key: `held-${t.id}`,
+      tone: "wait",
+      icon: Clock,
+      title: `On hold: ${t.title}`,
+      detail: t.metadata?.hold?.reason || "This comes back to the work queue when the payer answers.",
+    });
+  });
   notes.filter((n) => n.pinned).forEach((n) => {
     items.push({
       key: `note-${n.id}`,
@@ -31,14 +40,14 @@ function itemsFor({ communications, notes, readOnly, caseClosed, hint }) {
       action: { label: "Notes", notes: true },
     });
   });
-  if (caseClosed) items.push({ key: "closed", tone: "quiet", icon: Lock, title: "The case is settled and read-only; only an appeal from Reprocess can change it." });
+  if (caseClosed) items.push({ key: "closed", tone: "quiet", icon: Lock, title: "The case is settled and read-only." });
   if (readOnly) items.push({ key: "readonly", tone: "quiet", icon: Eye, title: "View only: this account can see the case but not send, answer or change anything." });
   return items;
 }
 
-export default function AttentionTray({ communications = [], notes = [], readOnly, caseClosed, hint, onOpenComm, onOpenNotes }) {
+export default function AttentionTray({ communications = [], notes = [], heldTasks = [], readOnly, caseClosed, hint, onOpenComm, onOpenNotes }) {
   const [open, setOpen] = useState(false);
-  const items = itemsFor({ communications, notes, readOnly, caseClosed, hint });
+  const items = itemsFor({ communications, notes, heldTasks, readOnly, caseClosed, hint });
   if (items.length === 0) return null;
   const urgent = items.some((i) => i.tone === "urgent");
   const needYou = items.filter((i) => i.tone === "urgent" || i.tone === "info").length;

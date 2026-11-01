@@ -503,6 +503,26 @@ const MOCK_PLAN_FORMS = [
 
 // Mock answers to the payer's forms, keyed by case, form and question.
 const MOCK_FORM_ANSWERS = {};
+const MOCK_BIOMETRIC = {};
+const mockAsksAfterBiometric = (asks, stage) =>
+  Object.values(MOCK_BIOMETRIC).flat().some((row) => row.stage === stage && row.status === "verified")
+    ? asks.filter((ask) => ask.source !== "consent")
+    : asks;
+const mockBiometricRows = (caseId, stage) => (MOCK_BIOMETRIC[caseId] || []).filter((row) => row.stage === stage);
+const mockAttempt = (row) => ({
+  id: row.id,
+  stage: row.stage,
+  auth_method: row.auth_method,
+  status: row.status,
+  message: null,
+  token_valid: row.status === "verified",
+  refreshable: row.status === "verified",
+  verified_at: row.verified_at || null,
+});
+const mockAbhaKey = async () => {
+  const pair = await crypto.subtle.generateKey({ name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-1" }, true, ["encrypt", "decrypt"]);
+  return btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("spki", pair.publicKey))));
+};
 
 const mockPayerForm = (caseId, form) => {
   const given = MOCK_FORM_ANSWERS[`${caseId}|${form.url}`] || {};
@@ -546,6 +566,345 @@ const MOCK_PLAN_STATES = {
 const mockPlanState = (plan) => {
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("plan_state") : null;
   return key && MOCK_PLAN_STATES[key] ? { correlation_id: plan.correlation_id, plan: plan.plan, ...MOCK_PLAN_STATES[key] } : plan;
+};
+
+// ?en=none|missing|required_doc|not_found|load_error on /case/:id/enhancement forces
+// a preview; queried and claim_sent set the case's legs.
+const mockEnhancementKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("en") : null);
+
+const mockEnhancementPreview = (preview) => {
+  const key = mockEnhancementKey();
+  if (key === "load_error") throw new Error("The hospital records could not be read.");
+  if (key === "not_found") return { status: "not_found", enhanceable: false, reason: "No pre-auth found for this case." };
+  if (key === "none") return { ...preview, enhanceable: false, reason: "No new procedures or billing found since the last preauthorization.", new_items: [], new_procedures: [] };
+  if (key === "missing") return { ...preview, missing_fields: ["patient.dob", "items"] };
+  if (key === "required_doc") return { ...preview, supporting_documents: [...preview.supporting_documents, { category: "revised_estimate", name: "Revised Estimate", code: "REVISED_ESTIMATE", url: null }] };
+  return preview;
+};
+
+// ?rp=<state> on /case/:id/reprocess: ready and send_fail are a rejected claim with
+// no appeal; waiting|approved|partial|queried|rejected|failed|not_found|unknown|
+// poll_error have one on the case; deciding|open_query|not_rejected|draft set the leg.
+const MOCK_REPROCESS_ID = "6928d2cd-81f6-48b0-9c62-bf8f5a311847";
+const MOCK_REPROCESS_LEGS = {
+  ready: "rejected", send_fail: "rejected", rejected: "rejected", failed: "rejected",
+  waiting: "submitting", not_found: "submitting", unknown: "submitting", poll_error: "submitting", deciding: "submitting",
+  approved: "approved", partial: "partial", not_rejected: "approved", queried: "queried", open_query: "queried", draft: "draft",
+};
+const MOCK_REPROCESS_SENT = ["waiting", "approved", "partial", "queried", "rejected", "failed", "not_found", "unknown", "poll_error"];
+const MOCK_REPROCESS_DECIDED = { approved: "REPROCESS_APPROVED", partial: "PARTIALLY_APPROVED", queried: "REPROCESS_QUERIED", rejected: "REPROCESS_REJECTED" };
+const mockReprocessKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("rp") : null);
+
+const mockReprocessCase = (res) => {
+  const key = mockReprocessKey();
+  if (!key) return res;
+  const justSent = !!window.__mockLastReprocess;
+  return {
+    ...res,
+    legs: { ...res.legs, claim: justSent ? "submitting" : MOCK_REPROCESS_LEGS[key] },
+    reprocess: justSent || MOCK_REPROCESS_SENT.includes(key) ? { correlation_id: MOCK_REPROCESS_ID, status: "pending", reason_code: "rejectiondisputed", ...(MOCK_REPROCESS_DECIDED[key] && !justSent ? { decision: MOCK_REPROCESS_DECIDED[key] } : {}) } : null,
+  };
+};
+
+const mockReprocessAnswer = (correlation_id) => {
+  const key = mockReprocessKey();
+  if (key === "poll_error") throw new Error("The appeal status could not be read.");
+  if (key === "not_found") return { status: "not_found", correlation_id };
+  if (key === "failed") return { status: "failed", correlation_id, errors: [{ code: "PAYER_UNREACHABLE", message: "The payer did not accept the request." }] };
+  const base = { correlation_id, claim_id: 101, reason_code: "rejectiondisputed" };
+  if (key === "unknown") return { ...base, status: "complete", decision: "UNKNOWN", process_notes: [] };
+  if (key === "queried") return { ...base, status: "complete", decision: "REPROCESS_QUERIED", process_notes: [{ number: 1, text: "Send the discharge summary signed by the treating doctor." }] };
+  if (key === "rejected") {
+    return { ...base, status: "complete", decision: "REPROCESS_REJECTED", process_notes: [{ number: 1, text: "The new documents do not change the original decision." }], claim_response: { errors: [{ detail: "Treatment is excluded under the plan." }] } };
+  }
+  if (key === "approved" || key === "partial") {
+    return {
+      ...base,
+      status: "complete",
+      decision: key === "partial" ? "PARTIALLY_APPROVED" : "REPROCESS_APPROVED",
+      process_notes: [{ number: 1, text: "Appeal accepted on review of the operative notes." }],
+      claim_response: {
+        outcome: key === "partial" ? "partial" : "complete",
+        totals: { submitted: { value: 50000 }, eligible: { value: key === "partial" ? 35000 : 50000 }, copay: { value: 0 }, benefit: { value: key === "partial" ? 35000 : 50000 } },
+        items: [
+          { sequence: 1, adjudication: { submitted: { value: 30000 }, eligible: { value: 30000 }, benefit: { value: 30000 } } },
+          { sequence: 2, adjudication: { submitted: { value: 20000 }, eligible: { value: key === "partial" ? 5000 : 20000, reason: key === "partial" ? "Room rent above the plan's limit" : undefined }, benefit: { value: key === "partial" ? 5000 : 20000 } } },
+        ],
+      },
+    };
+  }
+  return { ...base, status: "pending", decision: null };
+};
+
+// ?tl=none|failed|verify|long|load_error on /case/:id/timeline; long is 450 events
+// over pages of 200.
+const mockTimelineKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tl") : null);
+
+const mockTimelineEvents = (events) => {
+  const key = mockTimelineKey();
+  if (key === "load_error") throw new Error("The audit trail could not be read.");
+  if (key === "none") return [];
+  if (key === "long") {
+    return Array.from({ length: 450 }, (_, i) => ({ ...events[i % events.length], seq: i + 1, id: `long-${i + 1}`, title: `Event ${i + 1}` }));
+  }
+  if (key === "verify") {
+    return [...events, { seq: 7, id: "amb-1", ts: "2026-05-12T09:00:00+05:30", type: "claim.decision", title: "Claim decision received", workflow: "claim", stage: "decided", direction: "inbound", actor: { kind: "payer", name: "1518@hcx" }, status: "ok", severity: "warning", decision: { raw_outcome: "partial", reason_codes: ["ClaimError-3"], reasons: [{ code: "ClaimError-3", label: "Rejected: the package is reserved for public hospitals" }], derived_decision: "APPROVED", classified_by: "fhir_outcome", ambiguous: true } }];
+  }
+  if (key === "failed") {
+    return [
+      ...events,
+      { seq: 7, id: "fail-1", ts: "2026-05-12T09:00:00+05:30", type: "claim.submitted", title: "Claim resubmission", workflow: "claim", stage: "failed", direction: "outbound", actor: { kind: "hospital", name: "NHCX Test Hospital" }, correlation_id: null, status: "failed", severity: "error", error: { phase: "cert", code: "CERT-1", message: "The payer's certificate has expired." } },
+      { seq: 8, id: "fail-2", ts: "2026-05-12T10:00:00+05:30", type: "reprocess.submitted", title: "Reprocess sent", workflow: "reprocess", stage: "failed", direction: "outbound", actor: { kind: "hospital", name: "NHCX Test Hospital" }, correlation_id: "fail-corr", status: "failed", severity: "error", error: { phase: "payer", code: "PAYR-1", message: "The payer refused the request." } },
+    ];
+  }
+  return events;
+};
+
+// ?pay=<state> on /case/:id/payment: none|initiated|processed|settled|tranches|
+// tranche_open|short|no_utr|ack_pending|ack_failed|ack_old_failed|ack_refused|
+// load_error; rejected|queried|draft have no payment and set the claim leg.
+const MOCK_PAY_LEGS = { rejected: "rejected", queried: "queried", draft: "draft" };
+const mockPayKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("pay") : null);
+
+const mockPayEvent = (over = {}) => ({
+  correlation_id: `pay-${over.payment_stage || "PAYMENT_SETTLED"}-${over.payment_reference || "PAY-2026-00001"}`,
+  claim_id: 101,
+  payment_reference: "PAY-2026-00001",
+  claim_reference: "CLM-101",
+  payment_stage: "PAYMENT_SETTLED",
+  recon_identifier: "RECON-2026-00001",
+  notice_identifier: "NOTICE-2026-00001",
+  notice_amount: 40000,
+  gross_amount: 40000,
+  tds_amount: 400,
+  net_payment_amount: 39600,
+  payment_date: "2026-05-15",
+  payment_status: "cleared",
+  utr: "UTR123456789",
+  utr_type: "NEFT",
+  currency: "INR",
+  acknowledgement_status: "submitted",
+  acknowledged_at: "2026-05-15T09:31:00+05:30",
+  acknowledgement_error: null,
+  received_at: "2026-05-15T09:30:00+05:30",
+  ...over,
+});
+
+const mockPayEvents = (key) => {
+  const started = { payment_stage: "PAYMENT_INITIATED", utr: null, utr_type: null, received_at: "2026-05-14T10:05:00+05:30" };
+  const half = { gross_amount: 20000, tds_amount: 200, net_payment_amount: 19800, notice_amount: 20000 };
+  const second = { ...half, payment_reference: "PAY-2026-00002", utr: "UTR987654321" };
+  const failed = { acknowledgement_status: "failed", acknowledged_at: null, acknowledgement_error: "The payer did not accept the acknowledgement." };
+  switch (key) {
+    case "initiated": return [mockPayEvent(started)];
+    case "processed": return [mockPayEvent({ ...started, payment_stage: "PAYMENT_PROCESSED", acknowledgement_status: "pending", acknowledged_at: null })];
+    case "tranches": return [mockPayEvent(half), mockPayEvent(second)];
+    case "tranche_open": return [mockPayEvent(half), mockPayEvent({ ...second, ...started })];
+    case "short": return [mockPayEvent(started), mockPayEvent({ gross_amount: 35000, tds_amount: 350, net_payment_amount: 34650, notice_amount: 35000 })];
+    case "no_utr": return [mockPayEvent({ utr: null, utr_type: null })];
+    case "ack_pending": return [mockPayEvent({ acknowledgement_status: "pending", acknowledged_at: null })];
+    case "ack_failed":
+    case "ack_refused": return [mockPayEvent(failed)];
+    case "ack_old_failed": return [mockPayEvent({ ...started, ...failed }), mockPayEvent()];
+    default: return [mockPayEvent(started), mockPayEvent({ detail_items: [{ type: "payment", type_display: "Payment", date: "2026-05-15", amount: 40000, reason: "Claim settlement" }] })];
+  }
+};
+
+const mockPayCase = (res) => {
+  const key = mockPayKey();
+  return MOCK_PAY_LEGS[key] ? { ...res, legs: { ...res.legs, claim: MOCK_PAY_LEGS[key] } } : res;
+};
+
+// ?ap=<state> on /case/:id/status forces a pre-auth answer: partial|queried|rejected|
+// cancelled|cancel_refused|failed|not_found|unknown|ambiguous|claim_items|waiting.
+// read_only puts the claim with the payer.
+const MOCK_CANCEL_ID = "b05fd989-e852-4542-8476-e6ac99e709cb";
+const mockApprovalKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ap") : null);
+
+const mockCaseOpen = () => {
+  if (typeof window === "undefined") return false;
+  const value = new URLSearchParams(window.location.search).get("open");
+  try {
+    if (value === "1" || value === "draft") window.sessionStorage.setItem("nhcx_mock_open", value);
+    if (value === "0") window.sessionStorage.removeItem("nhcx_mock_open");
+    return window.sessionStorage.getItem("nhcx_mock_open");
+  } catch {
+    return value;
+  }
+};
+
+const mockLedger = (ledger) => {
+  const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ledger") : null;
+  if (key === "zero") return { ...ledger, disallowed: { value: 0 }, copay: { value: 0 }, patient_payable: { value: 0, confidence: "final", formula: ledger.patient_payable.formula }, reconciliation: { variance_vs_authorized: 0, to_collect_from_patient: 0 } };
+  if (key === "unknown") {
+    const rest = { ...ledger };
+    delete rest.patient_payable;
+    delete rest.reconciliation;
+    return rest;
+  }
+  if (key === "estimate") return { ...ledger, patient_payable: { ...ledger.patient_payable, confidence: "estimated" } };
+  if (key === "early") return { currency: ledger.currency, billed: ledger.billed };
+  return ledger;
+};
+
+const mockHeldTasks = () => {
+  if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("held") !== "1") return [];
+  return [{ id: 901, task_type: "submit_final_claim", workflow: "claim", status: "held", title: "Submit final claim", metadata: { hold: { reason: "Preauth cancellation awaiting payer response" } } }];
+};
+
+const mockPreauthAnswer = (res) => {
+  const key = mockApprovalKey();
+  const note = (text) => ({ process_notes: [{ number: 1, type: "display", text, language: "en" }] });
+  const named = { claim_items: [{ sequence: 1, service_code: "47562", service_name: "Laparoscopic cholecystectomy", quantity: 1, unit_price: 50000, net_amount: 50000 }] };
+  if (key === "cancel_refused" && res.correlation_id === MOCK_CANCEL_ID) return { correlation_id: res.correlation_id, status: "complete", decision: "CANCELLATION_REJECTED", items: [], totals: {}, process_notes: [] };
+  if (key === "partial") return { ...res, ...named, decision: "PARTIALLY_APPROVED" };
+  if (key === "queried") return { ...res, ...note("Share the USG abdomen report."), decision: "QUERIED", preauth_ref: null, items: [], totals: {} };
+  if (key === "rejected") return { ...res, ...note("The USG abdomen report is missing."), decision: "REJECTED", items: [], totals: {} };
+  if (key === "cancelled") return { ...res, decision: "CANCELLED" };
+  if (key === "failed") return { correlation_id: res.correlation_id, status: "failed", error_message: "The payer could not be reached." };
+  if (key === "not_found") return { correlation_id: res.correlation_id, status: "not_found" };
+  if (key === "unknown") return { ...res, decision: "UNKNOWN" };
+  if (key === "ambiguous") return { ...res, outcome: "error" };
+  if (key === "claim_items") return { ...res, ...named };
+  if (key === "waiting") return { correlation_id: res.correlation_id, status: "pending", decision: null, submitted_at: new Date().toISOString() };
+  return res;
+};
+
+// ?cl=<state> on /case/:id/claim forces a claim state. Draft states:
+// ready|over|missing|load_error. Sends: discharge_only|discharge_rejected|
+// discharge_failed. Final claim: final_failed|queried|partial|rejected|not_found.
+const MOCK_DISCHARGE_ID = "f3be6a19-f3f4-4624-8f1d-384a37cead9d";
+const MOCK_FINAL_ID = "0e20b352-c4b7-49fa-9246-a8357d236f48";
+const mockClaimKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("cl") : null);
+
+const mockClaimDraft = (draft) => {
+  const key = mockClaimKey();
+  if (key === "load_error") throw new Error("The final bill could not be read from the hospital records.");
+  if (key === "missing") return { ...draft, missing_fields: ["patient.dob", "discharge.type"] };
+  if (key === "over") return { ...draft, payer_asks: [] };
+  if (key) {
+    return {
+      ...draft,
+      payer_asks: [],
+      total_amount: 40000,
+      items: draft.items.map((i) => ({ ...i, unit_price: 40000, net_amount: 40000 })),
+      chief_complaints: [{ code: "R10", name: "Abdominal pain" }],
+    };
+  }
+  return draft;
+};
+
+const mockClaimCase = (res) => {
+  const key = mockClaimKey();
+  if (!key) return res;
+  const finalKeys = ["final_failed", "queried", "partial", "rejected", "not_found"];
+  if (finalKeys.includes(key)) return { ...res, claim: { correlation_id: MOCK_FINAL_ID }, legs: { ...res.legs, claim: "submitting" } };
+  const discharge = key.startsWith("discharge");
+  return { ...res, claim: discharge ? { correlation_id: MOCK_DISCHARGE_ID } : null, legs: { ...res.legs, claim: "draft" } };
+};
+
+const mockClaimStatus = (res) => {
+  const key = mockClaimKey();
+  const failure = { status: "failed", decision: null, error_message: "The payer could not be reached." };
+  if (key === "discharge_rejected") return { ...res, decision: "REJECTED", items: [] };
+  if (key === "discharge_failed" || key === "final_failed") return { ...res, ...failure };
+  if (key === "not_found") return { correlation_id: res.correlation_id, status: "not_found" };
+  if (key === "queried") return { ...res, decision: "QUERIED", approved_amount: null };
+  if (key === "rejected") return { ...res, decision: "REJECTED", approved_amount: 0, process_notes: [{ number: 1, text: "Package not covered for this admission." }] };
+  if (key === "partial") {
+    return {
+      ...res,
+      decision: "PARTIALLY_APPROVED",
+      approved_amount: 30000,
+      totals: { submitted: { value: 40000 }, eligible: { value: 32000 }, copay: { value: 2000 }, benefit: { value: 30000 } },
+      items: [
+        {
+          sequence: 1,
+          adjudication: {
+            submitted: { value: 40000 },
+            eligible: { value: 32000, reason: "ExceededCoverageLimit" },
+            copay: { value: 2000 },
+            benefit: { value: 30000 },
+            status: "Approved",
+            reason: { text: "Room charges above the package rate" },
+          },
+        },
+      ],
+    };
+  }
+  return res;
+};
+
+// ?ce=open|not_in_force|unknown|partial|failed|single on /case/:id/prep forces an
+// eligibility answer on a case still at that step.
+const mockCeState = (status) => {
+  const enKey = mockEnhancementKey();
+  const legs = mockApprovalKey() === "read_only" || enKey === "claim_sent" ? { claim: "submitting" } : enKey === "queried" ? { preauth: "queried" } : null;
+  const res = { ...mockPayCase(mockReprocessCase(mockClaimCase(legs ? { ...status, legs: { ...status.legs, ...legs } } : status))), held_tasks: mockHeldTasks() };
+  const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ce") : null;
+  if (!key) return res;
+  const open = { ...res, current_step: "insurance_and_eligibility", next_actions: ["refresh", "prepare_preauth"] };
+  const ce = open.coverage_eligibility;
+  const withInforce = (value) => ({
+    ...open,
+    coverage_eligibility: {
+      ...ce,
+      validation: {
+        ...ce.validation,
+        inforce: value,
+        insurance_items: ce.validation.insurance_items.map((item) => ({ ...item, inforce: value })),
+      },
+    },
+  });
+  if (key === "not_in_force") return withInforce(false);
+  if (key === "unknown") return withInforce(null);
+  if (key === "partial") {
+    return {
+      ...open,
+      status: "partial",
+      next_actions: ["refresh", "resubmit"],
+      coverage_eligibility: { ...ce, benefits: { ...ce.benefits, status: "pending", insurance_items: [] } },
+    };
+  }
+  if (key === "failed") {
+    return { ...open, status: "failed", next_actions: ["refresh", "retry"], prepare_error: { message: "The payer's gateway refused the request." } };
+  }
+  if (key === "single") {
+    return {
+      ...open,
+      coverage_eligibility: { ...ce, validation: { ...ce.validation, beneficiaries: ce.validation.beneficiaries.slice(0, 1) } },
+    };
+  }
+  return open;
+};
+
+// ?pa=ready|warn|missing|thin|blocked|empty|not_in_force|load_error on /case/:id/review forces a
+// pre-auth draft state.
+const mockPreauthState = (draft) => {
+  const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("pa") : null;
+  if (key === "load_error") throw new Error("The hospital records could not be read.");
+  if (key === "not_in_force") return { ...draft, eligibility: { ...draft.eligibility, inforce: false } };
+  if (key === "missing") return { ...draft, missing_fields: ["patient.dob", "patient.member_id"] };
+  if (key === "thin") return { ...draft, care_team: [{ ...draft.care_team[0], registration_no: null }, { doc_id: "DOC-2", doc_name: "Dr. Kiran Shah", speciality: "MD" }] };
+  if (key === "empty") return { ...draft, diagnoses: [], items: [], care_team: [], total_amount: 0 };
+  if (key === "blocked") {
+    const { admissibility } = draft;
+    return { ...draft, admissibility: { ...admissibility, blocking: true, checks: [...admissibility.checks, { level: "block", kind: "package_price", code: "47562", message: "Laparoscopic cholecystectomy is priced at zero in the payer's plan." }] } };
+  }
+  if (key === "ready" || key === "warn" || key === "unspecified") {
+    const unspecified = key === "unspecified";
+    const flagged = unspecified ? [{ level: "info", kind: "unspecified_package", code: draft.items[0].service_code, message: `${draft.items[0].service_code} is an unspecified package: the procedure name and amount you enter go to the payer.` }] : [];
+    return {
+      ...draft,
+      items: unspecified ? draft.items.map((item) => ({ ...item, service_name: "" })) : draft.items,
+      payer_asks: key === "warn" ? MOCK_PAYER_ASKS.preauth.filter((a) => !a.blocking) : [],
+      admissibility: { ...draft.admissibility, checks: [...draft.admissibility.checks.filter((c) => c.level === "ok"), ...flagged], exclusions: [] },
+      supporting_documents: draft.supporting_documents.map((d) => ({ ...d, url: d.url || "https://hospital.example/records/101/report.pdf" })),
+      chief_complaints: [{ code: "R10", name: "Abdominal pain" }],
+      clinical_findings: [{ code: "R19", name: "Tenderness in the right upper quadrant" }],
+    };
+  }
+  return draft;
 };
 
 const MOCK_PAYER_ASKS = {
@@ -796,6 +1155,46 @@ const mock = {
     };
   },
 
+  getBiometric: async (cashless_case_id, stage) => {
+    await delay(200);
+    const rows = mockBiometricRows(cashless_case_id, stage);
+    const held = rows.filter((row) => row.status === "verified").at(-1);
+    return {
+      status: "complete",
+      cashless_case_id,
+      stage,
+      required: true,
+      current: held ? mockAttempt(held) : null,
+      latest: rows.length ? mockAttempt(rows.at(-1)) : null,
+    };
+  },
+  startBiometric: async (cashless_case_id, { stage, auth_method }) => {
+    await delay(300);
+    const row = { id: Date.now(), stage, auth_method, status: "initiated", polls: 0 };
+    MOCK_BIOMETRIC[cashless_case_id] = [...(MOCK_BIOMETRIC[cashless_case_id] || []), row];
+    if (auth_method !== "FACE_AUTH") return { status: "complete", attempt: mockAttempt(row) };
+    return { status: "complete", attempt: mockAttempt(row), qr_url: `https://phrsbx.abdm.gov.in/face-auth?txnId=mock-${row.id}`, abha_public_key: await mockAbhaKey() };
+  },
+  captureBiometric: async (cashless_case_id, id) => {
+    await delay(200);
+    const row = (MOCK_BIOMETRIC[cashless_case_id] || []).find((r) => r.id === id);
+    row.polls += 1;
+    if (row.polls >= 2) row.status = "captured";
+    return { status: "complete", cashless_case_id, capture_status: row.polls >= 2 ? "COMPLETE" : "PENDING", attempt: mockAttempt(row) };
+  },
+  verifyBiometric: async (cashless_case_id, id, { aadhaar_encrypted, pid }) => {
+    await delay(400);
+    if (aadhaar_encrypted !== undefined && /^\d+$/.test(aadhaar_encrypted)) throw new Error("Seal the Aadhaar number in the page before sending it; a number in clear is not accepted.");
+    const row = (MOCK_BIOMETRIC[cashless_case_id] || []).find((r) => r.id === id);
+    if (pid === "fail") {
+      row.status = "failed";
+      throw new Error("The service could not match the patient.");
+    }
+    row.status = "verified";
+    row.verified_at = new Date().toISOString();
+    return { status: "complete", cashless_case_id, attempt: mockAttempt(row) };
+  },
+
   getPayerForms: async (cashless_case_id, stage = "preauth") => {
     await delay(300);
     const legStage = stage === "claim" ? "post" : "pre";
@@ -1017,7 +1416,7 @@ const mock = {
             current_step: "insurance_and_eligibility",
             payer_id: "1518@hcx",
             policy_number: "POL-91711234567890-2026",
-            preauth_status: "pending",
+            preauth_status: mockCaseOpen() === "draft" ? null : "pending",
             created_at: "2026-05-04T10:35:00+05:30",
           },
           visits: [
@@ -1254,6 +1653,39 @@ const mock = {
       };
     }
     if (data.member_id === "ERROR") throw new Error("The insurance registry did not answer in time (gateway timeout).");
+    // Searching by ABHA returns one live policy and one lapsed one, with the
+    // sparse fields a registry row can have, for the preselect and expiry paths.
+    if (data.identifier_type === "AbhaNumber") {
+      return {
+        status: "success",
+        data: {
+          child_id: data.child_id,
+          identifier_used: { type: "AbhaNumber", value: "91711234567890" },
+          policies: [
+            MOCK_POLICIES[0],
+            { policy_number: "POL-LAPSED-2024", product_name: "POL-LAPSED-2024", payer_id: "2044@hcx", effective_to: "2024-12-31" },
+          ],
+          fetched_at: "2026-05-04T10:40:00+05:30",
+        },
+      };
+    }
+    // Member ID MANY returns a list long enough for the payer chips.
+    if (data.member_id === "MANY") {
+      return {
+        status: "success",
+        data: {
+          child_id: data.child_id,
+          identifier_used: { type: "MemberId", value: data.member_id },
+          policies: [
+            ...MOCK_POLICIES,
+            { ...MOCK_POLICIES[0], policy_number: "POL-TOPUP-2026", product_name: "Super Top-up", sum_insured: 1000000 },
+            { ...MOCK_POLICIES[1], policy_number: "POL-CORP-2026", product_name: "Corporate Group Cover", status: "suspended" },
+            { policy_number: "PMJAY-HP-7788", product_name: "PMJAY for Himachal", payer_id: "3001@hcx", scheme_type: "gov" },
+          ],
+          fetched_at: "2026-05-04T10:40:00+05:30",
+        },
+      };
+    }
     const MOCK_MEMBER_ID_ON_FILE = "MEMB-123456";
     if (data.member_id && data.member_id !== MOCK_MEMBER_ID_ON_FILE) {
       return {
@@ -1345,7 +1777,7 @@ const mock = {
   getCashlessStatus: async (cashless_case_id) => {
     await delay(1000);
     const journey = MOCK_CASE_JOURNEYS[String(cashless_case_id)] || MOCK_CASE_JOURNEYS.default;
-    return {
+    return mockCeState({
       cashless_case_id,
       claim_id: journey.claim_id,
       child_id: journey.child_id,
@@ -1474,10 +1906,10 @@ const mock = {
       // submitted for this case. Kept here (rather than omitted) so mock mode
       // exercises the same res.preauth?.correlation_id / res.claim?.status
       // paths the real backend response takes.
-      preauth: journey.preauth,
+      preauth: mockCaseOpen() === "draft" ? null : journey.preauth,
       claim: journey.claim,
       payment: journey.payment ?? null,
-    };
+    });
   },
 
   getCaseTimeline: async (cashless_case_id, params = {}) => {
@@ -1549,7 +1981,7 @@ const mock = {
         refs: { payment_reference: "PAY-REF-1", utr: "UTR123456789" },
       },
     ];
-    const filtered = events.filter(
+    const filtered = mockTimelineEvents(events).filter(
       (e) => (!params.workflow || e.workflow === params.workflow) && (!params.actor || e.actor.kind === params.actor),
     );
     return {
@@ -1557,7 +1989,7 @@ const mock = {
       claim_id: 101,
       child_id: 12,
       generated_at: new Date().toISOString(),
-      money_ledger: {
+      money_ledger: mockLedger({
         currency: "INR",
         billed: { value: 50000 },
         eligible: { value: 45000 },
@@ -1567,13 +1999,13 @@ const mock = {
         deductible: { value: null },
         disallowed: { value: 5000 },
         patient_payable: { value: 10000, confidence: "final", formula: "copay + disallowed" },
-        settlement: { gross: 40000, tds: 400, net: 39600, utr: "UTR123456789", settled: true, short_payment: true },
+        settlement: mockCaseOpen() ? null : { gross: 40000, tds: 400, net: 39600, utr: "UTR123456789", settled: true, short_payment: true },
         reconciliation: { variance_vs_authorized: 10000, to_collect_from_patient: 10000 },
-      },
+      }),
       total_count: filtered.length,
       limit: params.limit || 200,
       offset: params.offset || 0,
-      events: filtered,
+      events: filtered.slice(params.offset || 0, (params.offset || 0) + (params.limit || 200)),
     };
   },
 
@@ -1611,8 +2043,8 @@ const mock = {
   // ─── Preauthorization ───────────────────────────────────────────────────────
   preparePreauth: async (params = {}) => {
     await delay(800);
-    return {
-      payer_asks: MOCK_PAYER_ASKS.preauth,
+    return mockPreauthState({
+      payer_asks: mockAsksAfterBiometric(MOCK_PAYER_ASKS.preauth, "Preauth"),
       admissibility: {
         status: "checked",
         plan_fetched_at: "2026-10-27T10:00:00+05:30",
@@ -1704,7 +2136,7 @@ const mock = {
         errors: [],
       },
       missing_fields: [],
-    };
+    });
   },
 
   submitPreauth: async (data) => {
@@ -1720,6 +2152,7 @@ const mock = {
 
   submitPreauthEnhancement: async (data) => {
     await delay(1000);
+    window.__mockLastEnhancement = data;
     return {
       correlation_id: "7a3b9c21-f1e2-4d5a-b6c7-8e9f0a1b2c3d",
       preauth_ref: null,
@@ -1740,7 +2173,7 @@ const mock = {
       { service_code: "ICU-DAY", service_name: "ICU stay (per day)", category: "ICU", quantity: 2, unit_price: 6000, net_amount: 12000, is_new: true },
       { service_code: "43239", service_name: "Upper GI endoscopy with biopsy", category: "SE", quantity: 1, unit_price: 8500, net_amount: 8500, is_new: true },
     ];
-    return {
+    return mockEnhancementPreview({
       cashless_case_id: params.cashless_case_id || 5,
       claim_id: params.claim_id || 101,
       payer_id: "1518@hcx",
@@ -1770,11 +2203,12 @@ const mock = {
       ],
       missing_fields: [],
       suggested_request: { items: [...authorizedItems, ...newItems], total_amount: 70500 },
-    };
+    });
   },
 
   resubmitPreauth: async (data) => {
     await delay(1000);
+    window.__mockLastPreauthSend = data;
     return {
       correlation_id: "8d2fd8d9-c8a1-4f3c-9ac8-8de7bdf95c44",
       preauth_ref: null,
@@ -1937,7 +2371,7 @@ const mock = {
         balance: 450000,
         currency: "INR",
         valid_until: "2027-03-31",
-        members_on_cover: 2,
+        members_on_cover: 4,
       };
       return {
         ...base,
@@ -1945,6 +2379,8 @@ const mock = {
         covers: [
           { ...shared, member_id: discovery.member_id || "MD5SLS4X5", name: "Asha Devi", gender: "female", dob: "1984-02-11", relationship: "Self", abha_number: discovery.abha_number },
           { ...shared, member_id: "MD5SLS4X6", name: "Ravi Devi", gender: "male", dob: "2012-07-04", relationship: "Son" },
+          { ...shared, member_id: "MD5SLS4X7", name: "Meena Devi", gender: "female", dob: "2015-03-19", relationship: "Daughter" },
+          { ...shared, member_id: "MD5SLS4X8", name: "Suresh Kumar", gender: "male", dob: "1980-11-02", relationship: "Spouse" },
         ],
       };
     }
@@ -1962,7 +2398,7 @@ const mock = {
 
   getPreauthStatus: async (correlation_id) => {
     await delay(1500);
-    return {
+    return mockPreauthAnswer({
       correlation_id,
       claim_id: 101,
       workflow: "preauth",
@@ -1998,14 +2434,23 @@ const mock = {
           language: "en",
         },
       ],
-    };
+    });
   },
 
   // ─── Claims ─────────────────────────────────────────────────────────────────
   prepareClaimDraft: async (params = {}) => {
     await delay(800);
-    return {
-      payer_asks: MOCK_PAYER_ASKS.claim,
+    return mockClaimDraft({
+      discharge: { discharged_at: "2026-05-04T14:15:00+05:30" },
+      discharge_rules: {
+        required: true,
+        lm100: false,
+        lm100_rates: [
+          { code: "STRAT006b", label: "HDU", rate: 2700 },
+          { code: "STRAT006a", label: "ICU", rate: 4500 },
+        ],
+      },
+      payer_asks: mockAsksAfterBiometric(MOCK_PAYER_ASKS.claim, "Discharge"),
       cashless_case_id: params.cashless_case_id || 4,
       claim_id: params.claim_id || 101,
       payer_id: "1518@hcx",
@@ -2067,7 +2512,7 @@ const mock = {
         },
       ],
       missing_fields: [],
-    };
+    });
   },
 
   patchPatientContext: async (claim_id, data) => {
@@ -2097,8 +2542,9 @@ const mock = {
     };
   },
 
-  submitFinalClaim: async () => {
+  submitFinalClaim: async (data) => {
     await delay(1000);
+    window.__mockLastClaimSend = data;
     return {
       correlation_id: "0e20b352-c4b7-49fa-9246-a8357d236f48",
       status: "submitted",
@@ -2106,8 +2552,9 @@ const mock = {
     };
   },
 
-  respondClaimQuery: async () => {
+  respondClaimQuery: async (data) => {
     await delay(800);
+    window.__mockLastClaimSend = data;
     return {
       correlation_id: "abc123-claim-query-response",
       status: "submitted",
@@ -2139,7 +2586,7 @@ const mock = {
 
   getClaimStatus: async (correlation_id) => {
     await delay(1200);
-    return {
+    return mockClaimStatus({
       correlation_id,
       claim_id: 101,
       workflow: "claim",
@@ -2163,14 +2610,16 @@ const mock = {
       },
       errors: [],
       process_notes: [],
-    };
+    });
   },
 
   // ─── Reprocess ──────────────────────────────────────────────────────────────
-  submitReprocess: async () => {
+  submitReprocess: async (data) => {
     await delay(1000);
+    if (mockReprocessKey() === "send_fail") return { status: "failed", message: "Only a claim the payer has rejected can be sent back for reprocessing." };
+    window.__mockLastReprocess = data;
     return {
-      correlation_id: "6928d2cd-81f6-48b0-9c62-bf8f5a311847",
+      correlation_id: MOCK_REPROCESS_ID,
       status: "submitted",
       message: "Reprocess request submitted",
     };
@@ -2188,6 +2637,7 @@ const mock = {
         answered_at: new Date().toISOString(),
       };
     }
+    if (mockReprocessKey()) return mockReprocessAnswer(correlation_id);
     return {
       correlation_id,
       claim_id: 101,
@@ -2208,6 +2658,14 @@ const mock = {
   // ─── Payment ────────────────────────────────────────────────────────────────
   searchPaymentStatus: async (params = {}) => {
     await delay(700);
+    const payKey = mockPayKey();
+    if (payKey) {
+      window.__mockPaySearches = (window.__mockPaySearches || 0) + 1;
+      if (payKey === "load_error") throw new Error("The payment status could not be read.");
+      if (payKey === "none" || MOCK_PAY_LEGS[payKey]) return { status: "not_found", filters: params, settled: false, total_events: 0, events: [] };
+      const events = mockPayEvents(payKey);
+      return { status: "success", latest_stage: events[events.length - 1].payment_stage, settled: events.some((e) => e.payment_stage === "PAYMENT_SETTLED"), total_events: events.length, events };
+    }
     // Only case 5's claim has been paid. Every other claim gets the backend's
     // real "no notices yet" shape so the empty state is exercised.
     if (params.claim_id != null && String(params.claim_id) !== "102") {
@@ -2295,8 +2753,10 @@ const mock = {
     };
   },
 
-  acknowledgePayment: async () => {
+  acknowledgePayment: async (data) => {
     await delay(800);
+    if (mockPayKey() === "ack_refused") throw new Error("The payer's certificate could not be read.");
+    if (typeof window !== "undefined") window.__mockLastAck = data;
     return {
       correlation_id: "ack-" + Date.now(),
       status: "submitted",
@@ -3148,6 +3608,10 @@ const real = {
 
   getDashboardAnalytics: (params = {}) => http.get("/cashless/dashboard/analytics", params),
 
+  getBiometric: (cashless_case_id, stage) => http.get(`/cashless/${cashless_case_id}/biometric`, { stage }),
+  startBiometric: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/biometric`, data),
+  captureBiometric: (cashless_case_id, id) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/capture`, {}),
+  verifyBiometric: (cashless_case_id, id, data) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/verify`, data),
   getPayerForms: (cashless_case_id, stage = "preauth") => http.get(`/cashless/${cashless_case_id}/forms`, { stage }),
   savePayerForm: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/forms`, data),
   listCaseNotes: (cashless_case_id) => http.get(`/cashless/${cashless_case_id}/notes`),
@@ -3229,8 +3693,8 @@ const real = {
     http.post("/cashless/coverage_eligibility/validation", data),
   checkBenefits: (data) =>
     http.post("/cashless/coverage_eligibility/benefits", data),
-  getCoverageEligibilityStatus: (correlation_id) =>
-    http.get(`/cashless/coverage_eligibility/status/${correlation_id}`),
+  getCoverageEligibilityStatus: (correlation_id, signal) =>
+    http.get(`/cashless/coverage_eligibility/status/${correlation_id}`, {}, { signal }),
   discoverCoverage: (data) =>
     http.post("/cashless/coverage_eligibility/check", { ...data, purpose: "discovery" }),
   adoptDiscoveredCover: (correlation_id, data) =>

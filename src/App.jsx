@@ -84,12 +84,12 @@ export default function App() {
   const [allFacilitiesMode, setAllFacilitiesMode] = useState(
     () => localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true",
   );
-  // Which nav paradigm to render: "A" (dark rail sidebar, default) or "B"
-  // (dark top command-bar + breadcrumb strip). A pure presentation choice,
-  // toggled from Settings > Appearance.
+  // Which nav paradigm to render: "B" (dark top command-bar + breadcrumb strip,
+  // default) or "A" (dark rail sidebar). A pure presentation choice, toggled
+  // from Settings > Appearance.
   const [pageActionsEl, setPageActionsEl] = useState(null);
   const [layoutDirection, setLayoutDirection] = useState(
-    () => localStorage.getItem(LAYOUT_DIRECTION_KEY) || "A",
+    () => localStorage.getItem(LAYOUT_DIRECTION_KEY) || "B",
   );
   const [hasProvider, setHasProvider] = useState(
     () => !!localStorage.getItem("nhcx_default_provider_id") || localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true",

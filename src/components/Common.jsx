@@ -45,7 +45,7 @@ export const Card = ({ title, children, className = "", headerAction }) => (
 );
 
 /**
- * Primary interactive control with tactile hover/press motion. Variants:
+ * Primary interactive control. Variants:
  * "primary" (filled, high emphasis), "outline" (bordered, medium emphasis),
  * "text" (no border, low emphasis). Optional leading icon and small/medium/large sizing.
  * @category Forms
@@ -73,17 +73,16 @@ export const Button = ({
   };
 
   const button = (
-    <motion.button
-      whileHover={!off ? { scale: 1.02 } : {}}
-      whileTap={!off ? { scale: 0.98 } : {}}
+    <button
+      type="button"
       className={`btn-modern btn-${variant}-modern ${sizeClasses[size]} ${className}`}
       onClick={onClick}
       disabled={off}
       title={reason || title}
     >
-      {Icon && <Icon size={size === "small" ? 14 : 18} />}
+      {Icon && <Icon size={size === "small" ? 14 : 16} />}
       {children}
-    </motion.button>
+    </button>
   );
   if (!reason || blocked) return button;
   return (
@@ -310,13 +309,14 @@ export const Input = ({
  * @category Domain
  */
 // `hideSummary` drops the "N required documents still needed" banner for
-// screens that already state the count elsewhere.
-export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument, hideSummary = false }) => {
+// screens that already state the count elsewhere. `readOnly` shows the list
+// with no way to attach, rename, add or remove.
+export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument, hideSummary = false, readOnly = false }) => {
   const fileInputRef = useRef(null);
   const pendingDocRef = useRef(null);
   const [uploadError, setUploadError] = useState(null);
 
-  if (!documents?.length && !onAddDocument) return null;
+  if (!documents?.length && (!onAddDocument || readOnly)) return null;
   const missingRequired = (documents || []).filter((d) => !d.optional && !d.url);
 
   const handlePick = (doc) => {
@@ -407,9 +407,8 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
                 alignItems: "flex-start",
                 gap: "var(--space-3)",
                 padding: "11px 14px",
-                borderRadius: "10px",
+                borderRadius: "var(--radius-md)",
                 border: "1px solid var(--border-color)",
-                borderLeft: `3px solid ${accent}`,
                 background: "var(--bg-card)",
               }}
             >
@@ -417,7 +416,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
 
               {/* min-width:0 lets long names wrap instead of overflowing the card */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                {doc.custom && onRenameDocument ? (
+                {doc.custom && onRenameDocument && !readOnly ? (
                   <input
                     className="input-modern"
                     style={{ fontSize: "13px", padding: "4px 8px", fontWeight: 600 }}
@@ -444,7 +443,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
               {/* fixed action zone — never shrinks, stays aligned to the first line */}
               <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "1px" }}>
                 {missing && (
-                  <span style={{ fontSize: "10px", color: "var(--error)", fontWeight: 700, letterSpacing: "0.04em" }}>
+                  <span style={{ fontSize: "10px", color: "var(--error)", fontWeight: 700 }}>
                     REQUIRED
                   </span>
                 )}
@@ -466,7 +465,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
                   >
                     <CheckCircle2 size={11} /> Attached
                   </span>
-                ) : (
+                ) : readOnly ? null : (
                   <Button
                     variant="outline"
                     size="small"
@@ -475,7 +474,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
                     {doc.optional ? "Attach" : "Upload"}
                   </Button>
                 )}
-                {doc.custom && onRemoveDocument && (
+                {doc.custom && onRemoveDocument && !readOnly && (
                   <button
                     onClick={() => onRemoveDocument(i)}
                     style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", padding: "2px", display: "flex", flexShrink: 0, transition: "transform 0.15s ease" }}
@@ -490,7 +489,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
           );
         })}
       </div>
-      {onAddDocument && (
+      {onAddDocument && !readOnly && (
         <button
           onClick={onAddDocument}
           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "12px", fontWeight: 700, padding: "6px", marginTop: "var(--space-2)" }}

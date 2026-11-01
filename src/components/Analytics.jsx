@@ -246,7 +246,7 @@ export default function Analytics() {
                         <td>{w.patient_name || "—"}</td>
                         <td>{WORKFLOW_LABELS[w.workflow] || humanize(w.workflow)}</td>
                         <td><PayerName id={w.payer_id} name={w.payer_name} /></td>
-                        <td className="wq-mono cc-num">{formatDuration(w.waiting_minutes)}</td>
+                        <td className="wq-num cc-num">{formatDuration(w.waiting_minutes)}</td>
                         <td><SlaState breached={w.breached} label={w.breached ? "Overdue" : "On time"} /></td>
                       </tr>
                     ))}
@@ -264,7 +264,7 @@ export default function Analytics() {
               <Bars rows={leakage} tone="muted" />
               <div className="an-foot">
                 <span>Shortfall on settled claims</span>
-                <span className="wq-mono">{rupees(totals.leakage)}</span>
+                <span className="wq-num">{rupees(totals.leakage)}</span>
               </div>
             </Panel>
           </div>
@@ -308,14 +308,14 @@ export default function Analytics() {
                       return (
                         <tr key={p.payer_id || "unknown"}>
                           <td><PayerName id={p.payer_id} name={p.payer_name} /></td>
-                          <td className="wq-mono cc-num">{p.claims}</td>
-                          <td className="wq-mono cc-num">{rupees(p.billed)}</td>
-                          <td className="wq-mono cc-num">{rupees(p.approved)}</td>
-                          <td className="wq-mono cc-num">{rupees(p.settled_net)}</td>
-                          <td className="wq-mono cc-num">{rupees(p.outstanding)}</td>
-                          <td className="wq-mono cc-num">{formatPercent(p.approval_rate)}</td>
-                          <td className="wq-mono cc-num">{formatDuration(pre?.median_minutes)}</td>
-                          <td className="wq-mono cc-num">{pre ? formatPercent(pre.breach_rate) : "—"}</td>
+                          <td className="wq-num cc-num">{p.claims}</td>
+                          <td className="wq-num cc-num">{rupees(p.billed)}</td>
+                          <td className="wq-num cc-num">{rupees(p.approved)}</td>
+                          <td className="wq-num cc-num">{rupees(p.settled_net)}</td>
+                          <td className="wq-num cc-num">{rupees(p.outstanding)}</td>
+                          <td className="wq-num cc-num">{formatPercent(p.approval_rate)}</td>
+                          <td className="wq-num cc-num">{formatDuration(pre?.median_minutes)}</td>
+                          <td className="wq-num cc-num">{pre ? formatPercent(pre.breach_rate) : "—"}</td>
                         </tr>
                       );
                     })}

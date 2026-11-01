@@ -38,11 +38,9 @@
   --cx-rail-h: calc(100vh - var(--cx-shell-offset));
 
   margin: 0;
-  min-height: calc(100vh - var(--cx-shell-offset));
+  flex: 1 0 auto;
   padding: 0;
-  background:
-    radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0) 0 0 / 22px 22px,
-    var(--cx-paper);
+  background: var(--cx-paper);
   color: var(--cx-ink);
   font-family: var(--cx-font-body);
   font-feature-settings: "ss01", "cv01", "tnum";
@@ -54,9 +52,7 @@
 }
 
 [data-theme="dark"] .cx-root {
-  background:
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0) 0 0 / 22px 22px,
-    var(--cx-paper);
+  background: var(--cx-paper);
 }
 
 .cx-root *,
@@ -189,7 +185,6 @@
 /* badges keep the app-wide pill radius (--radius-pill); just tune weight/tracking */
 .cx-root .badge-modern {
   font-weight: 600;
-  letter-spacing: 0.01em;
 }
 
 /* buttons */
@@ -223,8 +218,6 @@
   font-family: var(--cx-font-mono);
   font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--cx-ink-soft);
 }
 
@@ -286,7 +279,8 @@
   background: var(--bg-card);
 }
 .cn-note.is-pinned {
-  border-left: 3px solid var(--primary);
+  border-color: var(--info-line);
+  background: var(--info-soft);
 }
 .cn-note-head {
   display: flex;
@@ -296,7 +290,7 @@
 }
 .cn-chip {
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--bg-main);
   font-size: var(--text-xs);
   font-weight: var(--fw-semibold);

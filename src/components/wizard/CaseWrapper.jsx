@@ -12,7 +12,7 @@ import AttentionTray from "../case/AttentionTray";
 import CaseNotesDrawer from "../case/CaseNotes";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo, nowHint } from "../case/caseStages";
+import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo, nowHint, stageAmounts } from "../case/caseStages";
 import "../case/case-workspace.css";
 import "../case/case-v2.css";
 
@@ -86,6 +86,13 @@ export default function CaseWrapper() {
   // (billed→authorized→approved→collect) and the decision banners (raw payer
   // signal / classified_by), so each screen doesn't hit /timeline on its own.
   const [timeline, setTimeline] = useState(null);
+
+  // Files attached on a draft, by case. Too large for localStorage, so they last
+  // only while the case is open.
+  const [draftFiles, setDraftFilesState] = useState({});
+  const setDraftFiles = useCallback((key, files) => {
+    setDraftFilesState((prev) => ({ ...prev, [key]: files }));
+  }, []);
 
   const updateCaseState = useCallback((updates) => {
     setCaseState((prev) => {
@@ -216,10 +223,6 @@ export default function CaseWrapper() {
   const effectiveCase = cashlessCase || {};
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
   const preauthDecision = caseState.preauthDecision || effectiveCase.preauth_status;
-  const approvedAmount = timeline?.money_ledger?.approved?.value
-    ?? effectiveCase.approved_amount
-    ?? caseState.approvedAmount
-    ?? null;
 
   const stages = buildStages({
     caseState,
@@ -246,6 +249,8 @@ export default function CaseWrapper() {
     refreshTimeline,
     // Settled: screens hide actions that would change the payer's decision.
     caseClosed,
+    draftFiles,
+    setDraftFiles,
   };
 
 
@@ -257,17 +262,17 @@ export default function CaseWrapper() {
           caseState={caseState}
           effectiveCase={effectiveCase}
           preauthRef={preauthRef}
-          approvedAmount={approvedAmount}
           moneyLedger={timeline?.money_ledger || null}
           statusPill={caseClosed ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
         />
-        <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
+        <CaseStepper stages={stages} amounts={stageAmounts({ moneyLedger: timeline?.money_ledger || null, effectiveCase })} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
       </div>
 
       <div className="cv-page">
           <AttentionTray
             communications={communications}
             notes={notes}
+            heldTasks={effectiveCase.held_tasks}
             readOnly={readOnly}
             caseClosed={caseClosed}
             hint={nowHint(stages)}
@@ -276,7 +281,7 @@ export default function CaseWrapper() {
           />
 
           <div className="cv-stage-head">
-            <div>
+            <div className="cv-stage-text">
               <h1 className="cv-stage-title">{activeStage?.label || "Case"}</h1>
               {activeStage?.hint && <p className="cv-stage-hint">{activeStage.hint}</p>}
             </div>

@@ -15,7 +15,7 @@ const CORE = [
 // link at any time, so their heading can't depend on the spine.
 const BRANCHES = {
   enhancement: { id: "enhancement", label: "Enhancement", path: "enhancement", hint: "Add procedures or documents to increase the approved amount." },
-  reprocess: { id: "reprocess", label: "Reprocess", path: "reprocess", hint: "Appeal or resubmit after a rejection or short payment." },
+  reprocess: { id: "reprocess", label: "Reprocess", path: "reprocess", hint: "Ask the payer to look again at a claim it rejected." },
 };
 
 const VIEWS = {
@@ -24,6 +24,27 @@ const VIEWS = {
 };
 
 // Title and hint for any case path, on the spine or not.
+// Everything that belongs to the case on the old policy. Choosing a policy with
+// these cleared makes the Eligibility step prepare a fresh case, and keeps the
+// old case's pre-auth and claim from bleeding into the new one.
+export const POLICY_CHANGE_RESET = {
+  cashless_case_id: null,
+  claim_id: null,
+  eligibility_correlation_id: null,
+  preauthCorrelationId: null,
+  preauthRef: null,
+  preauthDecision: null,
+  approvedAmount: null,
+  claimCorrelationId: null,
+  dischargeCorrelationId: null,
+  draftData: null,
+  statusEnquiry: null,
+  beneficiaryMemberId: null,
+};
+
+// Claim leg states in which the backend refuses any further pre-auth send.
+export const CLAIM_WITH_PAYER = ["submitting", "queried", "approved", "partial", "rejected"];
+
 export function stageInfo(path) {
   const core = CORE.find((s) => s.path === path);
   if (core) return { ...core, num: CORE.indexOf(core) + 1 };
@@ -81,9 +102,11 @@ export function landingStage(effectiveCase = {}) {
 // and the downstream stages lose their note, tone and clickability at once.
 export const caseRules = (full) => ({
   legs: full?.legs ?? null,
+  reprocess: full?.reprocess ?? null,
   discharge_intimation: full?.discharge_intimation,
   answers_status_enquiry: full?.answers_status_enquiry,
   coverage_eligibility: full?.coverage_eligibility ?? null,
+  held_tasks: full?.held_tasks ?? [],
 });
 
 export function projectCaseStatus(full) {
@@ -105,6 +128,24 @@ export function projectCaseStatus(full) {
     approved_amount: full.claim?.approved_amount ?? full.preauth?.approved_amount ?? null,
     payment: full.payment ?? null,
     latest_utr: full.payment?.utr ?? null,
+  };
+}
+
+const DECIDED_CLAIM_LEGS = ["approved", "partial", "rejected"];
+
+export function stageAmounts({ moneyLedger, effectiveCase }) {
+  const claimLeg = effectiveCase.legs?.claim;
+  const settlement = moneyLedger?.settlement;
+  const claimDecided = DECIDED_CLAIM_LEGS.includes(claimLeg) || !!effectiveCase.claim_decision || !!settlement?.settled;
+  const claimSent = claimDecided || (!!claimLeg && claimLeg !== "draft");
+  const billed = moneyLedger?.billed?.value;
+  const authorised = moneyLedger?.authorized_ceiling?.value;
+  const approved = moneyLedger?.approved?.value;
+  return {
+    review: billed != null ? { value: billed, word: claimSent ? "billed" : "requested" } : null,
+    status: authorised != null ? { value: authorised, word: "authorised" } : null,
+    claim: claimDecided && approved != null ? { value: approved, word: "approved" } : null,
+    payment: settlement?.settled && settlement.net != null ? { value: settlement.net, word: "settled" } : null,
   };
 }
 
@@ -207,8 +248,15 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       if ((decision === "APPROVED" || decision === "PARTIALLY_APPROVED") && !paymentDone) {
         visible.push({ ...BRANCHES.enhancement, branch: true, done: false, note: "Optional", tone: "live" });
       }
-      if (decision === "REJECTED" || /reject|denied|short/i.test(String(claimDecision || ""))) {
+      // Only a rejected final claim can be appealed. An appeal clears the claim's
+      // decision while the payer reads it, so the appeal itself keeps the step.
+      const claimLeg = effectiveCase.legs?.claim;
+      const claimRejected = claimLeg ? claimLeg === "rejected" : /reject|denied/i.test(String(claimDecision || ""));
+      if (claimRejected) {
         visible.push({ ...BRANCHES.reprocess, branch: true, done: false, note: "Action available", tone: "urgent" });
+      } else if (effectiveCase.reprocess) {
+        const decided = !!effectiveCase.reprocess.decision;
+        visible.push({ ...BRANCHES.reprocess, branch: true, done: decided, note: decided ? "Appeal decided" : "Appeal sent", tone: decided ? undefined : "wait", live: !decided });
       }
     }
   });

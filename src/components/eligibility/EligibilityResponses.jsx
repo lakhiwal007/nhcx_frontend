@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { formatDate, formatMoney } from "../../format.js";
 import PayrErrorList from "../PayrErrorList";
 import { period } from "./checks";
@@ -12,59 +11,14 @@ function waiting(check) {
   return null;
 }
 
-function tiles(checks, requirements, discovery) {
-  const v = checks?.validation;
-  const b = checks?.benefits;
-  const a = checks?.auth;
-  const inforce = checks?.inforce;
-  const balance = checks?.wallet?.balance;
-  const pre = requirements.filter((r) => r.at_preauth || r.stage === "pre").length;
-  const post = requirements.length - pre;
-  const tone = (c) => (c?.state === "error" ? "is-bad" : c?.state === "pending" ? "is-todo" : c?.state === "unavailable" ? "is-warn" : "is-ok");
-  return [
-    {
-      id: "validation",
-      name: "Validation",
-      tone: inforce === false ? "is-bad" : tone(v),
-      badge: v?.state === "pending" ? "Waiting" : v?.state === "error" ? "Failed" : inforce === false ? "Not in force" : "Eligible",
-      line: v?.state === "done" ? [inforce ? "In force" : null, balance != null ? `${formatMoney(balance)} left` : null].filter(Boolean).join(" · ") || "Answered" : "—",
-      when: v?.sub?.received_at || v?.sub?.updated_at,
-    },
-    {
-      id: "benefits",
-      name: "Benefits",
-      tone: tone(b),
-      badge: b?.state === "pending" ? "Waiting" : b?.state === "error" ? "Failed" : b?.state === "unavailable" ? "No answer" : `${b?.items.length || 0} items`,
-      line: b?.items.length ? `${b.items.filter((i) => i.authorization_required).length} need pre-auth` : "No item limits",
-      when: b?.sub?.received_at || b?.sub?.updated_at,
-    },
-    {
-      id: "auth",
-      name: "Auth requirements",
-      tone: a?.state === "done" && requirements.length ? "is-warn" : tone(a),
-      badge: a?.state === "pending" ? "Waiting" : a?.state === "error" ? "Failed" : a?.required === false ? "No pre-auth" : `${requirements.length} asks`,
-      line: requirements.length ? `${pre} at pre-auth · ${post} at claim` : a?.required ? "Pre-auth required" : "Nothing asked",
-      when: a?.sub?.received_at || a?.sub?.updated_at,
-    },
-    {
-      id: "discovery",
-      name: "Discovery",
-      tone: discovery ? "is-info" : "is-todo",
-      badge: discovery ? "Adopted" : "Not used",
-      line: discovery ? "This case's policy was found by discovery" : "The policy came from the hospital's records",
-      when: null,
-    },
-  ];
-}
-
-function ValidationPanel({ check, checks }) {
+function ValidationPanel({ check, checks, discovery }) {
   const sub = check.sub || {};
   const cov = checks.coverage || {};
   const cd = cov.coverage_details || {};
   const w = checks.wallet || {};
   const classes = (cd.classes || []).filter((c) => c?.value && !["plan", "subplan"].includes(c.type));
   return (
-    <div className="cv-card-body cv-cols" style={{ paddingTop: 16 }}>
+    <div className="cv-card-body cv-cols">
       <div>
         <div className="cv-kv"><span>Outcome</span><span>{[sub.disposition, sub.outcome].filter(Boolean).join(" · ") || "—"}</span></div>
         <div className="cv-kv"><span>In force</span><span style={{ color: checks.inforce === false ? "var(--error)" : undefined }}>{checks.inforce == null ? "—" : checks.inforce ? "Yes" : "No"}</span></div>
@@ -72,11 +26,12 @@ function ValidationPanel({ check, checks }) {
         <div className="cv-kv"><span>Plan on the card</span><span>{cd.plan_name || cd.plan || "—"}</span></div>
         <div className="cv-kv"><span>Member checked</span><span className="cv-mono">{cd.member_id || "—"}</span></div>
         <div className="cv-kv"><span>Coverage status</span><span>{cd.status || "—"}</span></div>
+        {discovery && <div className="cv-kv"><span>Policy source</span><span>Found by discovery</span></div>}
       </div>
       <div>
         <div className="cv-kv"><span>Sum insured</span><span>{money(w.sum_insured ?? cd.sum_insured)}</span></div>
         <div className="cv-kv"><span>Used so far</span><span>{money(w.used)}</span></div>
-        <div className="cv-kv"><span>Balance</span><span style={{ color: w.balance <= 0 ? "var(--error)" : "var(--success)" }}>{money(w.balance)}</span></div>
+        <div className="cv-kv"><span>Balance</span><span style={w.balance == null ? undefined : { color: w.balance <= 0 ? "var(--error)" : "var(--success)" }}>{money(w.balance)}</span></div>
         {classes.map((c) => (
           <div key={c.id || c.type} className="cv-kv"><span>{c.name || c.type}</span><span>{c.value}</span></div>
         ))}
@@ -88,9 +43,9 @@ function ValidationPanel({ check, checks }) {
 }
 
 function BenefitsPanel({ check }) {
-  if (!check.items.length) return <div className="cv-card-body cv-card-meta" style={{ paddingTop: 16 }}>The payer returned no item limits for this policy.</div>;
+  if (!check.items.length) return <div className="cv-card-body cv-card-meta">The payer returned no item limits for this policy.</div>;
   return (
-    <div className="cv-tw cv-in-card" style={{ marginTop: 16 }}>
+    <div className="cv-tw cv-in-card">
       <table>
         <thead>
           <tr>
@@ -138,7 +93,7 @@ function BenefitsPanel({ check }) {
 function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
   return (
     <>
-      <div className="cv-card-intro" style={{ paddingTop: 16 }}>
+      <div className="cv-card-intro">
         The payer's own ruling for this case{check.required != null ? (check.required ? ": pre-authorisation is required" : ": no pre-authorisation needed") : ""}. Where it speaks, it replaces the plan's lists.
       </div>
       {requirements.length === 0 ? (
@@ -177,82 +132,32 @@ function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
   );
 }
 
-function DiscoveryPanel({ discovery, onDiscover }) {
-  if (!discovery) {
-    return (
-      <div className="cv-card-body" style={{ paddingTop: 16 }}>
-        <div>Discovery was not used for this case: the policy came from the hospital's records or was entered by the desk.</div>
-        <div className="cv-card-meta" style={{ marginTop: 6 }}>Discovery asks the payer which covers this patient holds, by ABHA or member id. Use it when the patient has no card with them.</div>
-        {onDiscover && (
-          <div style={{ marginTop: 12 }}>
-            <button type="button" className="cv-btn" onClick={onDiscover}>Search for other covers</button>
-          </div>
-        )}
-      </div>
-    );
-  }
-  return (
-    <div className="cv-card-body cv-cols" style={{ paddingTop: 16 }}>
-      <div>
-        <div className="cv-kv"><span>Cover</span><span>{discovery.product_name || discovery.plan_name || "—"}</span></div>
-        <div className="cv-kv"><span>Policy</span><span className="cv-mono">{discovery.policy_number || "—"}</span></div>
-        <div className="cv-kv"><span>Member</span><span className="cv-mono">{discovery.member_id || "—"}</span></div>
-      </div>
-      <div>
-        <div className="cv-kv"><span>Sum insured</span><span>{money(discovery.sum_insured)}</span></div>
-        <div className="cv-kv"><span>Valid to</span><span>{discovery.effective_to ? formatDate(discovery.effective_to) : "—"}</span></div>
-        <div className="cv-kv"><span>Status</span><span>{discovery.status || "—"}</span></div>
-      </div>
-    </div>
-  );
-}
+const TITLES = { validation: "Validation", benefits: "Benefits", auth: "Auth requirements" };
 
-export default function EligibilityResponses({ checks, requirements, discovery, formTitle, onOpenForm, onDiscover, onRerun, rerunLabel, rerunDisabled }) {
-  const [tab, setTab] = useState("validation");
-  const list = tiles(checks, requirements, discovery);
-  const check = checks?.[tab];
+// One of the payer's three answers, in full. Which one is chosen on the checklist.
+export default function PayerAnswer({ id, checks, requirements, discovery, formTitle, onOpenForm }) {
+  const check = checks?.[id];
   const note = check ? waiting(check) : null;
+  const when = check?.sub?.received_at || check?.sub?.updated_at;
   return (
-    <section aria-label="Coverage eligibility" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <h2 className="cv-section-title">2. Coverage eligibility</h2>
-        <span className="cv-card-meta">The payer's answers. Pick one to read it in full.</span>
-        {onRerun && (
-          <button type="button" className="cv-btn" style={{ marginLeft: "auto" }} disabled={rerunDisabled} onClick={onRerun}>
-            {rerunLabel}
-          </button>
-        )}
+    <section className="cv-card" aria-label={TITLES[id]}>
+      <div className="cv-card-head">
+        <h2 className="cv-card-title">{TITLES[id]}</h2>
+        {when && <span className="cv-card-meta">Answered {formatDate(when)}</span>}
       </div>
       {!checks ? (
-        <div className="cv-notice is-info">
-          <div className="cv-notice-body">Eligibility has not been asked yet. It is sent when you continue from the Policy step.</div>
-        </div>
+        <div className="cv-card-intro">Eligibility has not been asked yet. It is sent when you continue from the Policy step.</div>
       ) : (
         <>
-          <div className="cv-tiles" role="tablist" aria-label="Eligibility answers">
-            {list.map((t) => (
-              <button key={t.id} type="button" role="tab" className="cv-tile" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
-                <span className="cv-tile-head">
-                  <span className="cv-tile-name">{t.name}</span>
-                  <span className={`cv-chip ${t.tone}`} style={{ marginLeft: "auto" }}>{t.badge}</span>
-                </span>
-                <span className="cv-tile-line">{t.line}</span>
-                {t.when && <span className="cv-tile-when">{formatDate(t.when)}</span>}
-              </button>
-            ))}
-          </div>
-          <div className="cv-card" role="tabpanel">
-            {note && <div className="cv-card-intro" style={{ paddingTop: 16 }}>{note}</div>}
-            {!note && tab === "validation" && <ValidationPanel check={check} checks={checks} />}
-            {!note && tab === "benefits" && <BenefitsPanel check={check} />}
-            {!note && tab === "auth" && <AuthPanel check={check} requirements={requirements} formTitle={formTitle} onOpenForm={onOpenForm} />}
-            {tab === "discovery" && <DiscoveryPanel discovery={discovery} onDiscover={onDiscover} />}
-            {check?.sub?.errors?.length > 0 && (
-              <div className="cv-card-body">
-                <PayrErrorList errors={check.sub.errors} />
-              </div>
-            )}
-          </div>
+          {note && <div className="cv-card-intro">{note}</div>}
+          {!note && id === "validation" && <ValidationPanel check={check} checks={checks} discovery={discovery} />}
+          {!note && id === "benefits" && <BenefitsPanel check={check} />}
+          {!note && id === "auth" && <AuthPanel check={check} requirements={requirements} formTitle={formTitle} onOpenForm={onOpenForm} />}
+          {check?.sub?.errors?.length > 0 && (
+            <div className="cv-card-body">
+              <PayrErrorList errors={check.sub.errors} />
+            </div>
+          )}
         </>
       )}
     </section>

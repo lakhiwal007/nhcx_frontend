@@ -1,9 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Building2, Radar, AlertTriangle, UserRound } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
+import { usePoll } from "../../hooks/usePoll";
 import { Button, InfoTip, Tip, NextStep } from "../Common";
+import PayerName from "../PayerName";
+import { POLICY_CHANGE_RESET } from "../case/caseStages";
+import ChangePolicyModal from "./ChangePolicyModal";
 import { formatMoney, formatDate, formatDateTime, humanize } from "../../format.js";
 
 const POLL_MS = 4000;
@@ -34,6 +38,39 @@ function refusalFor(payer, form) {
   return null;
 }
 
+// A family card comes back as one cover per person. The policy's facts are the
+// same for all of them, so they are shown once per policy above its members.
+function groupByPolicy(covers = []) {
+  const groups = new Map();
+  for (const cover of covers) {
+    if (!groups.has(cover.policy_code)) groups.set(cover.policy_code, []);
+    groups.get(cover.policy_code).push(cover);
+  }
+  return [...groups.values()];
+}
+
+const personOf = (cover) =>
+  [humanize(cover.gender, ""), cover.dob ? `born ${formatDate(cover.dob)}` : ""].filter(Boolean).join(" · ");
+
+const memberColumns = (covers) => {
+  const shown = {
+    relation: covers.some((c) => c.relationship),
+    person: covers.some(personOf),
+    member: covers.some((c) => c.member_id),
+    abha: covers.some((c) => c.abha_number),
+  };
+  const template = [
+    "32px",
+    "minmax(0, 2fr)",
+    shown.relation && "minmax(0, 1fr)",
+    shown.person && "minmax(0, 1.5fr)",
+    shown.member && "minmax(0, 1.1fr)",
+    shown.abha && "minmax(0, 1.2fr)",
+    "84px",
+  ];
+  return { shown, template: template.filter(Boolean).join(" ") };
+};
+
 function initials(name) {
   return String(name || "?")
     .split(/\s+/)
@@ -53,8 +90,10 @@ export default function CoverageDiscovery({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
   const readOnly = useReadOnly();
-  const { patient, updateCaseState, caseClosed } = ctx;
+  const { patient, caseState, updateCaseState, caseClosed, cashlessCase, setCashlessCase } = ctx;
   const childId = patient?.child_id;
+  const [pendingChoice, setPendingChoice] = useState(null);
+  const answerRef = useRef(null);
 
   const [payerQuery, setPayerQuery] = useState("");
   const [payerResults, setPayerResults] = useState([]);
@@ -111,21 +150,20 @@ export default function CoverageDiscovery({ ctx }) {
     };
   }, [payerQuery, payer]);
 
-  useEffect(() => {
-    if (!waiting || !activeId) return undefined;
-    const timer = setInterval(async () => {
+  usePoll(
+    async (signal) => {
       try {
-        const res = await api.getCoverageEligibilityStatus(activeId);
+        const res = await api.getCoverageEligibilityStatus(activeId, signal);
         setPollError(null);
         const status = discoveryState(res?.status);
         patchDiscovery(activeId, { status, covers: res?.covers || [], error: status === "failed" ? statusError(res) : null });
         if (status !== "waiting") setWaiting(false);
       } catch (err) {
-        setPollError(err.message);
+        if (!signal.aborted) setPollError(err.message);
       }
-    }, POLL_MS);
-    return () => clearInterval(timer);
-  }, [waiting, activeId]);
+    },
+    { active: waiting ? activeId : null, intervalMs: POLL_MS, immediate: false },
+  );
 
   const setField = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -154,6 +192,7 @@ export default function CoverageDiscovery({ ctx }) {
         {
           correlation_id: res.correlation_id,
           payer_id: payer.code,
+          payer_name: payer.name,
           sent_at: new Date().toISOString(),
           status: "waiting",
           covers: [],
@@ -174,7 +213,12 @@ export default function CoverageDiscovery({ ctx }) {
     }
   };
 
-  const handleChoose = async (discovery, cover) => {
+  const handleChoose = (discovery, cover) => {
+    if (caseState.cashless_case_id) setPendingChoice({ discovery, cover });
+    else adoptCover(discovery, cover);
+  };
+
+  const adoptCover = async (discovery, cover) => {
     setAdopting(`${cover.policy_code}|${cover.member_id || ""}`);
     setAdoptError(null);
     try {
@@ -183,12 +227,11 @@ export default function CoverageDiscovery({ ctx }) {
         member_id: cover.member_id,
       });
       const policy = res.policy;
+      if (caseState.cashless_case_id) setCashlessCase(null);
       updateCaseState({
         policy,
         payer: { code: policy.payer_id, name: policy.payer_name || policy.payer_id },
-        cashless_case_id: null,
-        claim_id: null,
-        eligibility_correlation_id: null,
+        ...POLICY_CHANGE_RESET,
       });
       navigate("../prep");
     } catch (err) {
@@ -200,23 +243,22 @@ export default function CoverageDiscovery({ ctx }) {
 
   const active = discoveries.find((d) => d.correlation_id === activeId);
   const locked = readOnly || caseClosed;
+  const answerKey = active && active.status !== "waiting" ? `${active.correlation_id}:${active.status}` : null;
+
+  // The answer lands under the form, so bring it into view instead of leaving
+  // staff to find it by scrolling.
+  useEffect(() => {
+    if (answerKey) answerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [answerKey]);
 
   return (
     <div className="wizard-step">
-      <div className="pp-panel">
+      <div className="pp-panel cd-panel">
         <div className="pp-head">
-          <div className="pp-head-text">
-            <h2 className="pp-title">
-              Discover a policy
-              <InfoTip term="discovery" />
-            </h2>
-            <div className="pp-subtitle">
-              Ask one insurer directly whether it covers {patient?.name || "this patient"}.
-            </div>
-            <Tip>
-              Have the patient's insurance card ready. You need the insurer's name and the policy number or member ID printed on
-              it.
-            </Tip>
+          <div className="pp-head-line">
+            <h2 className="pp-title">Ask an insurer</h2>
+            <span className="pp-muted">whether it covers {patient?.name || "this patient"}</span>
+            <InfoTip term="discovery" />
           </div>
           <button type="button" className="pp-btn" onClick={() => navigate("../payer")}>
             <ArrowLeft size={14} /> Back to policies
@@ -234,106 +276,97 @@ export default function CoverageDiscovery({ ctx }) {
           </div>
         ) : (
           <div className="cd-form">
-            <section className="cd-section">
-              <div className="cd-section-title">
-                1. Which insurer?
-                <InfoTip term="payer" />
-              </div>
-              {payer ? (
-                <div className="cd-payer">
-                  <Building2 size={14} />
-                  <span className="cd-payer-name">{payer.name}</span>
-                  <code className="pp-lookup-code">{payer.code}</code>
-                  {payer.scheme_type && <span className="pp-status">{payer.scheme_type}</span>}
-                  <button
-                    type="button"
-                    className="pp-link"
-                    onClick={() => {
-                      setPayer(null);
-                      setPayerQuery("");
-                    }}
-                  >
-                    Change payer
-                  </button>
-                </div>
-              ) : (
-                <div className="cd-typeahead">
-                  <input
-                    className="input-modern pp-input"
-                    placeholder="Type a name or a participant code"
-                    aria-label="Payer"
-                    value={payerQuery}
-                    onChange={(e) => setPayerQuery(e.target.value)}
-                  />
-                  <div className="pp-muted cd-help">
-                    Type at least two letters of the insurer or TPA named on the card, for example "Star" or "PMJAY".
+            <Tip className="cd-form-tip">
+              Copy these from the insurance card. The policy number or member ID is required; the rest helps the insurer find the
+              patient.
+            </Tip>
+            <div className="cd-grid">
+              <div className="cd-field">
+                <span>
+                  Insurer
+                  <InfoTip term="payer" />
+                </span>
+                {payer ? (
+                  <div className="cd-payer" title={payer.code}>
+                    <Building2 size={14} />
+                    <span className="cd-payer-name">{payer.name}</span>
+                    {payer.scheme_type && <span className="pp-status">{payer.scheme_type}</span>}
+                    <button
+                      type="button"
+                      className="pp-link"
+                      onClick={() => {
+                        setPayer(null);
+                        setPayerQuery("");
+                      }}
+                    >
+                      Change
+                    </button>
                   </div>
-                  {searchingPayers && payerQueryReady ? (
-                    <div className="pp-muted cd-help">Searching…</div>
-                  ) : visiblePayers.length > 0 ? (
-                    <div className="pp-lookup-results">
-                      {visiblePayers.map((p) => (
-                        <button type="button" key={p.code} className="pp-lookup-row" onClick={() => setPayer(p)}>
-                          <Building2 size={14} />
-                          <span className="pp-lookup-name">{p.name}</span>
-                          {p.scheme_type && <span className="pp-muted">{p.scheme_type}</span>}
-                          <code className="pp-lookup-code">{p.code}</code>
-                        </button>
-                      ))}
-                    </div>
-                  ) : payerQueryReady ? (
-                    <div className="pp-muted cd-help">No insurer matches that name. Try a shorter part of it.</div>
-                  ) : null}
-                </div>
-              )}
-            </section>
-
-            <section className="cd-section">
-              <div className="cd-section-title">2. Which policy?</div>
-              <div className="pp-muted">Copy these from the insurance card. One of the two is enough; both is better.</div>
-              <div className="cd-grid cd-grid-2">
-                <label className="cd-field">
-                  <span>
-                    Policy number
-                    <InfoTip term="policy_number" />
-                  </span>
-                  <input className="input-modern pp-input" value={values.policy_number} onChange={setField("policy_number")} />
-                </label>
-                <label className="cd-field">
-                  <span>
-                    Member ID
-                    <InfoTip term="member_id" />
-                  </span>
-                  <input className="input-modern pp-input" value={values.member_id} onChange={setField("member_id")} />
-                </label>
+                ) : (
+                  <div className="cd-typeahead">
+                    <input
+                      className="input-modern pp-input"
+                      placeholder="Name on the card, at least 2 letters"
+                      aria-label="Payer"
+                      value={payerQuery}
+                      onChange={(e) => setPayerQuery(e.target.value)}
+                    />
+                    {payerQueryReady && (
+                      <div className="cd-payer-menu">
+                        {searchingPayers ? (
+                          <div className="pp-muted cd-payer-note">Searching…</div>
+                        ) : visiblePayers.length > 0 ? (
+                          <div className="pp-lookup-results">
+                            {visiblePayers.map((p) => (
+                              <button type="button" key={p.code} className="pp-lookup-row" onClick={() => setPayer(p)}>
+                                <Building2 size={14} />
+                                <span className="pp-lookup-name">{p.name}</span>
+                                {p.scheme_type && <span className="pp-muted">{p.scheme_type}</span>}
+                                <code className="pp-lookup-code">{p.code}</code>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="pp-muted cd-payer-note">No insurer matches that name. Try a shorter part of it.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-
-            </section>
-
-            <section className="cd-section">
-              <div className="cd-section-title">3. Anything else that helps the insurer find the patient (optional)</div>
-              <div className="pp-muted">Mobile and ABHA are filled in from the patient's record. Leave a field empty if you don't have it.</div>
-              <div className="cd-grid cd-grid-3">
-                <label className="cd-field">
-                  <span>
-                    Aadhaar number
-                    <InfoTip term="aadhaar" />
-                  </span>
-                  <input className="input-modern pp-input" inputMode="numeric" value={values.aadhaar} onChange={setField("aadhaar")} />
-                </label>
-                <label className="cd-field">
-                  <span>Mobile number</span>
-                  <input className="input-modern pp-input" inputMode="numeric" value={values.mobile} onChange={setField("mobile")} />
-                </label>
-                <label className="cd-field">
-                  <span>
-                    ABHA number
-                    <InfoTip term="abha" />
-                  </span>
-                  <input className="input-modern pp-input" inputMode="numeric" value={values.abha_number} onChange={setField("abha_number")} />
-                </label>
-              </div>
-            </section>
+              <label className="cd-field">
+                <span>
+                  Policy number
+                  <InfoTip term="policy_number" />
+                </span>
+                <input className="input-modern pp-input" value={values.policy_number} onChange={setField("policy_number")} />
+              </label>
+              <label className="cd-field">
+                <span>
+                  Member ID
+                  <InfoTip term="member_id" />
+                </span>
+                <input className="input-modern pp-input" value={values.member_id} onChange={setField("member_id")} />
+              </label>
+              <label className="cd-field">
+                <span>
+                  Aadhaar number
+                  <InfoTip term="aadhaar" />
+                </span>
+                <input className="input-modern pp-input" inputMode="numeric" value={values.aadhaar} onChange={setField("aadhaar")} />
+              </label>
+              <label className="cd-field">
+                <span>Mobile number</span>
+                <input className="input-modern pp-input" inputMode="numeric" value={values.mobile} onChange={setField("mobile")} />
+              </label>
+              <label className="cd-field">
+                <span>
+                  ABHA number
+                  <InfoTip term="abha" />
+                </span>
+                <input className="input-modern pp-input" inputMode="numeric" value={values.abha_number} onChange={setField("abha_number")} />
+              </label>
+            </div>
 
             {refusal && (
               <NextStep tone="bad" className="cd-refusal" title="Not sent yet">
@@ -345,7 +378,7 @@ export default function CoverageDiscovery({ ctx }) {
               {waiting ? (
                 <>
                   <span className="pp-muted">
-                    <span className="spinner cd-spinner" /> Waiting for {active?.payer_id || payer?.code} to answer. This usually takes
+                    <span className="spinner cd-spinner" /> Waiting for <PayerName id={active?.payer_id} name={active?.payer_name} /> to answer. This usually takes
                     under a minute; keep this page open.
                   </span>
                   <button type="button" className="pp-btn" onClick={() => setWaiting(false)}>
@@ -363,7 +396,7 @@ export default function CoverageDiscovery({ ctx }) {
         )}
 
         {active && active.status !== "waiting" && (
-          <section className="cd-section cd-covers">
+          <section className="cd-section cd-covers" ref={answerRef}>
             <div className="cd-section-title">Cover returned</div>
             {active.status === "failed" ? (
               <NextStep
@@ -377,78 +410,107 @@ export default function CoverageDiscovery({ ctx }) {
                 {active.error || "The insurer refused the request."}
               </NextStep>
             ) : (active.covers || []).length === 0 ? (
-              <NextStep
-                tone="warn"
-                title="This insurer has no cover for these details"
-                steps={[
-                  "Check the policy number and member ID for typos, and that you picked the insurer named on the card.",
-                  "Add the mobile or ABHA number if you left them empty, then ask again.",
-                  "If the card names a TPA, ask the TPA instead of the insurer, or the other way round.",
-                  "No luck at all? Treat the patient as cash for now; a policy can be added to the case later.",
-                ]}
-              />
+              <NextStep tone="warn" title="This insurer has no cover for these details">
+                Check the numbers for typos and that this is the insurer named on the card. If the card names a TPA, try the TPA instead
+                of the insurer, or the other way round.
+                <Tip>No luck at all? Treat the patient as cash for now; a policy can be added to the case later.</Tip>
+              </NextStep>
             ) : (
-              <Tip>
-                Choose the person being admitted. A family card lists everyone on it, so check the name, age and relationship.
-              </Tip>
+              active.covers.length > 1 && (
+                <Tip>Choose the person being admitted. A family card lists everyone on it, so check the name, age and relationship.</Tip>
+              )
             )}
-            {active.status !== "failed" && (active.covers || []).length > 0 && (
-              <div className="cd-tiles">
-                {active.covers.map((cover) => {
-                  const key = `${cover.policy_code}|${cover.member_id || ""}`;
-                  const src = photoSrc(cover.photo);
-                  return (
-                    <button
-                      type="button"
-                      key={key}
-                      className="cd-tile"
-                      disabled={!!adopting || locked}
-                      onClick={() => handleChoose(active, cover)}
-                    >
-                      <div className="cd-tile-person">
-                        {src ? <img className="cd-avatar" src={src} alt="" /> : <span className="cd-avatar">{initials(cover.name)}</span>}
-                        <div>
-                          <div className="cd-tile-name">{cover.name || "Unnamed member"}</div>
-                          <div className="pp-muted">
-                            {[humanize(cover.gender, ""), cover.dob ? `born ${formatDate(cover.dob)}` : "", cover.relationship]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </div>
-                          <div className="pp-muted">
-                            {[cover.member_id && `Member ${cover.member_id}`, cover.abha_number && `ABHA ${cover.abha_number}`]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </div>
-                          {cover.address && <div className="pp-muted">{cover.address}</div>}
-                        </div>
+            {active.status !== "failed" &&
+              groupByPolicy(active.covers).map((covers) => {
+                const policy = covers[0];
+                const columns = memberColumns(covers);
+                return (
+                  <div className="cd-cover" key={policy.policy_code}>
+                    <dl className="cd-strip">
+                      <div>
+                        <dt>Plan</dt>
+                        <dd>{policy.plan_name || "Not given"}</dd>
                       </div>
-                      <div className="cd-tile-policy">
-                        <span className="pp-product">{cover.plan_name || active.payer_id}</span>
-                        <span className="pp-mono">{cover.policy_code}</span>
-                        {cover.members_on_cover > 1 && <span className="pp-muted">{cover.members_on_cover} members on this cover</span>}
+                      <div>
+                        <dt>Policy number</dt>
+                        <dd className="pp-mono">{policy.policy_code}</dd>
                       </div>
-                      <div className="cd-figures">
-                        <div>
-                          <span className="pp-amount-key">Sum insured</span>
-                          <span className="pp-amount">{formatMoney(cover.sum_insured)}</span>
-                        </div>
-                        <div>
-                          <span className="pp-amount-key">Valid until</span>
-                          <span>{formatDate(cover.valid_until)}</span>
-                        </div>
-                        <div>
-                          <span className="pp-amount-key">Status</span>
-                          <span className={`pp-status${/active|in.?force/i.test(cover.status || "") ? " is-active" : ""}`}>
-                            {humanize(cover.status)}
+                      <div>
+                        <dt>Sum insured</dt>
+                        <dd className="pp-amount">{formatMoney(policy.sum_insured)}</dd>
+                      </div>
+                      <div>
+                        <dt>Valid until</dt>
+                        <dd>{formatDate(policy.valid_until)}</dd>
+                      </div>
+                      <div>
+                        <dt>Status</dt>
+                        <dd>
+                          <span className={`pp-status${/^(active|in.?force)/i.test(policy.status || "") ? " is-active" : ""}`}>
+                            {humanize(policy.status)}
                           </span>
-                        </div>
+                        </dd>
                       </div>
-                      {adopting === key && <div className="pp-muted">Selecting…</div>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      {policy.members_on_cover > 1 && (
+                        <div>
+                          <dt>On this cover</dt>
+                          <dd>{policy.members_on_cover} members</dd>
+                        </div>
+                      )}
+                    </dl>
+                    <div className="cd-members" style={{ "--cd-cols": columns.template }}>
+                      <div className="cd-member-head" aria-hidden="true">
+                        <span />
+                        <span>Name</span>
+                        {columns.shown.relation && <span>Relation</span>}
+                        {columns.shown.person && <span>Gender and birth</span>}
+                        {columns.shown.member && <span>Member ID</span>}
+                        {columns.shown.abha && <span>ABHA</span>}
+                        <span />
+                      </div>
+                      {covers.map((cover) => {
+                        const key = `${cover.policy_code}|${cover.member_id || ""}`;
+                        const src = photoSrc(cover.photo);
+                        return (
+                          <div className="cd-member" key={key}>
+                            {src ? <img className="cd-avatar" src={src} alt="" /> : <span className="cd-avatar">{initials(cover.name)}</span>}
+                            <div className="cd-member-name">
+                              <span className="pp-product" title={cover.name}>
+                                {cover.name || "Unnamed member"}
+                              </span>
+                              {cover.address && (
+                                <span className="pp-cell-sub" title={cover.address}>
+                                  {cover.address}
+                                </span>
+                              )}
+                            </div>
+                            {columns.shown.relation && (
+                              <div className={`pp-cell${cover.relationship ? "" : " is-empty"}`}>{cover.relationship || "—"}</div>
+                            )}
+                            {columns.shown.person && (
+                              <div className={`pp-cell${personOf(cover) ? "" : " is-empty"}`}>{personOf(cover) || "—"}</div>
+                            )}
+                            {columns.shown.member && (
+                              <div className={`pp-cell pp-mono${cover.member_id ? "" : " is-empty"}`}>{cover.member_id || "—"}</div>
+                            )}
+                            {columns.shown.abha && (
+                              <div className={`pp-cell pp-mono${cover.abha_number ? "" : " is-empty"}`}>{cover.abha_number || "—"}</div>
+                            )}
+                            <button
+                              type="button"
+                              className="pp-btn cd-select"
+                              disabled={!!adopting || locked}
+                              onClick={() => handleChoose(active, cover)}
+                            >
+                              {adopting === key ? "Selecting…" : "Select"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             {adoptError && (
               <div className="pp-state is-error">
                 <AlertTriangle size={16} />
@@ -457,9 +519,9 @@ export default function CoverageDiscovery({ ctx }) {
             )}
           </section>
         )}
-        {pollError && <div className="pp-muted cd-help cd-poll-error">Could not poll the gateway: {pollError}</div>}
+        {pollError && <div className="pp-muted cd-poll-error">Could not poll the gateway: {pollError}</div>}
 
-        {discoveries.length > 0 && (
+        {discoveries.length > 1 && (
           <section className="cd-section">
             <div className="cd-section-title">Discoveries sent on this visit</div>
             <div className="cd-sent">
@@ -474,9 +536,8 @@ export default function CoverageDiscovery({ ctx }) {
                   }}
                 >
                   <UserRound size={14} />
-                  <span className="cd-sent-title">Discovery</span>
                   <span className={`cd-chip ${STATE_TONES[d.status] || ""}`}>{d.status}</span>
-                  <code className="pp-lookup-code">{d.payer_id}</code>
+                  <PayerName id={d.payer_id} name={d.payer_name} />
                   <span className="pp-muted">{formatDateTime(d.sent_at)}</span>
                   <span className="pp-muted cd-sent-info">
                     {[
@@ -495,6 +556,18 @@ export default function CoverageDiscovery({ ctx }) {
           </section>
         )}
       </div>
+
+      <ChangePolicyModal
+        open={!!pendingChoice}
+        from={caseState.policy?.product_name || caseState.policy?.policy_number || cashlessCase?.policy_number}
+        to={pendingChoice?.cover.plan_name || pendingChoice?.cover.policy_code}
+        onCancel={() => setPendingChoice(null)}
+        onConfirm={() => {
+          const { discovery, cover } = pendingChoice;
+          setPendingChoice(null);
+          adoptCover(discovery, cover);
+        }}
+      />
     </div>
   );
 }

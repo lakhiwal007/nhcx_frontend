@@ -4,7 +4,7 @@ import { api } from "../api";
 import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, formatMoney, InfoTip, Tip } from "./Common";
 import { formatDate, formatPhone, formatCaseRef, formatRelative, humanize, priorityLabel, safeHref, photoSrc } from "../format.js";
 import { taskStep, taskScreen, taskNavState } from "../taskRoutes";
-import { isSettled, needsAttention } from "../caseStatus.js";
+import { isSettled } from "../caseStatus.js";
 import { routeAtOrAfter } from "../workflowStorage";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import PayerName from "./PayerName";
@@ -1050,7 +1050,6 @@ export default function PatientProfile() {
             <table className="wq-table cc-table">
               <thead>
                 <tr>
-                  <th className="cc-edge-col" aria-hidden="true" />
                   <th>Patient</th>
                   <th>Mobile</th>
                   <th>ABHA</th>
@@ -1074,9 +1073,6 @@ export default function PatientProfile() {
                       onClick={() => handleSelectPatient(child)}
                       onKeyDown={(e) => { if (e.key === "Enter") handleSelectPatient(child); }}
                     >
-                      <td className="cc-edge-col">
-                        {claim && needsAttention(claim) && <span className="wq-edge is-high" />}
-                      </td>
                       <td>
                         <div className="pt-person">
                           <Avatar patient={child} />
@@ -1088,7 +1084,7 @@ export default function PatientProfile() {
                           </div>
                         </div>
                       </td>
-                      <td className="wq-mono">{child.mobile ? formatPhone(child.mobile) : "—"}</td>
+                      <td className="wq-num">{child.mobile ? formatPhone(child.mobile) : "—"}</td>
                       <td className={child.abha_number ? "wq-mono" : "pt-warn"}>{child.abha_number || "Not linked"}</td>
                       <td>
                         {claim ? (
@@ -1104,7 +1100,7 @@ export default function PatientProfile() {
                         )}
                       </td>
                       <td>{claim ? <StageTrack claim={claim} /> : null}</td>
-                      <td className="cc-num wq-mono">{child.cashless_cases_count ?? (claim ? 1 : 0)}</td>
+                      <td className="cc-num wq-num">{child.cashless_cases_count ?? (claim ? 1 : 0)}</td>
                       <td className="wq-sub" title={child.last_activity ? formatDate(child.last_activity) : undefined}>
                         {child.last_activity ? formatRelative(child.last_activity) : "—"}
                       </td>

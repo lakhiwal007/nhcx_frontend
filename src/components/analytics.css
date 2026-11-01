@@ -91,7 +91,6 @@
 }
 
 .an-bar-value {
-    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-size: var(--text-sm);
     color: var(--text-main);
@@ -162,7 +161,6 @@
 }
 
 .an-tat-value {
-    font-family: var(--font-mono);
     font-size: var(--text-2xl);
     font-weight: var(--fw-semibold);
     font-variant-numeric: tabular-nums;
@@ -188,7 +186,6 @@
 
 .an-tat-facts dd {
     margin: 0;
-    font-family: var(--font-mono);
     font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
 }
