@@ -564,9 +564,75 @@ const mockPlanState = (plan) => {
   return key && MOCK_PLAN_STATES[key] ? { correlation_id: plan.correlation_id, plan: plan.plan, ...MOCK_PLAN_STATES[key] } : plan;
 };
 
+// ?cl=<state> on /case/:id/claim forces a claim state. Draft states:
+// ready|over|missing|load_error. Sends: discharge_only|discharge_rejected|
+// discharge_failed. Final claim: final_failed|queried|partial|rejected|not_found.
+const MOCK_DISCHARGE_ID = "f3be6a19-f3f4-4624-8f1d-384a37cead9d";
+const MOCK_FINAL_ID = "0e20b352-c4b7-49fa-9246-a8357d236f48";
+const mockClaimKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("cl") : null);
+
+const mockClaimDraft = (draft) => {
+  const key = mockClaimKey();
+  if (key === "load_error") throw new Error("The final bill could not be read from the hospital records.");
+  if (key === "missing") return { ...draft, missing_fields: ["patient.dob", "discharge.type"] };
+  if (key === "over") return { ...draft, payer_asks: [] };
+  if (key) {
+    return {
+      ...draft,
+      payer_asks: [],
+      total_amount: 40000,
+      items: draft.items.map((i) => ({ ...i, unit_price: 40000, net_amount: 40000 })),
+      chief_complaints: [{ code: "R10", name: "Abdominal pain" }],
+    };
+  }
+  return draft;
+};
+
+const mockClaimCase = (res) => {
+  const key = mockClaimKey();
+  if (!key) return res;
+  const finalKeys = ["final_failed", "queried", "partial", "rejected", "not_found"];
+  if (finalKeys.includes(key)) return { ...res, claim: { correlation_id: MOCK_FINAL_ID }, legs: { ...res.legs, claim: "submitting" } };
+  const discharge = key.startsWith("discharge");
+  return { ...res, claim: discharge ? { correlation_id: MOCK_DISCHARGE_ID } : null, legs: { ...res.legs, claim: "draft" } };
+};
+
+const mockClaimStatus = (res) => {
+  const key = mockClaimKey();
+  const failure = { status: "failed", decision: null, error_message: "The payer could not be reached." };
+  if (key === "discharge_rejected") return { ...res, decision: "REJECTED", items: [] };
+  if (key === "discharge_failed" || key === "final_failed") return { ...res, ...failure };
+  if (key === "not_found") return { correlation_id: res.correlation_id, status: "not_found" };
+  if (key === "queried") return { ...res, decision: "QUERIED", approved_amount: null };
+  if (key === "rejected") return { ...res, decision: "REJECTED", approved_amount: 0, process_notes: [{ number: 1, text: "Package not covered for this admission." }] };
+  if (key === "partial") {
+    return {
+      ...res,
+      decision: "PARTIALLY_APPROVED",
+      approved_amount: 30000,
+      totals: { submitted: { value: 40000 }, eligible: { value: 32000 }, copay: { value: 2000 }, benefit: { value: 30000 } },
+      items: [
+        {
+          sequence: 1,
+          adjudication: {
+            submitted: { value: 40000 },
+            eligible: { value: 32000, reason: "ExceededCoverageLimit" },
+            copay: { value: 2000 },
+            benefit: { value: 30000 },
+            status: "Approved",
+            reason: { text: "Room charges above the package rate" },
+          },
+        },
+      ],
+    };
+  }
+  return res;
+};
+
 // ?ce=open|not_in_force|unknown|partial|failed|single on /case/:id/prep forces an
 // eligibility answer on a case still at that step.
-const mockCeState = (res) => {
+const mockCeState = (status) => {
+  const res = mockClaimCase(status);
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ce") : null;
   if (!key) return res;
   const open = { ...res, current_step: "insurance_and_eligibility", next_actions: ["refresh", "prepare_preauth"] };
@@ -2161,7 +2227,7 @@ const mock = {
   // ─── Claims ─────────────────────────────────────────────────────────────────
   prepareClaimDraft: async (params = {}) => {
     await delay(800);
-    return {
+    return mockClaimDraft({
       discharge: { discharged_at: "2026-05-04T14:15:00+05:30" },
       discharge_rules: {
         required: true,
@@ -2233,7 +2299,7 @@ const mock = {
         },
       ],
       missing_fields: [],
-    };
+    });
   },
 
   patchPatientContext: async (claim_id, data) => {
@@ -2263,8 +2329,9 @@ const mock = {
     };
   },
 
-  submitFinalClaim: async () => {
+  submitFinalClaim: async (data) => {
     await delay(1000);
+    window.__mockLastClaimSend = data;
     return {
       correlation_id: "0e20b352-c4b7-49fa-9246-a8357d236f48",
       status: "submitted",
@@ -2272,8 +2339,9 @@ const mock = {
     };
   },
 
-  respondClaimQuery: async () => {
+  respondClaimQuery: async (data) => {
     await delay(800);
+    window.__mockLastClaimSend = data;
     return {
       correlation_id: "abc123-claim-query-response",
       status: "submitted",
@@ -2305,7 +2373,7 @@ const mock = {
 
   getClaimStatus: async (correlation_id) => {
     await delay(1200);
-    return {
+    return mockClaimStatus({
       correlation_id,
       claim_id: 101,
       workflow: "claim",
@@ -2329,7 +2397,7 @@ const mock = {
       },
       errors: [],
       process_notes: [],
-    };
+    });
   },
 
   // ─── Reprocess ──────────────────────────────────────────────────────────────

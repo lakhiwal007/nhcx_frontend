@@ -1,27 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Send, ArrowRight, AlertCircle, ChevronDown, Edit2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Send, ArrowRight, Edit2 } from "lucide-react";
 import { api } from "../../api";
+import { useReadOnly } from "../../readOnly";
 import { usePoll } from "../../hooks/usePoll";
 import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section } from "../case/CaseFile";
 import PayerAsks from "../case/PayerAsks";
 import BiometricCard from "../case/BiometricCard";
+import PatientDetailsForm from "../case/PatientDetailsForm";
 import { liveAsks } from "../case/askStatus";
 import { Drawer } from "../Overlay";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
 
 const POLL_INTERVAL_MS = 7000;
-const PATIENT_CONTEXT_FIELDS = [
-  { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
-  { key: "member_id", label: "Member / PMJAY ID", placeholder: "PMJAY-MEM-XXXXX" },
-  { key: "dob", label: "Date of Birth", type: "date" },
-  { key: "admission_date", label: "Admission Date", type: "date" },
-  { key: "discharge_date", label: "Discharge Date", type: "date" },
-];
-
 // Fields that cannot be resolved from the UI — they must be completed in the
 // HIS. Showing the patient-context form for these is a bug (per the spec):
 // diagnosis codes and billing items come from clinical/billing records, and
@@ -142,65 +135,45 @@ function DischargeDetailsForm({ claimId, discharge, rules, readOnly, onSaved }) 
   );
 }
 
-function PatientContextForm({ claimId, onResolved }) {
-  const [values, setValues] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [open, setOpen] = useState(true);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const res = await api.patchPatientContext(claimId, { patient_context: values });
-      onResolved(res.missing_fields ?? []);
-    } catch (_) {
-    } finally {
-      setSaving(false);
-    }
+// The payer's answer on each line, so staff can see what was cut and why.
+function ClaimLines({ status, draftItems }) {
+  const lines = status?.items || [];
+  if (!lines.length) return null;
+  const nameOf = (item, i) => {
+    const line = (status.claim_items || []).find((c) => c.sequence === item.sequence) || draftItems?.[(item.sequence ?? i + 1) - 1];
+    return line?.service_name || line?.product_or_service?.display || line?.name || line?.service_code || `Line ${item.sequence ?? i + 1}`;
   };
-
   return (
-    <div style={{ border: "1px solid var(--error)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
-      <div
-        onClick={() => setOpen((p) => !p)}
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(239,68,68,0.06)", cursor: "pointer", transition: "background 0.2s ease" }}
-        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.1)"}
-        onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.06)"}
-      >
-        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", fontWeight: 700, color: "var(--error)", fontSize: "14px" }}>
-          <AlertCircle size={16} /> Supply Missing Patient Attributes
-        </div>
-        <motion.div animate={{ rotate: open ? 180 : 0 }} style={{ color: "var(--error)" }}>
-          <ChevronDown size={16} />
-        </motion.div>
-      </div>
-      <AnimatePresence>
-        {open && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }} 
-            animate={{ height: "auto", opacity: 1 }} 
-            exit={{ height: 0, opacity: 0 }}
-            style={{ overflow: "hidden" }}
-          >
-            <div style={{ padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
-              {PATIENT_CONTEXT_FIELDS.map((f) => (
-                <div key={f.key}>
-                  <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "var(--space-1)" }}>{f.label}</label>
-                  <input
-                    className="input-modern"
-                    type={f.type || "text"}
-                    placeholder={f.placeholder}
-                    value={values[f.key] || ""}
-                    onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
-                  />
-                </div>
-              ))}
-              <Button write variant="primary" size="small" disabled={saving} onClick={handleSave} style={{ marginTop: "var(--space-2)" }}>
-                {saving ? "Saving…" : "Save & Refresh"}
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="cv-tw cv-in-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th className="is-num">Claimed</th>
+            <th className="is-num">Eligible</th>
+            <th className="is-num">Co-pay</th>
+            <th className="is-num">Approved</th>
+            <th>Payer's reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((item, i) => {
+            const adj = item.adjudication || {};
+            const reasons = [adj.status, adj.eligible?.reason, adj.benefit?.reason, adj.reason?.text || adj.reason?.raw].filter((v, n, a) => v && a.indexOf(v) === n);
+            const money = (v) => (v == null ? "—" : formatMoney(v));
+            return (
+              <tr key={i}>
+                <td><strong>{nameOf(item, i)}</strong></td>
+                <td className="is-num">{money(adj.submitted?.value)}</td>
+                <td className="is-num">{money(adj.eligible?.value)}</td>
+                <td className="is-num">{money(adj.copay?.value)}</td>
+                <td className="is-num" style={{ fontWeight: 600 }}>{money(adj.benefit?.value ?? adj.eligible?.value)}</td>
+                <td>{reasons.length ? reasons.join(" · ") : "—"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -208,7 +181,9 @@ function PatientContextForm({ claimId, onResolved }) {
 export default function ClaimsScreen({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { caseState, updateCaseState, cashlessCase, moneyLedger, timelineEvents, refreshTimeline, caseClosed } = ctx;
+  const { caseState, updateCaseState, cashlessCase, moneyLedger, timelineEvents, refreshTimeline, caseClosed, draftFiles, setDraftFiles } = ctx;
+  const readOnly = useReadOnly();
+  const locked = readOnly || caseClosed;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
 
   const [loading, setLoading] = useState(true);
@@ -229,6 +204,7 @@ export default function ClaimsScreen({ ctx }) {
   const [claimStatus, setClaimStatus] = useState(null);
   const [polling, setPolling] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [pollError, setPollError] = useState(null);
 
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showReleaseDrawer, setShowReleaseDrawer] = useState(false);
@@ -242,6 +218,7 @@ export default function ClaimsScreen({ ctx }) {
   const [showContextDrawer, setShowContextDrawer] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [queryAnswer, setQueryAnswer] = useState("");
+  const [queryDocs, setQueryDocs] = useState([]);
 
   // Editable items in resubmit drawer
   const [resubmitEditItems, setResubmitEditItems] = useState(null);
@@ -255,6 +232,20 @@ export default function ClaimsScreen({ ctx }) {
   const claimId = caseState.claim_id || location.state?.claim_id;
   const resolvedClaimId = claimId || caseState.claim_id || null;
   const resolvedCashlessCaseId = caseState.cashless_case_id || location.state?.cashless_case_id || null;
+
+  const filesKey = resolvedCashlessCaseId || resolvedClaimId ? `${resolvedCashlessCaseId || resolvedClaimId}:claim` : null;
+
+  // Files attached here live only in memory until the send, so they come back
+  // over each draft, which is rebuilt from the hospital records.
+  const withAttachedFiles = (res) => {
+    const list = [...(res.supporting_documents || [])];
+    (draftFiles?.[filesKey] || []).forEach((file) => {
+      const idx = list.findIndex((d) => d.code === file.code);
+      if (idx >= 0) list[idx] = { ...list[idx], ...file };
+      else list.push(file);
+    });
+    return { ...res, supporting_documents: list };
+  };
 
   const draftParams = (id) => {
     if (id) return { claim_id: id };
@@ -273,7 +264,7 @@ export default function ClaimsScreen({ ctx }) {
     setLoading(true);
     try {
       const res = await api.prepareClaimDraft(params || draftParams(id));
-      setClaimDraft(res);
+      setClaimDraft(withAttachedFiles(res));
       setMissingFields(res.missing_fields ?? []);
       if (res.claim_id && !resolvedClaimId) {
         updateCaseState({ claim_id: res.claim_id });
@@ -313,21 +304,39 @@ export default function ClaimsScreen({ ctx }) {
     const recover = async () => {
       try {
         const res = await api.getCashlessStatus(resolvedCashlessCaseId);
-        if (res.claim?.correlation_id) {
-          setFinalCorrelationId(res.claim.correlation_id);
-          updateCaseState({ claimCorrelationId: res.claim.correlation_id });
-          setActiveTab("decision");
-          setPolling(true);
+        const correlationId = res.claim?.correlation_id;
+        if (!correlationId) return;
+        // `claim` is the latest claim transaction, which may be a discharge
+        // claim. The claim leg stays "draft" until a final claim has gone out.
+        if ((res.legs?.claim ?? "sent") === "draft") {
+          if (!dischargeCorrelationId) {
+            setDischargeCorrelationId(correlationId);
+            updateCaseState({ dischargeCorrelationId: correlationId });
+            setDischargePolling(true);
+          }
+          return;
         }
+        setFinalCorrelationId(correlationId);
+        updateCaseState({ claimCorrelationId: correlationId });
+        setActiveTab("decision");
+        setPolling(true);
       } catch (_) {}
     };
     recover();
   }, []);
 
+  // Keep what staff attached when they leave for another step of the case.
+  const documentsNow = claimDraft?.supporting_documents;
+  useEffect(() => {
+    if (!documentsNow || !filesKey) return;
+    setDraftFiles(filesKey, documentsNow.filter((d) => d.attachment || d.custom));
+  }, [documentsNow, filesKey, setDraftFiles]);
+
   // Discharge claim polling
   const pollDischarge = async (signal) => {
     try {
       const res = await api.getClaimStatus(dischargeCorrelationId, signal);
+      setPollError(null);
       setDischargeStatus(res);
       // REJECTED is terminal for the interim discharge submission too — the
       // claim itself reverts to draft, but there is nothing left to poll for
@@ -339,7 +348,9 @@ export default function ClaimsScreen({ ctx }) {
         // locally, so caseState — which the header watches — wouldn't otherwise change).
         refreshTimeline?.();
       }
-    } catch (_) {}
+    } catch (err) {
+      if (!signal.aborted) setPollError(err.message || "The payer's answer could not be checked.");
+    }
   };
   usePoll(pollDischarge, {
     active: dischargePolling && dischargeCorrelationId ? dischargeCorrelationId : null,
@@ -350,12 +361,15 @@ export default function ClaimsScreen({ ctx }) {
   const pollFinal = async (signal) => {
     try {
       const res = await api.getClaimStatus(finalCorrelationId, signal);
+      setPollError(null);
       setClaimStatus(res);
       if (res.status === "complete" || res.status === "not_found" || res.status === "failed") {
         setPolling(false);
         refreshTimeline?.();
       }
-    } catch (_) {}
+    } catch (err) {
+      if (!signal.aborted) setPollError(err.message || "The payer's answer could not be checked.");
+    }
   };
   usePoll(pollFinal, {
     active: polling && finalCorrelationId ? finalCorrelationId : null,
@@ -434,6 +448,7 @@ export default function ClaimsScreen({ ctx }) {
       }
       setDischargeCorrelationId(res.correlation_id);
       updateCaseState({ dischargeCorrelationId: res.correlation_id });
+      setDischargeStatus(null);
       setDischargePolling(true);
     } catch (err) {
       setDischargeSubmitError(err.message || "Discharge claim submission failed. Please try again.");
@@ -446,13 +461,19 @@ export default function ClaimsScreen({ ctx }) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await api.submitFinalClaim({ claim_id: claimDraft.claim_id });
+      const attachedDocs = claimDraft?.supporting_documents?.filter((d) => d.url) ?? [];
+      const res = await api.submitFinalClaim({
+        claim_id: claimDraft.claim_id,
+        ...(attachedDocs.length > 0 && { supporting_documents: attachedDocs }),
+      });
       if (res.status === "failed") {
         setSubmitError(res.message || res.error?.message || "Final claim submission failed. Please try again.");
         return;
       }
       setFinalCorrelationId(res.correlation_id);
       updateCaseState({ claimCorrelationId: res.correlation_id });
+      setClaimStatus(null);
+      if (filesKey) setDraftFiles(filesKey, []);
       setActiveTab("decision");
       setPolling(true);
     } catch (err) {
@@ -466,8 +487,10 @@ export default function ClaimsScreen({ ctx }) {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const queryFiles = queryDocs.filter((d) => d.url);
       const res = await api.respondClaimQuery({
         claim_id: claimDraft?.claim_id || claimId,
+        ...(queryFiles.length > 0 && { supporting_documents: queryFiles }),
         ...(queryAnswer && {
           questionnaire_response: {
             status: "completed",
@@ -480,6 +503,8 @@ export default function ClaimsScreen({ ctx }) {
         return;
       }
       setShowQueryDrawer(false);
+      setQueryDocs([]);
+      setClaimStatus(null);
       setFinalCorrelationId(res.correlation_id);
       updateCaseState({ claimCorrelationId: res.correlation_id });
       setActiveTab("decision");
@@ -558,8 +583,8 @@ export default function ClaimsScreen({ ctx }) {
     (f) => HIS_BLOCKERS.has(f.toLowerCase()) && f.toLowerCase() !== "preauth_ref",
   );
   const hasPreauthRef = !!claimDraft?.preauth_ref;
-  // Docs block submit when any has no URL (all returned docs are required)
-  const hasMissingDocs = claimDraft?.supporting_documents?.some((d) => !d.url);
+  // An empty optional row, such as one added and not filled, stops nothing.
+  const hasMissingDocs = claimDraft?.supporting_documents?.some((d) => !d.optional && !d.url);
 
   // J2 — the final bill against the cumulative authorized ceiling (preauth +
   // enhancements). When it exceeds the sanction, warn and require an explicit
@@ -659,6 +684,10 @@ export default function ClaimsScreen({ ctx }) {
   };
   const dischargeRejected = dischargeStatus?.decision === "REJECTED";
   const dischargeFailed = dischargeStatus?.status === "failed";
+  const finalFailed = claimStatus?.status === "failed";
+  // A final claim that never reached the payer has not been sent.
+  const finalSent = !!finalCorrelationId && !finalFailed;
+  const docsLocked = locked || finalSent;
   const dischargeIntimation = cashlessCase?.discharge_intimation !== false;
   const dischargeDone = dischargeIntimation
     ? !!dischargeCorrelationId && !dischargeRejected && !dischargeFailed
@@ -678,8 +707,8 @@ export default function ClaimsScreen({ ctx }) {
   const steps = [
     { id: "draft", label: "Review claim", done: hasPreauthRef && !hasMissingFields },
     { id: "discharge", label: "Discharge documents", done: dischargeDone, bad: dischargeRejected || dischargeFailed },
-    { id: "final", label: "Final claim", done: !!finalCorrelationId },
-    { id: "decision", label: "Decision", done: claimDecided, bad: claimStatus?.status === "failed" || isClaimRejected },
+    { id: "final", label: "Final claim", done: finalSent, bad: finalFailed },
+    { id: "decision", label: "Decision", done: claimDecided, bad: finalFailed || isClaimRejected },
   ];
 
   const readiness = [
@@ -724,7 +753,7 @@ export default function ClaimsScreen({ ctx }) {
       note: otherDocs.length ? `${otherDocs.filter((d) => d.url).length} of ${otherDocs.length}` : null,
     },
     dischargeIntimation && { label: "Discharge claim sent", ok: dischargeDone, bad: dischargeRejected || dischargeFailed, note: dischargeRejected ? "rejected" : dischargeFailed ? "failed" : dischargePolling ? "awaiting payer" : null },
-    { label: "Final claim sent", ok: !!finalCorrelationId },
+    { label: "Final claim sent", ok: finalSent, bad: finalFailed, note: finalFailed ? "not delivered" : null },
   ].filter(Boolean);
 
   // One primary action for the part being viewed.
@@ -736,11 +765,11 @@ export default function ClaimsScreen({ ctx }) {
   } else if (activeTab === "discharge") {
     primary = dischargeRejected
       ? { label: "Resubmit discharge claim", onClick: () => setShowDischargeResubmitDrawer(true) }
-      : dischargeCorrelationId
-        ? { label: "Continue to final claim", onClick: () => setActiveTab("final"), disabled: dischargeFailed, icon: ArrowRight }
+      : dischargeCorrelationId && !dischargeFailed
+        ? { label: "Continue to final claim", onClick: () => setActiveTab("final"), icon: ArrowRight }
         : { label: submitting ? "Submitting…" : "Submit discharge claim", onClick: handleSubmitDischarge, disabled: !canSubmit, icon: Send, write: true };
   } else if (activeTab === "final") {
-    primary = finalCorrelationId
+    primary = finalSent
       ? { label: "View decision", onClick: () => setActiveTab("decision"), icon: ArrowRight }
       : { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: !canSubmitFinal || blockingAsks.length > 0 || submitting, icon: Send, write: true };
   } else if (claimDecided) {
@@ -777,7 +806,7 @@ export default function ClaimsScreen({ ctx }) {
                 text: "Upload the discharge summary, final bill and the documents listed. PMJAY and most insurers need these before the final claim.",
               }
         : activeTab === "final"
-          ? finalCorrelationId
+          ? finalSent
             ? { tone: "info", title: "Final claim sent", text: "Private insurers must decide within 3 hours of the final claim (IRDAI). See the Decision tab." }
             : overCeiling
               ? {
@@ -786,6 +815,10 @@ export default function ClaimsScreen({ ctx }) {
                   text: "File an enhancement first so the payer can approve the extra, or tick the box to claim anyway; the payer will cut the excess.",
                 }
               : { tone: "info", title: "Step 3 of 4: send the final claim", text: "This asks the payer to pay the final bill. Check the amount, then press Submit final claim." }
+          : claimStatus?.status === "not_found"
+            ? { tone: "warn", title: "The payer's system has no record of this claim yet", text: "Refresh in a while. If it stays like this, call the payer's helpdesk with the request number below." }
+            : claimStatus?.status === "complete" && !claimDecided
+              ? { tone: "warn", title: "The payer answered without a clear decision", text: "Read the payer's response below, and call its helpdesk if it is not clear." }
           : !claimDecided
             ? { tone: "info", title: "Waiting for the payer's decision", text: "You can leave this page; the decision appears here and in the Work Queue." }
             : isClaimApproved
@@ -875,13 +908,14 @@ export default function ClaimsScreen({ ctx }) {
         <div className="cv-kv"><span>Status</span><span>Waiting for the payer's decision</span></div>
         <div className="cv-kv"><span>Checking every</span><span>{POLL_INTERVAL_MS / 1000} seconds</span></div>
         <div className="cv-kv"><span>Request</span><span className="cv-mono">{correlationId}</span></div>
+        {pollError && <div className="cv-notice is-warn"><div className="cv-notice-body">The last check failed, and this page keeps trying: {pollError}</div></div>}
       </div>,
       { chip: <span className="cv-chip is-info">Waiting</span> },
     );
 
   return (
     <div className="cv-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <BiometricCard caseId={resolvedCashlessCaseId} stage="Discharge" readOnly={caseClosed} onVerified={refreshAsks} />
+      <BiometricCard caseId={resolvedCashlessCaseId} stage="Discharge" readOnly={locked} onVerified={refreshAsks} />
       <div className="cv-card">
         <div className="cv-tabs" role="tablist" aria-label="Claim steps" style={{ borderBottom: 0 }}>
           {steps.map((st, i) => (
@@ -970,7 +1004,7 @@ export default function ClaimsScreen({ ctx }) {
                   claimId={claimDraft?.claim_id || claimId}
                   discharge={claimDraft?.discharge}
                   rules={dischargeRules}
-                  readOnly={caseClosed}
+                  readOnly={locked || finalSent}
                   onSaved={(remaining) => {
                     setMissingFields(remaining);
                     loadDraft(claimDraft?.claim_id || claimId);
@@ -998,7 +1032,7 @@ export default function ClaimsScreen({ ctx }) {
                 title="What the payer asks for at claim"
                 asks={claimDraft?.payer_asks}
                 documents={docs}
-                readOnly={caseClosed}
+                readOnly={docsLocked}
                 onAttach={attachAsk}
                 onFormsChange={setAskForms}
                 reloadKey={asksReload}
@@ -1012,10 +1046,11 @@ export default function ClaimsScreen({ ctx }) {
                     onAddDocument={addDocument}
                     onRenameDocument={(i, name) => renameDocument(docs.indexOf(otherDocs[i]), name)}
                     onRemoveDocument={(i) => removeDocument(docs.indexOf(otherDocs[i]))}
+                    readOnly={docsLocked}
                     hideSummary
                   />
                 </div>,
-                { meta: "From the hospital records, or added here. Sent with the claim." },
+                { meta: "Sent with the claim. Attached files stay until sent, but reloading the page drops them." },
               )}
               {dischargePolling && waitingSection("Discharge claim sent", dischargeCorrelationId)}
               {dischargeStatus?.status === "complete" && !dischargeRejected &&
@@ -1058,6 +1093,14 @@ export default function ClaimsScreen({ ctx }) {
                 )
               ) : !claimStatus || polling ? (
                 waitingSection("Final claim sent", finalCorrelationId)
+              ) : claimStatus.status === "not_found" ? (
+                card(
+                  "No answer on record",
+                  <div className="cv-card-body">
+                    <div className="cv-kv"><span>Request</span><span className="cv-mono">{finalCorrelationId}</span></div>
+                    <button type="button" className="cv-btn" style={{ marginTop: 12 }} onClick={() => setPolling(true)}>Refresh</button>
+                  </div>,
+                )
               ) : claimStatus.status === "failed" ? (
                 <div className="cv-notice is-bad">
                   <div className="cv-notice-title">The final claim was not delivered</div>
@@ -1066,7 +1109,9 @@ export default function ClaimsScreen({ ctx }) {
                 </div>
               ) : (
                 <>
-                  {card("Final bill against the authorised amount", billTable)}
+                  {claimStatus.items?.length > 0
+                    ? card("What the payer approved", <ClaimLines status={claimStatus} draftItems={claimDraft?.items} />)
+                    : card("Final bill against the authorised amount", billTable)}
                   {claimStatus.process_notes?.length > 0 &&
                     card(
                       "Payer notes",
@@ -1163,7 +1208,7 @@ export default function ClaimsScreen({ ctx }) {
       {/* ── Query Drawer ── */}
       <Drawer open={showQueryDrawer} onClose={() => setShowQueryDrawer(false)} title="Respond to Claim Query">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
-          Provide a clarification and attach any documents the payer requested.
+          Answer the payer's question and attach any documents it asked for.
         </p>
         <div style={{ marginBottom: "var(--space-4)" }}>
           <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Clarification</label>
@@ -1173,6 +1218,16 @@ export default function ClaimsScreen({ ctx }) {
             placeholder="Describe your response to the payer's query…"
             value={queryAnswer}
             onChange={(e) => setQueryAnswer(e.target.value)}
+          />
+        </div>
+        <div style={{ marginBottom: "var(--space-4)" }}>
+          <DocumentChecklist
+            documents={queryDocs}
+            onUpload={(doc, uploaded) => setQueryDocs((list) => list.map((d) => (d.code === doc.code ? { ...d, ...uploaded } : d)))}
+            onAddDocument={() => setQueryDocs((list) => [...list, { code: `QUERY-${Date.now()}`, name: "", category: "additional", optional: true, custom: true }])}
+            onRenameDocument={(i, name) => setQueryDocs((list) => list.map((d, n) => (n === i ? { ...d, name } : d)))}
+            onRemoveDocument={(i) => setQueryDocs((list) => list.filter((_, n) => n !== i))}
+            hideSummary
           />
         </div>
         {submitError && (
@@ -1299,8 +1354,11 @@ export default function ClaimsScreen({ ctx }) {
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
           These attributes are required by NHCX but could not be resolved from the hospital DB. They are saved to the cashless case and do not need to be re-sent on submission.
         </p>
-        <PatientContextForm
+        <PatientDetailsForm
           claimId={claimDraft?.claim_id || claimId}
+          cashlessCaseId={resolvedCashlessCaseId}
+          missingFields={patientContextMissing}
+          locked={locked}
           onResolved={(remaining) => {
             setMissingFields(remaining);
             if (remaining.length === 0) {
