@@ -632,6 +632,30 @@ const mockReprocessAnswer = (correlation_id) => {
   return { ...base, status: "pending", decision: null };
 };
 
+// ?tl=none|failed|verify|long|load_error on /case/:id/timeline; long is 450 events
+// over pages of 200.
+const mockTimelineKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tl") : null);
+
+const mockTimelineEvents = (events) => {
+  const key = mockTimelineKey();
+  if (key === "load_error") throw new Error("The audit trail could not be read.");
+  if (key === "none") return [];
+  if (key === "long") {
+    return Array.from({ length: 450 }, (_, i) => ({ ...events[i % events.length], seq: i + 1, id: `long-${i + 1}`, title: `Event ${i + 1}` }));
+  }
+  if (key === "verify") {
+    return [...events, { seq: 7, id: "amb-1", ts: "2026-05-12T09:00:00+05:30", type: "claim.decision", title: "Claim decision received", workflow: "claim", stage: "decided", direction: "inbound", actor: { kind: "payer", name: "1518@hcx" }, status: "ok", severity: "warning", decision: { raw_outcome: "partial", reason_codes: ["ClaimError-3"], reasons: [{ code: "ClaimError-3", label: "Rejected: the package is reserved for public hospitals" }], derived_decision: "APPROVED", classified_by: "fhir_outcome", ambiguous: true } }];
+  }
+  if (key === "failed") {
+    return [
+      ...events,
+      { seq: 7, id: "fail-1", ts: "2026-05-12T09:00:00+05:30", type: "claim.submitted", title: "Claim resubmission", workflow: "claim", stage: "failed", direction: "outbound", actor: { kind: "hospital", name: "NHCX Test Hospital" }, correlation_id: null, status: "failed", severity: "error", error: { phase: "cert", code: "CERT-1", message: "The payer's certificate has expired." } },
+      { seq: 8, id: "fail-2", ts: "2026-05-12T10:00:00+05:30", type: "reprocess.submitted", title: "Reprocess sent", workflow: "reprocess", stage: "failed", direction: "outbound", actor: { kind: "hospital", name: "NHCX Test Hospital" }, correlation_id: "fail-corr", status: "failed", severity: "error", error: { phase: "payer", code: "PAYR-1", message: "The payer refused the request." } },
+    ];
+  }
+  return events;
+};
+
 // ?pay=<state> on /case/:id/payment: none|initiated|processed|settled|tranches|
 // tranche_open|short|no_utr|ack_pending|ack_failed|ack_old_failed|ack_refused|
 // load_error; rejected|queried|draft have no payment and set the claim leg.
@@ -1919,7 +1943,7 @@ const mock = {
         refs: { payment_reference: "PAY-REF-1", utr: "UTR123456789" },
       },
     ];
-    const filtered = events.filter(
+    const filtered = mockTimelineEvents(events).filter(
       (e) => (!params.workflow || e.workflow === params.workflow) && (!params.actor || e.actor.kind === params.actor),
     );
     return {
@@ -1943,7 +1967,7 @@ const mock = {
       total_count: filtered.length,
       limit: params.limit || 200,
       offset: params.offset || 0,
-      events: filtered,
+      events: filtered.slice(params.offset || 0, (params.offset || 0) + (params.limit || 200)),
     };
   },
 
