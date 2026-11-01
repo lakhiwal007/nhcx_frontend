@@ -12,7 +12,8 @@ import { eligibilityBeneficiaries, eligibilityRequirements } from "../../caseSta
 import BiometricCard from "../case/BiometricCard";
 import PlanCard from "../eligibility/PlanCard";
 import PayerAnswer from "../eligibility/EligibilityResponses";
-import EligibilityChecklist from "../eligibility/EligibilityChecklist";
+import CaseChecklist from "../case/CaseChecklist";
+import { useCasePane } from "../case/useCasePane";
 import Members from "../eligibility/Members";
 import FormDrawer from "../eligibility/FormDrawer";
 import { deriveChecks } from "../eligibility/checks";
@@ -129,11 +130,9 @@ export default function EligibilityPrep({ ctx }) {
   const [savingNewborn, setSavingNewborn] = useState(false);
   const [planFetch, setPlanFetch] = useState(null);
   const [biometric, setBiometric] = useState(null);
-  // Null follows the checklist's own first item; set once staff pick or act on one.
-  const [picked, setPicked] = useState(null);
+  const { picked, setPicked, paneRef, openItem } = useCasePane();
 
   const hasInitialized = useRef(false);
-  const paneRef = useRef(null);
 
   const planCorrelationId = caseData?.insurance_plan?.plan_status === "ready" ? caseData.insurance_plan.correlation_id : null;
   const planForms = usePlanForms(planCorrelationId, caseData?.insurance_plan?.form_count);
@@ -457,11 +456,6 @@ export default function EligibilityPrep({ ctx }) {
   });
   const open = picked || firstOpen(groups);
   const paneFor = (id) => ({ hidden: open !== id });
-  const openItem = (id) => {
-    setPicked(id);
-    // On a narrow screen the detail sits under the checklist, out of sight.
-    if (window.matchMedia("(max-width: 900px)").matches) paneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
 
   return (
     <div className="cv-elig">
@@ -505,7 +499,7 @@ export default function EligibilityPrep({ ctx }) {
       </div>
 
       <div className="cv-work">
-        <EligibilityChecklist groups={groups} open={open} onOpen={openItem} />
+        <CaseChecklist groups={groups} open={open} onOpen={openItem} label="Eligibility checklist" />
 
         <div className="cv-work-pane" ref={paneRef}>
           <div {...paneFor("verify")}>

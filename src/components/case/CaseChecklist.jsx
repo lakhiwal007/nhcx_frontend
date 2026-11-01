@@ -2,9 +2,9 @@ import { AlertTriangle, Check, Clock, Minus, X } from "lucide-react";
 
 const MARKS = { ok: Check, warn: AlertTriangle, bad: X, wait: Clock, idle: Minus };
 
-export default function EligibilityChecklist({ groups, open, onOpen }) {
+export default function CaseChecklist({ groups, open, onOpen, label }) {
   return (
-    <nav className="cv-check" aria-label="Eligibility checklist">
+    <nav className="cv-check" aria-label={label}>
       {groups.map((group) => (
         <div key={group.id} className="cv-check-group">
           <div className="cv-check-title">{group.title}</div>

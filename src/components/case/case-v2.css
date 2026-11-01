@@ -324,3 +324,13 @@
 
 /* A fieldset used only to lock what it holds. */
 .cv-plain { min-width: 0; margin: 0; padding: 0; border: 0; }
+
+.cv-verdict-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cv-verdict-line .cv-btn { padding-block: 3px; min-height: 0; }
+.cv-pane-action { padding-top: 12px; }
+.cv-plan-check { padding: 7px 0; border-top: 1px solid var(--cv-line); font-size: 13.5px; color: var(--cv-ink); }
+.cv-plan-check:first-child { border-top: 0; }
+.cv-plan-check.is-block { color: var(--cv-bad); }
+.cv-plan-check.is-warn { color: var(--cv-warn); }
+.cv-plan-check.is-ok,
+.cv-plan-check.is-info { color: var(--cv-soft); }

@@ -1,4 +1,5 @@
 import { missingRequired } from "./planProfile";
+import { asRecord } from "../case/useCasePane";
 
 // One row per crucial thing on the Eligibility step, in the order staff work
 // through them. tone: ok | warn | bad | wait | idle. Colour is kept for the rows
@@ -93,13 +94,6 @@ function planRow(plan, state) {
       return { ...row, tone: "bad", fact: "Failed" };
   }
 }
-
-// A settled, moved-on or view-only case has nothing left for staff to do here,
-// so its own rows state the record instead of asking for action.
-const asRecord = (row) => {
-  if (!row || row.tone !== "warn") return row;
-  return { ...row, tone: "idle", fact: row.fact === "Choose one" ? "None chosen" : row.fact };
-};
 
 export function buildChecklist({ biometric, members, chosenId, newborn, procedures, packages, checks, requirements, plan, state, locked }) {
   const yours = [

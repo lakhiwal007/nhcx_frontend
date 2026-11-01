@@ -604,11 +604,12 @@ const mockCeState = (res) => {
   return open;
 };
 
-// ?pa=ready|missing|thin|blocked|empty|load_error on /case/:id/review forces a
+// ?pa=ready|warn|missing|thin|blocked|empty|not_in_force|load_error on /case/:id/review forces a
 // pre-auth draft state.
 const mockPreauthState = (draft) => {
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("pa") : null;
   if (key === "load_error") throw new Error("The hospital records could not be read.");
+  if (key === "not_in_force") return { ...draft, eligibility: { ...draft.eligibility, inforce: false } };
   if (key === "missing") return { ...draft, missing_fields: ["patient.dob", "patient.member_id"] };
   if (key === "thin") return { ...draft, care_team: [{ ...draft.care_team[0], registration_no: null }, { doc_id: "DOC-2", doc_name: "Dr. Kiran Shah", speciality: "MD" }] };
   if (key === "empty") return { ...draft, diagnoses: [], items: [], care_team: [], total_amount: 0 };
@@ -616,10 +617,10 @@ const mockPreauthState = (draft) => {
     const { admissibility } = draft;
     return { ...draft, admissibility: { ...admissibility, blocking: true, checks: [...admissibility.checks, { level: "block", kind: "package_price", code: "47562", message: "Laparoscopic cholecystectomy is priced at zero in the payer's plan." }] } };
   }
-  if (key === "ready") {
+  if (key === "ready" || key === "warn") {
     return {
       ...draft,
-      payer_asks: [],
+      payer_asks: key === "warn" ? MOCK_PAYER_ASKS.preauth.filter((a) => !a.blocking) : [],
       admissibility: { ...draft.admissibility, checks: draft.admissibility.checks.filter((c) => c.level === "ok"), exclusions: [] },
       supporting_documents: draft.supporting_documents.map((d) => ({ ...d, url: d.url || "https://hospital.example/records/101/report.pdf" })),
       chief_complaints: [{ code: "R10", name: "Abdominal pain" }],

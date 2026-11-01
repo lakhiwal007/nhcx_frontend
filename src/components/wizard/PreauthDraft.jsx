@@ -12,7 +12,9 @@ import { liveAsks } from "../case/askStatus";
 import { useReadOnly } from "../../readOnly";
 import { Modal } from "../Overlay";
 import FhirBundleModal from "../FhirBundleModal";
-import PayerName from "../PayerName";
+import CaseChecklist from "../case/CaseChecklist";
+import { useCasePane } from "../case/useCasePane";
+import { buildPreauthChecklist, firstPreauthItem } from "../case/preauthChecklist";
 import { eligibilityBeneficiaries } from "../../caseStatus";
 import { deriveChecks } from "../eligibility/checks";
 
@@ -147,27 +149,6 @@ function planChecks(admissibility, documents) {
     .sort((a, b) => PLAN_CHECK_ORDER[a.level] - PLAN_CHECK_ORDER[b.level]);
 }
 
-function ClinicalRow({ id, title, chip, summary, children, openRow, setOpenRow }) {
-  const open = openRow === id;
-  return (
-    <div>
-      <div className="cv-row">
-        <span className={`cv-chip cv-row-badge ${chip[1]}`}>{chip[0]}</span>
-        <div className="cv-row-body">
-          <div className="cv-row-title">{title}</div>
-          <div className="cv-row-sub">{summary}</div>
-        </div>
-        {children && (
-          <button type="button" className="cv-btn" onClick={() => setOpenRow(open ? null : id)} aria-expanded={open}>
-            {open ? "Close" : "Open"}
-          </button>
-        )}
-      </div>
-      {open && children && <div className="cv-row-open">{children}</div>}
-    </div>
-  );
-}
-
 export default function PreauthDraft({ ctx }) {
   const navigate = useNavigate();
   const { caseState, updateCaseState, cashlessCase, caseClosed, draftFiles, setDraftFiles } = ctx;
@@ -204,7 +185,8 @@ export default function PreauthDraft({ ctx }) {
   const [editedDiagnoses, setEditedDiagnoses] = useState(draftData?.editedDiagnoses ?? null);
   const [editedItems, setEditedItems] = useState(draftData?.editedItems ?? null);
   const [editedCareTeam, setEditedCareTeam] = useState(draftData?.editedCareTeam ?? null);
-  const [openRow, setOpenRow] = useState(null);
+  const { picked, setPicked, paneRef, openItem } = useCasePane();
+  const [biometric, setBiometric] = useState(null);
   const [askForms, setAskForms] = useState([]);
   const [confirmWarn, setConfirmWarn] = useState(false);
   const [waiveReason, setWaiveReason] = useState("");
@@ -447,8 +429,6 @@ export default function PreauthDraft({ ctx }) {
   const unspecifiedCodes = new Set(checks.filter((c) => c.kind === "unspecified_package").map((c) => String(c.code || "").toUpperCase()));
   const blockingAsks = asks.filter((a) => a.blocking);
   const warnAsks = asks.filter((a) => !a.blocking && a.status !== "attached" && a.status !== "answered");
-  const askDocs = asks.filter((a) => a.kind === "document");
-  const askForms_ = asks.filter((a) => a.kind === "form");
   const cardMembers = eligibilityBeneficiaries(cashlessCase?.coverage_eligibility);
   const memberUnchosen = cardMembers.length > 1 && !(caseState.beneficiaryMemberId || cashlessCase?.beneficiary_member_id);
   const eligibility = draft?.eligibility;
@@ -466,40 +446,48 @@ export default function PreauthDraft({ ctx }) {
   const unbilledProcedures = (draft?.procedures || []).filter((p) => !billedCodes.has(String(p.code)));
   const caseId = cashless_case_id || draft?.cashless_case_id;
 
-  const readiness = [
-    { label: "Patient details", ok: patientContextMissing.length === 0, note: patientContextMissing.length ? `${patientContextMissing.length} missing` : null },
-    { label: "Diagnosis with a principal", ok: displayDiagnoses.length > 0 && displayDiagnoses.some((d) => d.primary) && !hisBlockers.some((f) => /diagnos/i.test(f)) },
-    { label: "Billable line items", ok: displayItems.length > 0 && effectiveTotal > 0 && !hisBlockers.some((f) => /items/i.test(f)) },
-    askDocs.length > 0 && {
-      label: "Payer documents",
-      ok: askDocs.every((a) => a.status === "attached"),
-      soft: !askDocs.some((a) => a.blocking),
-      note: `${askDocs.filter((a) => a.status === "attached").length} of ${askDocs.length}`,
-    },
-    askForms_.length > 0 && {
-      label: "Payer forms",
-      ok: askForms_.every((a) => a.status === "answered"),
-      soft: !askForms_.some((a) => a.blocking),
-      note: `${askForms_.filter((a) => a.status === "answered").length} of ${askForms_.length} complete`,
-    },
-    hasMissingDocs && { label: "Hospital documents", ok: false, note: "required file missing" },
-    {
-      label: "Against the plan",
-      ok: admissibility?.status === "checked" && planNotes.length === 0,
-      soft: !planBlocked,
-      note: !admissibility || admissibility.status !== "checked" ? "not checked" : planNotes.length ? `${planNotes.length} to look at` : null,
-    },
-    notInForce && { label: "Policy in force", ok: false, note: "not in force" },
-    eligibility && eligibility.status !== "complete" && { label: "Eligibility", ok: false, soft: true, note: "incomplete" },
-  ].filter(Boolean);
-  // Every hard readiness failure stops the send, not only the ones the payer named.
-  const hardFailure = readiness.some((r) => !r.ok && !r.soft);
-  const canSubmit = !hasMissingFields && !hardFailure && !planBlocked && blockingAsks.length === 0 && !submitting;
+  const groups = buildPreauthChecklist({
+    biometric,
+    patientMissing: patientContextMissing.length,
+    admissionDate: draft?.admission_date,
+    principal,
+    diagnosisCount: displayDiagnoses.length,
+    hasPrincipal: displayDiagnoses.some((d) => d.primary) && !hisBlockers.some((f) => /diagnos/i.test(f)),
+    justification,
+    teamCount: displayCareTeam.length,
+    teamMissingReg,
+    hasDischargeSummary: !!draft?.discharge_summary,
+    lines: displayItems.length,
+    total: effectiveTotal,
+    unbilled: unbilledProcedures.length,
+    linesBlocked: hisBlockers.some((f) => /items/i.test(f)),
+    planChecked: admissibility?.status === "checked",
+    planBlocked,
+    planNotes: planNotes.length,
+    asks,
+    blockingAsks: blockingAsks.length,
+    hasMissingDocs,
+    attachedFiles: otherDocs.filter((d) => d.url).length,
+    locked: locked || preauthAlreadyLive,
+  });
+  const blockers = groups.flatMap((g) => g.rows).filter((r) => r.blocks);
+  const toLookAt = groups.flatMap((g) => g.rows).filter((r) => r.tone === "warn").length;
+  const canSubmit = !hasMissingFields && !notInForce && blockers.length === 0 && !submitting;
+  const open = picked || firstPreauthItem(groups);
+  const paneFor = (id) => ({ hidden: open !== id });
+  const sendState = preauthAlreadyLive
+    ? ["Sent", "is-info"]
+    : locked
+      ? ["Not sent", "is-todo"]
+      : canSubmit || submitting
+      ? [toLookAt ? `Ready, ${toLookAt} to look at` : "Ready to send", toLookAt ? "is-warn" : "is-ok"]
+      : [`${blockers.length + (notInForce ? 1 : 0) + (hisBlockers.length + newbornMissing.length > 0 ? 1 : 0)} must be done`, "is-bad"];
   const notices = [
     notInForce && !preauthAlreadyLive && { tone: "bad", text: "The payer reports this policy as not in force, so a pre-auth cannot be sent. Pick a renewed or different policy, or treat the patient as cash.", action: { label: "Go to Policy", to: "../payer" } },
     preauthAlreadyLive && { tone: "info", text: `A preauth has already been sent${movedOnLabel ? ` and the case has moved on to ${movedOnLabel}` : ""}. This form is rebuilt from current records, not what was sent.`, action: movedOn ? { label: `Go to ${movedOnLabel}`, to: `../${movedOn}` } : null },
     hisBlockers.length > 0 && { tone: "bad", text: `The hospital records are missing: ${hisBlockers.join(", ")}. Ask the doctor or billing desk to add it, then reload this page.` },
     newbornMissing.length > 0 && !preauthAlreadyLive && { tone: "warn", text: `Newborn case: ${newbornMissing.map((f) => NEWBORN_MISSING[f] || f).join("; ")}.` },
+    eligibility && eligibility.status !== "complete" && !preauthAlreadyLive && { tone: "warn", text: "Eligibility is incomplete, so the payer's answer may still change." },
     memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `The payer's card has ${cardMembers.length} members and none is chosen as the patient yet.`, action: { label: "Choose on Eligibility", to: "../prep" } },
   ].filter(Boolean);
 
@@ -544,54 +532,89 @@ export default function PreauthDraft({ ctx }) {
   const requestSend = () => (warnAsks.length > 0 ? setConfirmWarn(true) : handleSubmit());
 
   return (
-    <div className="cv-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <BiometricCard caseId={caseId} stage="Preauth" readOnly={readOnly || caseClosed} onVerified={refreshAsks} />
-      {notices.map((n, i) => (
-        <div key={i} className={`cv-notice is-${n.tone}`}>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <span className="cv-notice-body" style={{ flex: 1, minWidth: 240 }}>{n.text}</span>
+    <div className="cv-elig">
+      <div className={`cv-notice cv-verdict is-${sendState[1].replace("is-", "")}`}>
+        <div className="cv-verdict-row">
+          <span className={`cv-chip ${sendState[1]}`}>{sendState[0]}</span>
+          <span className="cv-notice-body">
+            <strong>{formatMoney(effectiveTotal)}</strong> requested · {displayItems.length} line{displayItems.length === 1 ? "" : "s"}
+            {editedItems ? " · edited" : ""}
+          </span>
+          {editsSaved && <span className="cv-card-meta">Edits saved on this browser</span>}
+          <span className="cv-verdict-actions">
+            {preauthAlreadyLive ? (
+              <>
+                {sentCorrelationId && caseId && <button type="button" className="cv-btn" onClick={() => setShowSent(true)}><FileJson size={14} /> View what was sent</button>}
+                {!caseClosed && <button type="button" className="cv-btn" disabled={!canSubmit || readOnly} onClick={() => setConfirmResend(true)}><Send size={14} /> Send a fresh preauth…</button>}
+                <button type="button" className="cv-btn is-primary" onClick={() => navigate("../status")}>View decision <ArrowRight size={14} /></button>
+              </>
+            ) : caseClosed ? null : (
+              <button
+                type="button"
+                className="cv-btn is-primary"
+                disabled={!canSubmit || readOnly}
+                title={!canSubmit && !submitting ? "Finish the items marked in red first." : undefined}
+                onClick={requestSend}
+              >
+                <Send size={15} /> {submitting ? "Sending…" : "Send preauth"}
+              </button>
+            )}
+          </span>
+        </div>
+        {submitError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not sent:</strong> {submitError} Fix what the message names and send again; your draft is kept.</div>}
+        {notices.map((n, i) => (
+          <div key={i} className={`cv-notice-hint cv-verdict-note cv-verdict-line${n.tone === "bad" ? " is-bad" : ""}`}>
+            <span>{n.text}</span>
             {n.action && <button type="button" className="cv-btn" onClick={() => navigate(n.action.to)}>{n.action.label}</button>}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
-      <div className="cv-split">
-        <div className="cv-main">
-          {patientContextMissing.length > 0 && (
-            <PatientContextForm
-              claimId={draft?.claim_id || claim_id}
-              cashlessCaseId={cashless_case_id}
-              missingFields={patientContextMissing}
-              locked={locked}
-              onResolved={(remaining) => {
-                setMissingFields(remaining);
-                if (remaining.length === 0) loadDraft();
+      <div className="cv-work">
+        <CaseChecklist groups={groups} open={open} onOpen={openItem} label="Pre-auth checklist" />
+
+        <div className="cv-work-pane" ref={paneRef}>
+          <div {...paneFor("verify")}>
+            <BiometricCard
+              caseId={caseId}
+              stage="Preauth"
+              readOnly={locked}
+              onCard={setBiometric}
+              onVerified={() => {
+                setPicked("verify");
+                refreshAsks();
               }}
             />
+          </div>
+
+          {patientContextMissing.length > 0 && (
+            <div {...paneFor("details")}>
+              <PatientContextForm
+                claimId={draft?.claim_id || claim_id}
+                cashlessCaseId={cashless_case_id}
+                missingFields={patientContextMissing}
+                locked={locked}
+                onResolved={(remaining) => {
+                  setMissingFields(remaining);
+                  if (remaining.length === 0) loadDraft();
+                }}
+              />
+            </div>
           )}
 
-          <section className="cv-card" aria-label="Clinical">
-            <div className="cv-card-head">
-              <h2 className="cv-card-title">Clinical</h2>
-              <span className="cv-card-meta">From the hospital records; open a row to check or correct it.</span>
-            </div>
-            <ClinicalRow openRow={openRow} setOpenRow={setOpenRow}
-              id="admission"
-              title="Admission"
-              chip={draft?.admission_date ? ["Done", "is-ok"] : ["Missing", "is-bad"]}
-              summary={[
-                draft?.admission_date ? formatDate(draft.admission_date) : "No admission date",
-                draft?.inpatient === false ? "Out-patient" : "In-patient",
-                draft?.urgent ? "Urgent" : "Routine",
-                accommodation.ward,
-              ].filter(Boolean).join(" · ")}
-            >
-              <div className="cv-cols">
+          <div {...paneFor("admission")}>
+            <section className="cv-card" aria-label="Admission">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Admission</h2>
+                <span className="cv-card-meta">From the hospital records.</span>
+              </div>
+              <div className="cv-card-body cv-cols">
                 <div>
                   <div className="cv-kv"><span>Admission</span><span>{draft?.admission_date ? formatDate(draft.admission_date) : "—"}</span></div>
                   <div className="cv-kv"><span>Discharge</span><span>{draft?.discharge_date ? formatDate(draft.discharge_date) : "Not discharged"}</span></div>
                   <div className="cv-kv"><span>Encounter</span><span>{draft?.inpatient === false ? "Out-patient" : "In-patient"}</span></div>
                   <div className="cv-kv"><span>Priority</span><span>{draft?.urgent ? "Urgent" : "Routine"}</span></div>
+                  <div className="cv-kv"><span>Member ID</span><span className="cv-mono">{draft?.patient?.member_id || "—"}</span></div>
                 </div>
                 <div>
                   <div className="cv-kv"><span>Ward</span><span>{accommodation.ward || "—"}</span></div>
@@ -600,75 +623,86 @@ export default function PreauthDraft({ ctx }) {
                   <div className="cv-kv"><span>Bed</span><span className="cv-mono">{accommodation.bed_code || "—"}</span></div>
                 </div>
               </div>
-            </ClinicalRow>
-            <ClinicalRow openRow={openRow} setOpenRow={setOpenRow}
-              id="diagnosis"
-              title="Diagnosis"
-              chip={principal ? ["Done", "is-ok"] : ["Missing", "is-bad"]}
-              summary={principal ? `${principal.name || "—"}${principal.code ? ` (${principal.code})` : ""} · principal${displayDiagnoses.length > 1 ? ` · +${displayDiagnoses.length - 1} more` : ""}` : "No diagnosis on record"}
-            >
-              <fieldset className="cv-plain" disabled={locked}>
-              <div className="cv-tw">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style={{ width: 130 }}>Code</th>
-                      <th style={{ width: 140 }}>System</th>
-                      <th>Description</th>
-                      <th style={{ width: 110 }}>Principal</th>
-                      <th style={{ width: 56 }} aria-label="Remove" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayDiagnoses.map((diag, i) => (
-                      <tr key={diag._uid ?? `d-${i}`}>
-                        <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} placeholder="Code" aria-label="Diagnosis code" value={diag.code ?? ""} onChange={(e) => updateDiagnosis(i, "code", e.target.value)} /></td>
-                        <td>
-                          <select className="cv-ctl" style={{ width: "100%" }} disabled={!diag.code} value={effectiveSystem(diag)} onChange={(e) => updateDiagnosis(i, "code_system", e.target.value)} aria-label="Code system">
-                            {!diag.code && <option value="">—</option>}
-                            {CODE_SYSTEMS.map((sys) => (
-                              <option key={sys.value} value={sys.value}>{sys.label}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td><input className="cv-ctl" style={{ width: "100%" }} placeholder="Diagnosis description" aria-label="Diagnosis description" value={diag.name ?? ""} onChange={(e) => updateDiagnosis(i, "name", e.target.value)} /></td>
-                        <td>
-                          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            <input type="radio" name="primary-diagnosis" checked={!!diag.primary} onChange={() => setPrimaryDiagnosis(i)} />
-                            {diag.primary ? "Principal" : ""}
-                          </label>
-                        </td>
-                        <td><button type="button" className="cv-btn" onClick={() => removeDiagnosis(i)} aria-label="Remove diagnosis"><Trash2 size={14} /></button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            </section>
+          </div>
+
+          <div {...paneFor("diagnosis")}>
+            <section className="cv-card" aria-label="Diagnosis">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Diagnosis</h2>
+                <span className="cv-card-meta">From the hospital records; correct it here if needed.</span>
               </div>
-              {!locked && <button type="button" className="cv-btn" style={{ marginTop: 12 }} onClick={addDiagnosis}><Plus size={14} /> Add diagnosis</button>}
+              <fieldset className="cv-plain" disabled={locked}>
+                <div className="cv-tw cv-in-card">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 130 }}>Code</th>
+                        <th style={{ width: 140 }}>System</th>
+                        <th>Description</th>
+                        <th style={{ width: 110 }}>Principal</th>
+                        <th style={{ width: 56 }} aria-label="Remove" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayDiagnoses.map((diag, i) => (
+                        <tr key={diag._uid ?? `d-${i}`}>
+                          <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} placeholder="Code" aria-label="Diagnosis code" value={diag.code ?? ""} onChange={(e) => updateDiagnosis(i, "code", e.target.value)} /></td>
+                          <td>
+                            <select className="cv-ctl" style={{ width: "100%" }} disabled={!diag.code} value={effectiveSystem(diag)} onChange={(e) => updateDiagnosis(i, "code_system", e.target.value)} aria-label="Code system">
+                              {!diag.code && <option value="">—</option>}
+                              {CODE_SYSTEMS.map((sys) => (
+                                <option key={sys.value} value={sys.value}>{sys.label}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td><input className="cv-ctl" style={{ width: "100%" }} placeholder="Diagnosis description" aria-label="Diagnosis description" value={diag.name ?? ""} onChange={(e) => updateDiagnosis(i, "name", e.target.value)} /></td>
+                          <td>
+                            <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              <input type="radio" name="primary-diagnosis" checked={!!diag.primary} onChange={() => setPrimaryDiagnosis(i)} />
+                              {diag.primary ? "Principal" : ""}
+                            </label>
+                          </td>
+                          <td><button type="button" className="cv-btn" onClick={() => removeDiagnosis(i)} aria-label="Remove diagnosis"><Trash2 size={14} /></button></td>
+                        </tr>
+                      ))}
+                      {!displayDiagnoses.length && (
+                        <tr><td colSpan={5} className="cv-card-meta">No diagnosis on record.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {!locked && <div className="cv-card-body cv-pane-action"><button type="button" className="cv-btn" onClick={addDiagnosis}><Plus size={14} /> Add diagnosis</button></div>}
               </fieldset>
-            </ClinicalRow>
-            <ClinicalRow openRow={openRow} setOpenRow={setOpenRow}
-              id="justification"
-              title="Clinical justification"
-              chip={justification.length ? ["Done", "is-ok"] : ["Thin", "is-warn"]}
-              summary={justification.length ? justification.map(([label, codes]) => `${codes.length} ${label.toLowerCase()}`).join(" · ") : "No coded complaints, findings or tests; fuller notes mean fewer queries"}
-            >
-              {justification.length ? (
-                justification.map(([label, codes]) => (
-                  <div key={label} className="cv-kv"><span>{label}</span><span>{codes.map((c) => c.name || c.code).join(", ")}</span></div>
-                ))
-              ) : (
-                <div className="cv-card-meta">Nothing coded on the clinical note.</div>
-              )}
-            </ClinicalRow>
-            <ClinicalRow openRow={openRow} setOpenRow={setOpenRow}
-              id="team"
-              title="Treating team"
-              chip={displayCareTeam.length === 0 ? ["None", "is-warn"] : teamMissingReg ? [`${teamMissingReg} no reg.`, "is-warn"] : ["Done", "is-ok"]}
-              summary={displayCareTeam.length ? displayCareTeam.map((d) => `${d.doc_name || "—"}${d.speciality_display || d.speciality ? ` (${d.speciality_display || d.speciality})` : ""}`).join(" · ") : "No doctor on record"}
-            >
-              {displayCareTeam.length > 0 && (
-                <fieldset className="cv-tw cv-plain" disabled={locked}>
+            </section>
+          </div>
+
+          <div {...paneFor("justification")}>
+            <section className="cv-card" aria-label="Clinical justification">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Clinical justification</h2>
+                <span className="cv-card-meta">Fuller notes mean fewer payer queries.</span>
+              </div>
+              <div className="cv-card-body">
+                {justification.length ? (
+                  justification.map(([label, codes]) => (
+                    <div key={label} className="cv-kv"><span>{label}</span><span>{codes.map((c) => c.name || c.code).join(", ")}</span></div>
+                  ))
+                ) : (
+                  <div className="cv-card-meta">No complaints, findings or tests are coded on the clinical note. Ask the doctor to add them in the hospital system.</div>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <div {...paneFor("team")}>
+            <section className="cv-card" aria-label="Treating team">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Treating team</h2>
+                {teamMissingReg > 0 && <span className="cv-chip is-warn">{teamMissingReg} without a registration number</span>}
+              </div>
+              {displayCareTeam.length > 0 ? (
+                <fieldset className="cv-tw cv-in-card cv-plain" disabled={locked}>
                   <table>
                     <thead>
                       <tr>
@@ -688,153 +722,113 @@ export default function PreauthDraft({ ctx }) {
                     </tbody>
                   </table>
                 </fieldset>
+              ) : (
+                <div className="cv-card-intro">No doctor is on record for this admission.</div>
               )}
-            </ClinicalRow>
-          </section>
-
-          <section className="cv-card" aria-label="Treatment and cost">
-            <div className="cv-card-head">
-              <h2 className="cv-card-title">Treatment &amp; cost</h2>
-              {planNotes.length > 0 ? <span className="cv-chip is-warn">{planNotes.length} to look at</span> : <span className="cv-chip is-ok">{displayItems.length} lines</span>}
-              {editedItems && <span className="cv-card-meta">Edited; the amount is recomputed from the lines</span>}
-            </div>
-            {unbilledProcedures.length > 0 && (
-              <div className="cv-card-intro">Procedures not billed as a line: {unbilledProcedures.map((p) => `${p.name}${p.code ? ` (${p.code})` : ""}`).join(", ")}</div>
-            )}
-            <fieldset className="cv-tw cv-in-card cv-plain" disabled={locked}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Service</th>
-                    <th style={{ width: 110 }}>Qty</th>
-                    <th style={{ width: 150 }}>Unit price</th>
-                    <th className="is-num" style={{ width: 150 }}>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayItems.map((item, i) => (
-                    <tr key={i}>
-                      <td>
-                        {unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && !locked ? (
-                          <input className="cv-ctl" style={{ width: "100%" }} aria-label="Procedure name" placeholder="Name the procedure, and the ward if it matters" value={item.service_name || ""} onChange={(e) => updateItem(i, "service_name", e.target.value)} />
-                        ) : (
-                          <strong>{item.service_name}</strong>
-                        )}
-                        <div className="cv-card-meta">{[item.service_code, unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && "unspecified package: the name and amount go as typed", item.category, item.service_start_date && formatDate(item.service_start_date)].filter(Boolean).join(" · ")}</div>
-                      </td>
-                      <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="1" aria-label="Quantity" value={item.quantity} onChange={(e) => updateItem(i, "quantity", e.target.value)} /></td>
-                      <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="0" aria-label="Unit price" value={item.unit_price} onChange={(e) => updateItem(i, "unit_price", e.target.value)} /></td>
-                      <td className="is-num" style={{ fontWeight: 600 }}>{formatMoney(item.net_amount)}</td>
-                    </tr>
-                  ))}
-                  {!displayItems.length && (
-                    <tr><td colSpan={4} className="cv-card-meta">No billable items on record.</td></tr>
-                  )}
-                  <tr className="is-total">
-                    <td colSpan={3}>Amount requested</td>
-                    <td className="is-num">{formatMoney(effectiveTotal)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </fieldset>
-          </section>
-
-          <PayerAsks caseId={caseId} stage="preauth" asks={draft?.payer_asks} documents={docs} readOnly={readOnly || caseClosed} onAttach={attachAsk} onFormsChange={setAskForms} reloadKey={asksReload} />
-
-          <section className="cv-card" aria-label="Other files">
-            <div className="cv-card-head">
-              <h2 className="cv-card-title">Other files</h2>
-              <span className="cv-card-meta">From the hospital records, or added here. Sent as supporting information. Files attached on this step stay until it is sent, but reloading the page drops them.</span>
-            </div>
-            <div className="cv-card-body">
-              <DocumentChecklist
-                documents={otherDocs}
-                onUpload={handleUpload}
-                onAddDocument={addDocument}
-                onRenameDocument={(i, name) => renameDocument(docs.indexOf(otherDocs[i]), name)}
-                onRemoveDocument={(i) => removeDocument(docs.indexOf(otherDocs[i]))}
-                readOnly={locked}
-                hideSummary
-              />
-            </div>
-          </section>
+            </section>
+          </div>
 
           {draft?.discharge_summary && (
-            <section className="cv-card" aria-label="Discharge summary">
-              <div className="cv-card-head"><h2 className="cv-card-title">Discharge summary</h2></div>
-              <div className="cv-card-body">
-                <div className="cv-kv"><span>Condition</span><span>{draft.discharge_summary.condition || "—"}</span></div>
-                <div className="cv-kv"><span>Advice</span><span>{draft.discharge_summary.advice || "—"}</span></div>
-                <div className="cv-kv"><span>Follow-up</span><span>{draft.discharge_summary.followup_on ? formatDate(draft.discharge_summary.followup_on) : "—"}</span></div>
-              </div>
-            </section>
-          )}
-
-          <div>
-            <Button variant="text" onClick={() => navigate("../prep")}>← Back to eligibility</Button>
-          </div>
-        </div>
-
-        <aside className="cv-aside cv-card" aria-label="Ready to send">
-          <div className="cv-pane">
-            <div className="cv-card-meta">Amount requested</div>
-            <div style={{ fontSize: 30, fontWeight: 700, marginTop: 4 }}>{formatMoney(effectiveTotal)}</div>
-            <div className="cv-card-meta">{displayItems.length} line{displayItems.length === 1 ? "" : "s"}{editedItems ? " · edited" : ""}</div>
-          </div>
-          <div className="cv-pane">
-            <div className="cv-sub" style={{ fontSize: 15 }}>Ready to send</div>
-            {readiness.map((r) => (
-              <div key={r.label} className="cv-ready-item">
-                <span className={`cv-ready-mark ${r.ok ? "is-ok" : r.soft ? "is-warn" : "is-bad"}`}>{r.ok ? "✓" : "!"}</span>
-                <span style={{ flex: 1 }}>{r.label}</span>
-                {r.note && <span className="cv-ready-note">{r.note}</span>}
-              </div>
-            ))}
-          </div>
-          {(planNotes.length > 0 || admissibility?.exclusions?.length > 0) && (
-            <div className="cv-pane">
-              <div className="cv-sub" style={{ fontSize: 15 }}>Against the plan</div>
-              <div className="cv-card-meta" style={{ marginBottom: 6 }}>Warnings; only a package priced at zero or less stops the send.</div>
-              {planNotes.map((c, i) => (
-                <div key={i} style={{ fontSize: 13.5, padding: "4px 0", color: c.level === "block" ? "var(--error)" : undefined }}>{c.message}</div>
-              ))}
-              {admissibility?.exclusions?.length > 0 && <div className="cv-card-meta" style={{ marginTop: 6 }}>Excluded by the plan: {admissibility.exclusions.join("; ")}.</div>}
+            <div {...paneFor("discharge")}>
+              <section className="cv-card" aria-label="Discharge summary">
+                <div className="cv-card-head"><h2 className="cv-card-title">Discharge summary</h2></div>
+                <div className="cv-card-body">
+                  <div className="cv-kv"><span>Condition</span><span>{draft.discharge_summary.condition || "—"}</span></div>
+                  <div className="cv-kv"><span>Advice</span><span>{draft.discharge_summary.advice || "—"}</span></div>
+                  <div className="cv-kv"><span>Follow-up</span><span>{draft.discharge_summary.followup_on ? formatDate(draft.discharge_summary.followup_on) : "—"}</span></div>
+                </div>
+              </section>
             </div>
           )}
-          <div className="cv-pane">
-            <div className="cv-kv"><span>Payer</span><span><PayerName id={draft?.payer_id || payer?.code} name={payer?.name} /></span></div>
-            <div className="cv-kv"><span>Policy</span><span className="cv-mono">{draft?.policy_number || "—"}</span></div>
-            <div className="cv-kv"><span>Member ID</span><span className="cv-mono">{draft?.patient?.member_id || "—"}</span></div>
-          </div>
-          <div className="cv-pane" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {submitError && (
-              <div className="cv-notice is-bad">
-                <div className="cv-notice-title">Not sent</div>
-                <div className="cv-notice-body">{submitError}</div>
-                <div className="cv-notice-hint" style={{ marginTop: 6 }}>Fix what the message names and send again. Your draft is kept.</div>
+
+          <div {...paneFor("lines")}>
+            <section className="cv-card" aria-label="Treatment and cost">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Treatment &amp; cost</h2>
+                {editedItems && <span className="cv-card-meta">Edited; the amount is recomputed from the lines</span>}
               </div>
-            )}
-            {!preauthAlreadyLive && blockingAsks.length > 0 && (
-              <div className="cv-card-meta" style={{ color: "var(--error)" }}>
-                The payer asked for {blockingAsks.map((a) => a.display).join(", ")}; finish {blockingAsks.length === 1 ? "it" : "them"} to send.
-              </div>
-            )}
-            {preauthAlreadyLive ? (
-              <>
-                <button type="button" className="cv-btn is-primary is-wide" onClick={() => navigate("../status")}>View decision <ArrowRight size={14} /></button>
-                {sentCorrelationId && caseId && <button type="button" className="cv-btn" onClick={() => setShowSent(true)}><FileJson size={14} /> View what was sent</button>}
-                {!caseClosed && <button type="button" className="cv-btn" disabled={!canSubmit} onClick={() => setConfirmResend(true)}><Send size={14} /> Send a fresh preauth…</button>}
-              </>
-            ) : (
-              <>
-                <button type="button" className="cv-btn is-primary is-wide" disabled={!canSubmit || readOnly} onClick={requestSend}>
-                  <Send size={15} /> {submitting ? "Sending…" : "Send preauth"}
-                </button>
-                {editsSaved && <div className="cv-card-meta">Edits saved on this browser</div>}
-              </>
-            )}
+              {unbilledProcedures.length > 0 && (
+                <div className="cv-card-intro">Procedures not billed as a line: {unbilledProcedures.map((p) => `${p.name}${p.code ? ` (${p.code})` : ""}`).join(", ")}</div>
+              )}
+              <fieldset className="cv-tw cv-in-card cv-plain" disabled={locked}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Service</th>
+                      <th style={{ width: 110 }}>Qty</th>
+                      <th style={{ width: 150 }}>Unit price</th>
+                      <th className="is-num" style={{ width: 150 }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayItems.map((item, i) => (
+                      <tr key={i}>
+                        <td>
+                          {unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && !locked ? (
+                            <input className="cv-ctl" style={{ width: "100%" }} aria-label="Procedure name" placeholder="Name the procedure, and the ward if it matters" value={item.service_name || ""} onChange={(e) => updateItem(i, "service_name", e.target.value)} />
+                          ) : (
+                            <strong>{item.service_name}</strong>
+                          )}
+                          <div className="cv-card-meta">{[item.service_code, unspecifiedCodes.has(String(item.service_code || "").toUpperCase()) && "unspecified package: the name and amount go as typed", item.category, item.service_start_date && formatDate(item.service_start_date)].filter(Boolean).join(" · ")}</div>
+                        </td>
+                        <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="1" aria-label="Quantity" value={item.quantity} onChange={(e) => updateItem(i, "quantity", e.target.value)} /></td>
+                        <td><input className="cv-ctl cv-mono" style={{ width: "100%" }} type="number" min="0" aria-label="Unit price" value={item.unit_price} onChange={(e) => updateItem(i, "unit_price", e.target.value)} /></td>
+                        <td className="is-num" style={{ fontWeight: 600 }}>{formatMoney(item.net_amount)}</td>
+                      </tr>
+                    ))}
+                    {!displayItems.length && (
+                      <tr><td colSpan={4} className="cv-card-meta">No billable items on record.</td></tr>
+                    )}
+                    <tr className="is-total">
+                      <td colSpan={3}>Amount requested</td>
+                      <td className="is-num">{formatMoney(effectiveTotal)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </fieldset>
+            </section>
           </div>
-        </aside>
+
+          <div {...paneFor("plan")}>
+            <section className="cv-card" aria-label="Against the plan">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Against the plan</h2>
+                <span className="cv-card-meta">Warnings; only a package priced at zero or less stops the send.</span>
+              </div>
+              <div className="cv-card-body">
+                {checks.length === 0 && <div className="cv-card-meta">{admissibility?.status === "checked" ? "Nothing to look at." : "This draft has not been checked against a plan."}</div>}
+                {checks.map((c, i) => (
+                  <div key={i} className={`cv-plan-check is-${c.level}`}>{c.message}</div>
+                ))}
+                {admissibility?.exclusions?.length > 0 && <div className="cv-card-meta" style={{ marginTop: 8 }}>Excluded by the plan: {admissibility.exclusions.join("; ")}.</div>}
+              </div>
+            </section>
+          </div>
+
+          <div {...paneFor("asks")}>
+            <PayerAsks caseId={caseId} stage="preauth" asks={draft?.payer_asks} documents={docs} readOnly={locked} onAttach={attachAsk} onFormsChange={setAskForms} reloadKey={asksReload} />
+          </div>
+
+          <div {...paneFor("files")}>
+            <section className="cv-card" aria-label="Other files">
+              <div className="cv-card-head">
+                <h2 className="cv-card-title">Other files</h2>
+                <span className="cv-card-meta">Sent as supporting information. Attached files stay until sent, but reloading the page drops them.</span>
+              </div>
+              <div className="cv-card-body">
+                <DocumentChecklist
+                  documents={otherDocs}
+                  onUpload={handleUpload}
+                  onAddDocument={addDocument}
+                  onRenameDocument={(i, name) => renameDocument(docs.indexOf(otherDocs[i]), name)}
+                  onRemoveDocument={(i) => removeDocument(docs.indexOf(otherDocs[i]))}
+                  readOnly={locked}
+                  hideSummary
+                />
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
 
       <Modal open={confirmWarn} onClose={() => setConfirmWarn(false)} title="Send without these?" subtitle="Only the plan lists them, so the send is allowed, but the payer may query or refuse.">
