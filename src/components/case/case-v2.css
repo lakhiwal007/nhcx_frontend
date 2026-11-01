@@ -340,3 +340,16 @@
 .cv-drawer-intro { margin: 0 0 16px; font-size: 14px; color: var(--text-muted); }
 .cv-drawer-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .cv-drawer-note { margin-bottom: 12px; }
+
+/* Follow-up actions that stay out of the way of the primary. */
+.cv-more { position: relative; }
+.cv-more > summary { list-style: none; cursor: pointer; }
+.cv-more > summary::-webkit-details-marker { display: none; }
+.cv-more-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; display: flex; flex-direction: column; gap: 4px;
+  min-width: 220px; padding: 6px; background: var(--cv-card); border: 1px solid var(--cv-line); border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.cv-more-menu .cv-btn { justify-content: flex-start; width: 100%; }
+.cv-more-menu .cv-btn.is-danger { color: var(--cv-bad); }
+.cv-bar-ref { margin-left: 10px; }

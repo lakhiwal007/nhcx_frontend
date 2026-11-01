@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { usePoll } from "../../hooks/usePoll";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowRight, RefreshCw, PlusCircle, X, Wifi, Send } from "lucide-react";
+import { ArrowRight, MoreHorizontal, RefreshCw, PlusCircle, X, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
-import { Button, DocumentChecklist, LoadingBlock, QueryResponseFields, formatMoney, NextStep } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, QueryResponseFields, formatMoney, Tip } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
 import PayerAsks from "../case/PayerAsks";
+import CaseChecklist from "../case/CaseChecklist";
+import { useCasePane } from "../case/useCasePane";
+import { buildApprovalChecklist, firstApprovalItem } from "../case/approvalChecklist";
 import { liveAsks } from "../case/askStatus";
 import { Drawer, Modal } from "../Overlay";
 import { buildQueryResponseBody, documentFromFile } from "../../queryResponse.js";
@@ -40,6 +43,16 @@ function netAmountOf(claimItem, adj) {
   return adj?.submitted?.value ?? null;
 }
 
+function ActionButton({ action, readOnly, onRun }) {
+  const blocked = action.write && readOnly;
+  return (
+    <button type="button" className="cv-btn" disabled={action.disabled || blocked} title={blocked ? READ_ONLY_TITLE : action.title} onClick={() => onRun(action.id)}>
+      {action.icon && <action.icon size={14} />}
+      {action.label}
+    </button>
+  );
+}
+
 export default function PreauthStatus({ ctx }) {
   const navigate = useNavigate();
   const readOnly = useReadOnly();
@@ -49,6 +62,7 @@ export default function PreauthStatus({ ctx }) {
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
   const policyNumber = caseState.policy?.policy_number || cashlessCase?.policy_number || "";
 
+  const { picked, paneRef, openItem } = useCasePane();
   const [statusData, setStatusData] = useState(null);
   const [pollError, setPollError] = useState(null);
   const [polling, setPolling] = useState(true);
@@ -82,10 +96,38 @@ export default function PreauthStatus({ ctx }) {
   const startTimeRef = useRef(Date.now());
   const elapsedRef = useRef(null);
 
+  // Swap in a new correlation id and restart the elapsed timer; usePoll picks up
+  // the change and immediately polls the new id. Also clears the prior terminal
+  // decision so the case stepper doesn't keep showing the stale REJECTED/QUERIED
+  // badge until the next poll tick resolves the new decision (backend clears its
+  // own copy on resubmit, but the frontend's cached caseState/cashlessCase don't
+  // know that until we clear them here too).
+  const restartPoll = (newCorrelationId) => {
+    startTimeRef.current = Date.now();
+    setPollElapsed(0);
+    setStatusData(null);
+    setPolling(true);
+    // Clear the stale decision (a new one is pending) but KEEP the last authorized
+    // amount on screen — nulling it made the header "Approved" chip flicker away on
+    // every query/resubmit/enhancement round-trip. The next poll overwrites it.
+    updateCaseState({ preauthCorrelationId: newCorrelationId, preauthDecision: null });
+    setCashlessCase?.((prev) => (prev ? { ...prev, preauth_status: null } : prev));
+  };
+
   const pollStatus = async (signal) => {
     try {
       const res = await api.getPreauthStatus(correlationId, signal);
       setPollError(null);
+      if (res.decision === "CANCELLATION_REJECTED") {
+        setCancelRefused(true);
+        // The cancel request has its own answer; go back to the pre-auth, which stands.
+        if (caseState.preauthBeforeCancel) {
+          const original = caseState.preauthBeforeCancel;
+          updateCaseState({ preauthBeforeCancel: null });
+          restartPoll(original);
+          return;
+        }
+      }
       setStatusData(res);
       const stateUpdates = {};
       if (res.preauth_ref) stateUpdates.preauthRef = res.preauth_ref;
@@ -144,24 +186,6 @@ export default function PreauthStatus({ ctx }) {
     }, 5000);
     return () => clearInterval(elapsedRef.current);
   }, [polling]);
-
-  // Swap in a new correlation id and restart the elapsed timer; usePoll picks up
-  // the change and immediately polls the new id. Also clears the prior terminal
-  // decision so the case stepper doesn't keep showing the stale REJECTED/QUERIED
-  // badge until the next poll tick resolves the new decision (backend clears its
-  // own copy on resubmit, but the frontend's cached caseState/cashlessCase don't
-  // know that until we clear them here too).
-  const restartPoll = (newCorrelationId) => {
-    startTimeRef.current = Date.now();
-    setPollElapsed(0);
-    setStatusData(null);
-    setPolling(true);
-    // Clear the stale decision (a new one is pending) but KEEP the last authorized
-    // amount on screen — nulling it made the header "Approved" chip flicker away on
-    // every query/resubmit/enhancement round-trip. The next poll overwrites it.
-    updateCaseState({ preauthCorrelationId: newCorrelationId, preauthDecision: null });
-    setCashlessCase?.((prev) => (prev ? { ...prev, preauth_status: null } : prev));
-  };
 
   const handleQuerySubmit = async () => {
     setSubmitting(true);
@@ -256,17 +280,6 @@ export default function PreauthStatus({ ctx }) {
       setSubmitting(false);
     }
   };
-
-  const refusedCancel = statusData?.decision === "CANCELLATION_REJECTED";
-  useEffect(() => {
-    if (!refusedCancel) return;
-    setCancelRefused(true);
-    const original = caseState.preauthBeforeCancel;
-    if (!original) return;
-    updateCaseState({ preauthBeforeCancel: null });
-    restartPoll(original);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refusedCancel]);
 
   const filesKey = cashless_case_id || claim_id || null;
 
@@ -561,7 +574,7 @@ export default function PreauthStatus({ ctx }) {
   if (isComplete) {
     if ((isApproved || isPartial) && !caseClosed && !preauthReadOnly) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
     if ((isQueried || isRejected || isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED)
-      secondary.push({ id: "message", label: "Message payer", icon: Send });
+      secondary.push({ id: "message", label: "Message payer", icon: Send, write: true });
     if (isUnknown && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi, write: true });
   }
   if (resolvedCashlessCaseId && (isComplete || isFailed) && !caseClosed) {
@@ -616,47 +629,107 @@ export default function PreauthStatus({ ctx }) {
     };
   };
 
+  const clinicalCount = (statusData?.diagnoses?.length || 0) + (statusData?.procedures?.length || 0);
+  const groups = buildApprovalChecklist({
+    failed: isFailed,
+    notFound: isNotFound,
+    complete: isComplete,
+    approved: approvedValue,
+    lines: adjItems,
+    notes: statusData?.process_notes?.length || 0,
+    readNotes: isQueried || isRejected,
+    clinical: clinicalCount,
+    enquiry: enquiryId ? (enquiry?.status === "failed" ? "failed" : enquiry?.status === "complete" ? "answered" : "waiting") : null,
+    errors: statusData?.errors?.length || 0,
+  });
+  const open = picked && groups.some((g) => g.rows.some((r) => r.id === picked)) ? picked : firstApprovalItem(groups, isQueried || isRejected);
+  const paneFor = (id) => ({ hidden: open !== id });
+
+  // The first follow-up stays beside the primary; the rest sit in a quiet menu.
+  const [firstAction, ...moreActions] = secondary;
+  const barTone = { ok: "ok", warn: "warn", bad: "bad", pending: "info" }[verdict.tone] || "info";
+  const notices = [
+    isFailed && { tone: "bad", text: `The preauth could not be delivered to the payer. ${statusData?.error_message || statusData?.errors?.[0]?.detail || statusData?.errors?.[0]?.display || ""}` },
+    cancelRefused && { tone: "warn", text: "The payer refused the cancellation, so this pre-auth still stands." },
+    preauthReadOnly && { tone: "info", text: READ_ONLY_NOTICE },
+    ambiguous && isComplete && { tone: "warn", text: `Verify this approval: the payer's raw outcome (${outcome}) does not corroborate it.` },
+    enquiryError && { tone: "bad", text: enquiryError },
+    pollError && { tone: "warn", text: `The last check failed, and this page keeps trying: ${pollError}` },
+    ...(location.state?.preauthWarnings || []).map((w) => ({ tone: "warn", text: w })),
+    !isFailed && (canAnswer || !(isQueried || isRejected)) && (guide.tone === "warn" || guide.tone === "bad") && { tone: guide.tone, text: guide.steps?.join(" ") || [guide.title, guide.text].filter(Boolean).join(". ") },
+    pendingTasks.length > 0 && { tone: "info", text: `${pendingTasks.length} task${pendingTasks.length > 1 ? "s" : ""} for this preauth in the Work Queue.`, action: { label: "Open Work Queue", to: "/work-queue" } },
+    recheckMessage && { tone: "info", text: recheckMessage },
+  ].filter(Boolean);
+  // What to do next stays visible when something needs staff; otherwise it is a tip.
+  const tipText = guide.tone === "ok" || guide.tone === "info" ? guide.steps?.join(" ") || guide.text : null;
+
   return (
-    <div className="wizard-step pd-screen">
-      {isFailed && (
-        <div className="ep-notice is-bad">
-          <strong>The preauth could not be delivered to the payer.</strong>{" "}
-          {statusData?.error_message || statusData?.errors?.[0]?.detail || statusData?.errors?.[0]?.display || ""}
+    <div className="cv-elig">
+      <div className={`cv-notice cv-verdict is-${barTone}`}>
+        <div className="cv-verdict-row">
+          <span className={`cv-chip is-${verdict.tone === "pending" ? "info" : verdict.tone}`}>{verdict.label}</span>
+          <span className="cv-notice-body">
+            {(isApproved || isPartial) && approvedValue != null ? (
+              <>
+                <strong>{formatMoney(approvedValue)}</strong>
+                {requestedValue != null ? ` of ${formatMoney(requestedValue)} requested` : " approved"}
+              </>
+            ) : !isComplete && !isFailed && !isNotFound ? (
+              `Waiting ${Math.max(1, Math.round(pollElapsed / 60000))} min`
+            ) : null}
+            {statusData?.preauth_ref && <span className="cv-mono cv-card-meta cv-bar-ref">{statusData.preauth_ref}</span>}
+          </span>
+          <span className="cv-verdict-actions">
+            {firstAction && <ActionButton action={firstAction} readOnly={readOnly} onRun={runAction} />}
+            {(moreActions.length > 0 || canCancel) && (
+              <details className="cv-more">
+                <summary className="cv-btn" aria-label="More actions"><MoreHorizontal size={15} /></summary>
+                <div className="cv-more-menu">
+                  {moreActions.map((a) => <ActionButton key={a.id} action={a} readOnly={readOnly} onRun={runAction} />)}
+                  {canCancel && (
+                    <button type="button" className="cv-btn is-danger" disabled={readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={() => runAction("cancel")}>
+                      <X size={14} /> Cancel preauth
+                    </button>
+                  )}
+                </div>
+              </details>
+            )}
+            {primary && (
+              <Button write={primary.write} variant="primary" size="small" icon={primary.icon} onClick={() => runAction(primary.id)}>
+                {primary.label}
+              </Button>
+            )}
+          </span>
         </div>
-      )}
-      {preauthReadOnly && <div className="ep-notice">{READ_ONLY_NOTICE}</div>}
-      {cancelRefused && <div className="ep-notice is-warn">The payer refused the cancellation, so this pre-auth still stands.</div>}
-      {enquiryError && <div className="ep-notice is-bad">{enquiryError}</div>}
-      {(location.state?.preauthWarnings || []).map((w) => (
-        <div key={w} className="ep-notice is-warn">{w}</div>
-      ))}
-      {ambiguous && isComplete && (
-        <div className="ep-notice is-warn">
-          Verify this approval: the payer's raw outcome ({outcome}) does not corroborate it.
-        </div>
-      )}
-      {pendingTasks.length > 0 && (
-        <div className="ep-notice">
-          {pendingTasks.length} task{pendingTasks.length > 1 ? "s" : ""} for this preauth in the Work Queue.
-          <button type="button" className="pd-inline-link" onClick={() => navigate("/work-queue")}>
-            Open Work Queue →
-          </button>
-        </div>
-      )}
+        {notices.map((n, i) => (
+          <div key={i} className={`cv-notice-hint cv-verdict-note cv-verdict-line${n.tone === "bad" ? " is-bad" : ""}`}>
+            <span>{n.text}</span>
+            {n.action && <button type="button" className="cv-btn" onClick={() => navigate(n.action.to)}>{n.action.label}</button>}
+          </div>
+        ))}
+        {tipText && <Tip className="cv-verdict-note">{tipText}</Tip>}
+      </div>
 
-      <NextStep tone={guide.tone} title={guide.title} steps={guide.steps || []} className="ds-guide">
-        {guide.text}
-      </NextStep>
+      <div className="cv-work">
+        <CaseChecklist groups={groups} open={open} onOpen={openItem} label="Approval checklist" />
 
-      <div className="pd-layout">
-        <div className="pd-main">
+        <div className="cv-work-pane" ref={paneRef}>
           {isNotFound && (
-            <Section id="ds-none-yet" title="No answer on record">
-              <Fields cols={1} rows={[{ label: "Request ID", value: correlationId, mono: true }]} />
-            </Section>
+            <div {...paneFor("record")}>
+              <Section id="ds-none-yet" title="No answer on record">
+                <Fields cols={1} rows={[{ label: "Request ID", value: correlationId, mono: true }]} />
+              </Section>
+            </div>
           )}
-
+          {isFailed && (
+            <div {...paneFor("delivery")}>
+              <Section id="ds-delivery" title="Not delivered">
+                <Fields cols={1} rows={[{ label: "Reason", value: statusData?.error_message }, { label: "Request ID", value: correlationId, mono: true }]} />
+              </Section>
+            </div>
+          )}
           {!isComplete && !isFailed && !isNotFound && (
+            <div {...paneFor("waiting")}>
             <Section id="ds-waiting" info="waiting" title={knownDecision ? "Loading adjudication details" : "Waiting for the payer"}>
               <Fields
                 cols={2}
@@ -675,9 +748,10 @@ export default function PreauthStatus({ ctx }) {
                 </div>
               )}
             </Section>
+            </div>
           )}
-
           {enquiryId && (
+            <div {...paneFor("enquiry")}>
             <Section id="ds-enquiry" title="Status enquiry">
               {enquiry?.status === "failed" && (
                 <div className="ep-notice is-bad">
@@ -698,10 +772,11 @@ export default function PreauthStatus({ ctx }) {
                 ]}
               />
             </Section>
+            </div>
           )}
-
           {isComplete && (
             <>
+              <div {...paneFor("amounts")}>
               <Section id="ds-amounts" title="Amount breakdown" tip="What you asked for, what the payer cut and why, and what it approved.">
                 <dl className="ds-statement">
                   {statement.map((r) => (
@@ -717,8 +792,9 @@ export default function PreauthStatus({ ctx }) {
                   ))}
                 </dl>
               </Section>
-
+              </div>
               {adjItems.length > 0 && (
+                <div {...paneFor("lines")}>
                 <Section id="ds-lines" title="Line adjudication" tip="The payer's answer for each line of the request.">
                   <div className="ep-table-wrap">
                     <table className="ep-table ds-lines-table">
@@ -763,9 +839,10 @@ export default function PreauthStatus({ ctx }) {
                     </table>
                   </div>
                 </Section>
+                </div>
               )}
-
               {statusData?.process_notes?.length > 0 && (
+                <div {...paneFor("notes")}>
                 <Section id="ds-notes" title="Payer notes" tip="The payer's own words. Read these first when a preauth is queried, cut or rejected.">
                   <ol className="ds-notes">
                     {statusData.process_notes.map((n, i) => (
@@ -776,9 +853,10 @@ export default function PreauthStatus({ ctx }) {
                     ))}
                   </ol>
                 </Section>
+                </div>
               )}
-
-              {(statusData?.diagnoses?.length > 0 || statusData?.procedures?.length > 0) && (
+              {clinicalCount > 0 && (
+                <div {...paneFor("clinical")}>
                 <Section id="ds-clinical" title="Clinical basis">
                   <Fields
                     cols={1}
@@ -796,16 +874,9 @@ export default function PreauthStatus({ ctx }) {
                     ]}
                   />
                 </Section>
+                </div>
               )}
-
-              {statusData?.errors?.length > 0 && (
-                <Section id="ds-errors" title="Payer errors">
-                  <div className="ep-pad">
-                    <PayrErrorList errors={statusData.errors} />
-                  </div>
-                </Section>
-              )}
-
+              <div {...paneFor("response")}>
               <Section
                 id="ds-response"
                 title="Payer response"
@@ -825,73 +896,23 @@ export default function PreauthStatus({ ctx }) {
                   ]}
                 />
               </Section>
+              </div>
             </>
           )}
+          {statusData?.errors?.length > 0 && (
+            <div {...paneFor("errors")}>
+                <Section id="ds-errors" title="Payer errors">
+                  <div className="ep-pad">
+                    <PayrErrorList errors={statusData.errors} />
+                  </div>
+                </Section>
+            </div>
+          )}
         </div>
-
-        <aside className="pd-side">
-          <section className="ep-section pd-request">
-            <header className="ep-section-head">
-              <h3 className="ep-section-title">Preauth decision</h3>
-            </header>
-            <div className={`ds-verdict is-${verdict.tone}`}>
-              <span className="ep-dot" aria-hidden="true" />
-              <span className="ds-verdict-label">{verdict.label}</span>
-              {!isComplete && !isFailed && !isNotFound && <span className="spinner ds-spinner" aria-hidden="true" />}
-            </div>
-            {statusData?.preauth_ref && (
-              <div className="ds-ref">
-                <span className="ep-muted">Reference</span>
-                <span className="ep-mono">{statusData.preauth_ref}</span>
-              </div>
-            )}
-            {isComplete && !isCancelled && approvedValue != null && (
-              <div className="pd-amount">
-                <div className="ep-muted">Approved</div>
-                <div className="pd-amount-value ep-mono">{formatMoney(approvedValue)}</div>
-                {requestedValue != null && <div className="ep-muted">of {formatMoney(requestedValue)} requested</div>}
-              </div>
-            )}
-
-            <div className="pd-submit">
-              {primary && (
-                <Button write={primary.write} variant="primary" icon={primary.icon} onClick={() => runAction(primary.id)} className="pd-submit-btn">
-                  {primary.label}
-                </Button>
-              )}
-              {secondary.length > 0 && (
-                <ul className="ds-actions">
-                  {secondary.map((a) => (
-                    <li key={a.label}>
-                      <button
-                        type="button"
-                        disabled={a.disabled || (a.write && readOnly)}
-                        title={a.write && readOnly ? READ_ONLY_TITLE : a.title}
-                        onClick={() => runAction(a.id)}
-                      >
-                        {a.icon && <a.icon size={14} />}
-                        {a.label}
-                      </button>
-                    </li>
-                  ))}
-                  {canCancel && (
-                    <li>
-                      <button type="button" className="is-danger" disabled={readOnly} title={readOnly ? READ_ONLY_TITLE : undefined} onClick={() => runAction("cancel")}>
-                        <X size={14} />
-                        Cancel preauth
-                      </button>
-                    </li>
-                  )}
-                </ul>
-              )}
-              {recheckMessage && <div className="ep-muted">{recheckMessage}</div>}
-            </div>
-          </section>
-        </aside>
       </div>
 
       <Drawer open={showQueryDrawer} onClose={() => { setShowQueryDrawer(false); setQueryError(null); }} title="Respond to Payer Query">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
+        <p className="cv-drawer-intro">
           Provide a clinical justification and attach any documents requested by the payer.
         </p>
         <QueryResponseFields
@@ -902,9 +923,7 @@ export default function PreauthStatus({ ctx }) {
           onDocumentsChange={(files) => { setQueryDoc(files); setQueryDocs(files.map(documentFromFile)); }}
         />
         {queryError && (
-          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-            {queryError}
-          </div>
+          <div className="cv-notice is-bad cv-drawer-note"><div className="cv-notice-body">{queryError}</div></div>
         )}
         <Button write
           variant="primary"
@@ -918,7 +937,7 @@ export default function PreauthStatus({ ctx }) {
       </Drawer>
 
       <Drawer open={showResubmitDrawer} onClose={() => { setShowResubmitDrawer(false); setResubmitError(null); }} title="Resubmit Preauth">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
+        <p className="cv-drawer-intro">
           Correct the lines and attach what the payer asks for. Only the lines you change are sent; everything else is
           rebuilt from the hospital records.
         </p>
@@ -997,9 +1016,7 @@ export default function PreauthStatus({ ctx }) {
           </>
         )}
         {resubmitError && (
-          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-            {resubmitError}
-          </div>
+          <div className="cv-notice is-bad cv-drawer-note"><div className="cv-notice-body">{resubmitError}</div></div>
         )}
         <Button write
           variant="primary"
@@ -1013,7 +1030,7 @@ export default function PreauthStatus({ ctx }) {
       </Drawer>
 
       <Modal open={showCancelModal} onClose={() => { setShowCancelModal(false); setCancelError(null); }} title="Cancel Preauthorization">
-        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
+        <p className="cv-drawer-intro">
           {statusData?.preauth_ref ? (
             <>
               Cancellation is irreversible. The preauth reference <strong>{statusData.preauth_ref}</strong>
@@ -1026,7 +1043,7 @@ export default function PreauthStatus({ ctx }) {
           )}
         </p>
         <div style={{ marginBottom: "14px" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Reason</label>
+          <label className="cv-drawer-label">Reason</label>
           <select
             className="input-modern"
             value={cancelReason}
@@ -1039,7 +1056,7 @@ export default function PreauthStatus({ ctx }) {
           </select>
         </div>
         <div style={{ marginBottom: "var(--space-5)" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>{cancelReason === "other" ? "Reason (the payer reads only this)" : "Description (optional)"}</label>
+          <label className="cv-drawer-label">{cancelReason === "other" ? "Reason (the payer reads only this)" : "Description (optional)"}</label>
           <textarea
             className="input-modern"
             style={{ height: "80px", resize: "vertical" }}
@@ -1049,9 +1066,7 @@ export default function PreauthStatus({ ctx }) {
           />
         </div>
         {cancelError && (
-          <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-            {cancelError}
-          </div>
+          <div className="cv-notice is-bad cv-drawer-note"><div className="cv-notice-body">{cancelError}</div></div>
         )}
         <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
           <Button variant="outline" onClick={() => { setShowCancelModal(false); setCancelError(null); }}>Keep Preauth</Button>
