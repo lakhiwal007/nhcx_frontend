@@ -179,11 +179,11 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
       {!readOnly && !panel && (
         <div className="cv-card-body" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {METHODS.map(([value, label]) => (
-            <button key={value} type="button" className={`cv-btn${method === value ? " is-primary" : ""}`} aria-pressed={method === value} onClick={() => setMethod(value)}>
+            <button key={value} type="button" className={`cv-btn${method === value ? " is-picked" : ""}`} aria-pressed={method === value} onClick={() => setMethod(value)}>
               {label}
             </button>
           ))}
-          <button type="button" className="cv-btn" style={{ marginLeft: "auto" }} disabled={busy} onClick={start}>
+          <button type="button" className="cv-btn is-primary" style={{ marginLeft: "auto" }} disabled={busy} onClick={start}>
             {card?.current ? "Verify again" : "Verify the patient"}
           </button>
         </div>

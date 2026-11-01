@@ -77,7 +77,7 @@ function DetailField({ label, value }) {
   if (!value) return null;
   return (
     <div>
-      <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "3px" }}>{label}</div>
+      <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "3px" }}>{label}</div>
       <div style={{ fontSize: "13px", fontWeight: 500 }}>{value}</div>
     </div>
   );
@@ -295,7 +295,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
                     </NextStep>
                   )}
                   {reasonCfg.hint && (
-                    <div style={{ padding: "12px 16px", background: "var(--bg-main)", border: `1px solid ${reasonCfg.borderColor || "var(--border-color)"}`, borderLeft: `4px solid ${reasonCfg.borderColor || "var(--border-color)"}`, borderRadius: "8px", fontSize: "13px", lineHeight: 1.5 }}>
+                    <div style={{ padding: "12px 16px", background: "var(--bg-main)", border: `1px solid ${reasonCfg.borderColor || "var(--border-color)"}`, borderRadius: "8px", fontSize: "13px", lineHeight: 1.5 }}>
                       {reasonCfg.hint}
                     </div>
                   )}
@@ -345,7 +345,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
                   {detail.payload?.length > 0 && (
                     <div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>Message from Payer</div>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "10px" }}>Message from Payer</div>
                       {detail.payload.map((p, i) => (
                         <div key={i} style={{ padding: "14px 16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "var(--space-2)", fontSize: "13px", lineHeight: 1.6 }}>
                           {p.content_string && <p style={{ margin: 0 }}>{p.content_string}</p>}
@@ -362,7 +362,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
                   {requiredDocs.length > 0 && (
                     <div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>Documents Requested ({requiredDocs.length})</div>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "10px" }}>Documents Requested ({requiredDocs.length})</div>
                       {requiredDocs.map((doc, i) => (
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 12px", background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "8px", marginBottom: "6px", fontSize: "13px" }}>
                           <FileText size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
@@ -375,7 +375,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
                   {canReply && (
                     <div style={{ padding: "var(--space-4)", background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "10px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "4px" }}>
                         Reply To The Payer
                       </div>
                       <div style={{ fontSize: "12.5px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
@@ -418,7 +418,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
                   {actionable && (
                     <div style={{ padding: "var(--space-4)", background: "rgba(239,68,68,0.04)", border: "1px solid var(--error)", borderRadius: "10px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--error)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>Required Action</div>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--error)", marginBottom: "10px" }}>Required Action</div>
                       <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
                         Submit the documents listed above to the payer to unblock this claim. Once submitted, mark this communication as reviewed to close it from your queue.
                       </div>
@@ -454,7 +454,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
                   {detail.completed_tasks?.length > 0 && (
                     <div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "var(--space-2)" }}>Completed Actions</div>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-2)" }}>Completed Actions</div>
                       {detail.completed_tasks.map((t, i) => (
                         <div key={i} style={{ fontSize: "12px", color: "var(--text-muted)", padding: "6px 10px", background: "var(--bg-main)", borderRadius: "6px", marginBottom: "var(--space-1)" }}>✓ {t.title}</div>
                       ))}

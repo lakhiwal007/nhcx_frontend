@@ -431,8 +431,6 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                       fontSize: "12px",
                       fontWeight: 700,
                       color: "var(--text-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.4px",
                       marginBottom: "10px",
                     }}
                   >
@@ -485,8 +483,6 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
                     fontWeight: 700,
                     color: "var(--text-muted)",
                     marginBottom: "var(--space-2)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.4px",
                   }}
                 >
                   Details
@@ -918,7 +914,6 @@ function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
           onToggle();
         }}
       >
-        {bucket !== "normal" && <span className={`wq-edge is-${bucket}`} />}
         {selectable && (
           <input type="checkbox" aria-label={`Select ${title}`} checked={checked} disabled={!canBulk} readOnly />
         )}
@@ -948,7 +943,7 @@ function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
         {payerLine && <div className="wq-sub">{payerLine}</div>}
       </td>
       <td
-        className={`wq-mono wq-age${age ? (age.text === "Overdue" ? " is-overdue" : " is-waiting") : ""}`}
+        className={`wq-num wq-age${age ? (age.text === "Overdue" ? " is-overdue" : " is-waiting") : ""}`}
         title={task.created_at ? `Created ${formatDateTime(task.created_at)}` : undefined}
       >
         {task.created_at ? formatRelative(task.created_at) : "—"}

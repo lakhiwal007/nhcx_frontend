@@ -254,9 +254,9 @@ export default function Payments() {
                           )}
                         </td>
                         <td className="ep-cap">{stageLabel(pay.payment_stage) || "—"}</td>
-                        <td className="wq-mono cc-num">{formatMoney(pay.gross_amount)}</td>
-                        <td className="wq-mono cc-num">{pay.tds_amount != null ? formatMoney(Math.abs(pay.tds_amount)) : "—"}</td>
-                        <td className="wq-mono cc-num ep-strong">{formatMoney(pay.net_payment_amount)}</td>
+                        <td className="wq-num cc-num">{formatMoney(pay.gross_amount)}</td>
+                        <td className="wq-num cc-num">{pay.tds_amount != null ? formatMoney(Math.abs(pay.tds_amount)) : "—"}</td>
+                        <td className="wq-num cc-num ep-strong">{formatMoney(pay.net_payment_amount)}</td>
                         <td className={pay.acknowledgement_status === "failed" ? "is-bad" : pay.acknowledgement_status === "submitted" ? undefined : "ep-muted"}>
                           {ackLabel(pay)}
                         </td>
@@ -270,9 +270,9 @@ export default function Payments() {
                       <td colSpan={3}>
                         {filtered.length} payments
                       </td>
-                      <td className="wq-mono cc-num">{formatMoney(sum("gross_amount"))}</td>
-                      <td className="wq-mono cc-num">{formatMoney(sum("tds_amount"))}</td>
-                      <td className="wq-mono cc-num">{formatMoney(sum("net_payment_amount"))}</td>
+                      <td className="wq-num cc-num">{formatMoney(sum("gross_amount"))}</td>
+                      <td className="wq-num cc-num">{formatMoney(sum("tds_amount"))}</td>
+                      <td className="wq-num cc-num">{formatMoney(sum("net_payment_amount"))}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -336,7 +336,7 @@ function PaymentDetailModal({ payment, patient, onClose, navigate }) {
         <>
             <div className="pm-modal-amount">
               <span className="ep-muted">Net credited</span>
-              <span className="wq-mono">{formatMoney(payment.net_payment_amount)}</span>
+              <span className="wq-num">{formatMoney(payment.net_payment_amount)}</span>
             </div>
 
             {group("Patient", [

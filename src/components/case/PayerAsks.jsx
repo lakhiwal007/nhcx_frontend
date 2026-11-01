@@ -116,11 +116,11 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
               </div>
             </div>
             {row.kind === "document" ? (
-              <button type="button" className={`cv-btn${done ? "" : " is-primary"}`} disabled={locked} onClick={() => pick(row)}>
+              <button type="button" className="cv-btn" disabled={locked} onClick={() => pick(row)}>
                 {done ? "Replace" : "Attach"}
               </button>
             ) : (
-              <button type="button" className={`cv-btn${done || locked ? "" : " is-primary"}`} disabled={!forms.rows.some((f) => f.url === row.form_url)} onClick={() => setOpen(row.form_url)}>
+              <button type="button" className="cv-btn" disabled={!forms.rows.some((f) => f.url === row.form_url)} onClick={() => setOpen(row.form_url)}>
                 {locked ? "View" : done ? "Edit" : "Fill"}
               </button>
             )}

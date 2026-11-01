@@ -199,7 +199,7 @@ function StatusDetail({ claim, card = false }) {
     const partial = /PARTIAL/i.test(claim.claim_decision || "");
     return (
       <div className="wq-sub cc-approved">
-        <span className="wq-mono">{formatMoney(claim.approved_amount)}</span>
+        <span className="wq-num">{formatMoney(claim.approved_amount)}</span>
         {partial ? " partially approved" : " approved"}
       </div>
     );
@@ -481,11 +481,11 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                 {stats.by_facility.map((row) => (
                   <tr key={row.facility_name || row.facility_code}>
                     <td style={{ fontWeight: 600 }}>{row.facility_name || row.facility_code}</td>
-                    <td className="wq-mono cc-num">{row.total ?? 0}</td>
-                    <td className="wq-mono cc-num">{row.pending ?? 0}</td>
-                    <td className="wq-mono cc-num">{row.partial ?? 0}</td>
-                    <td className="wq-mono cc-num" style={{ color: "var(--success)" }}>{row.complete ?? 0}</td>
-                    <td className="wq-mono cc-num" style={{ color: "var(--error)" }}>{row.failed ?? 0}</td>
+                    <td className="wq-num cc-num">{row.total ?? 0}</td>
+                    <td className="wq-num cc-num">{row.pending ?? 0}</td>
+                    <td className="wq-num cc-num">{row.partial ?? 0}</td>
+                    <td className="wq-num cc-num" style={{ color: "var(--success)" }}>{row.complete ?? 0}</td>
+                    <td className="wq-num cc-num" style={{ color: "var(--error)" }}>{row.failed ?? 0}</td>
                   </tr>
                 ))}
               </tbody>
@@ -586,7 +586,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
             <table className="wq-table cc-table">
               <thead>
                 <tr>
-                  <th className="cc-edge-col" aria-hidden="true" />
                   <th>Case</th>
                   <th>Patient · Payer</th>
                   {allFacilitiesMode && <th>Facility</th>}
@@ -597,7 +596,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
               </thead>
               <tbody>
                 {pagedClaims.map((claim) => {
-                  const attention = needsAttention(claim);
                   return (
                     <tr
                       key={claim.id}
@@ -608,9 +606,6 @@ export default function Dashboard({ allFacilitiesMode = false }) {
                         if (e.key === "Enter") navigateToClaim(claim, "");
                       }}
                     >
-                      <td className="cc-edge-col">
-                        {attention && <span className="wq-edge is-high" />}
-                      </td>
                       <td>
                         <div className="wq-mono cc-case-id">{formatCaseRef(claim.id)}</div>
                         <div className="wq-sub" title={formatDate(claim.created_at)}>

@@ -35,7 +35,7 @@ function Question({ item, value, file, disabled, onChange, onFile }) {
     input = (
       <div>
         {file && <div className="ep-muted">Attached: {file.title}</div>}
-        <input id={id} type="file" accept="application/pdf,image/jpeg,image/png" disabled={disabled} onChange={(e) => onFile(e.target.files?.[0])} />
+        <input id={id} className="pf-file" type="file" accept="application/pdf,image/jpeg,image/png" disabled={disabled} onChange={(e) => onFile(e.target.files?.[0])} />
       </div>
     );
   } else if (item.type === "boolean") {

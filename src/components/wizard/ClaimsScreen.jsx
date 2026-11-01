@@ -1239,7 +1239,7 @@ export default function ClaimsScreen({ ctx }) {
         {resubmitEditItems?.length > 0 && (
           <div style={{ marginBottom: "var(--space-5)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Line Items</div>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)" }}>Line Items</div>
               <span style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "11px", color: "var(--primary)" }}><Edit2 size={11} /> Editable</span>
             </div>
             <div className="table-responsive-wrapper">

@@ -45,7 +45,7 @@ export const Card = ({ title, children, className = "", headerAction }) => (
 );
 
 /**
- * Primary interactive control with tactile hover/press motion. Variants:
+ * Primary interactive control. Variants:
  * "primary" (filled, high emphasis), "outline" (bordered, medium emphasis),
  * "text" (no border, low emphasis). Optional leading icon and small/medium/large sizing.
  * @category Forms
@@ -73,17 +73,16 @@ export const Button = ({
   };
 
   const button = (
-    <motion.button
-      whileHover={!off ? { scale: 1.02 } : {}}
-      whileTap={!off ? { scale: 0.98 } : {}}
+    <button
+      type="button"
       className={`btn-modern btn-${variant}-modern ${sizeClasses[size]} ${className}`}
       onClick={onClick}
       disabled={off}
       title={reason || title}
     >
-      {Icon && <Icon size={size === "small" ? 14 : 18} />}
+      {Icon && <Icon size={size === "small" ? 14 : 16} />}
       {children}
-    </motion.button>
+    </button>
   );
   if (!reason || blocked) return button;
   return (
@@ -408,9 +407,8 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
                 alignItems: "flex-start",
                 gap: "var(--space-3)",
                 padding: "11px 14px",
-                borderRadius: "10px",
+                borderRadius: "var(--radius-md)",
                 border: "1px solid var(--border-color)",
-                borderLeft: `3px solid ${accent}`,
                 background: "var(--bg-card)",
               }}
             >
@@ -445,7 +443,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
               {/* fixed action zone — never shrinks, stays aligned to the first line */}
               <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "1px" }}>
                 {missing && (
-                  <span style={{ fontSize: "10px", color: "var(--error)", fontWeight: 700, letterSpacing: "0.04em" }}>
+                  <span style={{ fontSize: "10px", color: "var(--error)", fontWeight: 700 }}>
                     REQUIRED
                   </span>
                 )}
