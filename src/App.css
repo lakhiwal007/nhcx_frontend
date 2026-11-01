@@ -2309,8 +2309,27 @@ select.input-modern option {
     box-shadow: 0 0 0 1px var(--primary);
 }
 
-.pp-row.is-skeleton {
+.pp-row.is-skeleton,
+.pp-row.is-locked {
     cursor: default;
+}
+
+.pp-row.is-locked:not(.is-selected):hover {
+    border-color: var(--border-color);
+}
+
+.pp-change-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-main);
+}
+
+.pp-change-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
 }
 
 .pp-radio {

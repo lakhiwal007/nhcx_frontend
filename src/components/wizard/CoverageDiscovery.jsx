@@ -4,6 +4,8 @@ import { ArrowLeft, Building2, Radar, AlertTriangle, UserRound } from "lucide-re
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
 import { Button, InfoTip, Tip, NextStep } from "../Common";
+import { POLICY_CHANGE_RESET } from "../case/caseStages";
+import ChangePolicyModal from "./ChangePolicyModal";
 import { formatMoney, formatDate, formatDateTime, humanize } from "../../format.js";
 
 const POLL_MS = 4000;
@@ -53,8 +55,9 @@ export default function CoverageDiscovery({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
   const readOnly = useReadOnly();
-  const { patient, updateCaseState, caseClosed } = ctx;
+  const { patient, caseState, updateCaseState, caseClosed, cashlessCase, setCashlessCase } = ctx;
   const childId = patient?.child_id;
+  const [pendingChoice, setPendingChoice] = useState(null);
 
   const [payerQuery, setPayerQuery] = useState("");
   const [payerResults, setPayerResults] = useState([]);
@@ -174,7 +177,12 @@ export default function CoverageDiscovery({ ctx }) {
     }
   };
 
-  const handleChoose = async (discovery, cover) => {
+  const handleChoose = (discovery, cover) => {
+    if (caseState.cashless_case_id) setPendingChoice({ discovery, cover });
+    else adoptCover(discovery, cover);
+  };
+
+  const adoptCover = async (discovery, cover) => {
     setAdopting(`${cover.policy_code}|${cover.member_id || ""}`);
     setAdoptError(null);
     try {
@@ -183,12 +191,11 @@ export default function CoverageDiscovery({ ctx }) {
         member_id: cover.member_id,
       });
       const policy = res.policy;
+      if (caseState.cashless_case_id) setCashlessCase(null);
       updateCaseState({
         policy,
         payer: { code: policy.payer_id, name: policy.payer_name || policy.payer_id },
-        cashless_case_id: null,
-        claim_id: null,
-        eligibility_correlation_id: null,
+        ...POLICY_CHANGE_RESET,
       });
       navigate("../prep");
     } catch (err) {
@@ -495,6 +502,18 @@ export default function CoverageDiscovery({ ctx }) {
           </section>
         )}
       </div>
+
+      <ChangePolicyModal
+        open={!!pendingChoice}
+        from={caseState.policy?.product_name || caseState.policy?.policy_number || cashlessCase?.policy_number}
+        to={pendingChoice?.cover.plan_name || pendingChoice?.cover.policy_code}
+        onCancel={() => setPendingChoice(null)}
+        onConfirm={() => {
+          const { discovery, cover } = pendingChoice;
+          setPendingChoice(null);
+          adoptCover(discovery, cover);
+        }}
+      />
     </div>
   );
 }

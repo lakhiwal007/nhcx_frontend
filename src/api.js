@@ -1310,6 +1310,22 @@ const mock = {
       };
     }
     if (data.member_id === "ERROR") throw new Error("The insurance registry did not answer in time (gateway timeout).");
+    // Searching by ABHA returns one live policy and one lapsed one, with the
+    // sparse fields a registry row can have, for the preselect and expiry paths.
+    if (data.identifier_type === "AbhaNumber") {
+      return {
+        status: "success",
+        data: {
+          child_id: data.child_id,
+          identifier_used: { type: "AbhaNumber", value: "91711234567890" },
+          policies: [
+            MOCK_POLICIES[0],
+            { policy_number: "POL-LAPSED-2024", product_name: "POL-LAPSED-2024", payer_id: "2044@hcx", effective_to: "2024-12-31" },
+          ],
+          fetched_at: "2026-05-04T10:40:00+05:30",
+        },
+      };
+    }
     const MOCK_MEMBER_ID_ON_FILE = "MEMB-123456";
     if (data.member_id && data.member_id !== MOCK_MEMBER_ID_ON_FILE) {
       return {

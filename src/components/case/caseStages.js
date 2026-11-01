@@ -24,6 +24,24 @@ const VIEWS = {
 };
 
 // Title and hint for any case path, on the spine or not.
+// Everything that belongs to the case on the old policy. Choosing a policy with
+// these cleared makes the Eligibility step prepare a fresh case, and keeps the
+// old case's pre-auth and claim from bleeding into the new one.
+export const POLICY_CHANGE_RESET = {
+  cashless_case_id: null,
+  claim_id: null,
+  eligibility_correlation_id: null,
+  preauthCorrelationId: null,
+  preauthRef: null,
+  preauthDecision: null,
+  approvedAmount: null,
+  claimCorrelationId: null,
+  dischargeCorrelationId: null,
+  draftData: null,
+  statusEnquiry: null,
+  beneficiaryMemberId: null,
+};
+
 export function stageInfo(path) {
   const core = CORE.find((s) => s.path === path);
   if (core) return { ...core, num: CORE.indexOf(core) + 1 };
