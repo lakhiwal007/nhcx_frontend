@@ -7,6 +7,7 @@ import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
 import { Button, DocumentChecklist, LoadingBlock, QueryResponseFields, formatMoney, Tip } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
+import { CLAIM_WITH_PAYER } from "../case/caseStages";
 import PayerAsks from "../case/PayerAsks";
 import CaseChecklist from "../case/CaseChecklist";
 import { useCasePane } from "../case/useCasePane";
@@ -30,7 +31,6 @@ const CANCEL_REASONS = [
   { value: "administrativeerror", label: "Administrative error" },
   { value: "other", label: "Other reason" },
 ];
-const CLAIM_WITH_PAYER = ["submitting", "queried", "approved", "partial", "rejected"];
 const CLAIM_DECIDED = ["approved", "partial", "rejected"];
 const CANCELLABLE_PREAUTH = ["submitting", "approved", "partial", "queried"];
 const READ_ONLY_NOTICE =

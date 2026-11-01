@@ -564,6 +564,20 @@ const mockPlanState = (plan) => {
   return key && MOCK_PLAN_STATES[key] ? { correlation_id: plan.correlation_id, plan: plan.plan, ...MOCK_PLAN_STATES[key] } : plan;
 };
 
+// ?en=none|missing|required_doc|not_found|load_error on /case/:id/enhancement forces
+// a preview; queried and claim_sent set the case's legs.
+const mockEnhancementKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("en") : null);
+
+const mockEnhancementPreview = (preview) => {
+  const key = mockEnhancementKey();
+  if (key === "load_error") throw new Error("The hospital records could not be read.");
+  if (key === "not_found") return { status: "not_found", enhanceable: false, reason: "No pre-auth found for this case." };
+  if (key === "none") return { ...preview, enhanceable: false, reason: "No new procedures or billing found since the last preauthorization.", new_items: [], new_procedures: [] };
+  if (key === "missing") return { ...preview, missing_fields: ["patient.dob", "items"] };
+  if (key === "required_doc") return { ...preview, supporting_documents: [...preview.supporting_documents, { category: "revised_estimate", name: "Revised Estimate", code: "REVISED_ESTIMATE", url: null }] };
+  return preview;
+};
+
 // ?ap=<state> on /case/:id/status forces a pre-auth answer: partial|queried|rejected|
 // cancelled|cancel_refused|failed|not_found|unknown|ambiguous|claim_items|waiting.
 // read_only puts the claim with the payer.
@@ -656,7 +670,9 @@ const mockClaimStatus = (res) => {
 // ?ce=open|not_in_force|unknown|partial|failed|single on /case/:id/prep forces an
 // eligibility answer on a case still at that step.
 const mockCeState = (status) => {
-  const res = mockClaimCase(mockApprovalKey() === "read_only" ? { ...status, legs: { ...status.legs, claim: "submitting" } } : status);
+  const enKey = mockEnhancementKey();
+  const legs = mockApprovalKey() === "read_only" || enKey === "claim_sent" ? { claim: "submitting" } : enKey === "queried" ? { preauth: "queried" } : null;
+  const res = mockClaimCase(legs ? { ...status, legs: { ...status.legs, ...legs } } : status);
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ce") : null;
   if (!key) return res;
   const open = { ...res, current_step: "insurance_and_eligibility", next_actions: ["refresh", "prepare_preauth"] };
@@ -1965,6 +1981,7 @@ const mock = {
 
   submitPreauthEnhancement: async (data) => {
     await delay(1000);
+    window.__mockLastEnhancement = data;
     return {
       correlation_id: "7a3b9c21-f1e2-4d5a-b6c7-8e9f0a1b2c3d",
       preauth_ref: null,
@@ -1985,7 +2002,7 @@ const mock = {
       { service_code: "ICU-DAY", service_name: "ICU stay (per day)", category: "ICU", quantity: 2, unit_price: 6000, net_amount: 12000, is_new: true },
       { service_code: "43239", service_name: "Upper GI endoscopy with biopsy", category: "SE", quantity: 1, unit_price: 8500, net_amount: 8500, is_new: true },
     ];
-    return {
+    return mockEnhancementPreview({
       cashless_case_id: params.cashless_case_id || 5,
       claim_id: params.claim_id || 101,
       payer_id: "1518@hcx",
@@ -2015,7 +2032,7 @@ const mock = {
       ],
       missing_fields: [],
       suggested_request: { items: [...authorizedItems, ...newItems], total_amount: 70500 },
-    };
+    });
   },
 
   resubmitPreauth: async (data) => {
