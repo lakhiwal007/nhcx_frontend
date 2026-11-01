@@ -10,38 +10,24 @@ const TABS = [
   ["overview", "Overview"],
   ["packages", "Packages"],
   ["docs", "Documents & forms"],
-  ["rules", "Exclusions & rules"],
+  ["rules", "Exclusions"],
   ["cover", "Cover benefits"],
   ["profile", "Profile check"],
 ];
 const STAGE = { pre: ["Pre-auth", "is-info"], post: ["Claim", "is-todo"] };
 
-function Prof({ show, path, card, ms }) {
-  if (!show) return null;
-  return (
-    <span className="cv-prof">
-      <span className="cv-prof-path">{path}</span>
-      <span className="cv-prof-card">{card}</span>
-      {ms && <span className="cv-prof-ms">MS</span>}
-    </span>
-  );
-}
-
-function Overview({ plan, showProfile }) {
+function Overview({ plan }) {
   return (
     <div className="cv-card-body cv-cols" style={{ paddingTop: 18 }}>
       {planFieldGroups(plan).map((g) => (
         <div key={g.title}>
-          <div className="cv-sub">
-            {g.title} {showProfile && <span className="cv-prof-path">{g.path}</span>}
-          </div>
+          <div className="cv-sub">{g.title}</div>
           {g.fields.map((x) => (
             <div key={`${x.path}${x.label}`} className="cv-field">
               <span className="cv-field-label">{x.label}</span>
               <span className={`cv-field-value${x.value == null ? (x.required ? " is-required-missing" : " is-missing") : ""}`}>
                 {x.value ?? (x.required ? "Not sent (required)" : "Not sent")}
               </span>
-              <Prof show={showProfile} path={x.path} card={x.card} ms={x.ms} />
             </div>
           ))}
         </div>
@@ -50,14 +36,13 @@ function Overview({ plan, showProfile }) {
   );
 }
 
-function DocsAndForms({ plan, forms, showProfile, onOpenForm }) {
+function DocsAndForms({ plan, forms, onOpenForm }) {
   const docs = plan?.policy_documents || [];
   return (
     <div className="cv-card-body cv-cols" style={{ paddingTop: 18 }}>
       <div>
         <div className="cv-sub">Every case on this policy</div>
         <div className="cv-card-meta" style={{ marginBottom: 8 }}>Requirements on the plan itself, and the forms on its coverage.</div>
-        {showProfile && <Prof show path="InsurancePlan.extension:claim-supportingInfoRequirement" card="0..*" />}
         {docs.length === 0 && <div className="cv-card-meta">The plan lists no policy-wide documents.</div>}
         {docs.map((d, i) => {
           const [label, tone] = STAGE[d.stage] || STAGE.pre;
@@ -82,7 +67,6 @@ function DocsAndForms({ plan, forms, showProfile, onOpenForm }) {
       <div>
         <div className="cv-sub">Questionnaires in the plan ({forms.length})</div>
         <div className="cv-card-meta" style={{ marginBottom: 8 }}>A policy form is asked on every case; a package's form only when that package is quoted.</div>
-        {showProfile && <Prof show path="Bundle.entry:Questionnaire" card="0..*" />}
         {forms.length === 0 && <div className="cv-card-meta">The plan carries no questionnaires.</div>}
         {forms.map((f) => {
           const [label, tone] = STAGE[f.stage] || STAGE.pre;
@@ -106,40 +90,29 @@ function DocsAndForms({ plan, forms, showProfile, onOpenForm }) {
   );
 }
 
-function Rules({ plan, showProfile }) {
+function Exclusions({ plan }) {
   const exclusions = plan?.exclusions || [];
+  if (exclusions.length === 0) return <div className="cv-card-body cv-card-meta">The payer listed no exclusions in the plan.</div>;
   return (
-    <div className="cv-card-body" style={{ paddingTop: 18 }}>
-      <div className="cv-sub">Exclusions</div>
-      {showProfile && <Prof show path="extension:claim-exclusion (category 0..1 · statement 0..* · item 0..*)" card="0..*" />}
-      {exclusions.length === 0 ? (
-        <div className="cv-card-meta">The payer listed no exclusions in the plan.</div>
-      ) : (
-        <div className="cv-tw" style={{ marginTop: 8 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Statement</th>
-                <th>Excluded items</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exclusions.map((x, i) => (
-                <tr key={i}>
-                  <td>{x.category || "—"}</td>
-                  <td>{(x.statements || []).join(" ") || "—"}</td>
-                  <td>{(x.items || []).join(", ") || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div className="cv-sub" style={{ marginTop: 20 }}>Rules on the whole plan</div>
-      <div className="cv-kv"><span>Package rules</span><span>Per package, on the Packages tab</span></div>
-      <div className="cv-kv"><span>A second request while one is open</span><span>Refused by government payers (PAYR-1406); wait 15–60 min</span></div>
-      <div className="cv-kv"><span>Refresh</span><span>Fetch again when the payer renews or amends the policy</span></div>
+    <div className="cv-tw cv-in-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Statement</th>
+            <th>Excluded items</th>
+          </tr>
+        </thead>
+        <tbody>
+          {exclusions.map((x, i) => (
+            <tr key={i}>
+              <td>{x.category || "—"}</td>
+              <td>{(x.statements || []).join(" ") || "—"}</td>
+              <td>{(x.items || []).join(", ") || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -224,7 +197,6 @@ function ProfileCheck({ plan }) {
 
 export default function PlanCard({ plan, state, plannedCodes, canFetch, sending, fetchResult, onFetch }) {
   const [tab, setTab] = useState("overview");
-  const [showProfile, setShowProfile] = useState(false);
   const [openForm, setOpenForm] = useState(null);
   const ready = state.key === "ready";
   const correlationId = ready ? plan.correlation_id : null;
@@ -242,7 +214,7 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
   return (
     <section className="cv-card" aria-label="Insurance plan">
       <div className="cv-card-head">
-        <h2 className="cv-card-title">1. Insurance plan</h2>
+        <h2 className="cv-card-title">Insurance plan</h2>
         {ready && <span className="cv-chip is-ok">Ready</span>}
         {gaps.length > 0 && (
           <button type="button" className="cv-chip is-warn" style={{ border: 0, cursor: "pointer" }} onClick={() => setTab("profile")}>
@@ -254,9 +226,6 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
         </span>
         {ready && (
           <span className="cv-card-tools">
-            <button type="button" className="cv-btn" aria-pressed={showProfile} onClick={() => setShowProfile((v) => !v)}>
-              {showProfile ? "Hide FHIR profile" : "Show FHIR profile"}
-            </button>
             <button type="button" className="cv-btn" disabled={!canFetch || sending} onClick={onFetch}>
               {sending ? "Asking the payer…" : "Fetch again"}
             </button>
@@ -297,10 +266,10 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
               </button>
             ))}
           </div>
-          {tab === "overview" && <Overview plan={plan} showProfile={showProfile} />}
+          {tab === "overview" && <Overview plan={plan} />}
           {tab === "packages" && <PackageBrowser correlationId={correlationId} plan={plan} plannedCodes={plannedCodes} onOpenForm={setOpenForm} />}
-          {tab === "docs" && <DocsAndForms plan={plan} forms={forms} showProfile={showProfile} onOpenForm={setOpenForm} />}
-          {tab === "rules" && <Rules plan={plan} showProfile={showProfile} />}
+          {tab === "docs" && <DocsAndForms plan={plan} forms={forms} onOpenForm={setOpenForm} />}
+          {tab === "rules" && <Exclusions plan={plan} />}
           {tab === "cover" && <Cover rows={cover} />}
           {tab === "profile" && <ProfileCheck plan={plan} />}
         </>

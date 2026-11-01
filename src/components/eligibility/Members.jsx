@@ -14,7 +14,7 @@ export default function Members({ members, chosenId, choosing, onChoose, canChoo
   return (
     <section className="cv-card" aria-label="Who is admitted">
       <div className="cv-card-head">
-        <h2 className="cv-card-title">3. Who is admitted</h2>
+        <h2 className="cv-card-title">Who is admitted</h2>
         {many && !chosenId && <span className="cv-chip is-warn">Choose one</span>}
         {chosenId && <span className="cv-chip is-ok">Chosen</span>}
         <span className="cv-card-meta">{many ? `${members.length} people on this card. The pre-auth is filed for the person you pick.` : "The member on the card."}</span>

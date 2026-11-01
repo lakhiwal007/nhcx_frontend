@@ -6,16 +6,18 @@ import { useReadOnly } from "../../readOnly";
 import { usePoll } from "../../hooks/usePoll";
 import { usePlanForms } from "../../hooks/usePlanForms";
 import { Button, LoadingBlock, NextStep } from "../Common";
-import { formatMoney } from "../../format.js";
+import { formatDate, formatMoney } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
 import { eligibilityBeneficiaries, eligibilityRequirements } from "../../caseStatus";
 import BiometricCard from "../case/BiometricCard";
 import PlanCard from "../eligibility/PlanCard";
-import EligibilityResponses from "../eligibility/EligibilityResponses";
+import PayerAnswer from "../eligibility/EligibilityResponses";
+import EligibilityChecklist from "../eligibility/EligibilityChecklist";
 import Members from "../eligibility/Members";
 import FormDrawer from "../eligibility/FormDrawer";
 import { deriveChecks } from "../eligibility/checks";
 import { planState } from "../eligibility/planProfile";
+import { buildChecklist, firstOpen } from "../eligibility/checklist";
 
 const POLL_INTERVAL_MS = 7000;
 const TERMINAL_STATUSES = ["complete", "failed"];
@@ -51,7 +53,7 @@ function PlannedTreatment({ procedures, packages, checks, source, planReady }) {
   return (
     <section className="cv-card" aria-label="Planned treatment">
       <div className="cv-card-head">
-        <h2 className="cv-card-title">4. Planned treatment</h2>
+        <h2 className="cv-card-title">Planned treatment</h2>
         {procedures.length > 0 ? <span className="cv-chip is-ok">{procedures.length} planned</span> : <span className="cv-chip is-warn">None recorded</span>}
         {source && <span className="cv-card-meta">From {source.replace(/_/g, " ")}</span>}
       </div>
@@ -126,8 +128,12 @@ export default function EligibilityPrep({ ctx }) {
   const [memberError, setMemberError] = useState(null);
   const [savingNewborn, setSavingNewborn] = useState(false);
   const [planFetch, setPlanFetch] = useState(null);
+  const [biometric, setBiometric] = useState(null);
+  // Null follows the checklist's own first item; set once staff pick or act on one.
+  const [picked, setPicked] = useState(null);
 
   const hasInitialized = useRef(false);
+  const paneRef = useRef(null);
 
   const planCorrelationId = caseData?.insurance_plan?.plan_status === "ready" ? caseData.insurance_plan.correlation_id : null;
   const planForms = usePlanForms(planCorrelationId, caseData?.insurance_plan?.form_count);
@@ -227,6 +233,7 @@ export default function EligibilityPrep({ ctx }) {
 
   const handleChooseMember = async (member) => {
     if (!caseData?.cashless_case_id) return;
+    setPicked("who");
     setChoosing(member.member_id);
     setMemberError(null);
     try {
@@ -246,6 +253,7 @@ export default function EligibilityPrep({ ctx }) {
 
   const handleNewborn = async (next) => {
     if (!caseData?.cashless_case_id) return;
+    setPicked("who");
     setSavingNewborn(true);
     setMemberError(null);
     try {
@@ -431,16 +439,44 @@ export default function EligibilityPrep({ ctx }) {
     : null;
   const rerunLabel = forceRefreshing ? "Re-running…" : needsRetry ? "Retry" : "Re-run checks";
   const canRerunNow = !caseClosed && !polling && (isComplete || isFailed || needsResubmit);
+  const balance = checks?.wallet?.balance;
+  const validTo = checks?.coverage?.benefit_period?.end;
+  const facts = [balance != null && `${formatMoney(balance)} left`, validTo && `valid to ${formatDate(validTo)}`].filter(Boolean);
+  const groups = buildChecklist({
+    biometric,
+    members,
+    chosenId: chosenMemberId,
+    newborn: caseData?.newborn,
+    procedures,
+    packages: plannedPackages,
+    checks,
+    requirements,
+    plan,
+    state,
+    locked: readOnly || caseClosed || !!movedOn,
+  });
+  const open = picked || firstOpen(groups);
+  const paneFor = (id) => ({ hidden: open !== id });
+  const openItem = (id) => {
+    setPicked(id);
+    // On a narrow screen the detail sits under the checklist, out of sight.
+    if (window.matchMedia("(max-width: 900px)").matches) paneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
-    <div className="cv-screen" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div className={`cv-notice is-${verdict.tone === "todo" ? "info" : verdict.tone}`}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+    <div className="cv-elig">
+      <div className={`cv-notice cv-verdict is-${verdict.tone === "todo" ? "info" : verdict.tone}`}>
+        <div className="cv-verdict-row">
           <span className={`cv-chip is-${verdict.tone}`}>{verdict.label}</span>
-          <span className="cv-notice-body">{verdict.text}</span>
-          <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <span className="cv-notice-body">{verdict.tone === "ok" && facts.length ? facts.join(" · ") : verdict.text}</span>
+          <span className="cv-verdict-actions">
             {!polling && !isComplete && !isFailed && !needsResubmit && (
               <button type="button" className="cv-btn" onClick={manualRefresh}>Refresh</button>
+            )}
+            {canRerunNow && (
+              <button type="button" className="cv-btn" disabled={!canRerun} onClick={handleForceRefresh}>
+                {rerunLabel}
+              </button>
             )}
             <button
               type="button"
@@ -462,64 +498,81 @@ export default function EligibilityPrep({ ctx }) {
             </button>
           </span>
         </div>
-        {verdict.next && <div className="cv-notice-hint" style={{ marginTop: 8 }}><strong>What to do:</strong> {verdict.next}</div>}
-        {needsResubmit && !isStalePending && <div className="cv-notice-hint" style={{ marginTop: 8 }}>One or more checks did not finish and will not on their own. Re-run the checks.</div>}
-        {movedOn && <div className="cv-notice-hint" style={{ marginTop: 8 }}>This case has moved on to {movedOnLabel}; what follows is as last checked.</div>}
-        {rerunError && <div className="cv-notice-hint" style={{ marginTop: 8, color: "var(--cv-bad)" }}>{rerunError}</div>}
+        {verdict.next && <div className="cv-notice-hint cv-verdict-note"><strong>What to do:</strong> {verdict.next}</div>}
+        {needsResubmit && !isStalePending && <div className="cv-notice-hint cv-verdict-note">One or more checks did not finish and will not on their own. Re-run the checks.</div>}
+        {movedOn && <div className="cv-notice-hint cv-verdict-note">This case has moved on to {movedOnLabel}; what follows is as last checked.</div>}
+        {rerunError && <div className="cv-notice-hint cv-verdict-note is-bad">{rerunError}</div>}
       </div>
 
-      <BiometricCard caseId={caseData?.cashless_case_id} stage="Preauth" readOnly={readOnly || caseClosed || !!movedOn} />
+      <div className="cv-work">
+        <EligibilityChecklist groups={groups} open={open} onOpen={openItem} />
 
-      <PlanCard
-        plan={plan}
-        state={state}
-        plannedCodes={plannedCodes}
-        canFetch={canFetch}
-        sending={planFetch?.state === "sending"}
-        fetchResult={fetchResult}
-        onFetch={() => fetchPlan(state.key !== "not_requested")}
-      />
-
-      <EligibilityResponses
-        checks={checks}
-        requirements={requirements}
-        discovery={discovery}
-        formTitle={formTitle}
-        onOpenForm={planCorrelationId ? setOpenForm : null}
-        onDiscover={caseClosed || readOnly ? null : () => navigate("../discover")}
-        onRerun={canRerunNow ? handleForceRefresh : null}
-        rerunLabel={rerunLabel}
-        rerunDisabled={!canRerun}
-      />
-
-      <div className="cv-split">
-        <div className="cv-main">
-          {members.length > 0 && (
-            <Members
-              members={members}
-              chosenId={chosenMemberId}
-              choosing={choosing}
-              onChoose={handleChooseMember}
-              canChoose={(members.length > 1 || !!caseData?.newborn) && !caseClosed && !readOnly && !!caseData?.cashless_case_id}
-              newborn={caseData?.newborn || null}
-              savingNewborn={savingNewborn}
-              canEditNewborn={!caseClosed && !readOnly && !!caseData?.cashless_case_id}
-              onNewborn={handleNewborn}
-              error={memberError}
+        <div className="cv-work-pane" ref={paneRef}>
+          <div {...paneFor("verify")}>
+            <BiometricCard
+              caseId={caseData?.cashless_case_id}
+              stage="Preauth"
+              readOnly={readOnly || caseClosed || !!movedOn}
+              onCard={setBiometric}
+              onVerified={() => setPicked("verify")}
             />
-          )}
-          <PlannedTreatment
-            procedures={procedures}
-            packages={plannedPackages}
-            checks={checks}
-            source={caseData?.procedures?.source}
-            planReady={state.key === "ready"}
-          />
+          </div>
+          <div {...paneFor("who")}>
+            {members.length > 0 ? (
+              <Members
+                members={members}
+                chosenId={chosenMemberId}
+                choosing={choosing}
+                onChoose={handleChooseMember}
+                canChoose={(members.length > 1 || !!caseData?.newborn) && !caseClosed && !readOnly && !!caseData?.cashless_case_id}
+                newborn={caseData?.newborn || null}
+                savingNewborn={savingNewborn}
+                canEditNewborn={!caseClosed && !readOnly && !!caseData?.cashless_case_id}
+                onNewborn={handleNewborn}
+                error={memberError}
+              />
+            ) : (
+              <section className="cv-card" aria-label="Who is admitted">
+                <div className="cv-card-head">
+                  <h2 className="cv-card-title">Who is admitted</h2>
+                </div>
+                <div className="cv-card-intro">The payer has not listed the people on this card yet. They appear here with its answer.</div>
+              </section>
+            )}
+          </div>
+          <div {...paneFor("treatment")}>
+            <PlannedTreatment
+              procedures={procedures}
+              packages={plannedPackages}
+              checks={checks}
+              source={caseData?.procedures?.source}
+              planReady={state.key === "ready"}
+            />
+          </div>
+          {["validation", "benefits", "auth"].map((id) => (
+            <div key={id} {...paneFor(id)}>
+              <PayerAnswer
+                id={id}
+                checks={checks}
+                requirements={requirements}
+                discovery={discovery}
+                formTitle={formTitle}
+                onOpenForm={planCorrelationId ? setOpenForm : null}
+              />
+            </div>
+          ))}
+          <div {...paneFor("plan")}>
+            <PlanCard
+              plan={plan}
+              state={state}
+              plannedCodes={plannedCodes}
+              canFetch={canFetch}
+              sending={planFetch?.state === "sending"}
+              fetchResult={fetchResult}
+              onFetch={() => fetchPlan(state.key !== "not_requested")}
+            />
+          </div>
         </div>
-      </div>
-
-      <div>
-        <Button variant="text" onClick={() => navigate("../payer")}>← Back to policy</Button>
       </div>
 
       <FormDrawer correlationId={planCorrelationId} url={openForm} onClose={() => setOpenForm(null)} />

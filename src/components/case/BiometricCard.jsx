@@ -73,7 +73,7 @@ function Panel({ attempt, qrUrl, captured, aadhaar, mobile, pid, busy, setAadhaa
   );
 }
 
-function Card({ caseId, stage, readOnly, onVerified }) {
+function Card({ caseId, stage, readOnly, onVerified, onCard }) {
   const [card, setCard] = useState(null);
   const [method, setMethod] = useState("FACE_AUTH");
   const [panel, setPanel] = useState(null);
@@ -87,9 +87,12 @@ function Card({ caseId, stage, readOnly, onVerified }) {
   const load = useCallback(() => {
     return api
       .getBiometric(caseId, stage)
-      .then(setCard)
+      .then((res) => {
+        setCard(res);
+        onCard?.(res);
+      })
       .catch((err) => setError(err?.message || "Could not read the verification."));
-  }, [caseId, stage]);
+  }, [caseId, stage, onCard]);
 
   useEffect(() => {
     load();
@@ -206,7 +209,7 @@ function Card({ caseId, stage, readOnly, onVerified }) {
   );
 }
 
-export default function BiometricCard({ caseId, stage, readOnly, onVerified }) {
+export default function BiometricCard({ caseId, stage, readOnly, onVerified, onCard }) {
   if (!caseId) return null;
-  return <Card key={`${caseId}-${stage}`} caseId={caseId} stage={stage} readOnly={readOnly} onVerified={onVerified} />;
+  return <Card key={`${caseId}-${stage}`} caseId={caseId} stage={stage} readOnly={readOnly} onVerified={onVerified} onCard={onCard} />;
 }
