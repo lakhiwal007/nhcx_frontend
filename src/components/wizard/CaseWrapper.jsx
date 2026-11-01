@@ -277,6 +277,7 @@ export default function CaseWrapper() {
           <AttentionTray
             communications={communications}
             notes={notes}
+            heldTasks={effectiveCase.held_tasks}
             readOnly={readOnly}
             caseClosed={caseClosed}
             hint={nowHint(stages)}
