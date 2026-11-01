@@ -1564,7 +1564,12 @@ h3,
     width: 100%;
 }
 
+/* The case fills the pane without a height of its own, so a short step does not
+   scroll just because the shell's offsets add up to more than the case allows. */
 .main-view:has(> .cx-root) {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
     padding: var(--app-gutter);
 }
 

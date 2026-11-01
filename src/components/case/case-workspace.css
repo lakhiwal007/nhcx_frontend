@@ -38,7 +38,7 @@
   --cx-rail-h: calc(100vh - var(--cx-shell-offset));
 
   margin: 0;
-  min-height: calc(100vh - var(--cx-shell-offset));
+  flex: 1 0 auto;
   padding: 0;
   background:
     radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0) 0 0 / 22px 22px,
