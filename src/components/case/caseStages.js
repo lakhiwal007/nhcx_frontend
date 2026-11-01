@@ -131,6 +131,24 @@ export function projectCaseStatus(full) {
   };
 }
 
+const DECIDED_CLAIM_LEGS = ["approved", "partial", "rejected"];
+
+export function stageAmounts({ moneyLedger, effectiveCase }) {
+  const claimLeg = effectiveCase.legs?.claim;
+  const settlement = moneyLedger?.settlement;
+  const claimDecided = DECIDED_CLAIM_LEGS.includes(claimLeg) || !!effectiveCase.claim_decision || !!settlement?.settled;
+  const claimSent = claimDecided || (!!claimLeg && claimLeg !== "draft");
+  const billed = moneyLedger?.billed?.value;
+  const authorised = moneyLedger?.authorized_ceiling?.value;
+  const approved = moneyLedger?.approved?.value;
+  return {
+    review: billed != null ? { value: billed, word: claimSent ? "billed" : "requested" } : null,
+    status: authorised != null ? { value: authorised, word: "authorised" } : null,
+    claim: claimDecided && approved != null ? { value: approved, word: "approved" } : null,
+    payment: settlement?.settled && settlement.net != null ? { value: settlement.net, word: "settled" } : null,
+  };
+}
+
 // Derive the ordered list of visible stages with live status for each.
 export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecision, currentPath, moneyLedger, paymentSummary }) {
   const decision = preauthDecision ? String(preauthDecision).toUpperCase() : null;

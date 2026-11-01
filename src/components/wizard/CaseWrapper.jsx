@@ -12,7 +12,7 @@ import AttentionTray from "../case/AttentionTray";
 import CaseNotesDrawer from "../case/CaseNotes";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo, nowHint } from "../case/caseStages";
+import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo, nowHint, stageAmounts } from "../case/caseStages";
 import "../case/case-workspace.css";
 import "../case/case-v2.css";
 
@@ -223,10 +223,6 @@ export default function CaseWrapper() {
   const effectiveCase = cashlessCase || {};
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
   const preauthDecision = caseState.preauthDecision || effectiveCase.preauth_status;
-  const approvedAmount = timeline?.money_ledger?.approved?.value
-    ?? effectiveCase.approved_amount
-    ?? caseState.approvedAmount
-    ?? null;
 
   const stages = buildStages({
     caseState,
@@ -266,11 +262,10 @@ export default function CaseWrapper() {
           caseState={caseState}
           effectiveCase={effectiveCase}
           preauthRef={preauthRef}
-          approvedAmount={approvedAmount}
           moneyLedger={timeline?.money_ledger || null}
           statusPill={caseClosed ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
         />
-        <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
+        <CaseStepper stages={stages} amounts={stageAmounts({ moneyLedger: timeline?.money_ledger || null, effectiveCase })} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
       </div>
 
       <div className="cv-page">

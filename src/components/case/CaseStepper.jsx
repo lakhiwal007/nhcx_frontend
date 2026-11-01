@@ -1,9 +1,10 @@
 import { Check, Lock } from "lucide-react";
+import { formatMoney } from "../../format.js";
 
 const ticked = (s) => s.state === "done" || s.done;
 const tooltip = (s, extra) => [s.note && `${s.note}.`, s.hint, extra].filter(Boolean).join(" ");
 
-export default function CaseStepper({ stages, onNavigate }) {
+export default function CaseStepper({ stages, amounts = {}, onNavigate }) {
   const core = stages.filter((s) => !s.branch);
   const branches = stages.filter((s) => s.branch);
   const next = core.find((s) => !ticked(s)) || null;
@@ -17,6 +18,8 @@ export default function CaseStepper({ stages, onNavigate }) {
           const isNext = s === next && !active;
           const joined = i > 0 && (done || active || ticked(core[i - 1]));
           const tone = s.tone === "urgent" && !done ? " is-urgent" : s.live && !done ? " is-live" : "";
+          const amount = amounts[s.id];
+          const money = amount ? `${formatMoney(amount.value)} ${amount.word}` : null;
           const title = tooltip(s, !s.clickable && "Unlocks once the earlier stages are done.");
           return (
             <li key={s.id} className={`cv-step${done ? " is-done" : ""}${active ? " is-active" : ""}${isNext ? " is-next" : ""}${tone}`}>
@@ -27,13 +30,14 @@ export default function CaseStepper({ stages, onNavigate }) {
                 disabled={!s.clickable}
                 onClick={() => s.clickable && onNavigate(s.path)}
                 aria-current={active ? "step" : undefined}
-                aria-label={`Stage ${s.num}: ${s.label}${s.note ? ` - ${s.note}` : ""}`}
-                title={title}
+                aria-label={`Stage ${s.num}: ${s.label}${money ? `, ${money}` : ""}${s.note ? ` - ${s.note}` : ""}`}
+                title={money ? `${money}. ${title}` : title}
               >
                 <span className="cv-step-dot" aria-hidden="true">
                   {done ? <Check size={12} strokeWidth={3} /> : !s.clickable && !isNext ? <Lock size={10} /> : s.num}
                 </span>
                 <span className="cv-step-label">{s.label}</span>
+                {amount && <span className="cv-step-amt"><b>{formatMoney(amount.value)}</b> <span className="cv-step-word">{amount.word}</span></span>}
               </button>
             </li>
           );
