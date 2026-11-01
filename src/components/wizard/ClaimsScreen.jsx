@@ -8,6 +8,7 @@ import { Button, DocumentChecklist, LoadingBlock, formatMoney } from "../Common"
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section } from "../case/CaseFile";
 import PayerAsks from "../case/PayerAsks";
+import BiometricCard from "../case/BiometricCard";
 import { liveAsks } from "../case/askStatus";
 import { Drawer } from "../Overlay";
 import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
@@ -212,6 +213,7 @@ export default function ClaimsScreen({ ctx }) {
 
   const [loading, setLoading] = useState(true);
   const [claimDraft, setClaimDraft] = useState(null);
+  const [asksReload, setAsksReload] = useState(0);
   const [missingFields, setMissingFields] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(location.state?.tab || "draft");
@@ -258,6 +260,13 @@ export default function ClaimsScreen({ ctx }) {
     if (id) return { claim_id: id };
     if (resolvedCashlessCaseId) return { cashless_case_id: resolvedCashlessCaseId };
     return resolvedClaimId ? { claim_id: resolvedClaimId } : {};
+  };
+
+  const refreshAsks = () => {
+    setAsksReload((n) => n + 1);
+    api.prepareClaimDraft(draftParams())
+      .then((res) => setClaimDraft((prev) => (prev ? { ...prev, payer_asks: res.payer_asks } : prev)))
+      .catch(() => null);
   };
 
   const loadDraft = async (id, params) => {
@@ -872,6 +881,7 @@ export default function ClaimsScreen({ ctx }) {
 
   return (
     <div className="cv-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <BiometricCard caseId={resolvedCashlessCaseId} stage="Discharge" readOnly={caseClosed} onVerified={refreshAsks} />
       <div className="cv-card">
         <div className="cv-tabs" role="tablist" aria-label="Claim steps" style={{ borderBottom: 0 }}>
           {steps.map((st, i) => (
@@ -991,6 +1001,7 @@ export default function ClaimsScreen({ ctx }) {
                 readOnly={caseClosed}
                 onAttach={attachAsk}
                 onFormsChange={setAskForms}
+                reloadKey={asksReload}
               />
               {card(
                 "Other files",

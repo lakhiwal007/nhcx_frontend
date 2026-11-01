@@ -7,6 +7,7 @@ import { formatDate } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL } from "../case/caseStages";
 import { Section } from "../case/CaseFile";
 import PayerAsks from "../case/PayerAsks";
+import BiometricCard from "../case/BiometricCard";
 import { liveAsks } from "../case/askStatus";
 import { useReadOnly } from "../../readOnly";
 import { Modal } from "../Overlay";
@@ -203,18 +204,30 @@ export default function PreauthDraft({ ctx }) {
   const [waiveReason, setWaiveReason] = useState("");
   const readOnly = useReadOnly();
 
+  const [asksReload, setAsksReload] = useState(0);
   const uidRef = useRef(1);
   const ensureUids = (list) => list.map((d) => (d._uid != null ? d : { ...d, _uid: uidRef.current++ }));
+
+  const draftParams = () => {
+    const params = {};
+    if (cashless_case_id) params.cashless_case_id = cashless_case_id;
+    else if (claim_id) params.claim_id = claim_id;
+    if (payer?.code) params.payer_id = payer.code;
+    if (policy?.policy_number) params.policy_number = policy.policy_number;
+    return params;
+  };
+
+  const refreshAsks = () => {
+    setAsksReload((n) => n + 1);
+    api.preparePreauth(draftParams())
+      .then((res) => setDraft((prev) => (prev ? { ...prev, payer_asks: res.payer_asks } : prev)))
+      .catch(() => null);
+  };
 
   const loadDraft = async () => {
     setLoading(true);
     try {
-      const params = {};
-      if (cashless_case_id) params.cashless_case_id = cashless_case_id;
-      else if (claim_id) params.claim_id = claim_id;
-      if (payer?.code) params.payer_id = payer.code;
-      if (policy?.policy_number) params.policy_number = policy.policy_number;
-      const res = await api.preparePreauth(params);
+      const res = await api.preparePreauth(draftParams());
       setDraft(res);
       setMissingFields(res.missing_fields ?? []);
     } catch (_) {
@@ -460,6 +473,7 @@ export default function PreauthDraft({ ctx }) {
 
   return (
     <div className="cv-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <BiometricCard caseId={caseId} stage="Preauth" readOnly={readOnly || caseClosed} onVerified={refreshAsks} />
       {notices.map((n, i) => (
         <div key={i} className={`cv-notice is-${n.tone}`}>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -650,7 +664,7 @@ export default function PreauthDraft({ ctx }) {
             </div>
           </section>
 
-          <PayerAsks caseId={caseId} stage="preauth" asks={draft?.payer_asks} documents={docs} readOnly={readOnly || caseClosed} onAttach={attachAsk} onFormsChange={setAskForms} />
+          <PayerAsks caseId={caseId} stage="preauth" asks={draft?.payer_asks} documents={docs} readOnly={readOnly || caseClosed} onAttach={attachAsk} onFormsChange={setAskForms} reloadKey={asksReload} />
 
           <section className="cv-card" aria-label="Other files">
             <div className="cv-card-head">

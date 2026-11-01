@@ -503,6 +503,22 @@ const MOCK_PLAN_FORMS = [
 
 // Mock answers to the payer's forms, keyed by case, form and question.
 const MOCK_FORM_ANSWERS = {};
+const MOCK_BIOMETRIC = {};
+const mockBiometricRows = (caseId, stage) => (MOCK_BIOMETRIC[caseId] || []).filter((row) => row.stage === stage);
+const mockAttempt = (row) => ({
+  id: row.id,
+  stage: row.stage,
+  auth_method: row.auth_method,
+  status: row.status,
+  message: null,
+  token_valid: row.status === "verified",
+  refreshable: row.status === "verified",
+  verified_at: row.verified_at || null,
+});
+const mockAbhaKey = async () => {
+  const pair = await crypto.subtle.generateKey({ name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-1" }, true, ["encrypt", "decrypt"]);
+  return btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("spki", pair.publicKey))));
+};
 
 const mockPayerForm = (caseId, form) => {
   const given = MOCK_FORM_ANSWERS[`${caseId}|${form.url}`] || {};
@@ -794,6 +810,46 @@ const mock = {
         ],
       },
     };
+  },
+
+  getBiometric: async (cashless_case_id, stage) => {
+    await delay(200);
+    const rows = mockBiometricRows(cashless_case_id, stage);
+    const held = rows.filter((row) => row.status === "verified").at(-1);
+    return {
+      status: "complete",
+      cashless_case_id,
+      stage,
+      required: true,
+      current: held ? mockAttempt(held) : null,
+      latest: rows.length ? mockAttempt(rows.at(-1)) : null,
+    };
+  },
+  startBiometric: async (cashless_case_id, { stage, auth_method }) => {
+    await delay(300);
+    const row = { id: Date.now(), stage, auth_method, status: "initiated", polls: 0 };
+    MOCK_BIOMETRIC[cashless_case_id] = [...(MOCK_BIOMETRIC[cashless_case_id] || []), row];
+    if (auth_method !== "FACE_AUTH") return { status: "complete", attempt: mockAttempt(row) };
+    return { status: "complete", attempt: mockAttempt(row), qr_url: `https://phrsbx.abdm.gov.in/face-auth?txnId=mock-${row.id}`, abha_public_key: await mockAbhaKey() };
+  },
+  captureBiometric: async (cashless_case_id, id) => {
+    await delay(200);
+    const row = (MOCK_BIOMETRIC[cashless_case_id] || []).find((r) => r.id === id);
+    row.polls += 1;
+    if (row.polls >= 2) row.status = "captured";
+    return { status: "complete", cashless_case_id, capture_status: row.polls >= 2 ? "COMPLETE" : "PENDING", attempt: mockAttempt(row) };
+  },
+  verifyBiometric: async (cashless_case_id, id, { aadhaar_encrypted, pid }) => {
+    await delay(400);
+    if (aadhaar_encrypted !== undefined && /^\d+$/.test(aadhaar_encrypted)) throw new Error("Seal the Aadhaar number in the page before sending it; a number in clear is not accepted.");
+    const row = (MOCK_BIOMETRIC[cashless_case_id] || []).find((r) => r.id === id);
+    if (pid === "fail") {
+      row.status = "failed";
+      throw new Error("The service could not match the patient.");
+    }
+    row.status = "verified";
+    row.verified_at = new Date().toISOString();
+    return { status: "complete", cashless_case_id, attempt: mockAttempt(row) };
   },
 
   getPayerForms: async (cashless_case_id, stage = "preauth") => {
@@ -3157,6 +3213,10 @@ const real = {
 
   getDashboardAnalytics: (params = {}) => http.get("/cashless/dashboard/analytics", params),
 
+  getBiometric: (cashless_case_id, stage) => http.get(`/cashless/${cashless_case_id}/biometric`, { stage }),
+  startBiometric: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/biometric`, data),
+  captureBiometric: (cashless_case_id, id) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/capture`, {}),
+  verifyBiometric: (cashless_case_id, id, data) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/verify`, data),
   getPayerForms: (cashless_case_id, stage = "preauth") => http.get(`/cashless/${cashless_case_id}/forms`, { stage }),
   savePayerForm: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/forms`, data),
   listCaseNotes: (cashless_case_id) => http.get(`/cashless/${cashless_case_id}/notes`),

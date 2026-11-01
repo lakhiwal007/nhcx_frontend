@@ -9,6 +9,7 @@ import { Card, Button, LoadingBlock } from "../Common";
 import { formatMoney } from "../../format.js";
 import { STEP_FORWARD_ROUTE, STEP_FORWARD_LABEL, projectCaseStatus } from "../case/caseStages";
 import { eligibilityBeneficiaries, eligibilityRequirements } from "../../caseStatus";
+import BiometricCard from "../case/BiometricCard";
 import PlanCard from "../eligibility/PlanCard";
 import EligibilityResponses from "../eligibility/EligibilityResponses";
 import Members from "../eligibility/Members";
@@ -485,6 +486,8 @@ export default function EligibilityPrep({ ctx }) {
         {needsResubmit && !isStalePending && <div className="cv-notice-hint" style={{ marginTop: 8 }}>One or more checks did not finish and will not on their own. Re-run the checks.</div>}
         {movedOn && <div className="cv-notice-hint" style={{ marginTop: 8 }}>This case has moved on to {movedOnLabel}; what follows is as last checked.</div>}
       </div>
+
+      <BiometricCard caseId={caseData?.cashless_case_id} stage="Preauth" readOnly={!!movedOn} />
 
       <PlanCard
         plan={plan}

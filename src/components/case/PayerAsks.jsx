@@ -36,7 +36,7 @@ const readFile = (file) =>
     reader.readAsDataURL(file);
   });
 
-export default function PayerAsks({ caseId, stage, asks, documents, readOnly, onAttach, onFormsChange, title = "What the payer asks for" }) {
+export default function PayerAsks({ caseId, stage, asks, documents, readOnly, onAttach, onFormsChange, reloadKey, title = "What the payer asks for" }) {
   const [forms, setForms] = useState({ key: null, rows: [], readOnly: false, error: null });
   const [open, setOpen] = useState(null);
   const [error, setError] = useState(null);
@@ -54,7 +54,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
     return () => {
       live = false;
     };
-  }, [caseId, stage, key]);
+  }, [caseId, stage, key, reloadKey]);
 
   const rows = liveAsks(asks, documents, forms.key === key ? forms.rows : []);
   useEffect(() => {
