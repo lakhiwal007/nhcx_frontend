@@ -1326,6 +1326,23 @@ const mock = {
         },
       };
     }
+    // Member ID MANY returns a list long enough for the payer chips.
+    if (data.member_id === "MANY") {
+      return {
+        status: "success",
+        data: {
+          child_id: data.child_id,
+          identifier_used: { type: "MemberId", value: data.member_id },
+          policies: [
+            ...MOCK_POLICIES,
+            { ...MOCK_POLICIES[0], policy_number: "POL-TOPUP-2026", product_name: "Super Top-up", sum_insured: 1000000 },
+            { ...MOCK_POLICIES[1], policy_number: "POL-CORP-2026", product_name: "Corporate Group Cover", status: "suspended" },
+            { policy_number: "PMJAY-HP-7788", product_name: "PMJAY for Himachal", payer_id: "3001@hcx", scheme_type: "gov" },
+          ],
+          fetched_at: "2026-05-04T10:40:00+05:30",
+        },
+      };
+    }
     const MOCK_MEMBER_ID_ON_FILE = "MEMB-123456";
     if (data.member_id && data.member_id !== MOCK_MEMBER_ID_ON_FILE) {
       return {

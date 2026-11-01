@@ -2123,7 +2123,8 @@ select.input-modern option {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
-    overflow: hidden;
+    /* clip, not hidden: hidden would stop the footer sticking to the page */
+    overflow: clip;
 }
 
 .pp-head {
@@ -2131,9 +2132,16 @@ select.input-modern option {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 14px 16px;
+    gap: 8px 12px;
+    padding: 10px 16px;
     border-bottom: 1px solid var(--border-color);
+}
+
+.pp-head-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
 }
 
 .pp-title {
@@ -2165,11 +2173,13 @@ select.input-modern option {
     white-space: nowrap;
 }
 
-.pp-member {
-    display: flex;
-    gap: 8px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
+.pp-searchby-select {
+    width: 150px;
+}
+
+.pp-member-input {
+    flex: 0 1 170px;
+    min-width: 120px;
 }
 
 .pp-input {
@@ -2234,12 +2244,6 @@ select.input-modern option {
     text-underline-offset: 3px;
 }
 
-.pp-lookup {
-    padding: 12px 16px;
-    background: var(--bg-main);
-    border-bottom: 1px solid var(--border-color);
-}
-
 .pp-lookup-results {
     display: flex;
     flex-direction: column;
@@ -2279,39 +2283,59 @@ select.input-modern option {
     color: var(--text-muted);
 }
 
-/* Policy list: one compact radio row per policy */
+/* Policy list: one line per policy, its columns set by the rows it holds */
 .pp-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 12px 16px;
+}
+
+.pp-list-head,
+.pp-row:not(.is-skeleton) {
+    display: grid;
+    grid-template-columns: var(--pp-cols);
+    align-items: center;
+    column-gap: 12px;
+}
+
+.pp-list-head {
+    padding: 7px 16px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .pp-row {
+    min-height: 46px;
+    padding: 5px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.pp-row.is-skeleton {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    background: var(--bg-card);
-    cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pp-row:last-child {
+    border-bottom: none;
 }
 
 .pp-row:hover {
-    border-color: var(--border-hover);
+    background: var(--bg-main);
 }
 
 .pp-row:focus-visible {
     outline: 2px solid var(--primary);
-    outline-offset: 1px;
+    outline-offset: -2px;
 }
 
-.pp-row.is-selected {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 5%, var(--bg-card));
-    box-shadow: 0 0 0 1px var(--primary);
+.pp-row.is-selected,
+.pp-row.is-selected:hover {
+    background: color-mix(in srgb, var(--primary) 6%, var(--bg-card));
+    box-shadow: inset 2px 0 0 var(--primary);
 }
 
 .pp-row.is-skeleton,
@@ -2320,7 +2344,7 @@ select.input-modern option {
 }
 
 .pp-row.is-locked:not(.is-selected):hover {
-    border-color: var(--border-color);
+    background: var(--bg-card);
 }
 
 .pp-change-text {
@@ -2359,16 +2383,43 @@ select.input-modern option {
     background: var(--primary);
 }
 
-.pp-row-main {
-    flex: 1;
+.pp-cell-policy {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
 }
 
-.pp-row-title {
+.pp-cell-sub {
+    overflow: hidden;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pp-cell {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
     min-width: 0;
+    overflow: hidden;
+    font-size: 12.5px;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.pp-cell > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pp-cell.is-expired {
+    color: var(--warning);
+}
+
+.pp-cell-amount {
+    justify-content: flex-end;
+    text-align: right;
 }
 
 .pp-product {
@@ -2395,23 +2446,6 @@ select.input-modern option {
     background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 
-.pp-row-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 2px 14px;
-    margin-top: 3px;
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-.pp-row-meta > span {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-}
-
 .pp-mono {
     font-family: var(--font-mono);
     font-size: 11.5px;
@@ -2420,19 +2454,12 @@ select.input-modern option {
 
 .pp-row-warn {
     display: flex;
+    grid-column: 2 / -1;
     align-items: center;
     gap: 5px;
-    margin-top: 6px;
+    margin-top: 2px;
     font-size: 12px;
     color: var(--warning);
-}
-
-.pp-row-amount {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    flex-shrink: 0;
-    text-align: right;
 }
 
 .pp-amount {
@@ -2727,11 +2754,14 @@ select.input-modern option {
 
 /* Footer: what's selected + continue */
 .pp-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 12px 16px;
+    padding: 8px 16px;
     border-top: 1px solid var(--border-color);
     background: var(--bg-main);
 }
@@ -2755,28 +2785,53 @@ select.input-modern option {
     color: var(--success);
 }
 
+/* Too narrow for the columns: the policy and amount stay on the first line and
+   the other facts wrap under them. */
+@media (max-width: 900px) {
+    .pp-list-head {
+        display: none;
+    }
+    .pp-row:not(.is-skeleton) {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 12px;
+        padding-block: 8px;
+    }
+    .pp-cell-policy {
+        flex: 1 1 calc(100% - 150px);
+    }
+    .pp-cell-amount {
+        order: -1;
+        margin-left: auto;
+    }
+    .pp-radio {
+        order: -3;
+    }
+    .pp-cell-policy {
+        order: -2;
+    }
+    .pp-cell {
+        flex: 0 1 auto;
+    }
+    /* A dash only reads as "nothing here" inside an aligned column. */
+    .pp-cell.is-empty {
+        display: none;
+    }
+    .pp-cell-payer {
+        margin-left: 28px;
+    }
+    .pp-row-warn {
+        width: 100%;
+        padding-left: 28px;
+    }
+}
+
 @media (max-width: 640px) {
     .pp-searchby {
         width: 100%;
     }
     .pp-searchby > div {
         flex: 1;
-    }
-    .pp-row {
-        flex-wrap: wrap;
-        align-items: flex-start;
-    }
-    .pp-product {
-        white-space: normal;
-    }
-    /* amount drops to its own line, aligned under the text */
-    .pp-row-amount {
-        flex-direction: row-reverse;
-        justify-content: flex-end;
-        align-items: baseline;
-        gap: 6px;
-        width: 100%;
-        padding-left: 28px;
     }
     .pp-footer {
         flex-direction: column;
@@ -5998,8 +6053,9 @@ code {
     margin: 12px 16px;
 }
 
-.pp-lookup-tip {
-    margin: 0 0 8px;
+.pp-next-tip {
+    margin-top: 4px;
+    color: var(--text-muted);
 }
 
 .pp-title .info-tip-btn,

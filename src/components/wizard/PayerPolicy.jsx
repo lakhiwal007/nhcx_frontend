@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, ArrowRight, AlertTriangle, CheckCircle2, Radar, RefreshCw } from "lucide-react";
+import { ArrowRight, AlertTriangle, CheckCircle2, Radar, RefreshCw } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
-import { Button, InfoTip, Tip, NextStep } from "../Common";
+import { Button, InfoTip, NextStep } from "../Common";
 import Dropdown from "../Dropdown";
+import PayerName from "../PayerName";
+import { useTips } from "../../help/tips.js";
 import { POLICY_CHANGE_RESET } from "../case/caseStages";
 import ChangePolicyModal from "./ChangePolicyModal";
-import { formatMoney, formatDate } from "../../format.js";
+import { formatMoney, formatDate, humanize } from "../../format.js";
 
 const IDENTIFIER_TYPE_LABELS = {
   AbhaNumber: "ABHA Number",
@@ -21,6 +23,9 @@ const IDENTIFIER_OPTIONS = [
   { value: "MemberId", label: IDENTIFIER_TYPE_LABELS.MemberId },
   { value: "MobileNo", label: IDENTIFIER_TYPE_LABELS.MobileNo },
 ];
+
+// The payer chips only earn their row once the list is long enough to need them.
+const PAYER_CHIPS_FROM = 4;
 
 const policyNumberOf = (policy) => policy?.policy_number;
 const sumInsuredOf = (policy) => policy?.sum_insured;
@@ -53,10 +58,41 @@ const casePolicyOf = (caseState, cashlessCase) =>
     ? { policy_number: cashlessCase.policy_number, payer_id: cashlessCase.payer_id, payer_name: caseState.payer?.name }
     : null);
 
+const validityOf = (policy) => {
+  const from = policy?.effective_from && formatDate(policy.effective_from);
+  const to = policy?.effective_to && formatDate(policy.effective_to);
+  if (isExpired(policy)) return `Ended ${to}`;
+  if (from && to) return `${from} – ${to}`;
+  if (to) return `Until ${to}`;
+  return from ? `From ${from}` : null;
+};
+
+// Columns no row has a value for are left out, so a sparse registry answer does
+// not leave empty columns behind.
+const columnsFor = (rows) => {
+  const shown = {
+    member: rows.some((p) => p.member_id),
+    validity: rows.some(validityOf),
+    status: rows.some((p) => p.status),
+    amount: rows.some(sumInsuredOf),
+  };
+  const template = [
+    "16px",
+    "minmax(0, 2fr)",
+    "minmax(0, 1.3fr)",
+    shown.member && "minmax(0, 1fr)",
+    shown.validity && "178px",
+    shown.status && "78px",
+    shown.amount && "96px",
+  ];
+  return { shown, template: template.filter(Boolean).join(" ") };
+};
+
 export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
   const readOnly = useReadOnly();
   const { patient, caseState, updateCaseState, caseClosed, cashlessCase, setCashlessCase } = ctx;
+  const { showTips } = useTips();
   const locked = readOnly || caseClosed;
 
   const [payerFilter, setPayerFilter] = useState(null);
@@ -65,6 +101,7 @@ export default function PayerPolicy({ ctx }) {
   const [loadingPolicies, setLoadingPolicies] = useState(false);
   const [policyError, setPolicyError] = useState(null);
   const [searchDone, setSearchDone] = useState(false);
+  const [foundBy, setFoundBy] = useState(null);
   const [selectedPolicy, setSelectedPolicy] = useState(() => casePolicyOf(caseState, cashlessCase));
   const [pendingPolicy, setPendingPolicy] = useState(null);
   const [identifierType, setIdentifierType] = useState("");
@@ -83,6 +120,7 @@ export default function PayerPolicy({ ctx }) {
     setPolicyError(null);
     setPolicies([]);
     setPayerFilter(null);
+    setFoundBy(null);
     try {
       const body = { child_id: patient.child_id, force_refresh: false };
       if (caseState.admission_id) body.admission_id = caseState.admission_id;
@@ -95,6 +133,7 @@ export default function PayerPolicy({ ctx }) {
       setSearchDone(true);
       const used = res?.data?.identifier_used;
       if (used?.type === "MemberId" && used.value) setMemberIdOnFile(used.value);
+      if (found.length) setFoundBy(IDENTIFIER_TYPE_LABELS[used?.type] || null);
       // One policy that could pay is picked for the user, who still has to
       // press Continue. Never done on a case that already exists.
       const usable = found.filter(isUsable);
@@ -186,6 +225,21 @@ export default function PayerPolicy({ ctx }) {
 
   const policyCount = visiblePolicies.length;
   const savedOnly = !!selectedPolicy && policies.length === 0 && !loadingPolicies && !policyError;
+  const showList = !loadingPolicies && !policyError && policyCount > 0;
+  const columns = columnsFor(visiblePolicies);
+  const typedMemberId = identifierType === "MemberId" ? memberId.trim() : "";
+  const headTitle = savedOnly
+    ? "Policy on this case"
+    : showList
+      ? `${policyCount} ${policyCount === 1 ? "policy" : "policies"}`
+      : "Policies";
+  const headNote = loadingPolicies
+    ? "Searching the patient's policies…"
+    : policyError
+      ? "Search failed"
+      : savedOnly
+        ? searchDone && "No other policies found"
+        : showList && foundBy && `found by ${foundBy}`;
   const overBill = (sumInsured) =>
     caseState.estimatedBillAmount > 0 && sumInsured > 0 && sumInsured < caseState.estimatedBillAmount;
 
@@ -193,26 +247,13 @@ export default function PayerPolicy({ ctx }) {
     <div className="wizard-step">
       <div className="pp-panel">
         <div className="pp-head">
-          <div className="pp-head-text">
-            <h2 className="pp-title">
-              Select a policy
-              <InfoTip term="policy" />
-            </h2>
-            <div className="pp-subtitle">
-              {loadingPolicies
-                ? "Searching the patient's policies…"
-                : policyError
-                  ? "Policy search failed"
-                  : savedOnly
-                    ? searchDone
-                      ? "No other policies found"
-                      : "The policy on this case"
-                    : `${policyCount} ${policyCount === 1 ? "policy" : "policies"} found${patient?.name ? ` for ${patient.name}` : ""}`}
-            </div>
-            <Tip>
-              We look for policies an insurer has linked to the patient's ABHA number, member ID or mobile. Pick the one that
-              pays for this admission.
-            </Tip>
+          <div className="pp-head-line">
+            <h2 className="pp-title">{headTitle}</h2>
+            {headNote && <span className="pp-muted">{headNote}</span>}
+            <InfoTip
+              title="How policies are found"
+              text="We look for policies an insurer has linked to the patient's ABHA number, member ID or mobile. Pick the one that pays for this admission."
+            />
           </div>
           {!locked && (
             <div className="pp-searchby">
@@ -221,8 +262,6 @@ export default function PayerPolicy({ ctx }) {
                   <RefreshCw size={14} /> Search again
                 </button>
               )}
-              {!loadingPolicies &&
-                discoverButton(policies.length > 0 ? "None of these? Discover with a payer" : "Discover with a payer")}
               <span className="pp-searchby-key">
                 Search by
                 <InfoTip
@@ -230,7 +269,7 @@ export default function PayerPolicy({ ctx }) {
                   text="Auto tries the ABHA number, then the member ID, then the mobile number. Choose Member ID to type the number printed on the insurance card."
                 />
               </span>
-              <div style={{ width: "170px" }}>
+              <div className="pp-searchby-select">
                 <Dropdown
                   compact
                   ariaLabel="Search policies by identifier"
@@ -239,35 +278,34 @@ export default function PayerPolicy({ ctx }) {
                   onChange={(v) => !loadingPolicies && handleIdentifierTypeChange(v)}
                 />
               </div>
+              {identifierType === "MemberId" && (
+                <>
+                  <input
+                    className="input-modern pp-input pp-member-input"
+                    placeholder={memberIdOnFile ? "Member ID" : "Type a member ID…"}
+                    aria-label="Member ID"
+                    value={memberId}
+                    onChange={(e) => setMemberId(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleMemberIdSearch();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="pp-btn"
+                    disabled={loadingPolicies || !memberId.trim()}
+                    onClick={handleMemberIdSearch}
+                  >
+                    Search
+                  </button>
+                </>
+              )}
+              {showList && discoverButton("Discover with a payer")}
             </div>
           )}
         </div>
 
-        {!locked && identifierType === "MemberId" && (
-          <div className="pp-member">
-            <input
-              className="input-modern pp-input"
-              placeholder={memberIdOnFile ? "Member ID" : "Type a member ID…"}
-              aria-label="Member ID"
-              value={memberId}
-              onChange={(e) => setMemberId(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleMemberIdSearch();
-              }}
-            />
-            <button
-              type="button"
-              className="pp-btn"
-              disabled={loadingPolicies || !memberId.trim()}
-              onClick={handleMemberIdSearch}
-            >
-              Search
-            </button>
-            <InfoTip term="member_id" />
-          </div>
-        )}
-
-        {!loadingPolicies && discoveredPayers.length > 1 && (
+        {!loadingPolicies && listedPolicies.length >= PAYER_CHIPS_FROM && discoveredPayers.length > 1 && (
           <div className="pp-payerbar">
             <span className="pp-payerbar-key">Payer</span>
             <button
@@ -286,7 +324,7 @@ export default function PayerPolicy({ ctx }) {
                 onClick={() => handlePayerFilter(payer.code)}
                 title={payer.code}
               >
-                {payer.name}
+                <PayerName id={payer.code} name={payer.name === payer.code ? undefined : payer.name} />
                 <span className="wq-chip-count">
                   {listedPolicies.filter((p) => payerFromPolicy(p)?.code === payer.code).length}
                 </span>
@@ -338,27 +376,19 @@ export default function PayerPolicy({ ctx }) {
           >
             {policyError}
           </NextStep>
-        ) : visiblePolicies.length === 0 ? (
+        ) : policyCount === 0 ? (
           <NextStep
             tone="warn"
             className="pp-next"
             title={`No policy found${
-              identifierType === "MemberId" && memberId.trim()
-                ? ` for member ID ${memberId.trim()}`
+              typedMemberId
+                ? ` for member ID ${typedMemberId}`
                 : identifierType
                   ? ` by ${IDENTIFIER_TYPE_LABELS[identifierType]}`
                   : patient?.name
                     ? ` for ${patient.name}`
                     : ""
             }`}
-            steps={[
-              "Ask the patient for their insurance card or e-card.",
-              identifierType === "MemberId" && memberId.trim()
-                ? "Check the member ID for a typo and search again."
-                : "Choose Member ID under Search by and type the member ID from the card.",
-              "Still nothing? Use Discover with a payer to ask that insurer directly.",
-              "If the patient has no insurance, treat them as a cash patient. No cashless case is needed.",
-            ]}
             actions={
               <>
                 {identifierType !== "MemberId" && (
@@ -375,21 +405,38 @@ export default function PayerPolicy({ ctx }) {
               </>
             }
           >
-            The lookup only finds policies an insurer has linked to the patient's ABHA number or mobile, and many are not linked
-            yet. That does not mean the patient is uninsured.
+            {typedMemberId
+              ? "Check the member ID against the card for a typo. If it is right, ask the insurer directly with Discover."
+              : "Many policies are not linked to an ABHA or mobile yet, so the patient may still be insured. Ask for the insurance card or e-card; a child's cover is often on a parent's card."}
+            {showTips && (
+              <div className="pp-next-tip">No insurance at all? Treat them as a cash patient. No cashless case is needed.</div>
+            )}
           </NextStep>
         ) : (
-          <div className="pp-list" role="radiogroup" aria-label="Policies">
+          <div
+            className="pp-list"
+            role="radiogroup"
+            aria-label="Policies"
+            style={{ "--pp-cols": columns.template }}
+          >
+            <div className="pp-list-head" aria-hidden="true">
+              <span />
+              <span>Policy</span>
+              <span>Payer</span>
+              {columns.shown.member && <span>Member ID</span>}
+              {columns.shown.validity && <span>Valid</span>}
+              {columns.shown.status && <span>Status</span>}
+              {columns.shown.amount && <span className="pp-cell-amount">Sum insured</span>}
+            </div>
             {visiblePolicies.map((policy) => {
               const policyNumber = policyNumberOf(policy);
               const sumInsured = sumInsuredOf(policy);
-              const policyPayer = payerFromPolicy(policy);
-              const memberNo = policy?.member_id;
-              const effectiveFrom = policy?.effective_from;
-              const effectiveTo = policy?.effective_to;
               const isSelected = selectedNumber === policyNumber;
               const status = policy.status;
               const expired = isExpired(policy);
+              const validity = validityOf(policy);
+              const product = policy.product_name && policy.product_name !== policyNumber ? policy.product_name : null;
+              const scheme = policy.scheme_type ? humanize(policy.scheme_type) : null;
               return (
                 <div
                   key={policyNumber}
@@ -407,54 +454,54 @@ export default function PayerPolicy({ ctx }) {
                   }}
                 >
                   <span className="pp-radio" aria-hidden="true" />
-                  <div className="pp-row-main">
-                    <div className="pp-row-title">
-                      <span className="pp-product">{policy?.product_name || "Policy"}</span>
-                      {status && (
-                        <span className={`pp-status${isActiveStatus(status) ? " is-active" : ""}`}>
-                          {status.replace(/_/g, " ")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="pp-row-meta">
-                      <span className="pp-mono" title="Policy number">{policyNumber}</span>
-                      {policyPayer && (
-                        <span title={policyPayer.code}>
-                          <Building2 size={12} /> {policyPayer.name}
-                        </span>
-                      )}
-                      {memberNo && <span title="Member ID">Member {memberNo}</span>}
-                      {(effectiveFrom || effectiveTo) && (
-                        <span>
-                          {effectiveFrom ? formatDate(effectiveFrom) : "—"} – {effectiveTo ? formatDate(effectiveTo) : "—"}
-                        </span>
-                      )}
-                    </div>
-                    {expired && (
-                      <div className="pp-row-warn">
-                        <AlertTriangle size={12} />
-                        This policy ended on {formatDate(effectiveTo)}.
-                      </div>
-                    )}
-                    {overBill(sumInsured) && (
-                      <div className="pp-row-warn">
-                        <AlertTriangle size={12} />
-                        Estimated bill {formatMoney(caseState.estimatedBillAmount)} is above this sum insured.
-                      </div>
-                    )}
-                  </div>
-                  <div className="pp-row-amount">
-                    {sumInsured ? (
-                      <>
-                        <span className="pp-amount">{formatMoney(sumInsured)}</span>
-                        <span className="pp-amount-key">Sum insured</span>
-                      </>
-                    ) : (
-                      <span className="pp-amount-key">
-                        {policy.fetched_at ? `Fetched ${formatDate(policy.fetched_at)}` : "Sum insured not given"}
+                  <div className="pp-cell-policy">
+                    <span className={product ? "pp-product" : "pp-product pp-mono"} title={product || policyNumber}>
+                      {product || policyNumber}
+                    </span>
+                    {(product || scheme) && (
+                      <span className="pp-cell-sub">
+                        {product && <span className="pp-mono">{policyNumber}</span>}
+                        {product && scheme && " · "}
+                        {scheme}
                       </span>
                     )}
                   </div>
+                  <div className="pp-cell pp-cell-payer">
+                    <PayerName id={policy.payer_id} name={policy.payer_name} />
+                  </div>
+                  {columns.shown.member && (
+                    <div className={`pp-cell pp-mono${policy.member_id ? "" : " is-empty"}`} title="Member ID">
+                      {policy.member_id || "—"}
+                    </div>
+                  )}
+                  {columns.shown.validity && (
+                    <div className={`pp-cell${expired ? " is-expired" : ""}${validity ? "" : " is-empty"}`}>
+                      {expired && <AlertTriangle size={12} aria-hidden="true" />}
+                      {validity || "—"}
+                    </div>
+                  )}
+                  {columns.shown.status && (
+                    <div className={`pp-cell${status ? "" : " is-empty"}`}>
+                      {status ? (
+                        <span className={`pp-status${isActiveStatus(status) ? " is-active" : ""}`} title={status}>
+                          {status.replace(/_/g, " ")}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </div>
+                  )}
+                  {columns.shown.amount && (
+                    <div className={`pp-cell pp-cell-amount${sumInsured ? "" : " is-empty"}`}>
+                      {sumInsured ? <span className="pp-amount">{formatMoney(sumInsured)}</span> : "—"}
+                    </div>
+                  )}
+                  {overBill(sumInsured) && (
+                    <div className="pp-row-warn">
+                      <AlertTriangle size={12} />
+                      Estimated bill {formatMoney(caseState.estimatedBillAmount)} is above this sum insured.
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -469,7 +516,7 @@ export default function PayerPolicy({ ctx }) {
                 <span>
                   <strong>{selectedPolicy?.product_name || selectedNumber}</strong>
                   {" · "}
-                  {effectivePayer.name}
+                  <PayerName id={selectedPolicy.payer_id} name={selectedPolicy.payer_name} />
                 </span>
               </>
             ) : (
