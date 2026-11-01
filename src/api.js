@@ -564,6 +564,30 @@ const mockPlanState = (plan) => {
   return key && MOCK_PLAN_STATES[key] ? { correlation_id: plan.correlation_id, plan: plan.plan, ...MOCK_PLAN_STATES[key] } : plan;
 };
 
+// ?ap=<state> on /case/:id/status forces a pre-auth answer: partial|queried|rejected|
+// cancelled|cancel_refused|failed|not_found|unknown|ambiguous|claim_items|waiting.
+// read_only puts the claim with the payer.
+const MOCK_CANCEL_ID = "b05fd989-e852-4542-8476-e6ac99e709cb";
+const mockApprovalKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ap") : null);
+
+const mockPreauthAnswer = (res) => {
+  const key = mockApprovalKey();
+  const note = (text) => ({ process_notes: [{ number: 1, type: "display", text, language: "en" }] });
+  const named = { claim_items: [{ sequence: 1, service_code: "47562", service_name: "Laparoscopic cholecystectomy", quantity: 1, unit_price: 50000, net_amount: 50000 }] };
+  if (key === "cancel_refused" && res.correlation_id === MOCK_CANCEL_ID) return { correlation_id: res.correlation_id, status: "complete", decision: "CANCELLATION_REJECTED", items: [], totals: {}, process_notes: [] };
+  if (key === "partial") return { ...res, ...named, decision: "PARTIALLY_APPROVED" };
+  if (key === "queried") return { ...res, ...note("Share the USG abdomen report."), decision: "QUERIED", preauth_ref: null, items: [], totals: {} };
+  if (key === "rejected") return { ...res, ...note("The USG abdomen report is missing."), decision: "REJECTED", items: [], totals: {} };
+  if (key === "cancelled") return { ...res, decision: "CANCELLED" };
+  if (key === "failed") return { correlation_id: res.correlation_id, status: "failed", error_message: "The payer could not be reached." };
+  if (key === "not_found") return { correlation_id: res.correlation_id, status: "not_found" };
+  if (key === "unknown") return { ...res, decision: "UNKNOWN" };
+  if (key === "ambiguous") return { ...res, outcome: "error" };
+  if (key === "claim_items") return { ...res, ...named };
+  if (key === "waiting") return { correlation_id: res.correlation_id, status: "pending", decision: null, submitted_at: new Date().toISOString() };
+  return res;
+};
+
 // ?cl=<state> on /case/:id/claim forces a claim state. Draft states:
 // ready|over|missing|load_error. Sends: discharge_only|discharge_rejected|
 // discharge_failed. Final claim: final_failed|queried|partial|rejected|not_found.
@@ -632,7 +656,7 @@ const mockClaimStatus = (res) => {
 // ?ce=open|not_in_force|unknown|partial|failed|single on /case/:id/prep forces an
 // eligibility answer on a case still at that step.
 const mockCeState = (status) => {
-  const res = mockClaimCase(status);
+  const res = mockClaimCase(mockApprovalKey() === "read_only" ? { ...status, legs: { ...status.legs, claim: "submitting" } } : status);
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ce") : null;
   if (!key) return res;
   const open = { ...res, current_step: "insurance_and_eligibility", next_actions: ["refresh", "prepare_preauth"] };
@@ -1996,6 +2020,7 @@ const mock = {
 
   resubmitPreauth: async (data) => {
     await delay(1000);
+    window.__mockLastPreauthSend = data;
     return {
       correlation_id: "8d2fd8d9-c8a1-4f3c-9ac8-8de7bdf95c44",
       preauth_ref: null,
@@ -2185,7 +2210,7 @@ const mock = {
 
   getPreauthStatus: async (correlation_id) => {
     await delay(1500);
-    return {
+    return mockPreauthAnswer({
       correlation_id,
       claim_id: 101,
       workflow: "preauth",
@@ -2221,7 +2246,7 @@ const mock = {
           language: "en",
         },
       ],
-    };
+    });
   },
 
   // ─── Claims ─────────────────────────────────────────────────────────────────

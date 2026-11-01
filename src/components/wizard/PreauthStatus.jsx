@@ -4,9 +4,11 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, RefreshCw, PlusCircle, X, Wifi, Send } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
-import { Button, QueryResponseFields, formatMoney, NextStep } from "../Common";
+import { Button, DocumentChecklist, LoadingBlock, QueryResponseFields, formatMoney, NextStep } from "../Common";
 import { formatDate, formatDateTime } from "../../format.js";
 import { Section, Fields } from "../case/CaseFile";
+import PayerAsks from "../case/PayerAsks";
+import { liveAsks } from "../case/askStatus";
 import { Drawer, Modal } from "../Overlay";
 import { buildQueryResponseBody, documentFromFile } from "../../queryResponse.js";
 import PayrErrorList from "../PayrErrorList";
@@ -42,12 +44,13 @@ export default function PreauthStatus({ ctx }) {
   const navigate = useNavigate();
   const readOnly = useReadOnly();
   const location = useLocation();
-  const { caseState, updateCaseState, cashlessCase, setCashlessCase, timelineEvents, caseClosed } = ctx;
+  const { caseState, updateCaseState, cashlessCase, setCashlessCase, timelineEvents, caseClosed, draftFiles, setDraftFiles } = ctx;
   const { preauthCorrelationId, claim_id, cashless_case_id, draftData } = caseState;
   const payerId = caseState.payer?.code || cashlessCase?.payer_id || "";
   const policyNumber = caseState.policy?.policy_number || cashlessCase?.policy_number || "";
 
   const [statusData, setStatusData] = useState(null);
+  const [pollError, setPollError] = useState(null);
   const [polling, setPolling] = useState(true);
   const [pollElapsed, setPollElapsed] = useState(0);
   const [showEnhancement, setShowEnhancement] = useState(false);
@@ -62,6 +65,9 @@ export default function PreauthStatus({ ctx }) {
   const [queryError, setQueryError] = useState(null);
   const [resubmitItems, setResubmitItems] = useState([]);
   const [resubmitError, setResubmitError] = useState(null);
+  const [resubmitDraft, setResubmitDraft] = useState(null);
+  const [resubmitForms, setResubmitForms] = useState([]);
+  const [cancelRefused, setCancelRefused] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelDesc, setCancelDesc] = useState("");
   const [cancelError, setCancelError] = useState(null);
@@ -79,6 +85,7 @@ export default function PreauthStatus({ ctx }) {
   const pollStatus = async (signal) => {
     try {
       const res = await api.getPreauthStatus(correlationId, signal);
+      setPollError(null);
       setStatusData(res);
       const stateUpdates = {};
       if (res.preauth_ref) stateUpdates.preauthRef = res.preauth_ref;
@@ -95,7 +102,9 @@ export default function PreauthStatus({ ctx }) {
       }
       if (Object.keys(stateUpdates).length) updateCaseState(stateUpdates);
       if (res.status === "complete" || res.status === "not_found" || res.status === "failed") setPolling(false);
-    } catch (_) {}
+    } catch (err) {
+      if (!signal.aborted) setPollError(err.message || "The payer's answer could not be checked.");
+    }
   };
 
   // Restarts automatically when the correlation id changes (e.g. after a query
@@ -172,7 +181,7 @@ export default function PreauthStatus({ ctx }) {
       setShowQueryDrawer(false);
       setQueryAnswer("");
       setQueryDocs([]);
-      setQueryDoc(null);
+      setQueryDoc([]);
       restartPoll(res.correlation_id);
     } catch (err) {
       setQueryError(err.message || "Query response submission failed. Please try again.");
@@ -185,36 +194,24 @@ export default function PreauthStatus({ ctx }) {
     setSubmitting(true);
     setResubmitError(null);
     try {
-      const baseItems = draftData?.editedItems ?? draftData?.items ?? statusData?.claim_items ?? statusData?.items ?? [];
-      const editableItems = (resubmitItems.length > 0 ? resubmitItems : baseItems).map((item) => {
+      // Only what staff changed goes; the backend rebuilds the rest from the case.
+      const editedItems = resubmitItems.map((item) => {
         const quantity = Number(item.quantity) || 1;
-        const unitPrice = Number(item.unit_price ?? item.amount ?? item.net_amount ?? 0) || 0;
-        const netAmount = Number(item.net_amount) || quantity * unitPrice;
-        return {
-          ...item,
-          quantity,
-          unit_price: unitPrice,
-          net_amount: netAmount,
-        };
+        const unitPrice = Number(item.unit_price ?? item.amount ?? 0) || 0;
+        return { ...item, quantity, unit_price: unitPrice, net_amount: quantity * unitPrice };
       });
-      const totalAmount = editableItems.reduce((sum, item) => sum + (Number(item.net_amount) || 0), 0);
-      const procedures = editableItems.map((item) => ({
-        code: item.service_code || item.code || item.service_name || "",
-        description: item.service_name || item.description || item.name || "Service",
-        quantity: Number(item.quantity) || 1,
-        unit_price: Number(item.unit_price || item.amount || 0),
-        amount: Number(item.net_amount) || (Number(item.quantity) || 1) * (Number(item.unit_price || item.amount || 0)),
-      }));
+      const attachedDocs = (resubmitDraft?.supporting_documents || []).filter((d) => d.url);
+      const total = editedItems.length > 0 ? editedItems.reduce((sum, item) => sum + item.net_amount, 0) : resubmitDraft?.total_amount;
       const body = {
         ...(resolvedCashlessCaseId ? { cashless_case_id: resolvedCashlessCaseId } : {}),
         ...(claim_id ? { claim_id } : {}),
         ...(payerId ? { payer_id: payerId } : {}),
         ...(policyNumber ? { policy_number: policyNumber } : {}),
         ...(statusData?.preauth_ref ? { preauth_ref: statusData.preauth_ref } : {}),
-        total_amount: totalAmount,
-        items: editableItems,
-        procedures,
-        ...(draftData?.editedDiagnoses || statusData?.diagnoses?.length ? { diagnoses: draftData?.editedDiagnoses ?? statusData?.diagnoses } : {}),
+        ...(total != null ? { total_amount: total } : {}),
+        ...(editedItems.length > 0 ? { items: editedItems } : {}),
+        ...(draftData?.editedDiagnoses ? { diagnoses: draftData.editedDiagnoses } : {}),
+        ...(attachedDocs.length > 0 ? { supporting_documents: attachedDocs } : {}),
       };
       const res = await api.resubmitPreauth(body);
       if (res.status === "failed") {
@@ -222,6 +219,8 @@ export default function PreauthStatus({ ctx }) {
         return;
       }
       setShowResubmitDrawer(false);
+      setResubmitItems([]);
+      if (filesKey) setDraftFiles(filesKey, []);
       restartPoll(res.correlation_id);
     } catch (err) {
       setResubmitError(err.message || "Preauthorization resubmission failed. Please try again.");
@@ -247,12 +246,61 @@ export default function PreauthStatus({ ctx }) {
         return;
       }
       setShowCancelModal(false);
+      setCancelRefused(false);
+      // A refused cancellation leaves this pre-auth standing, so keep the way back.
+      updateCaseState({ preauthBeforeCancel: correlationId });
       restartPoll(res.correlation_id);
     } catch (err) {
       setCancelError(err.message || "Cancellation failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const refusedCancel = statusData?.decision === "CANCELLATION_REJECTED";
+  useEffect(() => {
+    if (!refusedCancel) return;
+    setCancelRefused(true);
+    const original = caseState.preauthBeforeCancel;
+    if (!original) return;
+    updateCaseState({ preauthBeforeCancel: null });
+    restartPoll(original);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refusedCancel]);
+
+  const filesKey = cashless_case_id || claim_id || null;
+
+  // The drawer works from the same draft as the Pre-auth step: what the payer
+  // asks for, the hospital's documents and any file already attached there.
+  useEffect(() => {
+    if (!showResubmitDrawer) return undefined;
+    let live = true;
+    api
+      .preparePreauth(cashless_case_id ? { cashless_case_id } : { claim_id })
+      .then((res) => {
+        if (!live) return;
+        const list = [...(res.supporting_documents || [])];
+        (draftFiles?.[filesKey] || []).forEach((file) => {
+          const idx = list.findIndex((d) => d.code === file.code);
+          if (idx >= 0) list[idx] = { ...list[idx], ...file };
+          else list.push(file);
+        });
+        setResubmitDraft({ ...res, supporting_documents: list });
+      })
+      .catch((err) => live && setResubmitError(err.message || "The draft could not be loaded."));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showResubmitDrawer]);
+
+  const setResubmitDocs = (update) => setResubmitDraft((prev) => (prev ? { ...prev, supporting_documents: update(prev.supporting_documents || []) } : prev));
+  const attachResubmitAsk = (row, uploaded) => {
+    const entry = { code: row.code, category: row.category || null, name: row.display, optional: false, ...uploaded };
+    setResubmitDocs((list) => {
+      const idx = list.findIndex((d) => String(d.code || "").toUpperCase() === String(row.code).toUpperCase());
+      return idx >= 0 ? list.map((d, i) => (i === idx ? { ...d, ...entry } : d)) : [...list, entry];
+    });
   };
 
   const enquiryId = caseState.statusEnquiry?.leg === correlationId ? caseState.statusEnquiry.id : null;
@@ -305,6 +353,7 @@ export default function PreauthStatus({ ctx }) {
   const cachedDecision = !statusData && caseState.preauthDecision && caseState.preauthDecision !== "UNKNOWN";
   const isComplete = statusData?.status === "complete" || !!cachedDecision;
   const isFailed = statusData?.status === "failed";
+  const isNotFound = statusData?.status === "not_found";
   const decision = statusData?.decision || caseState.preauthDecision;
   // Latest preauth decision event from the audit trail — carries the payer's
   // raw outcome / reason codes / classified_by / inbound workflow id for the
@@ -378,7 +427,8 @@ export default function PreauthStatus({ ctx }) {
   const approvedValue = totals.benefit?.value ?? totals.eligible?.value ?? null;
   const requestedValue = totals.submitted?.value ?? null;
   const notesByNumber = Object.fromEntries((statusData?.process_notes || []).map((n) => [n.number, n.text]));
-  const adjItems = statusData?.claim_items?.length > 0 ? statusData.claim_items : statusData?.items || [];
+  // `items` holds the payer's answer on each line; `claim_items` only names them.
+  const adjItems = statusData?.items || [];
   const deductibleTotal = adjItems.reduce((sum, it) => sum + (Number(it.adjudication?.deductible?.value) || 0), 0);
   const outcome = statusData?.outcome;
   // Guard against a mis-classified decision hiding behind a confident verdict:
@@ -390,7 +440,9 @@ export default function PreauthStatus({ ctx }) {
 
   const verdict = isFailed
     ? { tone: "bad", label: "Not delivered" }
-    : !isComplete
+    : isNotFound
+      ? { tone: "pending", label: "No record" }
+      : !isComplete
       ? { tone: "pending", label: statusData?.purpose === "cancel" ? "Awaiting cancellation" : "Awaiting payer" }
       : isApproved
         ? { tone: ambiguous ? "warn" : "ok", label: "Approved" }
@@ -402,7 +454,9 @@ export default function PreauthStatus({ ctx }) {
               ? { tone: "bad", label: "Rejected" }
               : isCancelled
                 ? { tone: "pending", label: "Cancelled" }
-                : { tone: "pending", label: "Decision unclear" };
+                : decision === "CANCELLATION_REJECTED"
+                  ? { tone: "warn", label: "Cancellation refused" }
+                  : { tone: "pending", label: "Decision unclear" };
 
   const guide = isFailed
     ? {
@@ -410,7 +464,9 @@ export default function PreauthStatus({ ctx }) {
         title: "The payer never received this preauth",
         steps: ["Read the reason above.", "Go back to the preauth draft, fix what it names, and submit again."],
       }
-    : !isComplete
+    : isNotFound
+      ? { tone: "warn", title: "The payer's system has no record of this request yet", text: "Refresh in a while. If it stays like this, ask the payer through Request gateway status or call its helpdesk." }
+      : !isComplete
       ? {
           tone: "info",
           title: statusData?.purpose === "cancel" ? "The payer is processing the cancellation" : "The payer is deciding",
@@ -471,31 +527,36 @@ export default function PreauthStatus({ ctx }) {
     else if (id === "resubmit") setShowResubmitDrawer(true);
     else if (id === "refresh") restartPoll(correlationId);
     else if (id === "gateway") handleGatewayStatus();
+    else if (id === "draft") navigate("../review");
     else if (id === "enhance") setShowEnhancement(true);
     else if (id === "message") setShowSendModal(true);
     else if (id === "recheck") handleRecheckEligibility();
     else if (id === "cancel") setShowCancelModal(true);
   };
 
-  // One primary action per decision; everything else is listed under it.
-  const primary = !isComplete
-    ? null
-    : isApproved || isPartial
-      ? { id: "claim", label: "Proceed to claim", icon: ArrowRight }
-      : isQueried
-        ? { id: "query", label: "Respond to query" }
-        : isRejected
-          ? { id: "resubmit", label: "Resubmit preauth" }
-          : { id: "refresh", label: "Refresh decision", icon: RefreshCw };
-
   const legs = cashlessCase?.legs;
   const canEnquire = cashlessCase?.answers_status_enquiry !== false;
   const preauthReadOnly = CLAIM_WITH_PAYER.includes(legs?.claim);
+  // Once a claim is with the payer the backend refuses any pre-auth send.
+  const canAnswer = !preauthReadOnly && !caseClosed;
+
+  // One primary action per decision; everything else is listed under it.
+  const primary = isFailed
+    ? { id: "draft", label: "Back to preauth draft" }
+    : !isComplete
+      ? null
+      : isApproved || isPartial
+        ? { id: "claim", label: "Proceed to claim", icon: ArrowRight }
+        : isQueried
+          ? canAnswer && { id: "query", label: "Respond to query", write: true }
+          : isRejected
+            ? canAnswer && { id: "resubmit", label: "Resubmit preauth", write: true }
+            : { id: "refresh", label: "Refresh decision", icon: RefreshCw };
 
   const secondary = [];
   if (!isComplete && !isFailed) {
     secondary.push({ id: "refresh", label: "Refresh now", icon: RefreshCw });
-    if (showGatewayRecovery && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi, write: true });
+    if ((showGatewayRecovery || isNotFound) && canEnquire) secondary.push({ id: "gateway", label: "Request gateway status", icon: Wifi, write: true });
   }
   if (isComplete) {
     if ((isApproved || isPartial) && !caseClosed && !preauthReadOnly) secondary.push({ id: "enhance", label: "Request enhancement", icon: PlusCircle });
@@ -508,6 +569,7 @@ export default function PreauthStatus({ ctx }) {
       id: "recheck",
       label: recheckingEligibility ? "Re-checking eligibility…" : "Re-check eligibility",
       icon: RefreshCw,
+      write: true,
       disabled: recheckingEligibility,
       title: "Refresh sum-insured/coverage data from the payer without affecting the preauth decision",
     });
@@ -527,8 +589,26 @@ export default function PreauthStatus({ ctx }) {
     { label: "Approved", value: approvedValue, total: true },
   ].filter(Boolean);
 
+  const resubmitLines = resubmitItems.length > 0 ? resubmitItems : draftData?.editedItems ?? resubmitDraft?.items ?? [];
+  const editResubmitLine = (index, field, raw) => {
+    const value = Number(raw);
+    setResubmitItems(
+      resubmitLines.map((line, i) => {
+        if (i !== index) return line;
+        const next = { ...line, [field]: value };
+        return { ...next, net_amount: (Number(next.quantity) || 0) * (Number(next.unit_price) || 0) };
+      }),
+    );
+  };
+  const resubmitDocs = resubmitDraft?.supporting_documents || [];
+  const resubmitAsks = liveAsks(resubmitDraft?.payer_asks, resubmitDocs, resubmitForms);
+  const resubmitAskCodes = new Set(resubmitAsks.filter((a) => a.kind === "document").map((a) => String(a.code).toUpperCase()));
+  const resubmitOtherDocs = resubmitDocs.filter((d) => !resubmitAskCodes.has(String(d.code || "").toUpperCase()));
+  const resubmitBlocked = resubmitAsks.some((a) => a.blocking);
+
   const lineName = (item, i) => {
-    const claimItem = statusData?.claim_items?.[i] || draftData?.editedItems?.[i] || draftData?.items?.[i] || item;
+    const named = statusData?.claim_items || [];
+    const claimItem = named.find((c) => c.sequence === item.sequence) || named[i] || draftData?.editedItems?.[i] || draftData?.items?.[i] || item;
     return {
       name: claimItem?.service_name || claimItem?.name || claimItem?.description || `Item ${item.sequence ?? i + 1} (unnamed by payer)`,
       code: claimItem?.service_code || claimItem?.code || null,
@@ -542,12 +622,10 @@ export default function PreauthStatus({ ctx }) {
         <div className="ep-notice is-bad">
           <strong>The preauth could not be delivered to the payer.</strong>{" "}
           {statusData?.error_message || statusData?.errors?.[0]?.detail || statusData?.errors?.[0]?.display || ""}
-          <button type="button" className="pd-inline-link" onClick={() => navigate("../review")}>
-            Back to preauth draft →
-          </button>
         </div>
       )}
       {preauthReadOnly && <div className="ep-notice">{READ_ONLY_NOTICE}</div>}
+      {cancelRefused && <div className="ep-notice is-warn">The payer refused the cancellation, so this pre-auth still stands.</div>}
       {enquiryError && <div className="ep-notice is-bad">{enquiryError}</div>}
       {(location.state?.preauthWarnings || []).map((w) => (
         <div key={w} className="ep-notice is-warn">{w}</div>
@@ -572,7 +650,13 @@ export default function PreauthStatus({ ctx }) {
 
       <div className="pd-layout">
         <div className="pd-main">
-          {!isComplete && !isFailed && (
+          {isNotFound && (
+            <Section id="ds-none-yet" title="No answer on record">
+              <Fields cols={1} rows={[{ label: "Request ID", value: correlationId, mono: true }]} />
+            </Section>
+          )}
+
+          {!isComplete && !isFailed && !isNotFound && (
             <Section id="ds-waiting" info="waiting" title={knownDecision ? "Loading adjudication details" : "Waiting for the payer"}>
               <Fields
                 cols={2}
@@ -583,6 +667,7 @@ export default function PreauthStatus({ ctx }) {
                   { label: "Request ID", value: correlationId, mono: true },
                 ]}
               />
+              {pollError && <div className="ep-notice is-warn ds-notice-in">The last check failed, and this page keeps trying: {pollError}</div>}
               {showSoftWarning && (
                 <div className="ep-notice ds-notice-in">
                   Payer decisions can take minutes to hours. You can leave this page; the result will appear in the Work
@@ -752,7 +837,7 @@ export default function PreauthStatus({ ctx }) {
             <div className={`ds-verdict is-${verdict.tone}`}>
               <span className="ep-dot" aria-hidden="true" />
               <span className="ds-verdict-label">{verdict.label}</span>
-              {!isComplete && !isFailed && <span className="spinner ds-spinner" aria-hidden="true" />}
+              {!isComplete && !isFailed && !isNotFound && <span className="spinner ds-spinner" aria-hidden="true" />}
             </div>
             {statusData?.preauth_ref && (
               <div className="ds-ref">
@@ -770,7 +855,7 @@ export default function PreauthStatus({ ctx }) {
 
             <div className="pd-submit">
               {primary && (
-                <Button variant="primary" icon={primary.icon} onClick={() => runAction(primary.id)} className="pd-submit-btn">
+                <Button write={primary.write} variant="primary" icon={primary.icon} onClick={() => runAction(primary.id)} className="pd-submit-btn">
                   {primary.label}
                 </Button>
               )}
@@ -834,72 +919,83 @@ export default function PreauthStatus({ ctx }) {
 
       <Drawer open={showResubmitDrawer} onClose={() => { setShowResubmitDrawer(false); setResubmitError(null); }} title="Resubmit Preauth">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
-          Correct clinical or billing data and resubmit. Only the fields you change here will be sent; everything else is re-derived from the hospital DB.
+          Correct the lines and attach what the payer asks for. Only the lines you change are sent; everything else is
+          rebuilt from the hospital records.
         </p>
-        {(() => {
-          // Prefer saved draft items, fall back to adjudicated items from status
-          const baseItems = draftData?.editedItems ?? draftData?.items ?? statusData?.claim_items ?? statusData?.items ?? [];
-          const displayItems = resubmitItems.length > 0 ? resubmitItems : baseItems;
-          return baseItems.length > 0 ? (
-            <div style={{ marginBottom: "var(--space-5)" }}>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>Line Items (editable)</div>
-              <div className="table-responsive-wrapper">
-                <table className="table-modern" style={{ fontSize: "12px" }}>
-                  <thead>
-                    <tr>
-                      <th>Service</th>
-                      <th>Qty</th>
-                      <th>Unit Price</th>
-                      <th style={{ textAlign: "right" }}>Net Amount</th>
+        {!resubmitDraft && !resubmitError && <LoadingBlock compact text="Loading the draft…" />}
+        {resubmitLines.length > 0 && (
+          <div style={{ marginBottom: "var(--space-5)" }}>
+            <div className="cv-drawer-label">Line items</div>
+            <div className="table-responsive-wrapper">
+              <table className="table-modern" style={{ fontSize: "12px" }}>
+                <thead>
+                  <tr>
+                    <th>Service</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th style={{ textAlign: "right" }}>Net Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resubmitLines.map((item, i) => (
+                    <tr key={i}>
+                      <td>{item.service_name || `Line ${item.sequence ?? i + 1}`}</td>
+                      <td>
+                        <input
+                          className="input-modern"
+                          style={{ width: "60px", fontSize: "11px", padding: "3px 6px" }}
+                          type="number"
+                          min="1"
+                          aria-label="Quantity"
+                          value={item.quantity ?? ""}
+                          onChange={(e) => editResubmitLine(i, "quantity", e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="input-modern"
+                          style={{ width: "90px", fontSize: "11px", padding: "3px 6px" }}
+                          type="number"
+                          min="0"
+                          aria-label="Unit price"
+                          value={item.unit_price ?? ""}
+                          onChange={(e) => editResubmitLine(i, "unit_price", e.target.value)}
+                        />
+                      </td>
+                      <td style={{ textAlign: "right" }}>{formatMoney(item.net_amount)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {displayItems.map((item, i) => (
-                      <tr key={i}>
-                        <td>{item.service_name || `Seq #${item.sequence}`}</td>
-                        <td>
-                          <input
-                            className="input-modern"
-                            style={{ width: "60px", fontSize: "11px", padding: "3px 6px" }}
-                            type="number"
-                            min="1"
-                            value={item.quantity ?? ""}
-                            onChange={(e) => {
-                              const updated = (resubmitItems.length > 0 ? resubmitItems : baseItems).map((it, idx) => {
-                                if (idx !== i) return it;
-                                const qty = Number(e.target.value);
-                                return { ...it, quantity: qty, net_amount: qty * (it.unit_price || 0) };
-                              });
-                              setResubmitItems(updated);
-                            }}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="input-modern"
-                            style={{ width: "90px", fontSize: "11px", padding: "3px 6px" }}
-                            type="number"
-                            min="0"
-                            value={item.unit_price ?? ""}
-                            onChange={(e) => {
-                              const updated = (resubmitItems.length > 0 ? resubmitItems : baseItems).map((it, idx) => {
-                                if (idx !== i) return it;
-                                const price = Number(e.target.value);
-                                return { ...it, unit_price: price, net_amount: (it.quantity || 0) * price };
-                              });
-                              setResubmitItems(updated);
-                            }}
-                          />
-                        </td>
-                        <td style={{ textAlign: "right" }}>{formatMoney(item.net_amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ) : null;
-        })()}
+          </div>
+        )}
+        {resubmitDraft && (
+          <>
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <PayerAsks
+                caseId={resolvedCashlessCaseId}
+                stage="preauth"
+                asks={resubmitDraft.payer_asks}
+                documents={resubmitDocs}
+                readOnly={readOnly || caseClosed}
+                onAttach={attachResubmitAsk}
+                onFormsChange={setResubmitForms}
+              />
+            </div>
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <DocumentChecklist
+                documents={resubmitOtherDocs}
+                onUpload={(doc, uploaded) => setResubmitDocs((list) => list.map((d) => (d.code === doc.code ? { ...d, ...uploaded } : d)))}
+                onAddDocument={() => setResubmitDocs((list) => [...list, { code: `CUSTOM-${Date.now()}`, name: "", category: "additional", optional: true, custom: true }])}
+                onRenameDocument={(i, name) => setResubmitDocs((list) => list.map((d) => (d === resubmitOtherDocs[i] ? { ...d, name } : d)))}
+                onRemoveDocument={(i) => setResubmitDocs((list) => list.filter((d) => d !== resubmitOtherDocs[i]))}
+                readOnly={readOnly || caseClosed}
+                hideSummary
+              />
+            </div>
+          </>
+        )}
         {resubmitError && (
           <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid var(--error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
             {resubmitError}
@@ -908,7 +1004,7 @@ export default function PreauthStatus({ ctx }) {
         <Button write
           variant="primary"
           className="w-full"
-          disabled={submitting}
+          disabled={submitting || !resubmitDraft || resubmitBlocked}
           onClick={handleResubmitSubmit}
           style={{ justifyContent: "center" }}
         >
@@ -918,10 +1014,16 @@ export default function PreauthStatus({ ctx }) {
 
       <Modal open={showCancelModal} onClose={() => { setShowCancelModal(false); setCancelError(null); }} title="Cancel Preauthorization">
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-5)" }}>
-          Cancellation is irreversible. The preauth reference <strong>{statusData?.preauth_ref}</strong>
-          {(statusData?.totals?.benefit?.value ?? statusData?.totals?.eligible?.value) != null && (
-            <> and its approved amount of <strong style={{ color: "var(--error)" }}>{formatMoney(statusData.totals.benefit?.value ?? statusData.totals.eligible?.value)}</strong></>
-          )} will be permanently voided with the payer.
+          {statusData?.preauth_ref ? (
+            <>
+              Cancellation is irreversible. The preauth reference <strong>{statusData.preauth_ref}</strong>
+              {(statusData.totals?.benefit?.value ?? statusData.totals?.eligible?.value) != null && (
+                <> and its approved amount of <strong style={{ color: "var(--error)" }}>{formatMoney(statusData.totals.benefit?.value ?? statusData.totals.eligible?.value)}</strong></>
+              )} will be permanently voided with the payer.
+            </>
+          ) : (
+            "Cancellation is irreversible. This request is withdrawn from the payer before it decides."
+          )}
         </p>
         <div style={{ marginBottom: "14px" }}>
           <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Reason</label>
