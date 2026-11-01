@@ -504,6 +504,10 @@ const MOCK_PLAN_FORMS = [
 // Mock answers to the payer's forms, keyed by case, form and question.
 const MOCK_FORM_ANSWERS = {};
 const MOCK_BIOMETRIC = {};
+const mockAsksAfterBiometric = (asks, stage) =>
+  Object.values(MOCK_BIOMETRIC).flat().some((row) => row.stage === stage && row.status === "verified")
+    ? asks.filter((ask) => ask.source !== "consent")
+    : asks;
 const mockBiometricRows = (caseId, stage) => (MOCK_BIOMETRIC[caseId] || []).filter((row) => row.stage === stage);
 const mockAttempt = (row) => ({
   id: row.id,
@@ -717,6 +721,23 @@ const mockPayCase = (res) => {
 const MOCK_CANCEL_ID = "b05fd989-e852-4542-8476-e6ac99e709cb";
 const mockApprovalKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ap") : null);
 
+const mockCaseOpen = () => {
+  if (typeof window === "undefined") return false;
+  const value = new URLSearchParams(window.location.search).get("open");
+  try {
+    if (value === "1" || value === "draft") window.sessionStorage.setItem("nhcx_mock_open", value);
+    if (value === "0") window.sessionStorage.removeItem("nhcx_mock_open");
+    return window.sessionStorage.getItem("nhcx_mock_open");
+  } catch {
+    return value;
+  }
+};
+
+const mockHeldTasks = () => {
+  if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("held") !== "1") return [];
+  return [{ id: 901, task_type: "submit_final_claim", workflow: "claim", status: "held", title: "Submit final claim", metadata: { hold: { reason: "Preauth cancellation awaiting payer response" } } }];
+};
+
 const mockPreauthAnswer = (res) => {
   const key = mockApprovalKey();
   const note = (text) => ({ process_notes: [{ number: 1, type: "display", text, language: "en" }] });
@@ -805,7 +826,7 @@ const mockClaimStatus = (res) => {
 const mockCeState = (status) => {
   const enKey = mockEnhancementKey();
   const legs = mockApprovalKey() === "read_only" || enKey === "claim_sent" ? { claim: "submitting" } : enKey === "queried" ? { preauth: "queried" } : null;
-  const res = mockPayCase(mockReprocessCase(mockClaimCase(legs ? { ...status, legs: { ...status.legs, ...legs } } : status)));
+  const res = { ...mockPayCase(mockReprocessCase(mockClaimCase(legs ? { ...status, legs: { ...status.legs, ...legs } } : status))), held_tasks: mockHeldTasks() };
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ce") : null;
   if (!key) return res;
   const open = { ...res, current_step: "insurance_and_eligibility", next_actions: ["refresh", "prepare_preauth"] };
@@ -856,11 +877,14 @@ const mockPreauthState = (draft) => {
     const { admissibility } = draft;
     return { ...draft, admissibility: { ...admissibility, blocking: true, checks: [...admissibility.checks, { level: "block", kind: "package_price", code: "47562", message: "Laparoscopic cholecystectomy is priced at zero in the payer's plan." }] } };
   }
-  if (key === "ready" || key === "warn") {
+  if (key === "ready" || key === "warn" || key === "unspecified") {
+    const unspecified = key === "unspecified";
+    const flagged = unspecified ? [{ level: "info", kind: "unspecified_package", code: draft.items[0].service_code, message: `${draft.items[0].service_code} is an unspecified package: the procedure name and amount you enter go to the payer.` }] : [];
     return {
       ...draft,
+      items: unspecified ? draft.items.map((item) => ({ ...item, service_name: "" })) : draft.items,
       payer_asks: key === "warn" ? MOCK_PAYER_ASKS.preauth.filter((a) => !a.blocking) : [],
-      admissibility: { ...draft.admissibility, checks: draft.admissibility.checks.filter((c) => c.level === "ok"), exclusions: [] },
+      admissibility: { ...draft.admissibility, checks: [...draft.admissibility.checks.filter((c) => c.level === "ok"), ...flagged], exclusions: [] },
       supporting_documents: draft.supporting_documents.map((d) => ({ ...d, url: d.url || "https://hospital.example/records/101/report.pdf" })),
       chief_complaints: [{ code: "R10", name: "Abdominal pain" }],
       clinical_findings: [{ code: "R19", name: "Tenderness in the right upper quadrant" }],
@@ -1378,7 +1402,7 @@ const mock = {
             current_step: "insurance_and_eligibility",
             payer_id: "1518@hcx",
             policy_number: "POL-91711234567890-2026",
-            preauth_status: "pending",
+            preauth_status: mockCaseOpen() === "draft" ? null : "pending",
             created_at: "2026-05-04T10:35:00+05:30",
           },
           visits: [
@@ -1868,7 +1892,7 @@ const mock = {
       // submitted for this case. Kept here (rather than omitted) so mock mode
       // exercises the same res.preauth?.correlation_id / res.claim?.status
       // paths the real backend response takes.
-      preauth: journey.preauth,
+      preauth: mockCaseOpen() === "draft" ? null : journey.preauth,
       claim: journey.claim,
       payment: journey.payment ?? null,
     });
@@ -1961,7 +1985,7 @@ const mock = {
         deductible: { value: null },
         disallowed: { value: 5000 },
         patient_payable: { value: 10000, confidence: "final", formula: "copay + disallowed" },
-        settlement: { gross: 40000, tds: 400, net: 39600, utr: "UTR123456789", settled: true, short_payment: true },
+        settlement: mockCaseOpen() ? null : { gross: 40000, tds: 400, net: 39600, utr: "UTR123456789", settled: true, short_payment: true },
         reconciliation: { variance_vs_authorized: 10000, to_collect_from_patient: 10000 },
       },
       total_count: filtered.length,
@@ -2006,7 +2030,7 @@ const mock = {
   preparePreauth: async (params = {}) => {
     await delay(800);
     return mockPreauthState({
-      payer_asks: MOCK_PAYER_ASKS.preauth,
+      payer_asks: mockAsksAfterBiometric(MOCK_PAYER_ASKS.preauth, "Preauth"),
       admissibility: {
         status: "checked",
         plan_fetched_at: "2026-10-27T10:00:00+05:30",
@@ -2412,7 +2436,7 @@ const mock = {
           { code: "STRAT006a", label: "ICU", rate: 4500 },
         ],
       },
-      payer_asks: MOCK_PAYER_ASKS.claim,
+      payer_asks: mockAsksAfterBiometric(MOCK_PAYER_ASKS.claim, "Discharge"),
       cashless_case_id: params.cashless_case_id || 4,
       claim_id: params.claim_id || 101,
       payer_id: "1518@hcx",
