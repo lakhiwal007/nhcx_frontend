@@ -31,7 +31,7 @@ function itemsFor({ communications, notes, readOnly, caseClosed, hint }) {
       action: { label: "Notes", notes: true },
     });
   });
-  if (caseClosed) items.push({ key: "closed", tone: "quiet", icon: Lock, title: "The case is settled and read-only; only an appeal from Reprocess can change it." });
+  if (caseClosed) items.push({ key: "closed", tone: "quiet", icon: Lock, title: "The case is settled and read-only." });
   if (readOnly) items.push({ key: "readonly", tone: "quiet", icon: Eye, title: "View only: this account can see the case but not send, answer or change anything." });
   return items;
 }

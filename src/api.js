@@ -578,6 +578,60 @@ const mockEnhancementPreview = (preview) => {
   return preview;
 };
 
+// ?rp=<state> on /case/:id/reprocess: ready and send_fail are a rejected claim with
+// no appeal; waiting|approved|partial|queried|rejected|failed|not_found|unknown|
+// poll_error have one on the case; deciding|open_query|not_rejected|draft set the leg.
+const MOCK_REPROCESS_ID = "6928d2cd-81f6-48b0-9c62-bf8f5a311847";
+const MOCK_REPROCESS_LEGS = {
+  ready: "rejected", send_fail: "rejected", rejected: "rejected", failed: "rejected",
+  waiting: "submitting", not_found: "submitting", unknown: "submitting", poll_error: "submitting", deciding: "submitting",
+  approved: "approved", partial: "partial", not_rejected: "approved", queried: "queried", open_query: "queried", draft: "draft",
+};
+const MOCK_REPROCESS_SENT = ["waiting", "approved", "partial", "queried", "rejected", "failed", "not_found", "unknown", "poll_error"];
+const MOCK_REPROCESS_DECIDED = { approved: "REPROCESS_APPROVED", partial: "PARTIALLY_APPROVED", queried: "REPROCESS_QUERIED", rejected: "REPROCESS_REJECTED" };
+const mockReprocessKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("rp") : null);
+
+const mockReprocessCase = (res) => {
+  const key = mockReprocessKey();
+  if (!key) return res;
+  const justSent = !!window.__mockLastReprocess;
+  return {
+    ...res,
+    legs: { ...res.legs, claim: justSent ? "submitting" : MOCK_REPROCESS_LEGS[key] },
+    reprocess: justSent || MOCK_REPROCESS_SENT.includes(key) ? { correlation_id: MOCK_REPROCESS_ID, status: "pending", reason_code: "rejectiondisputed", ...(MOCK_REPROCESS_DECIDED[key] && !justSent ? { decision: MOCK_REPROCESS_DECIDED[key] } : {}) } : null,
+  };
+};
+
+const mockReprocessAnswer = (correlation_id) => {
+  const key = mockReprocessKey();
+  if (key === "poll_error") throw new Error("The appeal status could not be read.");
+  if (key === "not_found") return { status: "not_found", correlation_id };
+  if (key === "failed") return { status: "failed", correlation_id, errors: [{ code: "PAYER_UNREACHABLE", message: "The payer did not accept the request." }] };
+  const base = { correlation_id, claim_id: 101, reason_code: "rejectiondisputed" };
+  if (key === "unknown") return { ...base, status: "complete", decision: "UNKNOWN", process_notes: [] };
+  if (key === "queried") return { ...base, status: "complete", decision: "REPROCESS_QUERIED", process_notes: [{ number: 1, text: "Send the discharge summary signed by the treating doctor." }] };
+  if (key === "rejected") {
+    return { ...base, status: "complete", decision: "REPROCESS_REJECTED", process_notes: [{ number: 1, text: "The new documents do not change the original decision." }], claim_response: { errors: [{ detail: "Treatment is excluded under the plan." }] } };
+  }
+  if (key === "approved" || key === "partial") {
+    return {
+      ...base,
+      status: "complete",
+      decision: key === "partial" ? "PARTIALLY_APPROVED" : "REPROCESS_APPROVED",
+      process_notes: [{ number: 1, text: "Appeal accepted on review of the operative notes." }],
+      claim_response: {
+        outcome: key === "partial" ? "partial" : "complete",
+        totals: { submitted: { value: 50000 }, eligible: { value: key === "partial" ? 35000 : 50000 }, copay: { value: 0 }, benefit: { value: key === "partial" ? 35000 : 50000 } },
+        items: [
+          { sequence: 1, adjudication: { submitted: { value: 30000 }, eligible: { value: 30000 }, benefit: { value: 30000 } } },
+          { sequence: 2, adjudication: { submitted: { value: 20000 }, eligible: { value: key === "partial" ? 5000 : 20000, reason: key === "partial" ? "Room rent above the plan's limit" : undefined }, benefit: { value: key === "partial" ? 5000 : 20000 } } },
+        ],
+      },
+    };
+  }
+  return { ...base, status: "pending", decision: null };
+};
+
 // ?ap=<state> on /case/:id/status forces a pre-auth answer: partial|queried|rejected|
 // cancelled|cancel_refused|failed|not_found|unknown|ambiguous|claim_items|waiting.
 // read_only puts the claim with the payer.
@@ -672,7 +726,7 @@ const mockClaimStatus = (res) => {
 const mockCeState = (status) => {
   const enKey = mockEnhancementKey();
   const legs = mockApprovalKey() === "read_only" || enKey === "claim_sent" ? { claim: "submitting" } : enKey === "queried" ? { preauth: "queried" } : null;
-  const res = mockClaimCase(legs ? { ...status, legs: { ...status.legs, ...legs } } : status);
+  const res = mockReprocessCase(mockClaimCase(legs ? { ...status, legs: { ...status.legs, ...legs } } : status));
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ce") : null;
   if (!key) return res;
   const open = { ...res, current_step: "insurance_and_eligibility", next_actions: ["refresh", "prepare_preauth"] };
@@ -2443,10 +2497,12 @@ const mock = {
   },
 
   // ─── Reprocess ──────────────────────────────────────────────────────────────
-  submitReprocess: async () => {
+  submitReprocess: async (data) => {
     await delay(1000);
+    if (mockReprocessKey() === "send_fail") return { status: "failed", message: "Only a claim the payer has rejected can be sent back for reprocessing." };
+    window.__mockLastReprocess = data;
     return {
-      correlation_id: "6928d2cd-81f6-48b0-9c62-bf8f5a311847",
+      correlation_id: MOCK_REPROCESS_ID,
       status: "submitted",
       message: "Reprocess request submitted",
     };
@@ -2464,6 +2520,7 @@ const mock = {
         answered_at: new Date().toISOString(),
       };
     }
+    if (mockReprocessKey()) return mockReprocessAnswer(correlation_id);
     return {
       correlation_id,
       claim_id: 101,

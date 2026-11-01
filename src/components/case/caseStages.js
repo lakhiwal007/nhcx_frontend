@@ -15,7 +15,7 @@ const CORE = [
 // link at any time, so their heading can't depend on the spine.
 const BRANCHES = {
   enhancement: { id: "enhancement", label: "Enhancement", path: "enhancement", hint: "Add procedures or documents to increase the approved amount." },
-  reprocess: { id: "reprocess", label: "Reprocess", path: "reprocess", hint: "Appeal or resubmit after a rejection or short payment." },
+  reprocess: { id: "reprocess", label: "Reprocess", path: "reprocess", hint: "Ask the payer to look again at a claim it rejected." },
 };
 
 const VIEWS = {
@@ -102,6 +102,7 @@ export function landingStage(effectiveCase = {}) {
 // and the downstream stages lose their note, tone and clickability at once.
 export const caseRules = (full) => ({
   legs: full?.legs ?? null,
+  reprocess: full?.reprocess ?? null,
   discharge_intimation: full?.discharge_intimation,
   answers_status_enquiry: full?.answers_status_enquiry,
   coverage_eligibility: full?.coverage_eligibility ?? null,
@@ -228,8 +229,15 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       if ((decision === "APPROVED" || decision === "PARTIALLY_APPROVED") && !paymentDone) {
         visible.push({ ...BRANCHES.enhancement, branch: true, done: false, note: "Optional", tone: "live" });
       }
-      if (decision === "REJECTED" || /reject|denied|short/i.test(String(claimDecision || ""))) {
+      // Only a rejected final claim can be appealed. An appeal clears the claim's
+      // decision while the payer reads it, so the appeal itself keeps the step.
+      const claimLeg = effectiveCase.legs?.claim;
+      const claimRejected = claimLeg ? claimLeg === "rejected" : /reject|denied/i.test(String(claimDecision || ""));
+      if (claimRejected) {
         visible.push({ ...BRANCHES.reprocess, branch: true, done: false, note: "Action available", tone: "urgent" });
+      } else if (effectiveCase.reprocess) {
+        const decided = !!effectiveCase.reprocess.decision;
+        visible.push({ ...BRANCHES.reprocess, branch: true, done: decided, note: decided ? "Appeal decided" : "Appeal sent", tone: decided ? undefined : "wait", live: !decided });
       }
     }
   });
