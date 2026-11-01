@@ -116,9 +116,10 @@
 .cv-tray-title { font-weight: 600; }
 .cv-tray-detail { font-size: 13px; color: var(--cv-soft); margin-top: 2px; }
 
-.cv-stage-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.cv-stage-title { margin: 0; font-size: 26px; font-weight: 700; color: var(--cv-ink); }
-.cv-stage-hint { margin: 4px 0 0; color: var(--cv-soft); font-size: 14px; }
+.cv-stage-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.cv-stage-text { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; min-width: 0; flex: 1; }
+.cv-stage-title { margin: 0; font-size: 20px; font-weight: 700; color: var(--cv-ink); }
+.cv-stage-hint { margin: 0; color: var(--cv-soft); font-size: 13px; }
 .cv-stage-actions { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
 
 .cv-chip {

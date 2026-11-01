@@ -276,7 +276,7 @@ export default function CaseWrapper() {
           />
 
           <div className="cv-stage-head">
-            <div>
+            <div className="cv-stage-text">
               <h1 className="cv-stage-title">{activeStage?.label || "Case"}</h1>
               {activeStage?.hint && <p className="cv-stage-hint">{activeStage.hint}</p>}
             </div>
