@@ -144,7 +144,7 @@ GET /nhcx/api/v1/insurance/session   (Authorization: Bearer <parent token>)
   "is_admin": true,
   "read_only": true,
   "manageable_facility_codes": [],
-  "manages_any_facility": false,
+  "manages_any_facility": true,
   "facilities": [ { "facility_code": "931", "hcx_participant_code": "1000004185@hcx",
                     "name": "City Hospital", "environment": "sandbox" } ] }
 ```
@@ -153,7 +153,7 @@ GET /nhcx/api/v1/insurance/session   (Authorization: Bearer <parent token>)
 
 | Response | Frontend behavior |
 |---|---|
-| `read_only: true` (global admin) | Open the **all-facilities** view straight away and send **no** `X-Provider-Id`; offer no facility selector and no write action. |
+| `read_only: true` (global admin) | Open the **all-facilities** view straight away and send **no** `X-Provider-Id`; offer no facility selector and no case, claim or payer write action. Facility management stays open (`manages_any_facility: true`). |
 | `facilities.length > 1` (non-admin), deep link had `clinic_id` | **Do not prompt.** Match `facilities[].facility_code === String(clinic_id)` and use that entry's `hcx_participant_code`. This is the same `facility_code` the backend matches on when resolving the token, so the pre-selection cannot disagree with what it will accept. |
 | `facilities.length > 1` (non-admin), no `clinic_id` | Show a facility selector; store the chosen `hcx_participant_code` and send it as `X-Provider-Id`. |
 | `facilities.length > 1`, `clinic_id` matches nothing | Surface an error ("you don't have access to this clinic") rather than silently falling back to a selector — the deep link and the user's clinic assignments disagree, and picking another facility would open the wrong one. |
@@ -179,11 +179,11 @@ Roles come from the HIS `users.role_id`, re-read on every request, and only coun
 
 | Role | HIS role id (env) | May |
 |---|---|---|
-| Global admin | `NHCX_GLOBAL_ADMIN_ROLE_IDS`, default `3` | See every facility and every case; change nothing. Needs no `clinics_users` row. Every request other than GET/HEAD returns `403 WRAPPER-ERROR:1015`. |
+| Global admin | `NHCX_GLOBAL_ADMIN_ROLE_IDS`, default `3` | See every facility and every case. Manage any facility: register, edit (including the callback URL), private key, certificate rotation, onboarding and the practitioner master. A new `facility_code` must be a HIS clinic with an active `clinics_users` row, else `403 WRAPPER-ERROR:1014`. Needs no `clinics_users` row of its own. Every other request other than GET/HEAD returns `403 WRAPPER-ERROR:1015`. |
 | Clinic admin | `NHCX_FACILITY_ADMIN_ROLE_IDS`, default `10` | Everything a clinic member may, plus register a facility, edit it and upload its key — only for the clinics in its own `clinics_users` rows (`manageable_facility_codes` in `/session`). |
 | Clinic member | anything else | Work the cases of its own clinics' facilities. `clinics_users.is_owner` and `users.is_polyclinic_admin` grant nothing. |
 
-**`facilities: []` — no self-serve for a clinic member.** `POST /facilities`, `PUT /facilities/{code}`, and `PUT /facilities/{code}/private_key` succeed only for a clinic admin whose clinics include that `facility_code`; anyone else gets `403 WRAPPER-ERROR:1014`. A facility's `facility_code` never changes on update, and no two facilities may share an `hcx_participant_code` (`422`). Show a static message to anyone else — e.g. "ask your clinic admin to register this facility."
+**`facilities: []` — no self-serve for a clinic member.** `POST /facilities`, `PUT /facilities/{code}`, and `PUT /facilities/{code}/private_key` succeed only for a global admin or a clinic admin whose clinics include that `facility_code`; anyone else gets `403 WRAPPER-ERROR:1014`. A facility's `facility_code` never changes on update, and no two facilities may share an `hcx_participant_code` (`422`). Show a static message to anyone else — e.g. "ask your clinic admin to register this facility."
 
 ### Cross-facility admin view (read-only)
 
@@ -191,7 +191,7 @@ A global admin (`read_only: true`) sees **all facilities at once**, read-only, w
 
 - `dashboard/stats` (adds a `by_facility` breakdown), `dashboard/claims`, `communications`, `tasks`, and every `*/status` read span all facilities.
 - Every row carries a `facility_name` so the admin can tell facilities apart — surface it as a column/badge.
-- The admin **never** submits, acknowledges, replies or edits: every request other than GET/HEAD returns `403 WRAPPER-ERROR:1015`, so hide or disable write actions for it.
+- The admin **never** submits, acknowledges, replies or edits a case: every request other than GET/HEAD outside `/facilities/*` returns `403 WRAPPER-ERROR:1015`, so hide or disable those write actions for it. Facility management (`/facilities/*`) stays open.
 
 ### X-Provider-Id
 
@@ -1881,8 +1881,8 @@ API errors use:
 | `WRAPPER-ERROR:1011` | 400 | `X-Provider-Id` header missing (or a multi-facility user omitted it) | Send the active facility's participant code as `X-Provider-Id` |
 | `WRAPPER-ERROR:1012` | 401 | Unauthorized — session token missing/expired/invalid | Re-authenticate; redirect to login |
 | `WRAPPER-ERROR:1013` | 403 | Authenticated, but the user has no matching NHCX facility | Show "No cashless-enabled clinic for this user"; not retryable |
-| `WRAPPER-ERROR:1014` | 403 | Facility mutation by anyone but a clinic admin of that `facility_code`'s clinic | Show "Only a clinic admin of this facility can change it." Not seen on the cashless desk flow. |
-| `WRAPPER-ERROR:1015` | 403 | A global admin (read-only role) sent a write | Show "This account can view only."; hide write actions for `read_only` sessions. |
+| `WRAPPER-ERROR:1014` | 403 | Facility mutation by anyone but a clinic admin of that `facility_code`'s clinic, or a global admin naming a code that is neither a facility nor a HIS clinic | Show "Only a clinic admin of this facility can change it." (or the returned message for a global admin). Not seen on the cashless desk flow. |
+| `WRAPPER-ERROR:1015` | 403 | A global admin sent a write outside `/facilities/*` | Show "This account can view only."; hide case, claim and payer write actions for `read_only` sessions. |
 
 > **Submit endpoints** (`preauth/submit`, `claims/submit`, …) return **422 with `{ "status": "failed", "error": {...} }`** — not a `WRAPPER-ERROR` envelope — when the gateway *synchronously* rejects the request (e.g. an `NHCX-1018` invalid ABHA number). Surface `error.message`; the embedded code is an `NHCX-*`/`PAYR-*` code (see below), not a wrapper code.
 >
@@ -1962,9 +1962,9 @@ Facility administration (not part of the cashless desk flow — an admin/owner s
 | Method | Path | Use |
 |---|---|---|
 | GET | `/facilities` / `/facilities/{code}` | List/read facilities (session token required; the caller's own clinics' facilities, or every facility for a global admin) |
-| POST | `/facilities` | Register a facility + ABDM onboarding (clinic admin of that `facility_code`'s clinic) |
-| PUT | `/facilities/{code}` | Update facility + ABDM sync (clinic admin of that clinic) |
-| PUT | `/facilities/{code}/private_key` | Upload/replace the RSA decryption key (clinic admin of that clinic) |
+| POST | `/facilities` | Register a facility + ABDM onboarding (clinic admin of that `facility_code`'s clinic, or a global admin for any HIS clinic) |
+| PUT | `/facilities/{code}` | Update facility + ABDM sync (clinic admin of that clinic, or a global admin) |
+| PUT | `/facilities/{code}/private_key` | Upload/replace the RSA decryption key (clinic admin of that clinic, or a global admin) |
 | POST | `/facilities/onboarding/start` | NHCX production step 1: create the participant from the HFR ID; SMS passcode 1 |
 | POST | `/facilities/onboarding/confirm` | Step 2: confirm passcode 1 and record the facility under its `@hcx` code |
 | POST | `/facilities/{code}/onboarding/register` | Step 3: register the certificate (PEM or Base64) and callback URL; SMS passcode 2 |

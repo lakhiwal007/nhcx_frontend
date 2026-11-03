@@ -81,13 +81,19 @@ info:
     calls (`POST /facilities`, `PUT /facilities/{code}`,
     `PUT /facilities/{code}/private_key`) are open only to a **clinic admin**
     (HIS role `NHCX_FACILITY_ADMIN_ROLE_IDS`, default 10) whose clinics include
-    that `facility_code`; anyone else gets `403 WRAPPER-ERROR:1014`. The
+    that `facility_code`, and to a **global admin**; anyone else gets
+    `403 WRAPPER-ERROR:1014`. The
     `X-Admin-Token` header is no longer read.
 
 
     **Roles come from the HIS `users.role_id`, and only on a verified token.**
     A **global admin** (`NHCX_GLOBAL_ADMIN_ROLE_IDS`, default 3) sees every
-    facility and changes nothing: every request other than GET/HEAD returns
+    facility and may use every facility admin call (register, edit including
+    the callback URL, private key, certificate rotation, onboarding,
+    practitioner master) on any facility. A `facility_code` it names must be an
+    existing facility or a HIS clinic with an active `clinics_users` row;
+    otherwise `403 WRAPPER-ERROR:1014` ("facility_code X is not a HIS clinic").
+    Every other request it sends other than GET/HEAD returns
     `403 WRAPPER-ERROR:1015`. A role grants nothing when the deployment does not
     verify token signatures (no `NHCX_JWT_SECRET` / `NHCX_JWT_PUBLIC_KEY`).
 
@@ -118,7 +124,9 @@ info:
     is always in the **read-only cross-facility view**: dashboard, claims,
     communications, tasks and `*/status` reads span *all* facilities (each row
     carries `facility_name`), and `X-Provider-Id` is ignored. It never acts as a
-    facility, so every write returns `403 WRAPPER-ERROR:1015`.
+    facility, so every write outside `/facilities/*` returns
+    `403 WRAPPER-ERROR:1015`; `manages_any_facility: true` tells the UI it may
+    manage every facility.
 servers:
   - url: http://localhost:8082/nhcx/api/v1/insurance
     description: Local wrapper API. All paths below are relative to `/nhcx/api/v1/insurance`.
@@ -174,7 +182,7 @@ paths:
                     is_admin: true
                     read_only: true
                     manageable_facility_codes: []
-                    manages_any_facility: false
+                    manages_any_facility: true
                     facilities:
                       - facility_code: "931"
                         hcx_participant_code: "1000004185@hcx"
@@ -854,7 +862,9 @@ paths:
         payload carries only the plan summary (`benefit_count`, `categories`)
         and the packages are paged here. Without `kind`, only quotable rows
         (`Procedure`, `Implant`) are listed. `q` (2 characters or more) matches
-        the package code or name, case-insensitively.
+        the package code or name, case-insensitively. `procedure_type` and
+        `flags` narrow the list by the package's claim conditions; `total`
+        counts the filtered rows.
       parameters:
         - $ref: "#/components/parameters/RequestIdParam"
         - $ref: "#/components/parameters/ProviderIdHeader"
@@ -877,6 +887,20 @@ paths:
           in: query
           schema:
             type: string
+        - name: procedure_type
+          in: query
+          schema:
+            type: string
+            enum: [Surgical, Medical, Conservative]
+        - name: flags
+          in: query
+          description: >
+            Comma-separated; every flag must hold. `needs_preauth` (ApprovalNotRequired is not Y),
+            `day_care`, `implants` (ImplantApplicable or an Implant extra), `tiers`
+            (StratificationAllowed or a Stratification extra), `cyclic`, `has_form` (a form on the package).
+          schema:
+            type: string
+            example: needs_preauth,day_care
         - name: limit
           in: query
           schema:
@@ -1081,6 +1105,51 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CoverageEligibilityStatusResponse"
+
+  /cashless/coverage_eligibility/discoveries/{correlation_id}/adopt:
+    post:
+      tags: [Cashless Preparation]
+      operationId: adoptDiscoveredCover
+      summary: Use a discovered cover as the patient's policy
+      description: >
+        Stores a cover returned by a discovery (`POST /cashless/coverage_eligibility/check` with
+        `purpose: discovery`, answer read from `GET /cashless/coverage_eligibility/status/{correlation_id}`,
+        whose `covers` lists DiscoveredCover items) where a fetched policy is stored, so
+        `POST /cashless/prepare` with the returned `policy.policy_number` validates it with the
+        discovered member id.
+      parameters:
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: correlation_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [policy_code]
+              properties:
+                policy_code: { type: string }
+                member_id: { type: string }
+      responses:
+        "200":
+          description: Adopted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: adopted }
+                  correlation_id: { type: string }
+                  policy:
+                    type: object
+                    description: "Same shape as a policy from POST /cashless/policies/fetch, plus source = discovery"
+        "400":
+          description: The cover is not in the payer's answer
+        "404":
+          description: No such discovery for this facility
 
   /cashless/prepare:
     post:
@@ -1363,6 +1432,157 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /cashless/{cashless_case_id}/biometric:
+    get:
+      tags: [Cashless Preparation]
+      operationId: getBiometricStatus
+      summary: The proof of presence card for one stage of a case
+      description: >
+        NHA A18 / S18. Never returns a token. `required` is true for a payer that
+        needs proof of presence or a plan that asks for the Aadhaar (`ADN`). With
+        no token held the sends go as usual and the consent form stands in.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: query
+          required: true
+          schema: { type: string, enum: [Preauth, Discharge] }
+      responses:
+        "200":
+          description: The card's state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BiometricStatus"
+        "400":
+          description: Unknown stage
+        "404":
+          description: No case with this id is visible to this provider
+    post:
+      tags: [Cashless Preparation]
+      operationId: startBiometric
+      summary: Start a biometric attempt
+      description: >
+        Fingerprint and iris need the patient's 14-digit ABHA number. Face answers
+        `qr_url` for the patient's ABHA app and `abha_public_key`, under which the
+        page seals the Aadhaar number. Refused with 400 in the words of A18, and
+        where the environment's biometric hosts are not set.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stage, auth_method]
+              properties:
+                stage: { type: string, enum: [Preauth, Discharge] }
+                auth_method: { type: string, enum: [FINGERPRINT, IRIS, FACE_AUTH] }
+      responses:
+        "200":
+          description: The attempt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  attempt: { $ref: "#/components/schemas/BiometricAttempt" }
+                  qr_url: { type: string, description: Face only. }
+                  abha_public_key: { type: string, description: Face only. Base64 SPKI key. }
+        "400":
+          description: Refused, or the biometric service refused the call
+        "404":
+          description: No case with this id is visible to this provider
+  /cashless/{cashless_case_id}/biometric/{id}/capture:
+    post:
+      tags: [Cashless Preparation]
+      operationId: captureBiometric
+      summary: One poll of a face attempt
+      description: Poll every 4 seconds until `capture_status` is `COMPLETE`; the attempt then reads `captured`.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The attempt and the capture's state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  cashless_case_id: { type: integer }
+                  capture_status: { type: string, enum: [PENDING, COMPLETE] }
+                  attempt: { $ref: "#/components/schemas/BiometricAttempt" }
+        "400":
+          description: Not a face attempt, or the biometric service refused the call
+        "404":
+          description: No such attempt on this case
+  /cashless/{cashless_case_id}/biometric/{id}/verify:
+    post:
+      tags: [Cashless Preparation]
+      operationId: verifyBiometric
+      summary: Verify an attempt and keep its tokens on the server
+      description: >
+        Fingerprint and iris send `pid`. Face sends `aadhaar_encrypted`, sealed in
+        the page, and `mobile`; an Aadhaar number in clear is refused. The tokens
+        ride on the case's sends for this stage, refreshed there when they lapse.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pid: { type: string, description: PidData XML from the RD service. }
+                aadhaar_encrypted: { type: string, description: Base64 RSA-OAEP SHA-1 under abha_public_key. }
+                mobile: { type: string, description: The Aadhaar-linked mobile. }
+      responses:
+        "200":
+          description: The verified attempt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  cashless_case_id: { type: integer }
+                  attempt: { $ref: "#/components/schemas/BiometricAttempt" }
+        "400":
+          description: Refused; a service refusal leaves the attempt `failed`
+        "404":
+          description: No such attempt on this case
   /cashless/{cashless_case_id}/forms:
     get:
       tags: [Cashless Preparation]
@@ -1374,7 +1594,9 @@ paths:
         case's other package and policy forms; without a ruling, each form goes
         on the leg its `stage` names. For a payer that needs proof of presence
         (PMJAY) the leg's consent form ("Authentication Consent" /
-        "Discharge Consent") is always listed (`consent: true`). LAMA, DAMA and
+        "Discharge Consent") is listed (`consent: true`) unless a biometric token
+        is held for the leg, since a token and a consent are never both sent.
+        LAMA, DAMA and
         Death forms are not offered. Nothing is listed until the case's package
         master is `ready`.
       parameters:
@@ -3880,6 +4102,139 @@ paths:
                       code: "WRAPPER-ERROR:4222"
                       message: "Invalid PEM: Neither PUB key nor PRIV key: nested asn1 error"
 
+  /facilities/{facility_code}/practitioners:
+    get:
+      tags: [Facility Management]
+      operationId: listFacilityPractitioners
+      security:
+        - BearerAuth: []
+      summary: List the facility's HIS doctors with their NHCX HPR master entry
+      description: >
+        The facility's doctors from the HIS (users of type Doctor linked to the
+        clinic), each with `master`: the HPR id, degree and specialty this
+        service sends for that doctor in every pre-auth and claim bundle, or
+        null when none is saved. A saved entry whose doctor has left the HIS
+        list is still returned, with `in_his: false`. Retired entries
+        (`active: false`) are listed but not sent.
+      parameters:
+        - name: facility_code
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "931"
+      responses:
+        "200":
+          description: The facility's practitioners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PractitionerList"
+              examples:
+                one_saved:
+                  value:
+                    facility_code: "931"
+                    practitioners:
+                      - doctor_id: "11"
+                        name: "Dr Asha Rao"
+                        registration_no: "KMC-1201"
+                        specialization: "Paediatrician"
+                        in_his: true
+                        master:
+                          hpr_id: "71123456789012"
+                          qualification_display: "MBBS, MD (Paediatrics)"
+                          specialty_code: "394537008"
+                          specialty_display: "Paediatric specialty"
+                          active: true
+                          updated_at: "2026-10-29T14:00:00+05:30"
+                      - doctor_id: "12"
+                        name: "Dr Vikram Shah"
+                        in_his: true
+                        master: null
+        "404":
+          description: Facility not found or not one of the user's clinics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /facilities/{facility_code}/practitioners/{doctor_id}:
+    put:
+      tags: [Facility Management]
+      operationId: saveFacilityPractitioner
+      security:
+        - BearerAuth: []
+      summary: Save a doctor's HPR id, degree and specialty, or retire the entry
+      description: >
+        Clinic admins of the facility only (403 otherwise). Creates or updates
+        the doctor's entry. `hpr_id` is required on every save and must be 14
+        digits; spaces and hyphens are dropped. `qualification_display` is the
+        degrees as written (the bundle derives the HL7 v2-0360 degree from it).
+        `specialty_code` is a SNOMED CT code. Send `active: false` to retire an
+        entry and `active: true` to reinstate it.
+      parameters:
+        - name: facility_code
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: doctor_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The HIS doctor id (`doctors.id`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hpr_id]
+              properties:
+                hpr_id:
+                  type: string
+                  example: "71-1234-5678-9012"
+                qualification_display:
+                  type: string
+                specialty_code:
+                  type: string
+                specialty_display:
+                  type: string
+                active:
+                  type: boolean
+      responses:
+        "200":
+          description: The saved entry, in the list's shape
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Practitioner"
+        "403":
+          description: Not a clinic admin of this facility
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Facility not found, or the doctor is not on this facility's HIS doctor list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The HPR id is not 14 digits, or the specialty code is not a SNOMED CT code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                bad_hpr:
+                  value:
+                    error:
+                      code: "WRAPPER-ERROR:4220"
+                      message: "The HPR id must be the doctor's 14-digit HPR id"
+
   /facilities/onboarding/start:
     post:
       tags: [Facility Management]
@@ -3890,7 +4245,7 @@ paths:
         role provider `10001`). NHCX answers with the new participant code and a
         transaction id, and sends a passcode by SMS to the mobile on the HFR
         record. Keep both for `confirm`; a lost transaction id means calling
-        start again. Clinic admin of `facility_code`'s clinic only.
+        start again. Clinic admin of `facility_code`'s clinic, or a global admin for any HIS clinic.
       requestBody:
         required: true
         content:
@@ -3922,7 +4277,7 @@ paths:
         "400":
           description: Missing or malformed field (mobile must be 10 digits)
         "403":
-          description: Not a clinic admin of this facility_code (WRAPPER-ERROR:1014)
+          description: Not a clinic admin of this facility_code, or a global admin naming no HIS clinic (WRAPPER-ERROR:1014)
         "502":
           description: NHCX refused; the message carries NHCX's reason (for example a mobile that does not match HFR)
 
@@ -4041,6 +4396,51 @@ paths:
         "502":
           description: NHCX refused the passcode
 
+  /facilities/{facility_code}/certificate/rotate:
+    post:
+      tags: [Facility Management]
+      operationId: rotateFacilityCertificate
+      summary: Replace a facility's private key and the certificate NHCX holds for it
+      description: >
+        Clinic admin only. Checks the certificate belongs to the key, saves the key
+        (the replaced key is kept so payer answers sealed to the old certificate still
+        open), and sends the certificate to NHCX: `POST /v2/update/cert` in production
+        (no passcode), `/participant/update` in sandbox. When NHCX refuses it, nothing
+        is saved. Then reads the certificate back with `POST /fetch/certs`.
+      parameters:
+        - name: facility_code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id, private_key_pem, encryption_cert]
+              properties:
+                request_id: { type: string }
+                private_key_pem: { type: string, description: RSA private key PEM }
+                encryption_cert: { type: string, description: Certificate as PEM or Base64 }
+      responses:
+        "200":
+          description: The facility, plus whether NHCX's registry now shows the new certificate
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Facility"
+                  - type: object
+                    properties:
+                      registry_matches: { type: boolean }
+        "403":
+          description: Not this facility's clinic admin
+        "422":
+          description: Invalid PEM (WRAPPER-ERROR:4222) or the certificate does not belong to the key (WRAPPER-ERROR:4224)
+        "502":
+          description: NHCX refused the certificate; the old key and certificate stay in place
+
 security:
   - BearerAuth: []
 
@@ -4097,6 +4497,32 @@ components:
               code: "WRAPPER-ERROR:1010"
               message: request_id is required
   schemas:
+    BiometricAttempt:
+      type: object
+      properties:
+        id: { type: integer }
+        stage: { type: string, enum: [Preauth, Discharge] }
+        auth_method: { type: string, enum: [FINGERPRINT, IRIS, FACE_AUTH] }
+        status: { type: string, enum: [initiated, captured, verified, failed] }
+        message: { type: string, nullable: true }
+        token_valid: { type: boolean }
+        refreshable: { type: boolean }
+        token_expires_at: { type: string, format: date-time, nullable: true }
+        refresh_expires_at: { type: string, format: date-time, nullable: true }
+        verified_at: { type: string, format: date-time, nullable: true }
+    BiometricStatus:
+      type: object
+      properties:
+        status: { type: string }
+        cashless_case_id: { type: integer }
+        stage: { type: string, enum: [Preauth, Discharge] }
+        required: { type: boolean }
+        current:
+          allOf: [{ $ref: "#/components/schemas/BiometricAttempt" }]
+          nullable: true
+        latest:
+          allOf: [{ $ref: "#/components/schemas/BiometricAttempt" }]
+          nullable: true
     SessionResponse:
       type: object
       description: Login bootstrap — the user and the facilities they may act as.
@@ -4112,14 +4538,14 @@ components:
           description: True for a global admin, who sees every facility (also true under NHCX_SKIP_AUTH).
         read_only:
           type: boolean
-          description: True for a global admin, who is always in the all-facilities view and may change nothing.
+          description: True for a global admin, who is always in the all-facilities view and may change no case, claim or payer reply (facility admin calls stay open to it, see manages_any_facility).
         manageable_facility_codes:
           type: array
           items: { type: string }
           description: Facility codes a clinic admin may register or change (its own clinics); empty for everyone else.
         manages_any_facility:
           type: boolean
-          description: True only under NHCX_SKIP_AUTH, where any facility may be registered or changed.
+          description: True under NHCX_SKIP_AUTH and for a global admin, either of which may register or change any facility (a global admin only for existing facilities and HIS clinics).
         nhcx_environment:
           type: string
           enum: [sandbox, production]
@@ -4167,6 +4593,14 @@ components:
             The facility's Health Facility Registry id (e.g. IN1910000151). Sent as the
             provider Organization's NPI identifier in every bundle (NHA F17); when
             empty, a `registry_id` in HFR form is used, else the participant code.
+        ownership:
+          type: string
+          nullable: true
+          enum: [public, private]
+          description: >
+            Whether the hospital is public or private. A PMJAY package reserved for
+            public hospitals (`GovtReserved`) blocks the pre-authorisation readiness
+            check when this is `private`, and warns while it is unset.
         scheme_code:
           type: string
           nullable: true
@@ -4266,6 +4700,14 @@ components:
             The facility's Health Facility Registry id (e.g. IN1910000151). Sent as the
             provider Organization's NPI identifier in every bundle (NHA F17); when
             empty, a `registry_id` in HFR form is used, else the participant code.
+        ownership:
+          type: string
+          nullable: true
+          enum: [public, private]
+          description: >
+            Whether the hospital is public or private. A PMJAY package reserved for
+            public hospitals (`GovtReserved`) blocks the pre-authorisation readiness
+            check when this is `private`, and warns while it is unset.
         scheme_code:
           type: string
           nullable: true
@@ -5043,12 +5485,47 @@ components:
           nullable: true
         plan_status:
           type: string
-          enum: [fetching, ready, empty, error]
+          enum: [not_requested, fetching, ready, empty, error]
           description: >
             The package master's own state. `empty` = the payer answered with no
             InsurancePlan or no packages (`error_message` says which); `status` is
-            then `complete`. Absent on rows stored before the package master, which
-            carry the legacy fields below instead.
+            then `complete`. `not_requested` = the case holds no plan request
+            (`skip_reason` says why when known, `refused` when an earlier request
+            for the policy is still with the payer). Absent on rows stored before
+            the package master, which carry the legacy fields below instead.
+        skip_reason:
+          type: string
+          nullable: true
+        refused:
+          type: boolean
+        exclusions:
+          type: array
+          description: The plan's Claim-Exclusion extensions.
+          items:
+            type: object
+            properties:
+              category: { type: string }
+              statements: { type: array, items: { type: string } }
+              items: { type: array, items: { type: string } }
+        stats:
+          type: object
+          description: Quotable package counts, overall and per claim-condition flag.
+          properties:
+            total: { type: integer }
+            needs_preauth: { type: integer }
+            day_care: { type: integer }
+            implants: { type: integer }
+            tiers: { type: integer }
+            cyclic: { type: integer }
+            has_form: { type: integer }
+        plan_details:
+          type: object
+          description: >
+            `id`, `name`, `status`, `identifier`, `period`, and `profile`: the NRCES
+            InsurancePlan elements beyond the package master (`identifiers`, `status`,
+            `type`, `alias`, `period`, `owned_by`, `administered_by`, `coverage_area`,
+            `network`, `contact`, `endpoint`, `plan_type`, `plan_identifier`,
+            `general_cost`, `coverage_count`).
         plan:
           $ref: "#/components/schemas/PackageMasterPlan"
         policy_documents:
@@ -5064,6 +5541,21 @@ components:
           description: Number of packages and benefit lines; page them from `insurance_plan/{correlation_id}/benefits`.
         form_count:
           type: integer
+        subsetted:
+          type: boolean
+          description: The payer marked the plan SUBSETTED (summary mode), so packages or forms may be missing.
+        missing_forms:
+          type: array
+          description: >
+            Forms the plan names (a policy requirement with an id but no documentation link) without
+            including them. They are left out of `policy_documents`. When the Authentication Consent
+            (100024) or Discharge Consent (100466) is among them, a PMJAY send without a biometric token
+            is refused with a message naming the form.
+          items:
+            type: object
+            properties:
+              ref: { type: string, example: "100024" }
+              title: { type: string, nullable: true, example: Authentication Consent }
         requested_at:
           type: string
           format: date-time
@@ -5361,6 +5853,49 @@ components:
           items:
             $ref: "#/components/schemas/Procedure"
 
+    Practitioner:
+      type: object
+      properties:
+        doctor_id:
+          type: string
+        name:
+          type: string
+        registration_no:
+          type: string
+        specialization:
+          type: string
+        qualifications:
+          type: array
+          items:
+            type: string
+        in_his:
+          type: boolean
+        master:
+          type: object
+          nullable: true
+          properties:
+            hpr_id:
+              type: string
+            qualification_display:
+              type: string
+            specialty_code:
+              type: string
+            specialty_display:
+              type: string
+            active:
+              type: boolean
+            updated_at:
+              type: string
+              format: date-time
+    PractitionerList:
+      type: object
+      properties:
+        facility_code:
+          type: string
+        practitioners:
+          type: array
+          items:
+            $ref: "#/components/schemas/Practitioner"
     CashlessCase:
       type: object
       properties:
@@ -5373,6 +5908,14 @@ components:
           type: string
         policy_number:
           type: string
+        beneficiary_member_id:
+          type: string
+          description: >-
+            The family-card member chosen as the patient ("This is the patient",
+            sent through `PATCH /cashless/{cashless_case_id}/patient-context`).
+            Absent until one is chosen.
+        newborn:
+          $ref: "#/components/schemas/NewbornCase"
         status:
           type: string
           enum: [pending, partial, complete, failed]
@@ -5618,6 +6161,18 @@ components:
               type: array
               items:
                 type: string
+            reasons:
+              type: array
+              nullable: true
+              description: >
+                The payer's value-set reason codes found on the decision (PMJAY ClaimError-1..28,
+                PreauthError-1..15 and the deduction codes such as ExceededCoverageLimit), each with
+                a plain-words label. Absent when the payer sent none.
+              items:
+                type: object
+                properties:
+                  code: { type: string, example: ClaimError-3 }
+                  label: { type: string, example: "Rejected: the package is reserved for public hospitals." }
             derived_decision:
               type: string
               nullable: true
@@ -6100,8 +6655,28 @@ components:
           description: Policy number. Auto-resolved from the claim's `policy_ref` when omitted.
         purpose:
           type: string
-          enum: [validation, benefits, auth-requirements]
+          enum: [validation, benefits, auth-requirements, discovery]
           default: validation
+          description: >
+            `discovery` asks the payer for the patient's cover when the policy lookup does not
+            find it. It needs `child_id` and `payer_id`, plus `policy_number` and/or `member_id`;
+            `aadhaar` (12 digits), `mobile` (10, a leading +91 dropped) and `abha_number` (14) are
+            optional extra handles. No case is needed. Refusals (400, in order): "Choose the payer to
+            ask", "Enter the policy number or the member id to ask about", then the digit rules.
+            The answer is read from the status endpoint's `covers`; adopt one with
+            `POST /cashless/coverage_eligibility/discoveries/{correlation_id}/adopt`.
+        member_id:
+          type: string
+          description: Discovery only.
+        aadhaar:
+          type: string
+          description: Discovery only. Sent to the payer; only the last four digits are kept outside the sent bundle.
+        mobile:
+          type: string
+          description: Discovery only.
+        abha_number:
+          type: string
+          description: Discovery only.
         procedures:
           type: array
           items:
@@ -6137,6 +6712,27 @@ components:
           type: string
           nullable: true
 
+    DiscoveredCover:
+      type: object
+      properties:
+        member_id: { type: string }
+        name: { type: string }
+        gender: { type: string }
+        dob: { type: string }
+        relationship: { type: string }
+        abha_number: { type: string }
+        address: { type: string }
+        photo: { type: string, description: "URL, data URI or bare base64 JPEG" }
+        policy_code: { type: string }
+        plan_name: { type: string }
+        status: { type: string }
+        sum_insured: { type: number }
+        balance: { type: number }
+        currency: { type: string }
+        valid_from: { type: string }
+        valid_until: { type: string }
+        members_on_cover: { type: integer }
+
     CoverageEligibilityStatusResponse:
       allOf:
         - $ref: "#/components/schemas/CoverageEligibilitySummary"
@@ -6153,6 +6749,11 @@ components:
             provider_id:
               type: string
               nullable: true
+            covers:
+              type: array
+              description: Discovery only; one entry per person and policy the payer returned.
+              items:
+                $ref: "#/components/schemas/DiscoveredCover"
             purpose:
               type: string
               nullable: true
@@ -6439,9 +7040,82 @@ components:
           type: string
           nullable: true
 
+    Admissibility:
+      type: object
+      description: >
+        Returned only by `GET /cashless/preauth/prepare`. A report of the draft against the
+        insurance plan held for the case. Only `block` stops the send (a plan package line
+        priced at zero or less, PAYR-1209, refused again when the PMJAY bundle is built);
+        `warn` and `info` are for the desk to judge. `not_checked` when there is no case,
+        no plan, or the plan is still fetching or failed.
+      properties:
+        status: { type: string, enum: [checked, not_checked] }
+        reason: { type: string, description: Why it was not checked }
+        plan_fetched_at: { type: string, format: date-time, nullable: true }
+        blocking: { type: boolean }
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              level: { type: string, enum: [block, warn, info, ok] }
+              kind:
+                type: string
+                enum: [plan_age, package_in_plan, package_not_in_plan, package_code_spelling, package_uncoded,
+                       approval_not_required, enhancement_not_allowed, package_amount, document_attached,
+                       document_missing, document_uncoded, medical_packages_multiple, medical_with_surgical,
+                       package_public_only, unspecified_package, unspecified_no_amount, unspecified_over_balance,
+                       unspecified_balance_unknown, unspecified_not_alone, unspecified_needs_auth_requirements,
+                       parent_package_missing, standalone_with_others, quantity_over_allowed, implant_not_applicable,
+                       implants_over_allowed]
+                description: >
+                  The PMJAY scheme checks (`medical_*`, `package_public_only`, `unspecified_*`) run for a
+                  government payer only. `package_public_only` blocks when the facility's `ownership` is
+                  `private` and warns while it is unset; `unspecified_over_balance` blocks, and the send
+                  refuses the same line.
+              code: { type: string, description: The package or document code the check is about }
+              message: { type: string }
+        exclusions:
+          type: array
+          items: { type: string }
+          description: The plan's exclusions as written; shown, never enforced.
+
+    PayerAsk:
+      type: object
+      description: >
+        One thing the payer asks for at this leg: a document or a form, from the
+        payer's auth-requirements ruling when there is one, else the plan. A row
+        with `blocking` true refuses a new pre-authorisation or final claim: a
+        document the ruling asked for and not attached, a form answered in part,
+        a form the ruling named left empty, or the PMJAY consent without its
+        signed declaration. Plan-only rows are warnings.
+      properties:
+        kind: { type: string, enum: [document, form] }
+        source: { type: string, enum: [ruling, plan, package, consent] }
+        category: { type: string, nullable: true }
+        code: { type: string }
+        display: { type: string }
+        stage: { type: string, enum: [pre, post] }
+        for_code: { type: string, nullable: true, description: The package the ask is for }
+        form_url: { type: string, nullable: true }
+        questions: { type: integer }
+        required: { type: integer }
+        answered: { type: integer }
+        answered_required: { type: integer }
+        status: { type: string, enum: [attached, missing, answered, partial, unanswered] }
+        file_name: { type: string, nullable: true }
+        blocking: { type: boolean }
+        reason: { type: string, nullable: true }
+
     PreauthDraft:
       type: object
       properties:
+        payer_asks:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayerAsk"
+        admissibility:
+          $ref: "#/components/schemas/Admissibility"
         cashless_case_id:
           type: integer
           nullable: true
@@ -6689,6 +7363,74 @@ components:
               type: string
               format: date
               nullable: true
+            newborn:
+              allOf:
+                - $ref: "#/components/schemas/NewbornCase"
+              nullable: true
+              description: >
+                An object marks a PMJAY newborn case; null turns it off. The parent chosen
+                on the family card becomes the patient, and the baby is sent as the parent's
+                linked Patient. Missing baby fields come from the hospital records.
+            discharge:
+              allOf:
+                - $ref: "#/components/schemas/DischargeDetails"
+              nullable: true
+              description: >
+                How the patient left hospital, kept on the case and sent on the claim. The
+                object replaces what was stored; null clears it. Send it on
+                `claims/{claim_id}/patient-context`.
+
+    DischargeDetails:
+      type: object
+      description: >
+        Required on a PMJAY (government payer) claim, which is refused locally
+        ("Discharge details: …") without a type, a stage, a discharge time or, on a death,
+        the time of death. A LAMA or DAMA before or during surgery is claimed as one LM100
+        line (quantity = days admitted, price = the plan's LM100 rate for the chosen ward
+        stratification) in place of every other item; claims/prepare already shows that
+        line. The claim also carries the plan's discharge form matching the type (Live
+        Discharge, Death, LAMA, DAMA).
+      properties:
+        type:
+          type: string
+          enum: [DTH, DTM, LAMA, DAMA]
+          description: DTH home, DTM death (mortuary), LAMA left against medical advice, DAMA discharged against medical advice. Case-insensitive.
+        stage:
+          type: string
+          enum: [Before Surgery, During Surgery, After Surgery]
+          description: Also used for medical cases. "before", "during" and "after" are accepted.
+        surgery_at:
+          type: string
+          description: ISO-8601 date-time of the operation.
+        death_at:
+          type: string
+          description: ISO-8601 date-time of death; required when type is DTM.
+        discharged_at:
+          type: string
+          description: ISO-8601 date-time of discharge; defaults to the hospital record's discharge time.
+        stratification:
+          type: string
+          example: STRAT006b
+          description: The ward stratification LM100 is priced by; one of `discharge_rules.lm100_rates[].code`.
+
+    NewbornCase:
+      type: object
+      description: >
+        PMJAY newborn on a parent's card (6 or under, no member id of their own).
+        Absent when the case is not a newborn case. The draft then lists a proof-of-birth
+        document (category DOB) and reports newborn.name, newborn.gender, newborn.dob and
+        newborn.proof_of_birth in missing_fields until they are there. The pre-auth and
+        claim are refused locally ("Newborn case: …") without the parent's member id, a
+        valid gender, a date of birth within 6 years and not in the future, or the
+        attached proof of birth (PDF, JPEG or PNG).
+      properties:
+        name: { type: string }
+        gender: { type: string, enum: [male, female, other, unknown] }
+        dob: { type: string, format: date }
+        proof_code:
+          type: string
+          enum: [BCF, DCB]
+          description: BCF birth certificate, DCB government hospital discharge card (default BCF)
 
     PatientContextResponse:
       type: object
@@ -6843,6 +7585,15 @@ components:
       properties:
         code:
           type: string
+        code_system:
+          type: string
+          enum:
+            - "http://hl7.org/fhir/sid/icd-10"
+            - "http://snomed.info/sct"
+          description: Coding system of `code`. Defaults to ICD-10 when a code is sent without one.
+        snomed_code:
+          type: string
+          description: SNOMED CT code sent beside an ICD-10 `code`.
         name:
           type: string
         primary:
@@ -7348,6 +8099,10 @@ components:
         Read-only preview of what will be submitted in the discharge or final claim.
         Mirrors PreauthDraft but also includes claim lifecycle fields.
       properties:
+        payer_asks:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayerAsk"
         cashless_case_id:
           type: integer
           nullable: true
@@ -7382,6 +8137,34 @@ components:
           format: date
           nullable: true
           description: Auto-resolved from ipd_discharges when available.
+        discharge:
+          allOf:
+            - $ref: "#/components/schemas/DischargeDetails"
+          nullable: true
+          description: The stored discharge details, with `discharged_at` taken from the hospital record when not set.
+        discharge_rules:
+          type: object
+          description: >
+            `required` is true for a government (PMJAY) payer, and `missing_fields` then lists
+            discharge.type, discharge.stage, discharge.discharged_at, discharge.death_at and
+            discharge.stratification as they apply. `lm100` is true when the discharge is a
+            LAMA or DAMA before or during surgery; `lm100_rates` are the ward stratifications
+            the plan prices LM100 by.
+          properties:
+            required: { type: boolean }
+            lm100: { type: boolean }
+            lm100_stages:
+              type: array
+              items: { type: string }
+              description: The stages LM100 applies to, from the plan's `DischargeStagesLamaDamaProcedure`, else Before and During Surgery.
+            lm100_rates:
+              type: array
+              items:
+                type: object
+                properties:
+                  code: { type: string, example: STRAT006b }
+                  label: { type: string, example: HDU }
+                  rate: { type: number, example: 2700 }
         total_amount:
           type: number
           nullable: true
