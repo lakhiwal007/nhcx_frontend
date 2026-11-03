@@ -925,6 +925,7 @@ export default function Settings({
 
   const [keyDrawerFacility, setKeyDrawerFacility] = useState(null);
   const [rotateFacility, setRotateFacility] = useState(null);
+  const [doctorsFacility, setDoctorsFacility] = useState(null);
   const [editLoadingCode, setEditLoadingCode] = useState(null);
 
   const [facilitySearch, setFacilitySearch] = useState("");
@@ -1336,6 +1337,11 @@ export default function Settings({
                             <button type="button" className="ep-action" onClick={() => (f.private_key_set ? setRotateFacility(f) : setKeyDrawerFacility(f))}>
                               <Key size={13} /> {f.private_key_set ? "Rotate" : "Upload"}
                             </button>
+                            {readOnly && (
+                              <button type="button" className="ep-action" onClick={() => setDoctorsFacility(f)}>
+                                <Stethoscope size={13} /> Doctors
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>
@@ -1403,6 +1409,23 @@ export default function Settings({
         onClose={() => setRotateFacility(null)}
         onRotated={loadFacilities}
       />
+
+      <Drawer
+        width={860}
+        stack
+        open={!!doctorsFacility}
+        onClose={() => setDoctorsFacility(null)}
+        title={`Doctors — ${doctorsFacility?.name || doctorsFacility?.facility_code || ""}`}
+        subtitle={doctorsFacility ? `Code ${doctorsFacility.facility_code}` : undefined}
+      >
+        {doctorsFacility && (
+          <PractitionerSection
+            key={`doctors-${doctorsFacility.facility_code}`}
+            facility={doctorsFacility}
+            canEdit={canManage(doctorsFacility.facility_code)}
+          />
+        )}
+      </Drawer>
       </ReadOnlyContext.Provider>
     </div>
   );
