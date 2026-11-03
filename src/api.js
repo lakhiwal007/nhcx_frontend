@@ -124,17 +124,17 @@ class ApiError extends Error {
   }
 }
 
-// A global admin's session reads every facility but changes nothing. The
-// wrapper refuses its writes (WRAPPER-ERROR:1015); they are refused here too,
-// before anything leaves the browser.
 export const READ_ONLY_MESSAGE = "This account can view only.";
 let readOnlySession = false;
 export const setReadOnlySession = (value) => {
   readOnlySession = !!value;
 };
 
-const refuseIfReadOnly = () => {
+const FACILITY_ADMIN_PATH = /^\/facilities(\/|$)/;
+
+const refuseIfReadOnly = (path) => {
   if (!readOnlySession) return;
+  if (typeof path === "string" && FACILITY_ADMIN_PATH.test(path)) return;
   const err = new ApiError(READ_ONLY_MESSAGE, "READ_ONLY");
   dispatchError(err.message, err.kind);
   throw err;
@@ -221,7 +221,7 @@ const http = {
     }
   },
   post: async (path, body = {}, opts = {}) => {
-    refuseIfReadOnly();
+    refuseIfReadOnly(path);
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
@@ -243,7 +243,7 @@ const http = {
     }
   },
   patch: async (path, body = {}) => {
-    refuseIfReadOnly();
+    refuseIfReadOnly(path);
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
@@ -262,7 +262,7 @@ const http = {
     }
   },
   put: async (path, body = {}) => {
-    refuseIfReadOnly();
+    refuseIfReadOnly(path);
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
@@ -281,7 +281,7 @@ const http = {
     }
   },
   delete: async (path, body = {}) => {
-    refuseIfReadOnly();
+    refuseIfReadOnly(path);
     const merged = { request_id: generateRequestId(), ...body };
     try {
       const res = await fetch(BASE_URL + path, {
