@@ -21,6 +21,7 @@ import { Button, EmptyState, LoadingBlock } from "./Common";
 import { Drawer } from "./Overlay";
 import { Section } from "./case/CaseFile";
 import PageActions from "./PageActions";
+import { ReadOnlyContext } from "../readOnly";
 
 const ROLE_OPTIONS = [
   { value: "10001", label: "Provider" },
@@ -1099,7 +1100,9 @@ export default function Settings({
         <Section id="st-active" title="Active facility">
           <div className="ep-pad">
             <div className="ep-notice">
-              This account sees every facility at once and changes nothing — no case, payer reply or facility can be edited from it.
+              {managesAnyFacility
+                ? "This account sees every facility and can manage their settings; cases and payer replies are view-only."
+                : "This account sees every facility at once and changes nothing — no case, payer reply or facility can be edited from it."}
             </div>
           </div>
         </Section>
@@ -1345,6 +1348,7 @@ export default function Settings({
         </Section>
       )}
 
+      <ReadOnlyContext.Provider value={readOnly && !managesAnyFacility}>
       <OnboardingWizard
         open={!!onboarding}
         start={onboarding}
@@ -1399,6 +1403,7 @@ export default function Settings({
         onClose={() => setRotateFacility(null)}
         onRotated={loadFacilities}
       />
+      </ReadOnlyContext.Provider>
     </div>
   );
 }
