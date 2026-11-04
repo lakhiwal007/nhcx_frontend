@@ -140,7 +140,7 @@ function MoneyCard({ title = "Money", rows }) {
   );
 }
 
-function AdmissionDetail({ visit, onStartCase, canStart }) {
+function AdmissionDetail({ visit, onStartCase, canStart, cases = [], onResume }) {
   const { invoices, paid, billed, discount, outstanding } = admissionMoney(visit);
   const lines = invoices.flatMap((inv) => (inv.line_items || []).map((li) => ({ ...li, invoice_no: inv.invoice_no })));
   const sponsors = [...new Set(invoices.map((i) => i.sponsor).filter(Boolean))];
@@ -174,6 +174,13 @@ function AdmissionDetail({ visit, onStartCase, canStart }) {
             {sponsors.join(", ")}
           </span>
         )}
+        {cases.filter(isOpenCase).map((c) => (
+          <span className="pt-detail-action" key={c.cashless_case_id ?? c.claim_id}>
+            <Button variant="primary" size="small" onClick={() => onResume(c)}>
+              Resume {formatCaseRef(c.cashless_case_id)}
+            </Button>
+          </span>
+        ))}
         {canStart && (
           <span className="pt-detail-action">
             <Button variant="outline" size="small" icon={Plus} onClick={() => onStartCase(visit)}>
@@ -407,7 +414,7 @@ function PatientDetail({ patient }) {
       0,
     ) || null;
     navigate(`/case/${patient.child_id}/payer`, {
-      state: { admission_id: visit?.admission_no, newCase: true, estimatedBillAmount },
+      state: { admission_id: visit?.admission_id ?? visit?.admission_no, newCase: true, estimatedBillAmount },
     });
   };
 
@@ -494,15 +501,15 @@ function PatientDetail({ patient }) {
   };
 
   const latest = patient.latest_claim;
-  // A visit's claim row has no journey step, so the latest-case summary wins for that case's status.
-  const visitCases = visits.flatMap((v) =>
+  const casesOfVisit = (v) => (v.cases?.length ? v.cases : (v.claims || []).filter((c) => c.cashless_case_id).map((c) => ({ ...c, admission_no: v.admission_no })));
+  const legacyCases = visits.flatMap((v) =>
     (v.claims || []).map((c) => ({
       ...c,
       ...(latest && c.cashless_case_id === latest.cashless_case_id ? latest : {}),
       admission_no: v.admission_no,
     })),
   );
-  const cases = (visitCases.length ? visitCases : latest ? [latest] : []).sort((a, b) =>
+  const cases = [...(patient.cases?.length ? patient.cases : legacyCases.length ? legacyCases : latest ? [latest] : [])].sort((a, b) =>
     String(b.created_at || "").localeCompare(String(a.created_at || "")),
   );
   const caseCount = Math.max(patient.cashless_cases_count || 0, cases.length);
@@ -510,7 +517,11 @@ function PatientDetail({ patient }) {
   const sameCase = (t, c) => c.cashless_case_id != null && String(t.cashless_case_id) === String(c.cashless_case_id);
   const tasksFor = (c) => tasks.filter((t) => sameCase(t, c));
   const looseTasks = tasks.filter((t) => !cases.some((c) => sameCase(t, c)));
-  const casesForVisit = (v) => (v.claims || []).map((c) => c.cashless_case_id).filter(Boolean);
+  const casesForVisit = (v) => casesOfVisit(v).map((c) => c.cashless_case_id).filter(Boolean);
+  const visitKey = (v, i) => v.admission_id ?? `v${i}`;
+  const focus = visits.find((v, i) => visitKey(v, i) === openAdmission) || current;
+  const focusOpenCase = focus ? casesOfVisit(focus).find(isOpenCase) || null : null;
+  const caseLabel = (c) => `${formatCaseRef(c.cashless_case_id)}${c.admission_no ? ` · ${c.admission_no}` : ""}`;
   const unread = communications.filter((c) => !c.provider_read).length;
   const sortedComms = [...communications].sort((a, b) =>
     String(b.received_at || b.sent_at || "").localeCompare(String(a.received_at || a.sent_at || "")),
@@ -552,19 +563,21 @@ function PatientDetail({ patient }) {
             </div>
           </div>
           <div className="pt-head-actions">
-            {latestOpen ? (
+            {focusOpenCase ? (
+              <Button variant="primary" onClick={() => resumeCase(focusOpenCase)}>
+                Resume {caseLabel(focusOpenCase)} →
+              </Button>
+            ) : (
               <>
-                <Button variant="outline" icon={Plus} onClick={() => startWorkflow(current)}>
-                  New case
-                </Button>
-                <Button variant="primary" onClick={() => resumeCase(latest)}>
-                  Resume {formatCaseRef(latest.cashless_case_id)} →
+                {latestOpen && (
+                  <Button variant="outline" onClick={() => resumeCase(latest)}>
+                    Resume {caseLabel(latest)} →
+                  </Button>
+                )}
+                <Button variant="primary" icon={Plus} onClick={() => startWorkflow(focus)}>
+                  {focus ? `Start case for ${focus.admission_no || "this admission"}` : "Start cashless case"}
                 </Button>
               </>
-            ) : (
-              <Button variant="primary" icon={Plus} onClick={() => startWorkflow(current)}>
-                {current && !current.ended_at ? `Start case for ${current.admission_no || "this admission"}` : "Start cashless case"}
-              </Button>
             )}
           </div>
         </div>
@@ -637,7 +650,7 @@ function PatientDetail({ patient }) {
                 </thead>
                 <tbody>
                   {visits.map((v, vi) => {
-                    const key = v.admission_id ?? `v${vi}`;
+                    const key = visitKey(v, vi);
                     const m = admissionMoney(v);
                     const linked = casesForVisit(v);
                     const days = daysBetween(v.started_at, v.ended_at);
@@ -652,7 +665,9 @@ function PatientDetail({ patient }) {
                           <AdmissionDetail
                             visit={v}
                             onStartCase={startWorkflow}
-                            canStart={!(latestOpen && linked.includes(latest.cashless_case_id))}
+                            canStart={!casesOfVisit(v).some(isOpenCase)}
+                            cases={casesOfVisit(v)}
+                            onResume={resumeCase}
                           />
                         }
                       >

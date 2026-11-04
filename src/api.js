@@ -1398,6 +1398,33 @@ const mock = {
   // ─── Child / Patient Registry ───────────────────────────────────────────────
   searchChildren: async (params = {}) => {
     await delay(800);
+    const aishaCases = [
+      {
+        cashless_case_id: 5,
+        claim_id: null,
+        admission_id: 540,
+        admission_no: "ADM-540",
+        status: "complete",
+        current_step: "preauth_ready",
+        payer_id: "2044@hcx",
+        payer_name: "Star Health & Allied",
+        policy_number: "POL-ALT-2026",
+        preauth_status: "approved",
+        created_at: "2026-05-04T11:05:00+05:30",
+      },
+      {
+        cashless_case_id: 3,
+        claim_id: null,
+        admission_id: null,
+        status: "pending",
+        current_step: "insurance_and_eligibility",
+        payer_id: "2044@hcx",
+        payer_name: "Star Health & Allied",
+        policy_number: "POL-OLD-2025",
+        preauth_status: null,
+        created_at: "2026-05-03T09:00:00+05:30",
+      },
+    ];
     const all = [
         {
           child_id: 12,
@@ -1503,8 +1530,11 @@ const mock = {
             payer_id: "2044@hcx",
             policy_number: "POL-ALT-2026",
             preauth_status: "approved",
+            admission_id: 540,
+            admission_no: "ADM-540",
             created_at: "2026-05-04T11:05:00+05:30",
           },
+          cases: aishaCases,
           visits: [
             {
               visit_type: "ipd",
@@ -1521,6 +1551,7 @@ const mock = {
               payments: [],
               advance_payments: [],
               claims: [],
+              cases: [aishaCases[0]],
             },
           ],
         },
