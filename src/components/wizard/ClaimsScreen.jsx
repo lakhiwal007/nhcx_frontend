@@ -687,6 +687,22 @@ export default function ClaimsScreen({ ctx }) {
   };
   const dischargeRejected = dischargeStatus?.decision === "REJECTED";
   const dischargeFailed = dischargeStatus?.status === "failed";
+  const dischargeSentence = dischargeRejected
+    ? "rejected by the payer"
+    : dischargeFailed
+      ? "not delivered"
+      : dischargeStatus?.status === "not_found"
+        ? "no answer on record"
+        : dischargeStatus?.decision
+          ? String(dischargeStatus.decision).replace(/_/g, " ").toLowerCase()
+          : dischargeCorrelationId
+            ? "sent"
+            : "not sent";
+  const dischargeWord = dischargeSentence.charAt(0).toUpperCase() + dischargeSentence.slice(1);
+  const dischargeIssues = [
+    ...(dischargeStatus?.errors || []).map((e) => (typeof e === "string" ? e : e?.message || e?.code)),
+    ...(dischargeStatus?.process_notes || []).map((n) => (typeof n === "string" ? n : n?.text)),
+  ].filter(Boolean);
   const finalFailed = claimStatus?.status === "failed";
   // A final claim that never reached the payer has not been sent.
   const finalSent = !!finalCorrelationId && !finalFailed;
@@ -738,6 +754,8 @@ export default function ClaimsScreen({ ctx }) {
     dischargeFailed,
     dischargePolling,
     dischargeSent: !!dischargeCorrelationId,
+    dischargeDecision: dischargeStatus?.decision,
+    dischargeNoAnswer: dischargeStatus?.status === "not_found",
     finalFailed,
     finalSent,
     decision: claimStatus?.status === "complete" ? claimDecision || "UNKNOWN" : null,
@@ -790,6 +808,10 @@ export default function ClaimsScreen({ ctx }) {
     hisBlockers.length > 0 && { tone: "bad", text: `The clinical or billing records are incomplete (${hisBlockers.join(", ")}). Complete them in the hospital system, then reload.` },
     dischargeRejected && { tone: "bad", text: "The payer rejected the discharge claim. No final claim exists yet, so there is nothing to appeal; correct and resend it." },
     dischargeFailed && { tone: "bad", text: `The discharge claim did not reach the payer. ${dischargeStatus?.error_message || ""} Check the documents and submit it again.` },
+    dischargeIntimation && dischargeCorrelationId && !finalCorrelationId && !dischargeRejected && !dischargeFailed && {
+      tone: "info",
+      text: `Discharge claim: ${dischargeSentence}${dischargeStatus?.submitted_at ? `, sent ${formatDateTime(dischargeStatus.submitted_at)}` : ""}.`,
+    },
     finalFailed && { tone: "bad", text: `The final claim did not reach the payer. ${claimStatus?.error_message || ""} Submit it again.` },
     claimStatus?.status === "not_found" && { tone: "warn", text: "The payer's system has no record of this claim yet. Refresh in a while, and call its helpdesk if it stays like this." },
     claimStatus?.status === "complete" && !claimDecided && { tone: "warn", text: "The payer answered without a clear decision. Read its response under Decision, and call its helpdesk if it is not clear." },
@@ -1067,21 +1089,24 @@ export default function ClaimsScreen({ ctx }) {
                 card(
                   "Discharge claim",
                   <div className="cv-card-body">
-                    <div className="cv-kv">
-                      <span>Status</span>
-                      <span>
-                        {dischargeRejected
-                          ? "Rejected by the payer"
-                          : dischargeFailed
-                            ? "Not delivered"
-                            : dischargeStatus?.decision
-                              ? String(dischargeStatus.decision).replace(/_/g, " ").toLowerCase()
-                              : dischargeCorrelationId
-                                ? "Sent"
-                                : "Not sent"}
-                      </span>
-                    </div>
+                    <div className="cv-kv"><span>Status</span><span>{dischargeWord}</span></div>
                     <div className="cv-kv"><span>Request</span><span className="cv-mono">{dischargeCorrelationId || "—"}</span></div>
+                    {dischargeStatus?.submitted_at && <div className="cv-kv"><span>Sent</span><span>{formatDateTime(dischargeStatus.submitted_at)}</span></div>}
+                    {dischargeStatus?.outcome && <div className="cv-kv"><span>Raw outcome</span><span className="cv-mono">{dischargeStatus.outcome}</span></div>}
+                    {dischargeStatus?.claim_response_ref && <div className="cv-kv"><span>Payer reference</span><span className="cv-mono">{dischargeStatus.claim_response_ref}</span></div>}
+                    {dischargeStatus?.error_code && <div className="cv-kv"><span>Error code</span><span className="cv-mono">{dischargeStatus.error_code}</span></div>}
+                    {dischargeStatus?.error_message && <div className="cv-kv"><span>Reason</span><span style={{ fontWeight: 400 }}>{dischargeStatus.error_message}</span></div>}
+                    {dischargeIssues.map((text, i) => (
+                      <div key={i} className="cv-kv"><span className="cv-mono">{i + 1}</span><span style={{ fontWeight: 400 }}>{text}</span></div>
+                    ))}
+                    {dischargeCorrelationId && (
+                      <div className="cv-notice-actions">
+                        <button type="button" className="cv-btn" onClick={() => setDischargePolling(true)}>Refresh</button>
+                        {dischargeRejected && !caseClosed && !readOnly && (
+                          <button type="button" className="cv-btn is-primary" onClick={() => setShowDischargeResubmitDrawer(true)}>Resubmit discharge claim</button>
+                        )}
+                      </div>
+                    )}
                   </div>,
                   { meta: "Most payers need this, with the discharge papers, before the final claim." },
                 )

@@ -66,6 +66,11 @@ function dischargeRow(f) {
   if (f.dischargeRejected) return { ...row, tone: "bad", fact: "Rejected" };
   if (f.dischargeFailed) return { ...row, tone: "bad", fact: "Not delivered" };
   if (f.dischargePolling) return { ...row, tone: "wait", fact: "Waiting" };
+  if (f.dischargeNoAnswer) return { ...row, tone: "warn", fact: "No answer yet" };
+  if (f.dischargeDecision) {
+    const word = String(f.dischargeDecision).replace(/_/g, " ").toLowerCase();
+    return { ...row, tone: f.dischargeDecision === "APPROVED" ? "ok" : "warn", fact: word.charAt(0).toUpperCase() + word.slice(1) };
+  }
   return f.dischargeSent ? { ...row, tone: "ok", fact: "Sent" } : { ...row, tone: "idle", fact: "Not sent" };
 }
 
