@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Paperclip, AlertCircle, Send } from "lucide-react";
+import { Paperclip, AlertCircle, Send, RefreshCw } from "lucide-react";
 import { api } from "../api";
 import { Button, SkeletonTable, TablePagination, Tip } from "./Common";
 import PageActions from "./PageActions";
@@ -99,13 +99,16 @@ export default function Communications({ allFacilitiesMode = false }) {
 
   return (
     <div className="cc-screen communications-screen">
-      {OUTBOUND_COMMUNICATIONS_ENABLED && (
-        <PageActions>
+      <PageActions>
+        <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={() => fetchComms({ limit: 200 })} title="Reload the messages">
+          {loading ? "Refreshing…" : "Refresh"}
+        </Button>
+        {OUTBOUND_COMMUNICATIONS_ENABLED && (
           <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)} title="Message payer">
             Message payer
           </Button>
-        </PageActions>
-      )}
+        )}
+      </PageActions>
 
       {loadError && (
         <div className="inline-error-banner" style={{ margin: 0 }}>

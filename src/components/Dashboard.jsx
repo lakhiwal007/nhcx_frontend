@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Inbox, AlertCircle, LayoutGrid, List, MoreVertical, Plus,
+  Inbox, AlertCircle, LayoutGrid, List, MoreVertical, Plus, RefreshCw,
 } from "lucide-react";
 import { api } from "../api";
 import { Button, EmptyState, SkeletonTable, TablePagination, Tip } from "./Common";
@@ -404,6 +404,9 @@ export default function Dashboard({ allFacilitiesMode = false }) {
   return (
     <div className="dashboard-screen cc-screen">
       <PageActions>
+        <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={() => setReloadKey((k) => k + 1)} title="Reload the cases">
+          {loading ? "Refreshing…" : "Refresh"}
+        </Button>
         <Button
           variant="primary"
           size="small"
@@ -495,7 +498,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       )}
 
       <Tip className="wq-page-tip">
-        Every insurance case and where it stands. Click a row to open the case; the left rail there says what to do next.
+        Every insurance case and where it stands. Click a row to open the case; the case page shows what to do next.
       </Tip>
 
       <div className="wq-panel">

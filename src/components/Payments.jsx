@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { SkeletonTable, Button, TablePagination, Tip } from "./Common";
+import PageActions from "./PageActions";
 import { formatMoney, formatDate, formatDateTime } from "../format.js";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
@@ -56,6 +57,7 @@ export default function Payments() {
   const [sortBy, setSortBy] = useState("newest");
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [paymentsPage, setPaymentsPage] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const fetchPayments = async () => {
@@ -78,7 +80,7 @@ export default function Payments() {
       }
     };
     fetchPayments();
-  }, []);
+  }, [reloadKey]);
 
   const patientFor = (pay) => {
     const joined = claimsById[pay.claim_id];
@@ -128,6 +130,11 @@ export default function Payments() {
 
   return (
     <div className="cc-screen payments-screen">
+      <PageActions>
+        <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={() => setReloadKey((k) => k + 1)} title="Reload the payments">
+          {loading ? "Refreshing…" : "Refresh"}
+        </Button>
+      </PageActions>
 
       {loadError && (
         <div className="inline-error-banner" style={{ margin: 0 }}>

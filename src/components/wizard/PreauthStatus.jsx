@@ -154,24 +154,34 @@ export default function PreauthStatus({ ctx }) {
     intervalMs: POLL_INTERVAL_MS,
   });
 
+  const [recovering, setRecovering] = useState(false);
+  const [recoverError, setRecoverError] = useState(null);
+
+  // Recover the correlation id from the live case so a page refresh doesn't
+  // leave users stranded on the "no submission found" dead-end screen.
+  const recoverPreauth = async () => {
+    if (!cashless_case_id) return;
+    setRecovering(true);
+    setRecoverError(null);
+    try {
+      const res = await api.getCashlessStatus(cashless_case_id);
+      if (res.preauth?.correlation_id) {
+        updateCaseState({ preauthCorrelationId: res.preauth.correlation_id });
+      } else {
+        setPolling(false);
+      }
+    } catch (err) {
+      setPolling(false);
+      setRecoverError(err.message || "The case could not be read.");
+    } finally {
+      setRecovering(false);
+    }
+  };
+
   useEffect(() => {
     if (correlationId) return;
     if (!cashless_case_id) { setPolling(false); return; }
-    // Recover the correlation id from the live case so a page refresh doesn't
-    // leave users stranded on the "no submission found" dead-end screen.
-    const recover = async () => {
-      try {
-        const res = await api.getCashlessStatus(cashless_case_id);
-        if (res.preauth?.correlation_id) {
-          updateCaseState({ preauthCorrelationId: res.preauth.correlation_id });
-        } else {
-          setPolling(false);
-        }
-      } catch (_) {
-        setPolling(false);
-      }
-    };
-    recover();
+    recoverPreauth();
   }, [correlationId]);
 
   useEffect(() => {
@@ -421,10 +431,16 @@ export default function PreauthStatus({ ctx }) {
             If a preauth was submitted earlier, its result will appear in the Work Queue when the payer responds.
             You can also submit one from the preauth draft.
           </p>
+          {recoverError && <p className="ds-empty">The case could not be read just now: {recoverError}</p>}
           <div className="ds-empty-actions">
             <Button variant="primary" size="small" onClick={() => navigate("../review")}>
               Open preauth draft
             </Button>
+            {cashless_case_id && (
+              <Button variant="outline" size="small" icon={RefreshCw} disabled={recovering} onClick={recoverPreauth}>
+                {recovering ? "Refreshing…" : "Refresh"}
+              </Button>
+            )}
             <Button variant="outline" size="small" onClick={() => navigate("/work-queue")}>
               Go to Work Queue
             </Button>

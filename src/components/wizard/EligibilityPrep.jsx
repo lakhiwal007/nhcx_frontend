@@ -120,6 +120,7 @@ export default function EligibilityPrep({ ctx }) {
   const [caseData, setCaseData] = useState(null);
   const [polling, setPolling] = useState(false);
   const [forceRefreshing, setForceRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [rerunError, setRerunError] = useState(null);
   const [error, setError] = useState(null);
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
@@ -205,6 +206,21 @@ export default function EligibilityPrep({ ctx }) {
     };
     init();
   }, []);
+
+  const applyStatus = (res) => {
+    const ahead = STEP_FORWARD_ROUTE[res.current_step] || null;
+    if (ahead) {
+      setPolling(false);
+      setMovedOn(ahead);
+    }
+    setCaseData(res);
+    updateCaseState({
+      eligibility_correlation_id:
+        res.coverage_eligibility?.validation?.correlation_id ??
+        res.coverage_eligibility?.correlation_id,
+    });
+    if (shouldStopPolling(res)) setPolling(false);
+  };
 
   const pollStatus = async (signal) => {
     try {
@@ -302,10 +318,19 @@ export default function EligibilityPrep({ ctx }) {
     }
   };
 
-  const manualRefresh = () => {
-    if (polling || !caseData?.cashless_case_id) return;
-    pollStatus();
-    setPolling(true);
+  const manualRefresh = async () => {
+    if (polling || refreshing || !caseData?.cashless_case_id) return;
+    setRefreshing(true);
+    setRerunError(null);
+    try {
+      const res = await api.getCashlessStatus(caseData.cashless_case_id);
+      applyStatus(res);
+      if (!shouldStopPolling(res) && !STEP_FORWARD_ROUTE[res.current_step]) setPolling(true);
+    } catch (err) {
+      setRerunError(err.message || "The latest answer could not be fetched.");
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Preferred path: GET /cashless/{id}?force_refresh=true - the backend reads
@@ -464,11 +489,25 @@ export default function EligibilityPrep({ ctx }) {
           <span className={`cv-chip is-${verdict.tone}`}>{verdict.label}</span>
           <span className="cv-notice-body">{verdict.tone === "ok" && facts.length ? facts.join(" · ") : verdict.text}</span>
           <span className="cv-verdict-actions">
-            {!polling && !isComplete && !isFailed && !needsResubmit && (
-              <button type="button" className="cv-btn" onClick={manualRefresh}>Refresh</button>
+            {caseData?.cashless_case_id && (
+              <button
+                type="button"
+                className="cv-btn"
+                disabled={polling || refreshing}
+                title="Reads the latest answers already received. Nothing is sent to the payer."
+                onClick={manualRefresh}
+              >
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </button>
             )}
             {canRerunNow && (
-              <button type="button" className="cv-btn" disabled={!canRerun} onClick={handleForceRefresh}>
+              <button
+                type="button"
+                className="cv-btn"
+                disabled={!canRerun}
+                title="Sends the plan and eligibility requests to the payer again."
+                onClick={handleForceRefresh}
+              >
                 {rerunLabel}
               </button>
             )}
