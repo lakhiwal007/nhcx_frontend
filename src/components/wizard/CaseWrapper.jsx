@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { History, StickyNote } from "lucide-react";
@@ -31,18 +31,38 @@ import ErrorBoundary from "../ErrorBoundary";
 const COMMS_POLL_MS = 60_000;
 
 export default function CaseWrapper() {
+  const { id } = useParams();
+  const location = useLocation();
+  const caseParam = new URLSearchParams(location.search).get("case");
+  const knownCase = useRef(null);
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    if (caseParam && knownCase.current && String(caseParam) !== String(knownCase.current)) {
+      knownCase.current = null;
+      setNonce((n) => n + 1);
+    }
+  }, [caseParam]);
+
+  const reportCase = useCallback((cid) => { knownCase.current = cid; }, []);
+
+  return <CaseWorkspace key={`${id}:${nonce}`} reportCase={reportCase} />;
+}
+
+function CaseWorkspace({ reportCase }) {
   const readOnly = useReadOnly();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const currentStepPath = location.pathname.split("/").pop();
+  const caseParam = new URLSearchParams(location.search).get("case");
 
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Resume: load by cashless_case_id passed in nav state; new case: skip stale child_id save
   const childSaved = loadWorkflow(id);
-  const resumeCaseId = location.state?.cashless_case_id ?? (location.state?.newCase ? null : childSaved?.cashless_case_id) ?? null;
+  const resumeCaseId = location.state?.cashless_case_id ?? caseParam ?? (location.state?.newCase ? null : childSaved?.cashless_case_id) ?? null;
   // The patient-level save points at whichever case was opened last; only
   // reuse it for the case being opened, or another case's decision and
   // payment leak into this one.
@@ -244,6 +264,17 @@ export default function CaseWrapper() {
   useEffect(() => {
     loadPatient();
   }, [id]);
+
+  useEffect(() => {
+    const cid = caseState.cashless_case_id;
+    if (!cid || loading) return;
+    reportCase(cid);
+    const params = new URLSearchParams(location.search);
+    if (params.get("case") !== String(cid)) {
+      params.set("case", String(cid));
+      navigate({ pathname: location.pathname, search: `?${params.toString()}` }, { replace: true, state: location.state });
+    }
+  }, [caseState.cashless_case_id, loading, location.pathname, location.search, location.state, navigate, reportCase]);
 
   if (loading) {
     return <LoadingBlock text="Loading Case…" />;
