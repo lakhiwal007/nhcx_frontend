@@ -372,6 +372,7 @@ function PatientDetail({ patient }) {
   const [tasks, setTasks] = useState([]);
   const [communications, setCommunications] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(false);
+  const [extraError, setExtraError] = useState(null);
   const [drawerComm, setDrawerComm] = useState(null);
   const [tab, setTab] = useState("admissions");
   const [openAdmission, setOpenAdmission] = useState(null);
@@ -384,6 +385,7 @@ function PatientDetail({ patient }) {
 
   useEffect(() => {
     setLoadingExtra(true);
+    setExtraError(null);
     Promise.all([
       api.listTasks({ child_id: patient.child_id, status: "pending" }),
       api.listCommunications({ child_id: patient.child_id }),
@@ -392,7 +394,7 @@ function PatientDetail({ patient }) {
         setTasks(tasksRes?.tasks || []);
         setCommunications(commsRes?.communications || []);
       })
-      .catch(() => {})
+      .catch((err) => setExtraError(err.message || "The tasks and messages could not be read."))
       .finally(() => setLoadingExtra(false));
   }, [patient.child_id]);
 
@@ -614,6 +616,8 @@ function PatientDetail({ patient }) {
         </nav>
 
         <div className="pt-tab-body" role="tabpanel">
+          {extraError && <p className="pt-empty">Pending tasks and payer messages could not be read, so the counts may be wrong: {extraError}</p>}
+
           {tab === "admissions" &&
             (visits.length === 0 ? (
               <p className="pt-empty">No admissions on record. Admissions are created in the hospital system and appear here.</p>
@@ -905,7 +909,7 @@ export default function PatientProfile() {
         const full = res?.children?.find((c) => String(c.child_id) === deepLinkChildId);
         if (!cancelled && full) setSelectedPatient(full);
       })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setLoadError(true); })
       .finally(() => { if (!cancelled) setLoadingDetail(false); });
     return () => { cancelled = true; };
   }, [deepLinkChildId]);

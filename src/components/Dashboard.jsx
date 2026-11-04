@@ -324,6 +324,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
 
   // Bumped by the error banner's Retry to re-run the load below.
   const [reloadKey, setReloadKey] = useState(0);
+  const [navError, setNavError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -348,15 +349,21 @@ export default function Dashboard({ allFacilitiesMode = false }) {
 
   const navigateToClaim = async (claim, route) => {
     let cid = claim.child_id;
+    setNavError(null);
     if (!cid && claim.id) {
       setNavigating((p) => ({ ...p, [claim.id]: true }));
       try {
         const cs = await api.getCashlessStatus(claim.id);
         cid = cs.child_id;
-      } catch (_) {}
+      } catch (err) {
+        setNavError(err.message || "The case could not be opened.");
+      }
       setNavigating((p) => ({ ...p, [claim.id]: false }));
     }
-    if (!cid) return;
+    if (!cid) {
+      setNavError((prev) => prev || "This case has no patient on record, so it cannot be opened.");
+      return;
+    }
     const state = {
       claim_id: claim.claim_id ?? null,
       cashless_case_id: claim.cashless_case_id ?? claim.id ?? null,
@@ -431,6 +438,13 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           <AlertCircle size={16} />
           Could not load the latest case data. Showing the last known results, if any.
           <button type="button" className="cc-retry" onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
+        </div>
+      )}
+
+      {navError && (
+        <div className="inline-error-banner" style={{ margin: 0 }}>
+          <AlertCircle size={16} />
+          {navError}
         </div>
       )}
 

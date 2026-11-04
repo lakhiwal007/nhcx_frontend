@@ -87,6 +87,18 @@ export default function CaseWrapper() {
   // signal / classified_by), so each screen doesn't hit /timeline on its own.
   const [timeline, setTimeline] = useState(null);
 
+  const [loadIssues, setLoadIssues] = useState({});
+  const [patientError, setPatientError] = useState(null);
+  const flagIssue = useCallback((key, message) => {
+    setLoadIssues((prev) => {
+      if (message ? prev[key] === message : !(key in prev)) return prev;
+      const next = { ...prev };
+      if (message) next[key] = message;
+      else delete next[key];
+      return next;
+    });
+  }, []);
+
   // Files attached on a draft, by case. Too large for localStorage, so they last
   // only while the case is open.
   const [draftFiles, setDraftFilesState] = useState({});
@@ -117,8 +129,11 @@ export default function CaseWrapper() {
     try {
       const res = await api.getCaseTimeline(ledgerCaseId, {});
       setTimeline(res || null);
-    } catch (_) {}
-  }, [ledgerCaseId]);
+      flagIssue("timeline", null);
+    } catch (err) {
+      flagIssue("timeline", err?.message || "The audit trail could not be read.");
+    }
+  }, [ledgerCaseId, flagIssue]);
   useEffect(() => {
     refreshTimeline();
   }, [refreshTimeline, caseState.preauthDecision, caseState.approvedAmount, caseState.claimCorrelationId, caseState.dischargeCorrelationId]);
@@ -134,8 +149,22 @@ export default function CaseWrapper() {
     try {
       const res = await api.listCommunications({ cashless_case_id: ledgerCaseId, limit: 50 });
       setCommunications(res?.communications || []);
-    } catch (_) {}
-  }, [ledgerCaseId]);
+      flagIssue("comms", null);
+    } catch (err) {
+      flagIssue("comms", err?.message || "The payer messages could not be read.");
+    }
+  }, [ledgerCaseId, flagIssue]);
+
+  const reloadCase = useCallback(async () => {
+    if (!ledgerCaseId) return;
+    try {
+      const full = await api.getCashlessStatus(ledgerCaseId);
+      if (full) setCashlessCase((prev) => ({ ...prev, ...caseRules(full) }));
+      flagIssue("case", null);
+    } catch (err) {
+      flagIssue("case", err?.message || "The case status could not be read.");
+    }
+  }, [ledgerCaseId, flagIssue]);
 
   useEffect(() => {
     refreshComms();
@@ -159,14 +188,17 @@ export default function CaseWrapper() {
     else window.scrollTo({ top: 0 });
   }, [currentStepPath]);
 
-  useEffect(() => {
-    const fetchPatient = async () => {
+  const loadPatient = async () => {
       setLoading(true);
+      setPatientError(null);
+      flagIssue("case", null);
+      let found = false;
       try {
         const response = await api.searchChildren({ child_id: id });
         const children = response?.children || [];
         const child = children.find((c) => c.child_id.toString() === id) || children[0];
         if (child) {
+          found = true;
           setPatient(child);
           const prior = child.latest_claim;
           const priorMatchesTarget =
@@ -187,7 +219,7 @@ export default function CaseWrapper() {
               api
                 .getCashlessStatus(priorCaseId)
                 .then((full) => full && setCashlessCase((prev) => ({ ...prev, ...caseRules(full) })))
-                .catch(() => {});
+                .catch((err) => flagIssue("case", err?.message || "The case status could not be read."));
             }
           } else if (resumeCaseId) {
             const full = await api.getCashlessStatus(resumeCaseId);
@@ -200,16 +232,30 @@ export default function CaseWrapper() {
             }
           }
         }
-      } catch (_) {
+      } catch (err) {
+        const message = err?.message || "The case could not be loaded.";
+        if (found) flagIssue("case", message);
+        else setPatientError(message);
       } finally {
         setLoading(false);
       }
     };
-    fetchPatient();
+
+  useEffect(() => {
+    loadPatient();
   }, [id]);
 
   if (loading) {
     return <LoadingBlock text="Loading Case…" />;
+  }
+
+  if (!patient && patientError) {
+    return (
+      <EmptyState title="The case could not be loaded" description={patientError}>
+        <Button onClick={loadPatient} className="mt-4">Retry</Button>
+        <Button variant="outline" onClick={() => navigate("/registry")} className="mt-4">Back to Patient Registry</Button>
+      </EmptyState>
+    );
   }
 
   if (!patient) {
@@ -219,6 +265,14 @@ export default function CaseWrapper() {
       </EmptyState>
     );
   }
+
+  const issueLabels = { timeline: "the money summary", comms: "payer messages", case: "the case status" };
+  const issueKeys = Object.keys(loadIssues);
+  const retryIssues = () => {
+    refreshTimeline();
+    refreshComms();
+    reloadCase();
+  };
 
   const effectiveCase = cashlessCase || {};
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
@@ -269,6 +323,16 @@ export default function CaseWrapper() {
       </div>
 
       <div className="cv-page">
+          {issueKeys.length > 0 && (
+            <div className="cv-notice is-warn">
+              <div className="cv-notice-body">
+                Could not refresh {issueKeys.map((k) => issueLabels[k] || k).join(", ")}. What is shown may be out of date: {loadIssues[issueKeys[0]]}
+              </div>
+              <div className="cv-notice-actions">
+                <button type="button" className="cv-btn" onClick={retryIssues}>Retry</button>
+              </div>
+            </div>
+          )}
           <AttentionTray
             communications={communications}
             notes={notes}

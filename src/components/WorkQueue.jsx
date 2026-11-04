@@ -260,13 +260,15 @@ function TaskDrawer({ task, open, onClose, onActionComplete, allFacilitiesMode, 
 
   const handleComplete = async () => {
     setCompleting(true);
+    setActionError(null);
     try {
       await api.completeTask(taskId, {
         note: "Actioned from Work Queue",
       });
       onActionComplete();
       onClose();
-    } catch (_) {
+    } catch (e) {
+      setActionError(e?.message || "The task could not be marked done.");
     } finally {
       setCompleting(false);
     }
@@ -556,6 +558,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [retrying, setRetrying] = useState({});
+  const [pageError, setPageError] = useState(null);
 
   const pollRef = useRef(null);
 
@@ -594,10 +597,12 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     const payRef = task.action?.payload_hint?.payment_reference;
     if (!payRef) return;
     setRetrying((p) => ({ ...p, [taskKey(task)]: true }));
+    setPageError(null);
     try {
       await api.acknowledgePayment({ payment_reference: payRef });
       await fetchTasks();
-    } catch (_) {
+    } catch (e) {
+      setPageError(e?.message || "The acknowledgement could not be sent again.");
     } finally {
       setRetrying((p) => ({ ...p, [taskKey(task)]: false }));
     }
@@ -605,13 +610,19 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
   const navigateToCase = async (task) => {
     let cid = task.child_id;
+    setPageError(null);
     if (!cid && task.cashless_case_id) {
       try {
         const cs = await api.getCashlessStatus(task.cashless_case_id);
         cid = cs.child_id;
-      } catch (_) {}
+      } catch (e) {
+        setPageError(e?.message || "The case could not be opened.");
+      }
     }
-    if (!cid) return;
+    if (!cid) {
+      setPageError((prev) => prev || "This task has no patient on record, so its case cannot be opened.");
+      return;
+    }
     const path = taskScreen(task.task_type, cid) || `/case/${cid}/`;
     navigate(path, { state: taskNavState(task) });
   };
@@ -619,10 +630,16 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const handleMarkDone = async () => {
     const ids = tasks.filter((t) => selected[taskKey(t)] && !needsOwnAction(t)).map(taskKey);
     setBulkBusy(true);
+    setPageError(null);
     try {
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         ids.map((id) => api.completeTask(id, { note: "Marked done from Work Queue" })),
       );
+      const failed = results.filter((r) => r.status === "rejected");
+      if (failed.length) {
+        const reason = failed[0].reason?.message;
+        setPageError(`${failed.length} of ${ids.length} tasks could not be marked done${reason ? `: ${reason}` : "."}`);
+      }
       setSelected({});
       await fetchTasks();
     } finally {
@@ -688,6 +705,13 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         <div className="inline-error-banner" style={{ margin: 0 }}>
           <AlertCircle size={16} />
           Could not refresh the task list. Showing the last known results, if any.
+        </div>
+      )}
+
+      {pageError && (
+        <div className="inline-error-banner" style={{ margin: 0 }}>
+          <AlertCircle size={16} />
+          {pageError}
         </div>
       )}
 

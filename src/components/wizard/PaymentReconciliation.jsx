@@ -39,6 +39,7 @@ export default function PaymentReconciliation({ ctx }) {
   const [loadError, setLoadError] = useState(null);
   const [paymentData, setPaymentData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncError, setSyncError] = useState(null);
   const [acknowledging, setAcknowledging] = useState({});
   const [ackResults, setAckResults] = useState({});
   // Advanced ack override state keyed by payment group
@@ -82,9 +83,10 @@ export default function PaymentReconciliation({ ctx }) {
     if (!seen || seen === noticeKey) return;
     refreshTimeline?.();
     if (caseId) {
+      setSyncError(null);
       api.getCashlessStatus(caseId)
         .then((res) => setCashlessCase((prev) => (prev ? { ...prev, ...projectCaseStatus(res) } : prev)))
-        .catch(() => {});
+        .catch((err) => setSyncError(err.message || "The case status could not be read."));
     }
   }, [noticeKey, caseId, refreshTimeline, setCashlessCase]);
 
@@ -191,7 +193,12 @@ export default function PaymentReconciliation({ ctx }) {
       <RefreshCw size={14} /> {refreshing ? "Checking…" : "Check again"}
     </button>
   );
-  const updateNote = loadError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not updated:</strong> {loadError} Still trying.</div>;
+  const updateNote = (
+    <>
+      {loadError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not updated:</strong> {loadError} Still trying.</div>}
+      {syncError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Case summary not updated:</strong> {syncError} The steps above may be out of date; press Check again.</div>}
+    </>
+  );
 
   if (isNotFound) {
     return (

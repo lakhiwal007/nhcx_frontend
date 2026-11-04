@@ -346,7 +346,10 @@ export default function PreauthStatus({ ctx }) {
     async (signal) => {
       try {
         setEnquiry(await api.getReprocessStatus(enquiryId, signal));
-      } catch (_) {}
+        setEnquiryError(null);
+      } catch (err) {
+        if (!signal?.aborted) setEnquiryError(`The payer's answer to the enquiry could not be checked, and this page keeps trying: ${err.message || "no reason given"}`);
+      }
     },
     { active: enquiryId && !enquirySettled ? enquiryId : null, intervalMs: POLL_INTERVAL_MS },
   );
@@ -363,8 +366,8 @@ export default function PreauthStatus({ ctx }) {
       const res = await api.getCashlessStatus(resolvedCashlessCaseId, undefined, true);
       setCashlessCase?.((prev) => (prev ? { ...prev, insurance_plan: res.insurance_plan, coverage_eligibility: res.coverage_eligibility } : prev));
       setRecheckMessage("Eligibility data refreshed.");
-    } catch (_) {
-      setRecheckMessage("Could not refresh eligibility data.");
+    } catch (err) {
+      setRecheckMessage(`Could not refresh eligibility data${err?.message ? `: ${err.message}` : "."}`);
     } finally {
       setRecheckingEligibility(false);
     }

@@ -98,11 +98,16 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const [responding, setResponding] = useState(false);
   const [respondResult, setRespondResult] = useState(null);
   const [acking, setAcking] = useState(false);
+  const [detailError, setDetailError] = useState(null);
+  const [completeError, setCompleteError] = useState(null);
+  const [loadKey, setLoadKey] = useState(0);
 
   useEffect(() => {
     if (!open || !correlationId) return;
     setLoading(true);
     setDetail(null);
+    setDetailError(null);
+    setCompleteError(null);
     setExecuteResult(null);
     setResponseAnswer("");
     setResponseDoc([]);
@@ -118,9 +123,9 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
             .catch(() => {});
         }
       })
-      .catch(() => {})
+      .catch((err) => setDetailError(err.message || "The message could not be read."))
       .finally(() => setLoading(false));
-  }, [open, correlationId]);
+  }, [open, correlationId, loadKey]);
 
   const reviewTask = detail?.pending_tasks?.find((t) => t.task_type === "review_communication");
   const taskId = reviewTask?.id ?? reviewTask?.task_id;
@@ -216,13 +221,15 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const handleMarkReviewed = async () => {
     if (!taskId) return;
     setCompleting(true);
+    setCompleteError(null);
     try {
       await api.completeTask(taskId, {
         note: "Reviewed from Communications screen",
         metadata: executeResult?.correlation_id ? { submitted_correlation_id: executeResult.correlation_id } : {},
       });
       onClose();
-    } catch (_) {
+    } catch (err) {
+      setCompleteError(err.message || "The task could not be marked reviewed.");
     } finally {
       setCompleting(false);
     }
@@ -275,6 +282,18 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       }
     >
               {loading && <div className="flex-center py-10"><div className="spinner" /></div>}
+
+              {detailError && !loading && (
+                <NextStep
+                  tone="bad"
+                  title="The message could not be opened"
+                  actions={<Button variant="outline" onClick={() => setLoadKey((k) => k + 1)}>Retry</Button>}
+                >
+                  {detailError}
+                </NextStep>
+              )}
+
+              {completeError && <div className="cv-notice is-bad"><div className="cv-notice-body">{completeError}</div></div>}
 
               {detail && (
                 <>

@@ -210,6 +210,8 @@ export default function ClaimsScreen({ ctx }) {
   const [polling, setPolling] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [pollError, setPollError] = useState(null);
+  const [recoverError, setRecoverError] = useState(null);
+  const [asksError, setAsksError] = useState(null);
 
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showReleaseDrawer, setShowReleaseDrawer] = useState(false);
@@ -259,9 +261,10 @@ export default function ClaimsScreen({ ctx }) {
 
   const refreshAsks = () => {
     setAsksReload((n) => n + 1);
+    setAsksError(null);
     api.prepareClaimDraft(draftParams())
       .then((res) => setClaimDraft((prev) => (prev ? { ...prev, payer_asks: res.payer_asks } : prev)))
-      .catch(() => null);
+      .catch((err) => setAsksError(err.message || "The payer's asks could not be reloaded."));
   };
 
   const loadDraft = async (id, params) => {
@@ -301,30 +304,34 @@ export default function ClaimsScreen({ ctx }) {
     loadDraft(null, draftParams(null));
   }, []);
 
-  useEffect(() => {
+  const recoverCase = async () => {
     if (finalCorrelationId) return;
     if (!resolvedCashlessCaseId) return;
-    const recover = async () => {
-      try {
-        const res = await api.getCashlessStatus(resolvedCashlessCaseId);
-        const correlationId = res.claim?.correlation_id;
-        if (!correlationId) return;
-        // `claim` is the latest claim transaction, which may be a discharge
-        // claim. The claim leg stays "draft" until a final claim has gone out.
-        if ((res.legs?.claim ?? "sent") === "draft") {
-          if (!dischargeCorrelationId) {
-            setDischargeCorrelationId(correlationId);
-            updateCaseState({ dischargeCorrelationId: correlationId });
-            setDischargePolling(true);
-          }
-          return;
+    setRecoverError(null);
+    try {
+      const res = await api.getCashlessStatus(resolvedCashlessCaseId);
+      const correlationId = res.claim?.correlation_id;
+      if (!correlationId) return;
+      // `claim` is the latest claim transaction, which may be a discharge
+      // claim. The claim leg stays "draft" until a final claim has gone out.
+      if ((res.legs?.claim ?? "sent") === "draft") {
+        if (!dischargeCorrelationId) {
+          setDischargeCorrelationId(correlationId);
+          updateCaseState({ dischargeCorrelationId: correlationId });
+          setDischargePolling(true);
         }
-        setFinalCorrelationId(correlationId);
-        updateCaseState({ claimCorrelationId: correlationId });
-        setPolling(true);
-      } catch (_) {}
-    };
-    recover();
+        return;
+      }
+      setFinalCorrelationId(correlationId);
+      updateCaseState({ claimCorrelationId: correlationId });
+      setPolling(true);
+    } catch (err) {
+      setRecoverError(err.message || "The case could not be read.");
+    }
+  };
+
+  useEffect(() => {
+    recoverCase();
   }, []);
 
   // Keep what staff attached when they leave for another step of the case.
@@ -783,6 +790,7 @@ export default function ClaimsScreen({ ctx }) {
   if (primary?.write && caseClosed) primary = null;
 
   const secondary = [];
+  if (recoverError) secondary.push({ label: "Check again", onClick: recoverCase });
   if (claimDecided && (isClaimApproved || isPartialApproval) && releaseOwed > 0) secondary.push({ label: "Ask for the balance", onClick: openReleaseDrawer });
   if (claimDecided && (isClaimQueried || isClaimRejected || isPartialApproval) && OUTBOUND_COMMUNICATIONS_ENABLED) {
     secondary.push({ label: "Message payer", icon: Send, onClick: () => setShowSendModal(true) });
@@ -817,6 +825,8 @@ export default function ClaimsScreen({ ctx }) {
     claimStatus?.status === "complete" && !claimDecided && { tone: "warn", text: "The payer answered without a clear decision. Read its response under Decision, and call its helpdesk if it is not clear." },
     isPartialApproval && { tone: "warn", text: "Approved for less than the bill. See what was cut under Decision; if the cut is wrong, ask for the balance with your reason, otherwise bill the patient the difference." },
     isClaimQueried && { tone: "warn", text: "The payer has a question. The payment waits until you answer." },
+    recoverError && { tone: "warn", text: `This case's claim status could not be read, so a claim already sent may not show here: ${recoverError}` },
+    asksError && { tone: "warn", text: `The payer's asks could not be reloaded, so the list may be out of date: ${asksError}` },
     submitError && { tone: "bad", text: submitError },
     dischargeSubmitError && { tone: "bad", text: dischargeSubmitError },
     releaseMessage && { tone: "info", text: releaseMessage },

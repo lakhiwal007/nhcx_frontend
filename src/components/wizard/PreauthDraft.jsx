@@ -114,6 +114,7 @@ export default function PreauthDraft({ ctx }) {
   const filesKey = cashless_case_id || claim_id;
 
   const [asksReload, setAsksReload] = useState(0);
+  const [asksError, setAsksError] = useState(null);
   const uidRef = useRef(1);
   const ensureUids = (list) => list.map((d) => (d._uid != null ? d : { ...d, _uid: uidRef.current++ }));
 
@@ -128,9 +129,10 @@ export default function PreauthDraft({ ctx }) {
 
   const refreshAsks = () => {
     setAsksReload((n) => n + 1);
+    setAsksError(null);
     api.preparePreauth(draftParams())
       .then((res) => setDraft((prev) => (prev ? { ...prev, payer_asks: res.payer_asks } : prev)))
-      .catch(() => null);
+      .catch((err) => setAsksError(err.message || "The payer's asks could not be reloaded."));
   };
 
   // Files attached here live only in memory until the send, so they come back
@@ -480,6 +482,7 @@ export default function PreauthDraft({ ctx }) {
             )}
           </span>
         </div>
+        {asksError && <div className="cv-notice-hint cv-verdict-note is-bad">The payer's asks could not be reloaded, so the list may be out of date: {asksError}</div>}
         {submitError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not sent:</strong> {submitError} Fix what the message names and send again; your draft is kept.</div>}
         {notices.map((n, i) => (
           <div key={i} className={`cv-notice-hint cv-verdict-note cv-verdict-line${n.tone === "bad" ? " is-bad" : ""}`}>

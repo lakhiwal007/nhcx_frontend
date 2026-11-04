@@ -927,6 +927,7 @@ export default function Settings({
   const [rotateFacility, setRotateFacility] = useState(null);
   const [doctorsFacility, setDoctorsFacility] = useState(null);
   const [editLoadingCode, setEditLoadingCode] = useState(null);
+  const [editError, setEditError] = useState(null);
 
   const [facilitySearch, setFacilitySearch] = useState("");
   const facilitySearchQuery = facilitySearch.trim().toLowerCase();
@@ -1015,10 +1016,12 @@ export default function Settings({
 
   const openEditByCode = async (facilityCode) => {
     setEditLoadingCode(facilityCode);
+    setEditError(null);
     try {
       const full = await api.getFacility(facilityCode);
       openEdit(full);
-    } catch (_) {
+    } catch (err) {
+      setEditError(err.message || "The facility could not be opened.");
     } finally {
       setEditLoadingCode(null);
     }
@@ -1248,6 +1251,7 @@ export default function Settings({
           </div>
 
           {loadError && <div className="ep-notice is-bad st-notice">Could not load facilities. Showing the last known results, if any.</div>}
+          {editError && <div className="ep-notice is-bad st-notice">{editError}</div>}
 
           {loading ? (
             <LoadingBlock text="Loading facilities…" />

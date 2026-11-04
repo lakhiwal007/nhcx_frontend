@@ -121,6 +121,7 @@ export default function EligibilityPrep({ ctx }) {
   const [polling, setPolling] = useState(false);
   const [forceRefreshing, setForceRefreshing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pollError, setPollError] = useState(null);
   const [rerunError, setRerunError] = useState(null);
   const [error, setError] = useState(null);
   const [sumInsuredError, setSumInsuredError] = useState(null); // { estimated, limit }
@@ -224,20 +225,11 @@ export default function EligibilityPrep({ ctx }) {
 
   const pollStatus = async (signal) => {
     try {
-      const res = await api.getCashlessStatus(caseData.cashless_case_id, signal);
-      const ahead = STEP_FORWARD_ROUTE[res.current_step] || null;
-      if (ahead) {
-        setPolling(false);
-        setMovedOn(ahead);
-      }
-      setCaseData(res);
-      updateCaseState({
-        eligibility_correlation_id:
-          res.coverage_eligibility?.validation?.correlation_id ??
-          res.coverage_eligibility?.correlation_id,
-      });
-      if (shouldStopPolling(res)) setPolling(false);
-    } catch (_) {}
+      applyStatus(await api.getCashlessStatus(caseData.cashless_case_id, signal));
+      setPollError(null);
+    } catch (err) {
+      if (!signal?.aborted) setPollError(err.message || "The payer's answer could not be checked.");
+    }
   };
 
   usePoll(pollStatus, {
@@ -325,6 +317,7 @@ export default function EligibilityPrep({ ctx }) {
     try {
       const res = await api.getCashlessStatus(caseData.cashless_case_id);
       applyStatus(res);
+      setPollError(null);
       if (!shouldStopPolling(res) && !STEP_FORWARD_ROUTE[res.current_step]) setPolling(true);
     } catch (err) {
       setRerunError(err.message || "The latest answer could not be fetched.");
@@ -535,6 +528,7 @@ export default function EligibilityPrep({ ctx }) {
         {needsResubmit && !isStalePending && <div className="cv-notice-hint cv-verdict-note">One or more checks did not finish and will not on their own. Re-run the checks.</div>}
         {movedOn && <div className="cv-notice-hint cv-verdict-note">This case has moved on to {movedOnLabel}; what follows is as last checked.</div>}
         {rerunError && <div className="cv-notice-hint cv-verdict-note is-bad">{rerunError}</div>}
+        {pollError && <div className="cv-notice-hint cv-verdict-note is-bad">The last check failed{polling ? ", and this page keeps trying" : ""}: {pollError}</div>}
       </div>
 
       <div className="cv-work">
