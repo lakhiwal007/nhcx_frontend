@@ -225,6 +225,7 @@ export default function ClaimsScreen({ ctx }) {
   const [showSendModal, setShowSendModal] = useState(false);
   const [queryAnswer, setQueryAnswer] = useState("");
   const [queryDocs, setQueryDocs] = useState([]);
+  const [dischargeAnswer, setDischargeAnswer] = useState("");
 
   // Editable items in resubmit drawer
   const [resubmitEditItems, setResubmitEditItems] = useState(null);
@@ -564,12 +565,16 @@ export default function ClaimsScreen({ ctx }) {
       }
       const attachedDocs = claimDraft?.supporting_documents?.filter((d) => d.url) ?? [];
       if (attachedDocs.length > 0) body.supporting_documents = attachedDocs;
+      if (dischargeStatus?.decision === "QUERIED" && dischargeAnswer.trim()) {
+        body.questionnaire_response = { status: "completed", item: [{ linkId: "query-1", answer: [{ valueString: dischargeAnswer.trim() }] }] };
+      }
       const res = await api.resubmitDischargeClaim(body);
       if (res.status === "failed") {
         setDischargeSubmitError(res.message || res.error?.message || "Discharge claim resubmission failed. Please try again.");
         return;
       }
       setShowDischargeResubmitDrawer(false);
+      setDischargeAnswer("");
       setDischargeCorrelationId(res.correlation_id);
       updateCaseState({ dischargeCorrelationId: res.correlation_id });
       setDischargeStatus(null);
@@ -693,6 +698,7 @@ export default function ClaimsScreen({ ctx }) {
     });
   };
   const dischargeRejected = dischargeStatus?.decision === "REJECTED";
+  const dischargeQueried = dischargeStatus?.decision === "QUERIED";
   const dischargeFailed = dischargeStatus?.status === "failed";
   const dischargeSentence = dischargeRejected
     ? "rejected by the payer"
@@ -783,6 +789,8 @@ export default function ClaimsScreen({ ctx }) {
     if (isClaimApproved || isPartialApproval) primary = { label: "View payment status", onClick: () => navigate("../payment") };
     else if (isClaimQueried) primary = { label: "Respond to query", onClick: () => setShowQueryDrawer(true), write: true };
     else if (isClaimRejected) primary = { label: "Ask for a reprocess", onClick: () => navigate("../reprocess") };
+  } else if (dischargeQueried) {
+    primary = { label: "Answer the discharge query", onClick: () => setShowDischargeResubmitDrawer(true), write: true };
   } else if (dischargeRejected) {
     primary = { label: "Resubmit discharge claim", onClick: () => setShowDischargeResubmitDrawer(true), write: true };
   } else if (dischargeNext) {
@@ -810,16 +818,19 @@ export default function ClaimsScreen({ ctx }) {
           ? ["Not delivered", "is-bad"]
           : dischargeRejected
             ? ["Discharge rejected", "is-bad"]
-            : activeBlockers.length > 0
-              ? [`${activeBlockers.length} must be done`, "is-bad"]
-              : ["Ready to send", "is-ok"];
+            : dischargeQueried
+              ? ["Discharge queried", "is-warn"]
+              : activeBlockers.length > 0
+                ? [`${activeBlockers.length} must be done`, "is-bad"]
+                : ["Ready to send", "is-ok"];
 
   const notes = [
     !hasPreauthRef && !docsLocked && { tone: "bad", text: "The payer must approve the pre-auth before you can claim. Check the Approval step." },
     hisBlockers.length > 0 && { tone: "bad", text: `The clinical or billing records are incomplete (${hisBlockers.join(", ")}). Complete them in the hospital system, then reload.` },
     dischargeRejected && { tone: "bad", text: "The payer rejected the discharge claim. No final claim exists yet, so there is nothing to appeal; correct and resend it." },
+    dischargeQueried && { tone: "warn", text: "The payer has a question about the discharge claim. Answer it from here; the final claim cannot be sent until it is answered." },
     dischargeFailed && { tone: "bad", text: `The discharge claim did not reach the payer. ${dischargeStatus?.error_message || ""} Check the documents and submit it again.` },
-    dischargeIntimation && dischargeCorrelationId && !finalCorrelationId && !dischargeRejected && !dischargeFailed && {
+    dischargeIntimation && dischargeCorrelationId && !finalCorrelationId && !dischargeRejected && !dischargeQueried && !dischargeFailed && {
       tone: "info",
       text: `Discharge claim: ${dischargeSentence}${dischargeStatus?.submitted_at ? `, sent ${formatDateTime(dischargeStatus.submitted_at)}` : ""}.`,
     },
@@ -1115,8 +1126,10 @@ export default function ClaimsScreen({ ctx }) {
                     {dischargeCorrelationId && (
                       <div className="cv-notice-actions">
                         <button type="button" className="cv-btn" onClick={() => setDischargePolling(true)}>Refresh</button>
-                        {dischargeRejected && !caseClosed && !readOnly && (
-                          <button type="button" className="cv-btn is-primary" onClick={() => setShowDischargeResubmitDrawer(true)}>Resubmit discharge claim</button>
+                        {(dischargeRejected || dischargeQueried) && !caseClosed && !readOnly && (
+                          <button type="button" className="cv-btn is-primary" onClick={() => setShowDischargeResubmitDrawer(true)}>
+                            {dischargeQueried ? "Answer the discharge query" : "Resubmit discharge claim"}
+                          </button>
                         )}
                       </div>
                     )}
@@ -1268,12 +1281,24 @@ export default function ClaimsScreen({ ctx }) {
       </Drawer>
 
       {/* ── Discharge Resubmit Drawer (DC01 correction — editable items) ── */}
-      <Drawer open={showDischargeResubmitDrawer} onClose={() => setShowDischargeResubmitDrawer(false)} title="Resubmit Discharge Claim">
+      <Drawer open={showDischargeResubmitDrawer} onClose={() => setShowDischargeResubmitDrawer(false)} title={dischargeQueried ? "Answer the discharge claim query" : "Resubmit Discharge Claim"}>
         <p className="cv-drawer-intro">
-          Correct clinical or billing data on the discharge intimation. Only the fields you change
-          are sent; everything else is re-derived from the hospital DB. This resends under NHCX
-          workflow DC01 (Discharge Correction Intimation) — it does not touch the final claim.
+          {dischargeQueried
+            ? "Answer the payer's question. The discharge claim goes back with your answer, the documents attached on this step and any line you correct below; the final claim stays untouched."
+            : "Correct clinical or billing data on the discharge intimation. Only the fields you change are sent; everything else is re-derived from the hospital DB. This resends under NHCX workflow DC01 (Discharge Correction Intimation) — it does not touch the final claim."}
         </p>
+        {dischargeQueried && (
+          <div style={{ marginBottom: "var(--space-4)" }}>
+            <label className="cv-drawer-label">Your answer</label>
+            <textarea
+              className="input-modern"
+              style={{ height: "100px", resize: "vertical" }}
+              placeholder="Answer the payer's question about the discharge claim…"
+              value={dischargeAnswer}
+              onChange={(e) => setDischargeAnswer(e.target.value)}
+            />
+          </div>
+        )}
         {resubmitEditItems?.length > 0 && (
           <div style={{ marginBottom: "var(--space-5)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
@@ -1333,8 +1358,8 @@ export default function ClaimsScreen({ ctx }) {
         {dischargeSubmitError && (
           <div className="cv-notice is-bad cv-drawer-note"><div className="cv-notice-body">{dischargeSubmitError}</div></div>
         )}
-        <Button write variant="primary" className="w-full" disabled={submitting} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>
-          {submitting ? "Resubmitting…" : "Resubmit Discharge Claim"}
+        <Button write variant="primary" className="w-full" disabled={submitting || (dischargeQueried && !dischargeAnswer.trim())} onClick={handleResubmitDischargeClaim} style={{ justifyContent: "center" }}>
+          {submitting ? "Sending…" : dischargeQueried ? "Send the answer" : "Resubmit Discharge Claim"}
         </Button>
       </Drawer>
 

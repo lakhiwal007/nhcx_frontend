@@ -7,7 +7,7 @@ export const TASK_HELP = {
   resubmit_preauth: "The preauth needs to be sent again. Open the Approval step, read the payer's reason, fix it and resubmit.",
   resubmit_enhancement: "The enhancement request needs to be sent again. Open the case and resend it with what the payer asked for.",
   submit_discharge_claim: "The patient is discharged. Open the Claim step and send the discharge documents.",
-  resubmit_discharge_claim: "The payer turned down the discharge documents. Open the Claim step, fix them and resubmit.",
+  resubmit_discharge_claim: "The payer turned down or queried the discharge claim. Open the Claim step, fix it or answer the question, and send it again.",
   submit_final_claim: "Discharge is done. Open the Claim step and send the final claim.",
   respond_claim_query: "The payer asked a question about the claim. Open the Claim step and press Respond to query.",
   resubmit_claim: "The claim needs attention. Open the Claim step and follow the payer's notes.",

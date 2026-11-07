@@ -807,6 +807,7 @@ const mockClaimStatus = (res) => {
   const key = mockClaimKey();
   const failure = { status: "failed", decision: null, error_message: "The payer could not be reached." };
   if (key === "discharge_rejected") return { ...res, decision: "REJECTED", items: [] };
+  if (key === "discharge_queried") return { ...res, decision: "QUERIED", approved_amount: null, items: [], process_notes: [{ number: 1, text: "Send the discharge summary with the ward notes." }] };
   if (key === "discharge_failed" || key === "final_failed") return { ...res, ...failure };
   if (key === "not_found") return { correlation_id: res.correlation_id, status: "not_found" };
   if (key === "queried") return { ...res, decision: "QUERIED", approved_amount: null };
@@ -2606,8 +2607,9 @@ const mock = {
   // workflow DC01 — distinct from resubmitClaim, which is for a rejected
   // *final* claim (workflow 16). No reprocess option applies here since no
   // final claim has been submitted yet to appeal.
-  resubmitDischargeClaim: async () => {
+  resubmitDischargeClaim: async (data) => {
     await delay(800);
+    window.__mockLastDischargeSend = data;
     return {
       correlation_id: "abc123-discharge-resubmit",
       status: "submitted",
