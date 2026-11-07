@@ -770,6 +770,9 @@ export default function ClaimsScreen({ ctx }) {
     locked: docsLocked,
   });
   const blockers = groups.flatMap((g) => g.rows).filter((r) => r.blocks);
+  const dischargeBlockers = blockers.filter((r) => r.id !== "bill" || hisBlockers.length > 0);
+  const dischargeNext = dischargeIntimation && !finalCorrelationId && (!dischargeCorrelationId || dischargeFailed);
+  const activeBlockers = dischargeNext ? dischargeBlockers : blockers;
   const open = picked || firstClaimItem(groups, { finalSent, locked });
   const paneFor = (id) => ({ hidden: open !== id });
 
@@ -782,8 +785,8 @@ export default function ClaimsScreen({ ctx }) {
     else if (isClaimRejected) primary = { label: "Ask for a reprocess", onClick: () => navigate("../reprocess") };
   } else if (dischargeRejected) {
     primary = { label: "Resubmit discharge claim", onClick: () => setShowDischargeResubmitDrawer(true), write: true };
-  } else if (dischargeIntimation && !finalCorrelationId && (!dischargeCorrelationId || dischargeFailed)) {
-    primary = { label: submitting ? "Submitting…" : "Submit discharge claim", onClick: handleSubmitDischarge, disabled: !canSubmit, icon: Send, write: true };
+  } else if (dischargeNext) {
+    primary = { label: submitting ? "Submitting…" : "Submit discharge claim", onClick: handleSubmitDischarge, disabled: dischargeBlockers.length > 0 || !canSubmit, icon: Send, write: true };
   } else {
     primary = { label: submitting ? "Submitting…" : "Submit final claim", onClick: handleSubmitFinal, disabled: blockers.length > 0 || !canSubmitFinal, icon: Send, write: true };
   }
@@ -807,8 +810,8 @@ export default function ClaimsScreen({ ctx }) {
           ? ["Not delivered", "is-bad"]
           : dischargeRejected
             ? ["Discharge rejected", "is-bad"]
-            : blockers.length > 0
-              ? [`${blockers.length} must be done`, "is-bad"]
+            : activeBlockers.length > 0
+              ? [`${activeBlockers.length} must be done`, "is-bad"]
               : ["Ready to send", "is-ok"];
 
   const notes = [
