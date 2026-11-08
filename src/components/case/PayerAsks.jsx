@@ -7,10 +7,10 @@ const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const SOURCE = { ruling: "payer's ruling", plan: "plan, every case", package: "plan, for the package", consent: "PMJAY, in place of biometrics" };
 
 function badge(row) {
-  if (row.kind === "document") return row.status === "attached" ? ["Attached", "is-ok"] : [row.blocking ? "Missing" : "Not attached", row.blocking ? "is-bad" : "is-warn"];
-  if (row.status === "answered") return ["Answered", "is-ok"];
-  if (row.status === "partial") return [`${row.answered_required} of ${row.required}`, "is-bad"];
-  return ["Not filled", row.blocking ? "is-bad" : "is-warn"];
+  if (row.kind === "document") return row.status === "attached" ? ["Attached", "is-todo"] : [row.blocking ? "Missing" : "Not attached", "is-warn"];
+  if (row.status === "answered") return ["Answered", "is-todo"];
+  if (row.status === "partial") return [`${row.answered_required} of ${row.required}`, "is-warn"];
+  return ["Not filled", "is-warn"];
 }
 
 function detail(row) {
@@ -92,13 +92,12 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
       <input type="file" ref={fileRef} accept="application/pdf,image/jpeg,image/png" style={{ display: "none" }} onChange={onFile} />
       <div className="cv-card-head">
         <h2 className="cv-card-title">{title}</h2>
-        {rows.length > 0 && (
-          <span className={`cv-chip ${blocking ? "is-bad" : open_ ? "is-warn" : "is-ok"}`}>
-            {blocking ? `${blocking} must be done` : open_ ? `${open_} open` : "All in"}
-          </span>
-        )}
+        {rows.length > 0 && <span className="cv-card-meta">{blocking ? `${blocking} must be done` : open_ ? `${open_} open` : "All in"}</span>}
       </div>
-      <div className="cv-card-intro">From the payer's ruling first, then the plan. A row is ticked only by a file or answer filed against it; red rows stop the send.</div>
+      <details className="cv-howto">
+        <summary>How this works</summary>
+        <div className="cv-card-intro">From the payer's ruling first, then the plan. A row is ticked only by a file or answer filed against it; a row that says it stops the send must be done before sending.</div>
+      </details>
       {error && <div className="cv-card-body"><div className="cv-notice is-bad"><div className="cv-notice-body">{error}</div></div></div>}
       {forms.error && <div className="cv-card-body"><div className="cv-notice is-warn"><div className="cv-notice-body">{forms.error} Reload the page to try again.</div></div></div>}
       {rows.length === 0 && <div className="cv-card-body cv-card-meta">The payer asks for nothing extra at this stage.</div>}
@@ -112,7 +111,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
               <div className="cv-row-title">{row.display}</div>
               <div className="cv-row-sub">
                 {detail(row)}
-                {row.blocking && row.reason ? <span style={{ color: "var(--error)" }}> · stops the send: {row.reason}</span> : null}
+                {row.blocking && row.reason ? <span style={{ color: "var(--cv-warn)" }}> · stops the send: {row.reason}</span> : null}
               </div>
             </div>
             {row.kind === "document" ? (

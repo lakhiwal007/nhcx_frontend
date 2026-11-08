@@ -66,7 +66,7 @@ function Panel({ attempt, qrUrl, captured, aadhaar, mobile, pid, busy, setAadhaa
         </>
       )}
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" className="cv-btn is-primary" disabled={busy || !ready} onClick={onVerify}>Verify</button>
+        <button type="button" className="cv-btn" disabled={busy || !ready} onClick={onVerify}>Verify</button>
         <button type="button" className="cv-btn" disabled={busy} onClick={onCancel}>Cancel</button>
       </div>
     </div>
@@ -172,7 +172,6 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
     <section className="cv-card" aria-label={TITLES[stage]}>
       <div className="cv-card-head">
         <h2 className="cv-card-title">{TITLES[stage]}</h2>
-        <span className={`cv-chip ${state.tone}`}>{state.label}</span>
       </div>
       <div className="cv-card-intro">{state.text}</div>
       {error && <div className="cv-card-body"><div className="cv-notice is-bad"><div className="cv-notice-body">{error}</div></div></div>}
@@ -183,7 +182,7 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
               {label}
             </button>
           ))}
-          <button type="button" className="cv-btn is-primary" style={{ marginLeft: "auto" }} disabled={busy} onClick={start}>
+          <button type="button" className="cv-btn" style={{ marginLeft: "auto" }} disabled={busy} onClick={start}>
             {card?.current ? "Verify again" : "Verify the patient"}
           </button>
         </div>

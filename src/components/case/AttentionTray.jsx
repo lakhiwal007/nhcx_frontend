@@ -1,13 +1,10 @@
 import { useState } from "react";
-import { MessageSquare, Pin, Lock, Eye, AlertTriangle, Clock, ChevronDown } from "lucide-react";
+import { MessageSquare, Pin, Clock, ChevronDown } from "lucide-react";
 import { formatRelative } from "../../format.js";
 import { commHeadline, commPreview } from "../CommunicationDetail";
 
-function itemsFor({ communications, notes, heldTasks, readOnly, caseClosed, hint }) {
+function itemsFor({ communications, notes, heldTasks }) {
   const items = [];
-  if (hint) {
-    items.push({ key: "hint", tone: hint.tone === "urgent" ? "urgent" : "wait", icon: hint.tone === "urgent" ? AlertTriangle : Clock, title: hint.text });
-  }
   const open = communications.filter((c) => !c.provider_read || c.pending_tasks?.length > 0);
   [...open]
     .sort((a, b) => (Date.parse(b.sent_at) || 0) - (Date.parse(a.sent_at) || 0))
@@ -40,14 +37,12 @@ function itemsFor({ communications, notes, heldTasks, readOnly, caseClosed, hint
       action: { label: "Notes", notes: true },
     });
   });
-  if (caseClosed) items.push({ key: "closed", tone: "quiet", icon: Lock, title: "The case is settled and read-only." });
-  if (readOnly) items.push({ key: "readonly", tone: "quiet", icon: Eye, title: "View only: this account can see the case but not send, answer or change anything." });
   return items;
 }
 
-export default function AttentionTray({ communications = [], notes = [], heldTasks = [], readOnly, caseClosed, hint, onOpenComm, onOpenNotes }) {
+export default function AttentionTray({ communications = [], notes = [], heldTasks = [], onOpenComm, onOpenNotes }) {
   const [open, setOpen] = useState(false);
-  const items = itemsFor({ communications, notes, heldTasks, readOnly, caseClosed, hint });
+  const items = itemsFor({ communications, notes, heldTasks });
   if (items.length === 0) return null;
   const urgent = items.some((i) => i.tone === "urgent");
   const needYou = items.filter((i) => i.tone === "urgent" || i.tone === "info").length;

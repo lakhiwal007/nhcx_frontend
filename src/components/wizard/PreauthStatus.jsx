@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import StageBar from "../case/StageBar";
 import { usePoll } from "../../hooks/usePoll";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, MoreHorizontal, RefreshCw, PlusCircle, X, Wifi, Send } from "lucide-react";
@@ -684,6 +685,7 @@ export default function PreauthStatus({ ctx }) {
     <div className="cv-elig">
       <div className={`cv-notice cv-verdict is-${barTone}`}>
         <div className="cv-verdict-row">
+          <StageBar ctx={ctx} />
           <span className={`cv-chip is-${verdict.tone === "pending" ? "info" : verdict.tone}`}>{verdict.label}</span>
           <span className="cv-notice-body">
             {(isApproved || isPartial) && approvedValue != null ? (

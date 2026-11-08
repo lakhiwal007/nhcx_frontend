@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import StageBar from "../case/StageBar";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { api } from "../../api";
@@ -208,12 +209,13 @@ export default function PreauthEnhancement({ ctx }) {
   const blockers = groups.flatMap((g) => g.rows).filter((r) => r.blocks);
   const open = picked || firstEnhancementItem(groups);
   const paneFor = (id) => ({ hidden: open !== id });
-  const barState = locked ? ["Not sent", "is-todo", "info"] : blockers.length > 0 ? [`${blockers.length} must be done`, "is-bad", "bad"] : ["Ready to send", "is-ok", "ok"];
+  const barState = locked ? ["Not sent", "is-todo", "info"] : blockers.length > 0 ? [`${blockers.length} must be done`, "is-warn", "warn"] : ["Ready to send", "is-ok", "ok"];
 
   return (
     <div className="cv-elig">
       <div className={`cv-notice cv-verdict is-${barState[2]}`}>
         <div className="cv-verdict-row">
+          <StageBar ctx={ctx} />
           <span className={`cv-chip ${barState[1]}`}>{barState[0]}</span>
           <span className="cv-notice-body">
             <strong>{formatMoney(revisedTotal)}</strong> revised

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import StageBar from "../case/StageBar";
 import { useNavigate } from "react-router-dom";
 import { Send, Plus, Trash2, FileJson, ArrowRight } from "lucide-react";
 import { api } from "../../api";
@@ -402,11 +403,11 @@ export default function PreauthDraft({ ctx }) {
       ? ["Not sent", "is-todo"]
       : canSubmit || submitting
       ? [toLookAt ? `Ready, ${toLookAt} to look at` : "Ready to send", toLookAt ? "is-warn" : "is-ok"]
-      : [`${blockers.length + (notInForce ? 1 : 0) + (hisBlockers.length + newbornMissing.length > 0 ? 1 : 0)} must be done`, "is-bad"];
+      : [`${blockers.length + (notInForce ? 1 : 0) + (hisBlockers.length + newbornMissing.length > 0 ? 1 : 0)} must be done`, "is-warn"];
   const notices = [
     notInForce && !preauthAlreadyLive && { tone: "bad", text: "The payer reports this policy as not in force, so a pre-auth cannot be sent. Pick a renewed or different policy, or treat the patient as cash.", action: { label: "Go to Policy", to: "../payer" } },
     preauthAlreadyLive && { tone: "info", text: `A preauth has already been sent${movedOnLabel ? ` and the case has moved on to ${movedOnLabel}` : ""}. This form is rebuilt from current records, not what was sent.`, action: movedOn ? { label: `Go to ${movedOnLabel}`, to: `../${movedOn}` } : null },
-    hisBlockers.length > 0 && { tone: "bad", text: `The hospital records are missing: ${hisBlockers.join(", ")}. Ask the doctor or billing desk to add it, then reload this page.` },
+    hisBlockers.length > 0 && { tone: "warn", text: `The hospital records are missing: ${hisBlockers.join(", ")}. Ask the doctor or billing desk to add it, then reload this page.` },
     newbornMissing.length > 0 && !preauthAlreadyLive && { tone: "warn", text: `Newborn case: ${newbornMissing.map((f) => NEWBORN_MISSING[f] || f).join("; ")}.` },
     eligibility && eligibility.status !== "complete" && !preauthAlreadyLive && { tone: "warn", text: "Eligibility is incomplete, so the payer's answer may still change." },
     memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `The payer's card has ${cardMembers.length} members and none is chosen as the patient yet.`, action: { label: "Choose on Eligibility", to: "../prep" } },
@@ -456,6 +457,7 @@ export default function PreauthDraft({ ctx }) {
     <div className="cv-elig">
       <div className={`cv-notice cv-verdict is-${sendState[1].replace("is-", "")}`}>
         <div className="cv-verdict-row">
+          <StageBar ctx={ctx} />
           <span className={`cv-chip ${sendState[1]}`}>{sendState[0]}</span>
           <span className="cv-notice-body">
             <strong>{formatMoney(effectiveTotal)}</strong> requested · {displayItems.length} line{displayItems.length === 1 ? "" : "s"}
@@ -485,7 +487,7 @@ export default function PreauthDraft({ ctx }) {
         {asksError && <div className="cv-notice-hint cv-verdict-note is-bad">The payer's asks could not be reloaded, so the list may be out of date: {asksError}</div>}
         {submitError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not sent:</strong> {submitError} Fix what the message names and send again; your draft is kept.</div>}
         {notices.map((n, i) => (
-          <div key={i} className={`cv-notice-hint cv-verdict-note cv-verdict-line${n.tone === "bad" ? " is-bad" : ""}`}>
+          <div key={i} className={`cv-notice-hint cv-verdict-note cv-verdict-line${n.tone === "bad" ? " is-bad" : n.tone === "warn" ? " is-warn" : ""}`}>
             <span>{n.text}</span>
             {n.action && <button type="button" className="cv-btn" onClick={() => navigate(n.action.to)}>{n.action.label}</button>}
           </div>

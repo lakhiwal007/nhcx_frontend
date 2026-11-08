@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from "react";
+import StageBar from "../case/StageBar";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import { api } from "../../api";
@@ -205,6 +206,7 @@ export default function PaymentReconciliation({ ctx }) {
       <div className="cv-elig">
         <div className="cv-notice cv-verdict is-info">
           <div className="cv-verdict-row">
+            <StageBar ctx={ctx} />
             <span className="cv-chip is-info">Awaiting payment</span>
             <span className="cv-notice-body">The payer sends payment notices on its own schedule, usually hours to days after approval. This page updates by itself.</span>
             <span className="cv-verdict-actions">{backToCases}{checkAgain}</span>
@@ -262,6 +264,7 @@ export default function PaymentReconciliation({ ctx }) {
     <div className="cv-elig">
       <div className={`cv-notice cv-verdict is-${verdict.tone}`}>
         <div className="cv-verdict-row">
+          <StageBar ctx={ctx} />
           <span className={`cv-chip is-${verdict.tone}`}>{verdict.label}</span>
           <span className="cv-notice-body">
             {net != null ? <><strong>{formatMoney(net)}</strong> credited</> : "Nothing credited yet"}

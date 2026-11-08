@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import StageBar from "../case/StageBar";
 import { RefreshCw, ArrowUpRight, ArrowDownLeft, FileJson } from "lucide-react";
 import { api } from "../../api";
 import { Button, LoadingBlock, EmptyState, NextStep } from "../Common";
@@ -227,6 +228,7 @@ export default function CaseTimeline({ ctx }) {
 
       <div className={`cv-notice cv-verdict is-${tone}`}>
         <div className="cv-verdict-row">
+          <StageBar ctx={ctx} />
           <span className={`cv-chip is-${tone}`}>{failures ? `${failures} failed` : verify ? `${verify} to verify` : all.length ? "No failures" : "No events yet"}</span>
           <span className="cv-notice-body">
             {all.length > 0 ? <><strong>{all.length}</strong> events · last {formatDateTime(all[0].ts)}</> : "Requests and payer answers appear here as the case moves."}

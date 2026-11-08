@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import StageBar from "../case/StageBar";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Send, Edit2 } from "lucide-react";
 import { api } from "../../api";
@@ -821,7 +822,7 @@ export default function ClaimsScreen({ ctx }) {
             : dischargeQueried
               ? ["Discharge queried", "is-warn"]
               : activeBlockers.length > 0
-                ? [`${activeBlockers.length} must be done`, "is-bad"]
+                ? [`${activeBlockers.length} must be done`, "is-warn"]
                 : ["Ready to send", "is-ok"];
 
   const notes = [
@@ -920,6 +921,7 @@ export default function ClaimsScreen({ ctx }) {
     <div className="cv-elig">
       <div className={`cv-notice cv-verdict is-${barState[1] === "is-todo" ? "info" : barState[1].replace("is-", "")}`}>
         <div className="cv-verdict-row">
+          <StageBar ctx={ctx} />
           <span className={`cv-chip ${barState[1]}`} style={claimDecided ? { textTransform: "capitalize" } : undefined}>{barState[0]}</span>
           <span className="cv-notice-body">
             {isClaimApproved || isPartialApproval ? (

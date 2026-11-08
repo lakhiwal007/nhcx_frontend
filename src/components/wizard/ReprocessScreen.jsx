@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import StageBar from "../case/StageBar";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Send } from "lucide-react";
 import { api } from "../../api";
@@ -271,6 +272,7 @@ export default function ReprocessScreen({ ctx }) {
       <div className="cv-elig">
         <div className={`cv-notice cv-verdict is-${verdict.tone}`}>
           <div className="cv-verdict-row">
+            <StageBar ctx={ctx} />
             <span className={`cv-chip is-${verdict.tone}`}>{verdict.label}</span>
             <span className="cv-notice-body">{verdict.text}</span>
             <span className="cv-verdict-actions">
@@ -423,12 +425,13 @@ export default function ReprocessScreen({ ctx }) {
     );
   }
 
-  const barState = readOnly ? ["Not sent", "is-todo", "info"] : blockers.length > 0 ? [`${blockers.length} must be done`, "is-bad", "bad"] : ["Ready to send", "is-ok", "ok"];
+  const barState = readOnly ? ["Not sent", "is-todo", "info"] : blockers.length > 0 ? [`${blockers.length} must be done`, "is-warn", "warn"] : ["Ready to send", "is-ok", "ok"];
 
   return (
     <div className="cv-elig">
       <div className={`cv-notice cv-verdict is-${barState[2]}`}>
         <div className="cv-verdict-row">
+          <StageBar ctx={ctx} />
           <span className={`cv-chip ${barState[1]}`}>{barState[0]}</span>
           <span className="cv-notice-body">Appeal of claim {claimId ? <strong>{claimId}</strong> : null}</span>
           <span className="cv-verdict-actions">

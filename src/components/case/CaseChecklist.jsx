@@ -1,6 +1,6 @@
-import { AlertTriangle, Check, Clock, Minus, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, Minus } from "lucide-react";
 
-const MARKS = { ok: Check, warn: AlertTriangle, bad: X, wait: Clock, idle: Minus };
+const MARKS = { ok: Check, warn: AlertTriangle, bad: AlertTriangle, wait: Clock, idle: Minus };
 
 export default function CaseChecklist({ groups, open, onOpen, label }) {
   return (

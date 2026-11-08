@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { History, StickyNote } from "lucide-react";
 import { api } from "../../api";
 import { useReadOnly } from "../../readOnly";
 import { Button, EmptyState, LoadingBlock } from "../Common";
@@ -12,7 +11,7 @@ import AttentionTray from "../case/AttentionTray";
 import CaseNotesDrawer from "../case/CaseNotes";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo, nowHint, stageAmounts } from "../case/caseStages";
+import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo, stageAmounts } from "../case/caseStages";
 import "../case/case-workspace.css";
 import "../case/case-v2.css";
 
@@ -323,6 +322,14 @@ function CaseWorkspace({ reportCase }) {
   const activeStage = stages.find((s) => s.state === "active") || stageInfo(currentStepPath);
   const caseClosed = stages.some((s) => s.id === "payment" && s.done);
 
+  const stageTools = [];
+  if (ledgerCaseId) stageTools.push({ label: notes.length ? `Notes (${notes.length})` : "Notes", onClick: () => setNotesOpen(true) });
+  stageTools.push(
+    currentStepPath === "timeline"
+      ? { label: "Back to case", onClick: () => navigate(-1) }
+      : { label: "Audit trail", onClick: () => navigate(`/case/${id}/timeline`) },
+  );
+
   const contextValue = {
     patient,
     cashlessCase,
@@ -336,6 +343,7 @@ function CaseWorkspace({ reportCase }) {
     caseClosed,
     draftFiles,
     setDraftFiles,
+    stageBar: { title: activeStage?.label || "Case", tools: stageTools },
   };
 
 
@@ -344,6 +352,7 @@ function CaseWorkspace({ reportCase }) {
       <div className="cv-top">
         <CaseFileHeader
           patient={patient}
+          onBack={() => navigate("/dashboard")}
           caseState={caseState}
           effectiveCase={effectiveCase}
           preauthRef={preauthRef}
@@ -368,33 +377,9 @@ function CaseWorkspace({ reportCase }) {
             communications={communications}
             notes={notes}
             heldTasks={effectiveCase.held_tasks}
-            readOnly={readOnly}
-            caseClosed={caseClosed}
-            hint={nowHint(stages)}
             onOpenComm={setOpenCommId}
             onOpenNotes={() => setNotesOpen(true)}
           />
-
-          <div className="cv-stage-head">
-            <div className="cv-stage-text">
-              <h1 className="cv-stage-title">{activeStage?.label || "Case"}</h1>
-              {activeStage?.hint && <p className="cv-stage-hint">{activeStage.hint}</p>}
-            </div>
-            <div className="cv-stage-actions">
-              {ledgerCaseId && (
-                <Button variant="outline" size="small" icon={StickyNote} onClick={() => setNotesOpen(true)}>
-                  {notes.length ? `Notes (${notes.length})` : "Notes"}
-                </Button>
-              )}
-              {currentStepPath === "timeline" ? (
-                <Button variant="outline" size="small" onClick={() => navigate(-1)}>Back to case</Button>
-              ) : (
-                <Button variant="outline" size="small" icon={History} onClick={() => navigate(`/case/${id}/timeline`)}>
-                  Audit trail
-                </Button>
-              )}
-            </div>
-          </div>
 
           <div className="cx-stage-body">
             <AnimatePresence mode="wait">

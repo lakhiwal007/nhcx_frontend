@@ -498,6 +498,7 @@ export default function App() {
             </div>
           </header>
 
+          {!location.pathname.startsWith("/case/") && (
           <div className="breadcrumb-strip">
             <div className="breadcrumb-modern">
               <span onClick={() => navigate("/work-queue")} style={{ cursor: "pointer" }} className="breadcrumb-link">
@@ -521,6 +522,7 @@ export default function App() {
             </div>
             <div className="page-actions" ref={setPageActionsEl} />
           </div>
+          )}
         </>
       )}
 

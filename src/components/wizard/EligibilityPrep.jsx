@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import StageBar from "../case/StageBar";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { api } from "../../api";
@@ -479,6 +480,7 @@ export default function EligibilityPrep({ ctx }) {
     <div className="cv-elig">
       <div className={`cv-notice cv-verdict is-${verdict.tone === "todo" ? "info" : verdict.tone}`}>
         <div className="cv-verdict-row">
+          <StageBar ctx={ctx} />
           <span className={`cv-chip is-${verdict.tone}`}>{verdict.label}</span>
           <span className="cv-notice-body">{verdict.tone === "ok" && facts.length ? facts.join(" · ") : verdict.text}</span>
           <span className="cv-verdict-actions">
