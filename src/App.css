@@ -4002,24 +4002,6 @@ code {
     gap: 16px;
 }
 
-.cc-info-banner {
-    margin: 0;
-    background: color-mix(in srgb, var(--info) 10%, var(--bg-card));
-    border-color: color-mix(in srgb, var(--info) 30%, transparent);
-    color: var(--info);
-}
-
-.cc-retry {
-    margin-left: auto;
-    padding: 2px 10px;
-    border: 1px solid currentColor;
-    border-radius: var(--radius-xs);
-    background: none;
-    color: inherit;
-    font: var(--fw-semibold) 12px var(--font-sans);
-    cursor: pointer;
-}
-
 /* KPI strip: one surface, cells split by hairlines (wraps to a grid). */
 .cc-kpis {
     display: grid;
@@ -4310,9 +4292,89 @@ code {
 }
 
 .cc-menu-slot {
-    display: none;
+    display: inline-block;
     width: 30px;
     flex-shrink: 0;
+}
+
+.cc-menu {
+    position: relative;
+}
+
+.cc-menu > summary {
+    list-style: none;
+}
+
+.cc-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.cc-menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xs);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.cc-menu-trigger:hover,
+.cc-menu[open] > .cc-menu-trigger {
+    background: var(--neutral-soft);
+    color: var(--text-main);
+}
+
+.cc-menu-list {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 30;
+    min-width: 220px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    box-shadow: var(--shadow);
+}
+
+.cc-menu-item {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-main);
+    font: var(--fw-medium) 13px var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+}
+
+.cc-menu-item:hover:not(:disabled) {
+    background: var(--bg-main);
+}
+
+.cc-menu-item:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.cc-card-who {
+    min-width: 0;
+}
+
+.cc-sort {
+    width: 170px;
+}
+
+.cc-kpi-skeleton {
+    width: 36px;
+    height: 22px;
+    margin-top: 8px;
 }
 
 /* In the table, chips and action buttons share one width per column so their
@@ -4333,15 +4395,6 @@ code {
     max-width: 100%;
 }
 
-.cc-table .cc-act {
-    width: 168px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.cc-table .cc-menu-slot {
-    display: block;
-}
 
 /* Card view */
 .cc-grid {

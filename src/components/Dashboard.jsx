@@ -1,43 +1,28 @@
-import { useState, useEffect, useRef, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Inbox, AlertCircle, LayoutGrid, List, MoreVertical, Plus, RefreshCw,
-} from "lucide-react";
-import { api } from "../api";
+import { useState, useEffect } from "react";
+import { Inbox, AlertCircle, LayoutGrid, List, Plus, RefreshCw } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { api, markHandled } from "../api";
 import { Button, EmptyState, SkeletonTable, TablePagination, Tip } from "./Common";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
-import { formatMoney, formatDate, formatRelative, formatCaseRef } from "../format.js";
-import { useNavigate, useLocation } from "react-router-dom";
 import PayerName from "./PayerName";
+import RowMenu from "./dashboard/RowMenu";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { formatMoney, formatDate, formatRelative, formatCaseRef } from "../format.js";
 import { stageIndex, isSettled, needsAttention } from "../caseStatus.js";
+import { taskLabel } from "../tasks";
 import { CaseStatusChip, StageTrack } from "./caseJourney";
 
-const CLAIMS_PAGE_SIZE = 20;
+const PAGE_SIZE = 20;
 
-// The strip at the top is both the headline numbers and the filter: each cell
-// counts the loaded cases by journey stage (`current_step`), so a figure always
-// matches the rows it opens. (The stats endpoint's pending/complete/failed are
-// the eligibility-prep roll-up, not the journey, so they aren't shown here.)
-const STATUS_TABS = [
-  { key: "all",       label: "All cases",    match: () => true, dot: "var(--text-muted)" },
-  { key: "attention", label: "Needs action", match: (c) => needsAttention(c), dot: "var(--warning)" },
-  { key: "preauth",   label: "Pre-auth",     match: (c) => stageIndex(c) <= 1, dot: "var(--info)" },
-  { key: "claim",     label: "Claim",        match: (c) => stageIndex(c) === 2, dot: "var(--accent)" },
-  { key: "payment",   label: "Payment",      match: (c) => stageIndex(c) === 3 && !isSettled(c), dot: "var(--warning)" },
-  { key: "settled",   label: "Settled",      match: isSettled, dot: "var(--success)" },
+const STAGE_TABS = [
+  { key: "all", label: "All cases", match: () => true, dot: "var(--text-muted)" },
+  { key: "eligibility", label: "Eligibility", match: (c) => stageIndex(c) === 0, dot: "var(--info)" },
+  { key: "preauth", label: "Pre-auth", match: (c) => stageIndex(c) === 1, dot: "var(--info)" },
+  { key: "claim", label: "Claim", match: (c) => stageIndex(c) === 2, dot: "var(--accent)" },
+  { key: "payment", label: "Payment", match: (c) => stageIndex(c) === 3 && !isSettled(c), dot: "var(--warning)" },
+  { key: "settled", label: "Settled", match: isSettled, dot: "var(--success)" },
 ];
-
-// Phones get the card view regardless of the saved preference; a nine-column
-// table only scrolls sideways at that width.
-const NARROW_QUERY = "(max-width: 768px)";
-const subscribeNarrow = (cb) => {
-  const mq = window.matchMedia(NARROW_QUERY);
-  mq.addEventListener("change", cb);
-  return () => mq.removeEventListener("change", cb);
-};
-const getNarrow = () => window.matchMedia(NARROW_QUERY).matches;
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },
@@ -45,153 +30,31 @@ const SORT_OPTIONS = [
   { value: "amount", label: "Highest approved" },
 ];
 
-function getActionOptions(claim) {
-  const options = [];
-  if (claim.pending_tasks?.some((t) => t.task_type === "review_payment_ack_failure")) {
-    options.push({ label: "Retry Acknowledgement", route: "payment" });
-  }
-  if (claim.payment_status === "PAYMENT_SETTLED" || claim.claim_decision === "APPROVED" || claim.claim_decision === "PARTIALLY_APPROVED") {
-    options.push({ label: "View Payment", route: "payment" });
-  }
-  if (claim.claim_decision === "QUERIED") {
-    options.push({ label: "Respond to Query", route: "claim" });
-  }
+const hasTask = (claim, type) => claim.pending_tasks?.some((t) => t.task_type === type);
+
+function rowActions(claim) {
+  const actions = [];
+  if (hasTask(claim, "review_payment_ack_failure")) actions.push({ label: "Retry the acknowledgement", route: "payment" });
+  if (claim.claim_decision === "QUERIED") actions.push({ label: "Answer the claim query", route: "claim", openAction: "respond_claim_query" });
   if (claim.claim_decision === "REJECTED") {
-    // A rejected *discharge* (interim) claim has no adjudicated final claim to
-    // appeal — it must be corrected and resent via DC01, signalled by a
-    // resubmit_discharge_claim task. Route there instead of Reprocess.
-    if (claim.pending_tasks?.some((t) => t.task_type === "resubmit_discharge_claim")) {
-      options.push({ label: "Resubmit Discharge", route: "claim" });
-    } else if (claim.use_type === "claim" || claim.claim_id) {
-      options.push({ label: "Appeal / Reprocess", route: "reprocess" });
-    } else {
-      options.push({ label: "Resubmit Preauth", route: "status" });
-    }
+    if (hasTask(claim, "resubmit_discharge_claim")) actions.push({ label: "Resend the discharge claim", route: "claim" });
+    else if (claim.use_type === "claim" || claim.claim_id) actions.push({ label: "Ask for a reprocess", route: "reprocess" });
+    else actions.push({ label: "Resubmit the pre-auth", route: "status", openAction: "resubmit_preauth" });
   }
-  if (claim.use_type === "claim") {
-    options.push({ label: "View Claim", route: "claim" });
-  }
-  // claim.status here is the cashless case's own aggregate status
-  // (pending/partial/complete/failed — see NhcxCashlessCase#status); "draft"
-  // is a Claim#status value from a different endpoint's shape and never
-  // appears on dashboard/claims rows, so "Submit Preauth" could never surface.
-  // Gate off the fields this endpoint actually populates instead: a pending
-  // submit_preauth task means the case is ready but nothing's been sent yet;
-  // preauth_status being set means a preauth already exists to view.
-  if (claim.pending_tasks?.some((t) => t.task_type === "submit_preauth")) {
-    options.push({ label: "Submit Preauth", route: "review" });
-  } else if (claim.preauth_status) {
-    options.push({ label: "View Preauth", route: "status" });
-  }
-  if (options.length === 0) {
-    options.push({ label: "Open Case", route: "" });
-  }
-  return options;
+  if (claim.preauth_status === "QUERIED" && claim.claim_decision == null) actions.push({ label: "Answer the pre-auth query", route: "status", openAction: "respond_preauth_query" });
+  if (claim.payment_status || claim.claim_decision === "APPROVED" || claim.claim_decision === "PARTIALLY_APPROVED") actions.push({ label: "View payment", route: "payment" });
+  if (claim.use_type === "claim") actions.push({ label: "View claim", route: "claim" });
+  if (hasTask(claim, "submit_preauth")) actions.push({ label: "Send the pre-auth", route: "review" });
+  else if (claim.preauth_status) actions.push({ label: "View pre-auth decision", route: "status" });
+  return actions;
 }
 
-function ActionMenu({ options, onSelect, disabled, size = 32 }) {
-  const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState(null);
-  const triggerRef = useRef(null);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const updateCoords = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-    };
-    updateCoords();
-    const handleClick = (e) => {
-      if (
-        triggerRef.current && !triggerRef.current.contains(e.target) &&
-        menuRef.current && !menuRef.current.contains(e.target)
-      ) setOpen(false);
-    };
-    const handleKey = (e) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    window.addEventListener("scroll", updateCoords, true);
-    window.addEventListener("resize", updateCoords);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-      window.removeEventListener("scroll", updateCoords, true);
-      window.removeEventListener("resize", updateCoords);
-    };
-  }, [open]);
-
-  if (!options?.length) return null;
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        title="More Actions"
-        disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center",
-          background: open ? "var(--bg-main)" : "transparent", color: "var(--text-muted)",
-          border: "1px solid var(--border-color)", borderRadius: "var(--radius-xs)",
-          cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1,
-          transition: "background 0.15s ease",
-        }}
-      >
-        <MoreVertical size={16} />
-      </button>
-      {createPortal(
-        <AnimatePresence>
-          {open && coords && (
-            <motion.div
-              ref={menuRef}
-              initial={{ opacity: 0, y: -4, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.96 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              className="glass-panel"
-              style={{
-                position: "fixed", top: coords.top, right: coords.right, zIndex: 1000,
-                minWidth: "190px", borderRadius: "var(--radius-md)", padding: "4px",
-                transformOrigin: "top right",
-              }}
-            >
-              {options.map((opt) => (
-                <button
-                  key={opt.route}
-                  type="button"
-                  onClick={() => { setOpen(false); onSelect(opt.route); }}
-                  style={{
-                    display: "block", width: "100%", textAlign: "left", padding: "8px 10px",
-                    fontSize: "13px", fontWeight: 500, color: "var(--text-main)", background: "transparent",
-                    border: "none", borderRadius: "var(--radius-sm)", cursor: "pointer",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-main)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
-    </>
-  );
-}
-
-// The line under the status chip: an open task first, otherwise the approved
-// amount once there is one. Nothing at all rather than a placeholder.
-function StatusDetail({ claim, card = false }) {
+function StatusDetail({ claim }) {
   const task = claim.pending_tasks?.[0];
-  if (task && needsAttention(claim) && !card) {
+  if (task && needsAttention(claim)) {
     return (
       <div className="wq-sub cc-task" title={task.title}>
-        <AlertCircle size={12} /> {task.title || "Action required"}
+        <AlertCircle size={12} aria-hidden="true" /> {taskLabel(task.task_type) || task.title || "Action required"}
       </div>
     );
   }
@@ -200,7 +63,7 @@ function StatusDetail({ claim, card = false }) {
     return (
       <div className="wq-sub cc-approved">
         <span className="wq-num">{formatMoney(claim.approved_amount)}</span>
-        {partial ? " partially approved" : " approved"}
+        {partial ? " partly approved" : " approved"}
       </div>
     );
   }
@@ -214,53 +77,35 @@ const payerLine = (claim) =>
       {claim.policy_number && ` · ${claim.policy_number}`}
     </>
   ) : (
-    claim.policy_number || "Payer not selected"
+    claim.policy_number || "Payer not chosen yet"
   );
 
-function RowActions({ claim, busy, onNavigate }) {
-  const actionOptions = getActionOptions(claim);
-  const primary = actionOptions[0];
-  const attention = needsAttention(claim);
+function RowActions({ claim, busy, onOpen }) {
+  const actions = rowActions(claim);
   return (
     <div className="cc-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        className={`cc-act${attention ? " is-primary" : ""}`}
-        disabled={busy}
-        title={primary.label}
-        onClick={() => onNavigate(claim, primary.route)}
-      >
-        {busy ? "Opening…" : primary.label}
+      <button type="button" className="cc-act" disabled={busy} onClick={() => onOpen(claim)}>
+        {busy ? "Opening…" : "Open"}
       </button>
-      {actionOptions.length > 1 ? (
-        <ActionMenu
-          options={actionOptions.slice(1)}
-          disabled={busy}
-          onSelect={(route) => onNavigate(claim, route)}
-          size={30}
-        />
-      ) : (
-        // Holds the menu's slot so every row's button sits in the same column.
-        <span className="cc-menu-slot" aria-hidden="true" />
-      )}
+      <RowMenu label={`More for ${formatCaseRef(claim.id)}`} disabled={busy} items={actions.map((a) => ({ label: a.label, onClick: () => onOpen(claim, a) }))} />
     </div>
   );
 }
 
-function ClaimCard({ claim, allFacilitiesMode, busy, onNavigate }) {
+function ClaimCard({ claim, allFacilitiesMode, busy, onOpen }) {
   const attention = needsAttention(claim);
   return (
     <div
       className={`cc-card${attention ? " needs-action" : ""}`}
       role="button"
       tabIndex={0}
-      onClick={() => onNavigate(claim, "")}
+      onClick={() => onOpen(claim)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onNavigate(claim, "");
+        if (e.key === "Enter") onOpen(claim);
       }}
     >
       <div className="cc-card-head">
-        <div style={{ minWidth: 0 }}>
+        <div className="cc-card-who">
           <div className="cc-patient">{claim.patient_name || claim.child_name || "—"}</div>
           <div className="wq-sub">
             <span className="wq-mono">{formatCaseRef(claim.id)}</span> · {formatDate(claim.created_at)}
@@ -270,11 +115,13 @@ function ClaimCard({ claim, allFacilitiesMode, busy, onNavigate }) {
       </div>
       <div className="cc-card-stage">
         <StageTrack claim={claim} />
-        <StatusDetail claim={claim} card />
+        <StatusDetail claim={claim} />
       </div>
       <dl className="cc-card-meta">
         <dt>Payer</dt>
-        <dd><PayerName id={claim.payer_id} name={claim.payer_name} fallback="Not selected" /></dd>
+        <dd>
+          <PayerName id={claim.payer_id} name={claim.payer_name} fallback="Not chosen yet" />
+        </dd>
         {claim.policy_number && (
           <>
             <dt>Policy</dt>
@@ -288,14 +135,8 @@ function ClaimCard({ claim, allFacilitiesMode, busy, onNavigate }) {
           </>
         )}
       </dl>
-      {attention && claim.pending_tasks?.length > 0 && (
-        <div className="cc-card-task">
-          <AlertCircle size={13} />
-          <span>{claim.pending_tasks[0].title || "Action required"}</span>
-        </div>
-      )}
       <div className="cc-card-foot">
-        <RowActions claim={claim} busy={busy} onNavigate={onNavigate} />
+        <RowActions claim={claim} busy={busy} onOpen={onOpen} />
       </div>
     </div>
   );
@@ -304,50 +145,57 @@ function ClaimCard({ claim, allFacilitiesMode, busy, onNavigate }) {
 export default function Dashboard({ allFacilitiesMode = false }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [stats, setStats] = useState(null);
-  const [totalCount, setTotalCount] = useState(null);
-  const [claims, setClaims] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [statusTab, setStatusTab] = useState("all");
-  const [claimsPage, setClaimsPage] = useState(0);
-  const [searchQuery, setSearchQuery] = useState(
-    () => new URLSearchParams(location.search).get("q") || ""
-  );
+  const params = new URLSearchParams(location.search);
+  const urlQuery = params.get("q") || "";
+  const urlCase = params.get("case") || "";
+  const urlStage = params.get("stage") || "all";
+
+  const urlKey = `${urlQuery}|${urlCase}`;
+  const [data, setData] = useState({ key: -1, claims: null, total: null, error: null });
+  const [reloadKey, setReloadKey] = useState(0);
+  const [stage, setStage] = useState(() => (STAGE_TABS.some((t) => t.key === urlStage) ? urlStage : "all"));
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [page, setPage] = useState(0);
+  const [sync, setSync] = useState({ key: urlKey, search: urlQuery, caseFilter: urlCase });
+  if (sync.key !== urlKey) {
+    setSync({ key: urlKey, search: urlQuery, caseFilter: urlCase });
+    setPage(0);
+  }
+  const { search, caseFilter } = sync;
+  const setSearch = (value) => setSync((prev) => ({ ...prev, search: value, caseFilter: "" }));
+  const claims = data.claims;
+  const totalCount = data.total;
+  const loading = data.key !== reloadKey;
+  const loadError = data.error;
   const [navigating, setNavigating] = useState({});
+  const [navError, setNavError] = useState(null);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("dash_viewMode") || "table");
   const [sortBy, setSortBy] = useState("newest");
-  const isNarrow = useSyncExternalStore(subscribeNarrow, getNarrow);
-  const effectiveView = isNarrow ? "grid" : viewMode;
-
-  useEffect(() => { localStorage.setItem("dash_viewMode", viewMode); }, [viewMode]);
-
-  // Bumped by the error banner's Retry to re-run the load below.
-  const [reloadKey, setReloadKey] = useState(0);
-  const [navError, setNavError] = useState(null);
+  const narrow = useMediaQuery("(max-width: 768px)");
+  const effectiveView = narrow ? "grid" : viewMode;
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setLoadError(false);
-      try {
-        const [statsData, claimsData] = await Promise.all([
-          api.getDashboardStats(),
-          api.getDashboardClaims({ limit: 200 }),
-        ]);
-        setStats(statsData);
-        setClaims(claimsData?.claims || []);
-        setTotalCount(claimsData?.total_count ?? null);
-      } catch (_) {
-        setLoadError(true);
-      } finally {
-        setLoading(false);
-      }
+    localStorage.setItem("dash_viewMode", viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getDashboardClaims({ limit: 200 })
+      .then((res) => {
+        if (!cancelled) setData({ key: reloadKey, claims: res?.claims || [], total: res?.total_count ?? null, error: null });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        markHandled(err);
+        setData((prev) => ({ ...prev, key: reloadKey, error: err?.message || "The cases could not be loaded." }));
+      });
+    return () => {
+      cancelled = true;
     };
-    fetchData();
   }, [reloadKey]);
 
-  const navigateToClaim = async (claim, route) => {
+  const openCase = async (claim, action) => {
     let cid = claim.child_id;
     setNavError(null);
     if (!cid && claim.id) {
@@ -356,7 +204,8 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         const cs = await api.getCashlessStatus(claim.id);
         cid = cs.child_id;
       } catch (err) {
-        setNavError(err.message || "The case could not be opened.");
+        markHandled(err);
+        setNavError(err?.message || "The case could not be opened.");
       }
       setNavigating((p) => ({ ...p, [claim.id]: false }));
     }
@@ -364,49 +213,50 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       setNavError((prev) => prev || "This case has no patient on record, so it cannot be opened.");
       return;
     }
-    const state = {
-      claim_id: claim.claim_id ?? null,
-      cashless_case_id: claim.cashless_case_id ?? claim.id ?? null,
-    };
-    if (route === "status" && claim.claim_decision === "REJECTED" && !(claim.use_type === "claim" || claim.claim_id)) {
-      state.openAction = "resubmit_preauth";
-    }
-    navigate(`/case/${cid}/${route}`, { state });
+    const state = { claim_id: claim.claim_id ?? null, cashless_case_id: claim.cashless_case_id ?? claim.id ?? null, from: "/dashboard", ...(action?.openAction ? { openAction: action.openAction } : {}) };
+    navigate(`/case/${cid}/${action?.route || ""}`, { state });
   };
 
-  const q = searchQuery.trim().toLowerCase();
-  const searched = claims.filter((c) =>
-    !q ||
-    c.patient_name?.toLowerCase().includes(q) ||
-    c.child_name?.toLowerCase().includes(q) ||
-    c.id?.toString().includes(q) ||
-    c.payer_name?.toLowerCase().includes(q) ||
-    c.payer_id?.toString().toLowerCase().includes(q)
-  );
-
-  const tabCounts = Object.fromEntries(
-    STATUS_TABS.map((t) => [t.key, searched.filter(t.match).length])
-  );
-  const activeTab = STATUS_TABS.find((t) => t.key === statusTab) || STATUS_TABS[0];
-
-  const filteredClaims = searched.filter(activeTab.match).sort((a, b) => {
+  const list = claims || [];
+  const q = search.trim().toLowerCase();
+  const searched = list.filter((c) => {
+    if (caseFilter) return String(c.cashless_case_id ?? c.id) === String(caseFilter);
+    if (!q) return true;
+    return c.patient_name?.toLowerCase().includes(q) || c.child_name?.toLowerCase().includes(q) || formatCaseRef(c.id).toLowerCase().includes(q) || String(c.id).includes(q) || c.payer_name?.toLowerCase().includes(q) || c.payer_id?.toString().toLowerCase().includes(q) || c.policy_number?.toLowerCase().includes(q);
+  });
+  const attentionScoped = attentionOnly ? searched.filter(needsAttention) : searched;
+  const tabCounts = Object.fromEntries(STAGE_TABS.map((t) => [t.key, attentionScoped.filter(t.match).length]));
+  const attentionCount = searched.filter(needsAttention).length;
+  const activeTab = STAGE_TABS.find((t) => t.key === stage) || STAGE_TABS[0];
+  const filtered = attentionScoped.filter(activeTab.match).sort((a, b) => {
     if (sortBy === "oldest") return Date.parse(a.created_at) - Date.parse(b.created_at);
     if (sortBy === "amount") return (b.approved_amount || 0) - (a.approved_amount || 0);
     return Date.parse(b.created_at) - Date.parse(a.created_at);
   });
-
-  const claimsPageCount = Math.max(1, Math.ceil(filteredClaims.length / CLAIMS_PAGE_SIZE));
-  const safeClaimsPage = Math.min(claimsPage, claimsPageCount - 1);
-  const pagedClaims = filteredClaims.slice(safeClaimsPage * CLAIMS_PAGE_SIZE, (safeClaimsPage + 1) * CLAIMS_PAGE_SIZE);
-
-  const filtersActive = !!q || statusTab !== "all";
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const filtersActive = !!q || !!caseFilter || stage !== "all" || attentionOnly;
   const clearFilters = () => {
-    setSearchQuery("");
-    setStatusTab("all");
-    setClaimsPage(0);
+    setSync((prev) => ({ ...prev, search: "", caseFilter: "" }));
+    setStage("all");
+    setAttentionOnly(false);
+    setPage(0);
+    if (urlQuery || urlCase) navigate("/dashboard", { replace: true });
+  };
+  const pickStage = (key) => {
+    setStage(key);
+    setPage(0);
   };
 
-  const colCount = allFacilitiesMode ? 7 : 6;
+  const facilities = allFacilitiesMode
+    ? [...new Set(list.map((c) => c.facility_name || c.facility_code).filter(Boolean))].map((name) => {
+        const mine = list.filter((c) => (c.facility_name || c.facility_code) === name);
+        return { name, total: mine.length, attention: mine.filter(needsAttention).length, settled: mine.filter(isSettled).length };
+      })
+    : [];
+
+  const columns = ["Case", "Patient · Payer", allFacilitiesMode && "Facility", "Stage", "Status", "Actions"].filter(Boolean);
 
   return (
     <div className="dashboard-screen cc-screen">
@@ -414,72 +264,56 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={() => setReloadKey((k) => k + 1)} title="Reload the cases">
           {loading ? "Refreshing…" : "Refresh"}
         </Button>
-        <Button
-          variant="primary"
-          size="small"
-          icon={Plus}
-          disabled={allFacilitiesMode}
-          title={allFacilitiesMode ? "This account can view only" : "New Cashless Case"}
-          onClick={() => navigate("/registry")}
-        >
-          New Cashless Case
-        </Button>
+        {!allFacilitiesMode && (
+          <Button variant="primary" size="small" icon={Plus} write onClick={() => navigate("/registry")} title="Start a case from the patient registry">
+            New case
+          </Button>
+        )}
       </PageActions>
 
       {allFacilitiesMode && (
-        <div className="inline-error-banner cc-info-banner">
-          <AlertCircle size={16} />
-          Viewing all facilities (read-only). This account can see every case but not start or act on one.
+        <div className="cv-notice is-info">
+          <div className="cv-notice-body">Viewing all facilities. This account can see every case but not start or act on one.</div>
         </div>
       )}
 
       {loadError && (
-        <div className="inline-error-banner" style={{ margin: 0 }}>
-          <AlertCircle size={16} />
-          Could not load the latest case data. Showing the last known results, if any.
-          <button type="button" className="cc-retry" onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
+        <div className="cv-notice is-warn" role="alert">
+          <div className="cv-notice-body">The cases could not be loaded{claims ? ", so the list may be out of date" : ""}: {loadError}</div>
+          <div className="cv-notice-actions">
+            <button type="button" className="cc-act" onClick={() => setReloadKey((k) => k + 1)}>
+              Retry
+            </button>
+          </div>
         </div>
       )}
 
       {navError && (
-        <div className="inline-error-banner" style={{ margin: 0 }}>
-          <AlertCircle size={16} />
-          {navError}
+        <div className="cv-notice is-bad" role="alert">
+          <div className="cv-notice-body">{navError}</div>
         </div>
       )}
 
-      <div className="cc-kpis" role="tablist" aria-label="Case stage">
-        {STATUS_TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={statusTab === t.key}
-            className={`cc-kpi cc-kpi-btn${statusTab === t.key ? " is-on" : ""}`}
-            onClick={() => {
-              setStatusTab(t.key);
-              setClaimsPage(0);
-            }}
-          >
+      <div className="cc-kpis" role="group" aria-label="Case stage">
+        {STAGE_TABS.map((t) => (
+          <button key={t.key} type="button" aria-pressed={stage === t.key} className={`cc-kpi cc-kpi-btn${stage === t.key ? " is-on" : ""}`} onClick={() => pickStage(t.key)}>
             <span className="cc-kpi-label">
               <span className="cc-kpi-dot" style={{ background: t.dot }} />
               {t.label}
             </span>
-            {loading ? (
-              <span className="skeleton-line" style={{ width: 36, height: 22, marginTop: 8 }} />
+            {loading && !claims ? (
+              <span className="skeleton-line cc-kpi-skeleton" />
             ) : (
               <span className="cc-kpi-value">
                 {tabCounts[t.key]}
-                {t.key === "all" && !q && totalCount > claims.length && (
-                  <span className="cc-kpi-of"> of {totalCount}</span>
-                )}
+                {t.key === "all" && !q && !caseFilter && !attentionOnly && totalCount > list.length && <span className="cc-kpi-of"> of {totalCount}</span>}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {allFacilitiesMode && stats?.by_facility?.length > 0 && (
+      {allFacilitiesMode && facilities.length > 0 && (
         <div className="wq-panel">
           <div className="cc-panel-title">By facility</div>
           <div className="wq-table-scroll">
@@ -487,22 +321,18 @@ export default function Dashboard({ allFacilitiesMode = false }) {
               <thead>
                 <tr>
                   <th>Facility</th>
-                  <th className="cc-num">Total</th>
-                  <th className="cc-num">Pending</th>
-                  <th className="cc-num">Partial</th>
-                  <th className="cc-num">Complete</th>
-                  <th className="cc-num">Failed</th>
+                  <th className="cc-num">Cases</th>
+                  <th className="cc-num">Need action</th>
+                  <th className="cc-num">Settled</th>
                 </tr>
               </thead>
               <tbody>
-                {stats.by_facility.map((row) => (
-                  <tr key={row.facility_name || row.facility_code}>
-                    <td style={{ fontWeight: 600 }}>{row.facility_name || row.facility_code}</td>
-                    <td className="wq-num cc-num">{row.total ?? 0}</td>
-                    <td className="wq-num cc-num">{row.pending ?? 0}</td>
-                    <td className="wq-num cc-num">{row.partial ?? 0}</td>
-                    <td className="wq-num cc-num" style={{ color: "var(--success)" }}>{row.complete ?? 0}</td>
-                    <td className="wq-num cc-num" style={{ color: "var(--error)" }}>{row.failed ?? 0}</td>
+                {facilities.map((row) => (
+                  <tr key={row.name}>
+                    <td className="cc-patient">{row.name}</td>
+                    <td className="wq-num cc-num">{row.total}</td>
+                    <td className="wq-num cc-num">{row.attention}</td>
+                    <td className="wq-num cc-num">{row.settled}</td>
                   </tr>
                 ))}
               </tbody>
@@ -511,24 +341,37 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         </div>
       )}
 
-      <Tip className="wq-page-tip">
-        Every insurance case and where it stands. Click a row to open the case; the case page shows what to do next.
-      </Tip>
+      <Tip className="wq-page-tip">Every insurance case and where it stands. Open a case to see what to do next; the stage tiles and the search narrow the list.</Tip>
 
       <div className="wq-panel">
         <div className="wq-toolbar">
           <input
             className="input-modern wq-search"
-            placeholder="Search patient, case ID or payer…"
+            placeholder="Search patient, case, policy or payer…"
             aria-label="Search cases"
-            value={searchQuery}
+            value={caseFilter ? formatCaseRef(caseFilter) : search}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setClaimsPage(0);
+              setSearch(e.target.value);
+              setPage(0);
             }}
           />
+          <div className="wq-chips" role="group" aria-label="Attention">
+            <button
+              type="button"
+              className={`wq-chip${attentionOnly ? " is-on" : ""}`}
+              aria-pressed={attentionOnly}
+              onClick={() => {
+                setAttentionOnly((v) => !v);
+                setPage(0);
+              }}
+            >
+              <span className="wq-chip-dot is-urgent" aria-hidden="true" />
+              Needs action
+              <span className="wq-chip-count">{attentionCount}</span>
+            </button>
+          </div>
           <div className="wq-toolbar-spacer" />
-          <div style={{ width: "170px" }}>
+          <div className="cc-sort">
             <Dropdown
               compact
               ariaLabel="Sort"
@@ -536,50 +379,30 @@ export default function Dashboard({ allFacilitiesMode = false }) {
               options={SORT_OPTIONS}
               onChange={(v) => {
                 setSortBy(v);
-                setClaimsPage(0);
+                setPage(0);
               }}
             />
           </div>
-          <div className="cc-view-toggle" role="group" aria-label="View">
-            <button
-              type="button"
-              title="Table view"
-              aria-pressed={viewMode === "table"}
-              className={viewMode === "table" ? "is-on" : ""}
-              onClick={() => setViewMode("table")}
-            >
-              <List size={16} />
-            </button>
-            <button
-              type="button"
-              title="Card view"
-              aria-pressed={viewMode === "grid"}
-              className={viewMode === "grid" ? "is-on" : ""}
-              onClick={() => setViewMode("grid")}
-            >
-              <LayoutGrid size={16} />
-            </button>
-          </div>
+          {!narrow && (
+            <div className="cc-view-toggle" role="group" aria-label="View">
+              <button type="button" title="Table view" aria-pressed={viewMode === "table"} className={viewMode === "table" ? "is-on" : ""} onClick={() => setViewMode("table")}>
+                <List size={16} aria-hidden="true" />
+              </button>
+              <button type="button" title="Card view" aria-pressed={viewMode === "grid"} className={viewMode === "grid" ? "is-on" : ""} onClick={() => setViewMode("grid")}>
+                <LayoutGrid size={16} aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
 
-        {loading ? (
-          <SkeletonTable rows={6} cols={colCount} />
-        ) : claims.length === 0 ? (
-          <EmptyState
-            icon={Inbox}
-            title="No cashless cases yet"
-            description="To start one, open Patient Registry, find the admitted patient and press Start case. It will show up here."
-          >
-            {!allFacilitiesMode && (
-              <Button variant="primary" size="small" icon={Plus} onClick={() => navigate("/registry")}>
-                New Cashless Case
-              </Button>
-            )}
-          </EmptyState>
-        ) : filteredClaims.length === 0 ? (
+        {loading && !claims ? (
+          <SkeletonTable rows={6} cols={columns.length} />
+        ) : list.length === 0 ? (
+          <EmptyState icon={Inbox} title="No cashless cases yet" description="To start one, open the Patient Registry, find the admitted patient and press Start case. It shows up here." />
+        ) : filtered.length === 0 ? (
           <div className="wq-empty">
-            <div className="wq-empty-title">No cases match these filters</div>
-            <div className="cc-empty-hint">Try a different search term or status.</div>
+            <div className="wq-empty-title">{caseFilter ? `${formatCaseRef(caseFilter)} is not in this list` : "No cases match these filters"}</div>
+            <div className="cc-empty-hint">{caseFilter ? "It may belong to another facility, or be older than the cases loaded here." : "Try a different search term or stage."}</div>
             {filtersActive && (
               <Button variant="outline" size="small" onClick={clearFilters}>
                 Clear filters
@@ -588,14 +411,8 @@ export default function Dashboard({ allFacilitiesMode = false }) {
           </div>
         ) : effectiveView === "grid" ? (
           <div className="cc-grid">
-            {pagedClaims.map((claim) => (
-              <ClaimCard
-                key={claim.id}
-                claim={claim}
-                allFacilitiesMode={allFacilitiesMode}
-                busy={!!navigating[claim.id]}
-                onNavigate={navigateToClaim}
-              />
+            {paged.map((claim) => (
+              <ClaimCard key={claim.id} claim={claim} allFacilitiesMode={allFacilitiesMode} busy={!!navigating[claim.id]} onOpen={openCase} />
             ))}
           </div>
         ) : (
@@ -603,70 +420,57 @@ export default function Dashboard({ allFacilitiesMode = false }) {
             <table className="wq-table cc-table">
               <thead>
                 <tr>
-                  <th>Case</th>
-                  <th>Patient · Payer</th>
-                  {allFacilitiesMode && <th>Facility</th>}
-                  <th>Stage</th>
-                  <th>Status</th>
-                  <th className="cc-actions-col"><span className="sr-only">Actions</span></th>
+                  {columns.map((c) => (
+                    <th key={c} className={c === "Actions" ? "cc-actions-col" : undefined}>
+                      {c === "Actions" ? <span className="sr-only">Actions</span> : c}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {pagedClaims.map((claim) => {
-                  return (
-                    <tr
-                      key={claim.id}
-                      tabIndex={0}
-                      title="Open case"
-                      onClick={() => navigateToClaim(claim, "")}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") navigateToClaim(claim, "");
-                      }}
-                    >
-                      <td>
-                        <div className="wq-mono cc-case-id">{formatCaseRef(claim.id)}</div>
-                        <div className="wq-sub" title={formatDate(claim.created_at)}>
-                          {formatRelative(claim.created_at)}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="cc-patient">{claim.patient_name || claim.child_name || "—"}</div>
-                        <div className="wq-sub cc-payer">{payerLine(claim)}</div>
-                      </td>
-                      {allFacilitiesMode && (
-                        <td className="cc-facility">{claim.facility_name || "—"}</td>
-                      )}
-                      <td>
-                        <StageTrack claim={claim} />
-                      </td>
-                      <td>
-                        <CaseStatusChip claim={claim} />
-                        <StatusDetail claim={claim} />
-                      </td>
-                      <td className="cc-actions-col">
-                        <RowActions claim={claim} busy={!!navigating[claim.id]} onNavigate={navigateToClaim} />
-                      </td>
-                    </tr>
-                  );
-                })}
+                {paged.map((claim) => (
+                  <tr
+                    key={claim.id}
+                    tabIndex={0}
+                    onClick={() => openCase(claim)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") openCase(claim);
+                    }}
+                  >
+                    <td>
+                      <div className="wq-mono cc-case-id">{formatCaseRef(claim.id)}</div>
+                      <div className="wq-sub" title={formatDate(claim.created_at)}>
+                        {formatRelative(claim.created_at)}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cc-patient">{claim.patient_name || claim.child_name || "—"}</div>
+                      <div className="wq-sub cc-payer">{payerLine(claim)}</div>
+                    </td>
+                    {allFacilitiesMode && <td className="cc-facility">{claim.facility_name || "—"}</td>}
+                    <td>
+                      <StageTrack claim={claim} />
+                    </td>
+                    <td>
+                      <CaseStatusChip claim={claim} />
+                      <StatusDetail claim={claim} />
+                    </td>
+                    <td className="cc-actions-col">
+                      <RowActions claim={claim} busy={!!navigating[claim.id]} onOpen={openCase} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
 
-        {!loading && filteredClaims.length > 0 && (
+        {!loading && filtered.length > 0 && (
           <div className="wq-pagination">
-            <TablePagination
-              page={safeClaimsPage}
-              pageSize={CLAIMS_PAGE_SIZE}
-              total={filteredClaims.length}
-              onPageChange={setClaimsPage}
-              label="cases"
-            />
+            <TablePagination page={safePage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} label="cases" />
           </div>
         )}
       </div>
-
     </div>
   );
 }

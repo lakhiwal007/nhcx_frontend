@@ -58,7 +58,7 @@ function downloadCsv(rows, patientFor) {
   URL.revokeObjectURL(url);
 }
 
-const claimSearchKey = (p) => p.cashless_case_id ?? p.claim_reference;
+const caseLink = (p) => (p.cashless_case_id ? `/dashboard?case=${encodeURIComponent(p.cashless_case_id)}` : `/dashboard?q=${encodeURIComponent(p.claim_reference || "")}`);
 
 function computePaymentMetrics(unique) {
   const now = new Date();
@@ -330,7 +330,7 @@ export default function Payments() {
                               title="Find this claim in Cashless Cases"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(pay))}`);
+                                navigate(caseLink(pay));
                               }}
                             >
                               {pay.claim_reference}
@@ -469,7 +469,7 @@ function PaymentDetailModal({ payment, patient, onClose, navigate }) {
                 className="pm-modal-btn"
                 onClick={() => {
                   onClose();
-                  navigate(`/dashboard?q=${encodeURIComponent(claimSearchKey(payment))}`);
+                  navigate(caseLink(payment));
                 }}
               >
                 Find this claim in Cashless Cases
