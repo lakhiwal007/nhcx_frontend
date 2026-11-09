@@ -475,3 +475,4 @@
 .cv-kv .money { font-variant-numeric: tabular-nums; }
 .cv-drawer-tabs { margin: 0 0 14px; padding: 0; }
 .ov-body .cv-card + .cv-card { margin-top: 12px; }
+.cv-col-check { width: 40px; }
