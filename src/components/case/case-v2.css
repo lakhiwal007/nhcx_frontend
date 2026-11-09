@@ -16,7 +16,7 @@
 
 .cv-top {
   border-bottom: 1px solid var(--cv-line);
-  padding: 8px 20px 0;
+  padding: 8px 20px 12px;
 }
 
 .cv-page {
@@ -41,6 +41,11 @@
 .cv-head-meta { display: flex; gap: 4px 12px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--cv-soft); }
 .cv-idgrid,
 .cv-moneygrid { display: grid; margin-top: 6px; border-top: 1px solid var(--cv-line); border-left: 1px solid var(--cv-line); border-radius: var(--radius-sm); overflow: hidden; background: var(--cv-card); }
+.cv-moneygrid { border-color: var(--info-line); }
+.cv-moneygrid .cv-moneycell { border-color: var(--info-line); }
+.cv-moneygrid .cv-idcell-key { background: var(--info-soft); border-color: var(--info-line); color: var(--info); }
+.cv-panel-money { background: var(--info-soft); border-color: var(--info-line); }
+.cv-panel-money .cv-panel-title { color: var(--info); }
 .cv-idgrid { grid-template-columns: repeat(4, max-content) minmax(0, 1.4fr) minmax(0, 1fr); }
 .cv-moneygrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .cv-idcell,
@@ -49,7 +54,7 @@
 .cv-idcell:disabled { cursor: default; }
 .cv-idcell:focus-visible { outline: 2px solid var(--cv-primary); outline-offset: -2px; }
 .cv-idcell:not(:disabled):hover .cv-idcell-text { color: var(--cv-primary); }
-.cv-idcell-key { padding: 3px 10px; font-size: 11px; color: var(--cv-soft); background: var(--cv-wash); border-bottom: 1px solid var(--cv-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-idcell-key { padding: 3px 10px; font-size: 11px; color: var(--cv-soft); background: var(--neutral-soft); border-bottom: 1px solid var(--cv-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cv-idcell-val { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 10px; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
 .cv-idcell-text { overflow: hidden; text-overflow: ellipsis; }
 .cv-idcell-val svg { flex: none; color: var(--cv-ok); }
@@ -64,8 +69,8 @@
 .cv-link:focus-visible { outline: 2px solid var(--cv-primary); outline-offset: 2px; border-radius: 2px; }
 
 .cv-chain {
-  display: flex; align-items: center; gap: 4px 16px; flex-wrap: wrap; margin: 8px -20px 0; padding: 3px 20px;
-  background: var(--cv-card); border-top: 1px solid var(--cv-line);
+  display: flex; align-items: center; gap: 4px 16px; flex-wrap: wrap; margin: 10px 0 0; padding: 4px 14px;
+  background: var(--cv-card); border: 1px solid var(--cv-line); border-radius: var(--radius-md);
 }
 .cv-chain-track { display: flex; align-items: center; flex: 1 1 0; min-width: 0; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
 .cv-step { display: flex; align-items: center; flex: 1 0 auto; }
@@ -297,7 +302,6 @@
   .cv-step-btn { padding-inline: 2px; }
   .cv-step-word { display: none; }
   .cv-step-seg { min-width: 6px; }
-  .cv-chain { margin-inline: -16px; padding-inline: 16px; }
   .cv-stage-tools { margin-left: 0; padding-left: 0; border-left: 0; }
   .cv-branch { min-height: 30px; }
   .cv-aside { position: static; max-width: none; }
