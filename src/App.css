@@ -5200,6 +5200,24 @@ tr.en-excluded td {
     width: 180px;
 }
 
+.cm-dates {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cm-date {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+}
+
+.cm-date .cv-ctl {
+    width: 150px;
+}
+
 .cm-detail {
     display: flex;
     flex-direction: column;

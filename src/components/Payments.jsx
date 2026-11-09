@@ -24,6 +24,18 @@ const SORT_OPTIONS = [
 const unlinked = (p) => p.claim_id == null && p.cashless_case_id == null;
 const needsAck = (p) => ackState(p) !== "done";
 
+const localDay = (value) => {
+  const d = value ? new Date(value) : null;
+  if (!d || Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+const withinDates = (value, from, to) => {
+  if (!from && !to) return true;
+  const day = localDay(value);
+  return !!day && (!from || day >= from) && (!to || day <= to);
+};
+
 const TILES = [
   { key: "all", label: "All payments", match: () => true, dot: "var(--text-muted)" },
   { key: "settled", label: "Settled", match: (p) => !unlinked(p) && p.settled, dot: "var(--success)" },
@@ -77,6 +89,8 @@ export default function Payments() {
   const [tile, setTile] = useState(() => (TILES.some((t) => t.key === urlView) ? urlView : "all"));
   const [ackOnly, setAckOnly] = useState(urlView === "ack");
   const [payerFilter, setPayerFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -103,7 +117,7 @@ export default function Payments() {
 
   const payerOptions = [{ value: "", label: "All payers" }, ...Array.from(new Map(payments.map((p) => [p.payer_id || p.payer_name, p.payer_name || p.payer_id])).entries()).filter(([value]) => value).map(([value, label]) => ({ value, label }))];
   const q = search.trim().toLowerCase();
-  const searched = payments.filter((p) => (!payerFilter || (p.payer_id || p.payer_name) === payerFilter) && (!q || [p.claim_reference, p.payment_reference, p.utr, p.patient_name, p.cashless_case_id && formatCaseRef(p.cashless_case_id)].some((v) => v && String(v).toLowerCase().includes(q))));
+  const searched = payments.filter((p) => (!payerFilter || (p.payer_id || p.payer_name) === payerFilter) && withinDates(p.payment_date, dateFrom, dateTo) && (!q || [p.claim_reference, p.payment_reference, p.utr, p.patient_name, p.cashless_case_id && formatCaseRef(p.cashless_case_id)].some((v) => v && String(v).toLowerCase().includes(q))));
   const scoped = ackOnly ? searched.filter(needsAck) : searched;
   const tileRows = Object.fromEntries(TILES.map((t) => [t.key, scoped.filter(t.match)]));
   const ackCount = searched.filter(needsAck).length;
@@ -211,6 +225,34 @@ export default function Payments() {
               />
             </div>
           )}
+          <div className="cm-dates">
+            <label className="cm-date">
+              <span>From</span>
+              <input
+                type="date"
+                className="cv-ctl"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </label>
+            <label className="cm-date">
+              <span>To</span>
+              <input
+                type="date"
+                className="cv-ctl"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </label>
+          </div>
           <div className="cc-sort">
             <Dropdown
               compact
