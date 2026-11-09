@@ -17,7 +17,6 @@ import "../case/case-workspace.css";
 import "../case/case-v2.css";
 
 import PayerPolicy from "./PayerPolicy";
-import CoverageDiscovery from "./CoverageDiscovery";
 import EligibilityPrep from "./EligibilityPrep";
 import PreauthDraft from "./PreauthDraft";
 import PreauthStatus from "./PreauthStatus";
@@ -29,6 +28,13 @@ import CaseTimeline from "./CaseTimeline";
 import ErrorBoundary from "../ErrorBoundary";
 
 const COMMS_POLL_MS = 60_000;
+
+function DiscoverRedirect() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.set("discover", "1");
+  return <Navigate to={{ pathname: "../payer", search: `?${params.toString()}` }} replace />;
+}
 
 export default function CaseWrapper() {
   const { id } = useParams();
@@ -412,7 +418,7 @@ function CaseWorkspace({ reportCase }) {
                     }
                   />
                   <Route path="payer" element={<PayerPolicy ctx={contextValue} />} />
-                  <Route path="discover" element={<CoverageDiscovery ctx={contextValue} />} />
+                  <Route path="discover" element={<DiscoverRedirect />} />
                   <Route path="prep" element={<EligibilityPrep ctx={contextValue} />} />
                   <Route path="review" element={<PreauthDraft ctx={contextValue} />} />
                   <Route path="status" element={<PreauthStatus ctx={contextValue} />} />
