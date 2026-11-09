@@ -1051,10 +1051,6 @@ h3,
     border-left: 1px solid var(--border-color);
 }
 
-.pt-ledger .pt-chev-col {
-    width: 20px;
-    padding-right: 0;
-}
 
 .pt-ledger tr.pt-row {
     cursor: pointer;
@@ -1077,31 +1073,10 @@ h3,
     outline-offset: -2px;
 }
 
-.pt-ledger tr.pt-row.is-on td {
-    background: var(--pt-tint);
-    box-shadow: 1px 0 0 var(--pt-tint);
-    border-bottom-color: transparent;
-}
 
-.pt-ledger tr.pt-row.is-on td:first-child {
-    box-shadow: 1px 0 0 var(--pt-tint);
-}
 
-.pt-ledger tr.pt-expand > td {
-    padding: 6px 20px 24px 44px;
-    background: var(--pt-tint);
-}
 
-.pt-chev {
-    margin-top: 3px;
-    color: var(--text-muted);
-    transition: transform 0.15s ease;
-}
 
-.pt-chev.is-open {
-    color: var(--primary);
-    transform: rotate(90deg);
-}
 
 .pt-sub {
     margin-top: 3px;
@@ -1137,113 +1112,21 @@ h3,
 }
 
 /* Opened row: a facts line, then white cards holding nested ledgers */
-.pt-detail-facts {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 32px;
-    margin-bottom: 16px;
-    font-size: 13px;
-}
 
-.pt-detail-facts .pt-k {
-    margin-right: 8px;
-    color: var(--text-muted);
-}
 
-.pt-detail-facts .pt-detail-action {
-    margin-left: auto;
-}
 
-.pt-detail-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
-    gap: 24px;
-    align-items: start;
-}
 
-@media (max-width: 900px) {
-    .pt-detail-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-}
 
-.pt-detail-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    min-width: 0;
-}
 
-.pt-inner {
-    padding: 4px 6px 8px;
-    border-radius: 10px;
-    overflow-x: auto;
-}
 
-.pt-inner-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 12px;
-    padding: 12px 14px 4px;
-    font-size: 13px;
-    font-weight: var(--fw-bold);
-}
 
-.pt-mini {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-}
 
-.pt-mini th {
-    padding: 8px 14px;
-    border-bottom: 1.5px solid var(--text-main);
-    color: var(--text-main);
-    font: var(--fw-semibold) 12px var(--font-sans);
-    text-align: left;
-    white-space: nowrap;
-    opacity: 0.85;
-}
 
-.pt-mini td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border-color);
-    vertical-align: top;
-}
 
-.pt-mini .pt-num {
-    text-align: right;
-    white-space: nowrap;
-}
 
-.pt-mini tr.pt-total td {
-    border-bottom: 0;
-    border-top: 1.5px solid var(--text-main);
-    font-weight: var(--fw-bold);
-    font-size: 14px;
-}
 
-.pt-message {
-    margin: 0 0 14px;
-    font-size: 14px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-}
 
-.pt-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
 
-.pt-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    text-decoration: none;
-}
 
 /* Patient list */
 .pt-person {
@@ -1257,9 +1140,6 @@ h3,
     white-space: nowrap;
 }
 
-.pt-act {
-    min-width: 104px;
-}
 
 /* ─── Shared overlays (Overlay.jsx: Drawer, Modal) ─────────────────────── */
 .ov-backdrop {
@@ -5275,3 +5155,98 @@ code {
 .wq-detail > :last-child { min-width: 0; overflow-wrap: anywhere; }
 .wq-detail-label { color: var(--text-muted); flex: none; }
 @media (max-width: 480px) { .wq-details-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.pt-glance {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px 20px;
+    padding: 14px 16px;
+    border: 1px solid var(--info-line);
+    border-radius: 10px;
+    background: var(--info-soft);
+}
+
+.pt-glance .pt-fact {
+    padding: 0;
+    border: 0;
+}
+
+.pt-glance-chip {
+    display: inline-block;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.pt-stage-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.pt-ledger tr.pt-row.is-flagged td:first-child {
+    box-shadow: inset 3px 0 0 var(--warning);
+}
+
+.pt-drawer-facts {
+    padding: 0 0 12px;
+}
+
+.pt-money-rows .money {
+    font-variant-numeric: tabular-nums;
+}
+
+.pt-task-row > span:last-child {
+    flex: none;
+}
+
+.pt-notice {
+    margin-bottom: 12px;
+}
+
+.ov-body .cv-card + .cv-card,
+.ov-body .pt-drawer-facts + .cv-card {
+    margin-top: 12px;
+}
+
+.pt-cards {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.pt-cards li + li {
+    border-top: 1px solid var(--border-color);
+}
+
+.pt-cardrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pt-cardrow:hover {
+    background: var(--bg-main);
+}
+
+.pt-cardrow-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.pt-cardrow .cc-stage {
+    flex: none;
+    width: 96px;
+}

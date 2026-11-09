@@ -380,7 +380,7 @@ function CaseWorkspace({ reportCase }) {
             <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
               <ErrorBoundary key={currentStepPath}>
                 <Routes location={location}>
-                  <Route path="/" element={caseRecord.loading ? <LoadingBlock compact text="Opening the case…" /> : <Navigate to={landingStage(effectiveCase, { full: caseRecord.full })} replace />} />
+                  <Route path="/" element={caseRecord.loading ? <LoadingBlock compact text="Opening the case…" /> : <Navigate to={landingStage(effectiveCase, { full: caseRecord.full })} replace state={location.state} />} />
                   <Route path="payer" element={<PayerPolicy ctx={contextValue} />} />
                   <Route path="discover" element={<DiscoverRedirect />} />
                   <Route path="prep" element={<EligibilityPrep ctx={contextValue} />} />
