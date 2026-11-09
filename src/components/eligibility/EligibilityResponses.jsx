@@ -1,5 +1,6 @@
-import { formatDate, formatMoney } from "../../format.js";
+import { formatDate, formatMoney, humanize } from "../../format.js";
 import PayrErrorList from "../PayrErrorList";
+import TechnicalDetails from "../case/TechnicalDetails";
 import { period } from "./checks";
 
 const STAGE = { pre: ["Pre-auth", "is-info"], post: ["Claim", "is-todo"] };
@@ -17,28 +18,38 @@ function ValidationPanel({ check, checks, discovery }) {
   const cd = cov.coverage_details || {};
   const w = checks.wallet || {};
   const classes = (cd.classes || []).filter((c) => c?.value && !["plan", "subplan"].includes(c.type));
+  const outcome = [sub.disposition, sub.outcome].filter(Boolean).map((v) => humanize(v)).join(" · ");
   return (
-    <div className="cv-card-body cv-cols">
-      <div>
-        <div className="cv-kv"><span>Outcome</span><span>{[sub.disposition, sub.outcome].filter(Boolean).join(" · ") || "—"}</span></div>
-        <div className="cv-kv"><span>In force</span><span style={{ color: checks.inforce === false ? "var(--error)" : undefined }}>{checks.inforce == null ? "—" : checks.inforce ? "Yes" : "No"}</span></div>
-        <div className="cv-kv"><span>Benefit period</span><span>{period(cov.benefit_period?.start, cov.benefit_period?.end) || "—"}</span></div>
-        <div className="cv-kv"><span>Plan on the card</span><span>{cd.plan_name || cd.plan || "—"}</span></div>
-        <div className="cv-kv"><span>Member checked</span><span className="cv-mono">{cd.member_id || "—"}</span></div>
-        <div className="cv-kv"><span>Coverage status</span><span>{cd.status || "—"}</span></div>
-        {discovery && <div className="cv-kv"><span>Policy source</span><span>Found by discovery</span></div>}
+    <>
+      <div className="cv-card-body cv-cols">
+        <div>
+          <div className="cv-kv"><span>Outcome</span><span>{outcome || "—"}</span></div>
+          <div className="cv-kv"><span>In force</span><span>{checks.inforce == null ? "—" : checks.inforce ? "Yes" : "No"}</span></div>
+          <div className="cv-kv"><span>Benefit period</span><span>{period(cov.benefit_period?.start, cov.benefit_period?.end) || "—"}</span></div>
+          <div className="cv-kv"><span>Plan on the card</span><span>{cd.plan_name || cd.plan || "—"}</span></div>
+          <div className="cv-kv"><span>Member checked</span><span className="cv-mono">{cd.member_id || "—"}</span></div>
+          <div className="cv-kv"><span>Coverage status</span><span>{cd.status ? humanize(cd.status) : "—"}</span></div>
+          {discovery && <div className="cv-kv"><span>Policy source</span><span>Found by discovery</span></div>}
+        </div>
+        <div>
+          <div className="cv-kv"><span>Sum insured</span><span>{money(w.sum_insured ?? cd.sum_insured)}</span></div>
+          <div className="cv-kv"><span>Used so far</span><span>{money(w.used)}</span></div>
+          <div className="cv-kv"><span>Balance</span><span className={w.balance != null && w.balance <= 0 ? "cv-moneycell-val is-due" : undefined}>{money(w.balance)}</span></div>
+          {classes.map((c) => (
+            <div key={c.id || c.type} className="cv-kv"><span>{c.name || c.type}</span><span>{c.value}</span></div>
+          ))}
+        </div>
       </div>
-      <div>
-        <div className="cv-kv"><span>Sum insured</span><span>{money(w.sum_insured ?? cd.sum_insured)}</span></div>
-        <div className="cv-kv"><span>Used so far</span><span>{money(w.used)}</span></div>
-        <div className="cv-kv"><span>Balance</span><span style={w.balance == null ? undefined : { color: w.balance <= 0 ? "var(--error)" : "var(--success)" }}>{money(w.balance)}</span></div>
-        {classes.map((c) => (
-          <div key={c.id || c.type} className="cv-kv"><span>{c.name || c.type}</span><span>{c.value}</span></div>
-        ))}
-        <div className="cv-kv"><span>Coverage reference</span><span className="cv-mono">{cov.coverage || "—"}</span></div>
-        <div className="cv-kv"><span>Request</span><span className="cv-mono">{sub.correlation_id ? sub.correlation_id.slice(0, 8) : "—"}</span></div>
+      <div className="cv-card-body">
+        <TechnicalDetails
+          ids={[
+            { label: "Coverage reference", value: cov.coverage },
+            { label: "Request id", value: sub.correlation_id },
+            { label: "Raw outcome", value: sub.outcome },
+          ]}
+        />
       </div>
-    </div>
+    </>
   );
 }
 
@@ -66,20 +77,19 @@ function BenefitsPanel({ check }) {
             return (
               <tr key={i}>
                 <td>
-                  <strong>{it.product_or_service?.display || it.product_or_service?.code || "—"}</strong>{" "}
-                  <span className="cv-mono cv-card-meta">{it.product_or_service?.code}</span>
-                  {it.excluded && <span className="cv-chip is-bad" style={{ marginLeft: 8 }}>Excluded</span>}
+                  <strong>{it.product_or_service?.display || it.product_or_service?.code || "—"}</strong> <span className="cv-mono cv-card-meta">{it.product_or_service?.code}</span>
+                  {it.excluded && <span className="cv-chip is-bad cv-chip-after">Excluded</span>}
                   {(it.benefit || []).slice(1).map((x, j) => (
-                    <div key={j} className="cv-card-meta">{x.type?.display || "Limit"}: {money(x.allowed?.value)} · {money(x.used?.value)} used</div>
+                    <div key={j} className="cv-card-meta">
+                      {x.type?.display || "Limit"}: {money(x.allowed?.value)} · {money(x.used?.value)} used
+                    </div>
                   ))}
                 </td>
                 <td>{it.category?.display || it.category?.code || "—"}</td>
                 <td className="is-num">{money(allowed)}</td>
                 <td className="is-num">{money(used)}</td>
-                <td className="is-num" style={{ fontWeight: 600 }}>{allowed != null ? money(allowed - used) : "—"}</td>
-                <td>
-                  {it.authorization_required == null ? "—" : <span className={`cv-chip ${it.authorization_required ? "is-warn" : "is-todo"}`}>{it.authorization_required ? "Needed" : "Not needed"}</span>}
-                </td>
+                <td className="is-num cv-strong">{allowed != null ? money(allowed - used) : "—"}</td>
+                <td>{it.authorization_required == null ? "—" : <span className={`cv-chip ${it.authorization_required ? "is-warn" : "is-todo"}`}>{it.authorization_required ? "Needed" : "Not needed"}</span>}</td>
                 <td>{(it.authorization_supporting || []).map((d) => d.display || d.code).join(", ") || "—"}</td>
               </tr>
             );
@@ -105,7 +115,6 @@ function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
               <tr>
                 <th>Asked for</th>
                 <th>Type</th>
-                <th>Code</th>
                 <th>For</th>
                 <th>When</th>
               </tr>
@@ -116,11 +125,21 @@ function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
                 const name = r.display || formTitle(r.form_url) || r.code || r.text || "—";
                 return (
                   <tr key={i}>
-                    <td>{r.form_url && onOpenForm ? <button type="button" className="cv-pick" onClick={() => onOpenForm(r.form_url)}>{name}</button> : <strong>{name}</strong>}</td>
-                    <td style={{ textTransform: "capitalize" }}>{r.kind || "—"}</td>
-                    <td className="cv-mono">{r.code || "—"}</td>
-                    <td className="cv-mono">{r.for_code || "Every case"}</td>
-                    <td><span className={`cv-chip ${tone}`}>{label}</span></td>
+                    <td>
+                      {r.form_url && onOpenForm ? (
+                        <button type="button" className="cv-pick" onClick={() => onOpenForm(r.form_url)}>
+                          {name}
+                        </button>
+                      ) : (
+                        <strong>{name}</strong>
+                      )}
+                      {r.code && name !== r.code && <span className="cv-mono cv-card-meta cv-chip-after">{r.code}</span>}
+                    </td>
+                    <td>{r.kind ? humanize(r.kind) : "—"}</td>
+                    <td>{r.for_code ? <span className="cv-mono">{r.for_code}</span> : "Every case"}</td>
+                    <td>
+                      <span className={`cv-chip ${tone}`}>{label}</span>
+                    </td>
                   </tr>
                 );
               })}
@@ -134,7 +153,6 @@ function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
 
 const TITLES = { validation: "Validation", benefits: "Benefits", auth: "Auth requirements" };
 
-// One of the payer's three answers, in full. Which one is chosen on the checklist.
 export default function PayerAnswer({ id, checks, requirements, discovery, formTitle, onOpenForm }) {
   const check = checks?.[id];
   const note = check ? waiting(check) : null;

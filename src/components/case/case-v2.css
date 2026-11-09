@@ -440,3 +440,17 @@
 .cv-ask .cv-sub { margin-bottom: 8px; }
 .cv-ask-text { margin: 8px 0 0; font-size: 13.5px; }
 .cv-ask-docs { margin: 8px 0 0; padding-left: 20px; font-size: 13.5px; }
+
+.cv-tab-body { padding-top: 18px; }
+.cv-sub-note { margin-bottom: 8px; }
+.cv-sub-note-top { margin-top: 10px; }
+.cv-ink { color: var(--cv-ink); min-width: 0; }
+.cv-kv-center { align-items: center; }
+.cv-kv-text { display: flex; flex-direction: column; min-width: 0; }
+.cv-kv-tools { display: flex; gap: 8px; align-items: center; }
+.cv-strong { font-weight: 600; }
+.cv-strong-block { display: block; font-weight: 600; }
+.cv-chip-after { margin-left: 8px; }
+.cv-notice-list { margin: 8px 0 0; padding-left: 20px; }
+.cv-notice-effect { margin-top: 8px; }
+.cv-notice .cv-tech { margin-top: 10px; }

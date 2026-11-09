@@ -1,10 +1,6 @@
 import { missingRequired } from "./planProfile";
 import { asRecord } from "../case/useCasePane";
 
-// One row per crucial thing on the Eligibility step, in the order staff work
-// through them. tone: ok | warn | bad | wait | idle. Colour is kept for the rows
-// that need attention.
-
 const GROUPS = [
   ["you", "Needs you"],
   ["payer", "Payer's answers"],
@@ -24,7 +20,7 @@ function whoRow(members, chosenId, newborn) {
   const row = { id: "who", group: "you", name: "Who is admitted" };
   if (members.length === 0) return { ...row, tone: "idle", fact: "Not listed yet" };
   const chosen = members.find((m) => m.member_id === chosenId);
-  if (!chosen) return { ...row, tone: "warn", fact: "Choose one" };
+  if (!chosen) return { ...row, tone: "warn", fact: "Choose one", blocks: members.length > 1 };
   return { ...row, tone: "ok", fact: newborn ? "Newborn" : chosen.name || "Chosen" };
 }
 
@@ -32,9 +28,7 @@ function treatmentRow(procedures, checks, packages, planReady) {
   const row = { id: "treatment", group: "you", name: "Treatment" };
   if (procedures.length === 0) return { ...row, tone: "warn", fact: "None recorded" };
   const code = (p) => String(p.code);
-  const excluded = procedures.filter((p) =>
-    checks?.benefits.items.some((it) => it.excluded && String(it.product_or_service?.code) === code(p)),
-  ).length;
+  const excluded = procedures.filter((p) => checks?.benefits.items.some((it) => it.excluded && String(it.product_or_service?.code) === code(p))).length;
   if (excluded) return { ...row, tone: "bad", fact: `${excluded} excluded` };
   const notInPlan = planReady ? procedures.filter((p) => packages[code(p)] === null).length : 0;
   if (notInPlan) return { ...row, tone: "warn", fact: `${notInPlan} not in plan` };
@@ -52,7 +46,7 @@ function validationRow(checks) {
   const row = { id: "validation", group: "payer", name: "Validation" };
   const open = checkStateRow(checks?.validation, row);
   if (open) return open;
-  if (checks.inforce === false) return { ...row, tone: "bad", fact: "Not in force" };
+  if (checks.inforce === false) return { ...row, tone: "refused", fact: "Not in force", blocks: true };
   return checks.inforce ? { ...row, tone: "ok", fact: "In force" } : { ...row, tone: "idle", fact: "Answered" };
 }
 
@@ -96,26 +90,14 @@ function planRow(plan, state) {
 }
 
 export function buildChecklist({ biometric, members, chosenId, newborn, procedures, packages, checks, requirements, plan, state, locked }) {
-  const yours = [
-    verifyRow(biometric),
-    whoRow(members, chosenId, newborn),
-    treatmentRow(procedures, checks, packages, state.key === "ready"),
-  ];
-  const rows = [
-    ...(locked ? yours.map(asRecord) : yours),
-    validationRow(checks),
-    benefitsRow(checks),
-    authRow(checks, requirements),
-    planRow(plan, state),
-  ].filter(Boolean);
+  const yours = [verifyRow(biometric), whoRow(members, chosenId, newborn), treatmentRow(procedures, checks, packages, state.key === "ready")];
+  const rows = [...(locked ? yours.map((r) => r && { ...asRecord(r), blocks: false }) : yours), validationRow(checks), benefitsRow(checks), authRow(checks, requirements), planRow(plan, state)].filter(Boolean);
   return GROUPS.map(([id, title]) => ({ id, title: locked && id === "you" ? "Patient" : title, rows: rows.filter((r) => r.group === id) }));
 }
 
-// Open whatever stops the case first (a policy not in force makes verifying the
-// patient pointless), then what staff must act on, then the validation answer.
 export function firstOpen(groups) {
   const rows = groups.flatMap((g) => g.rows);
-  const blocker = rows.find((r) => r.tone === "bad" && r.group !== "plan");
+  const blocker = rows.find((r) => (r.tone === "bad" || r.tone === "refused") && r.group !== "plan");
   const yours = rows.find((r) => r.group === "you" && ATTENTION.has(r.tone));
   return (blocker || yours || rows.find((r) => r.tone === "bad") || { id: "validation" }).id;
 }

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { formatDateTime, formatMoney } from "../../format.js";
-import { usePlanForms, useCoverBenefits } from "../../hooks/usePlanForms";
+import { useCoverBenefits } from "../../hooks/usePlanForms";
 import { planFieldGroups, missingRequired, profileRows, PROFILE_URL } from "./planProfile";
 import PlanState from "./PlanState";
 import PackageBrowser from "./PackageBrowser";
-import FormDrawer from "./FormDrawer";
+import TechnicalDetails from "../case/TechnicalDetails";
 
 const TABS = [
   ["overview", "Overview"],
@@ -12,22 +12,19 @@ const TABS = [
   ["docs", "Documents & forms"],
   ["rules", "Exclusions"],
   ["cover", "Cover benefits"],
-  ["profile", "Profile check"],
 ];
 const STAGE = { pre: ["Pre-auth", "is-info"], post: ["Claim", "is-todo"] };
 
 function Overview({ plan }) {
   return (
-    <div className="cv-card-body cv-cols" style={{ paddingTop: 18 }}>
+    <div className="cv-card-body cv-cols cv-tab-body">
       {planFieldGroups(plan).map((g) => (
         <div key={g.title}>
           <div className="cv-sub">{g.title}</div>
           {g.fields.map((x) => (
             <div key={`${x.path}${x.label}`} className="cv-field">
               <span className="cv-field-label">{x.label}</span>
-              <span className={`cv-field-value${x.value == null ? (x.required ? " is-required-missing" : " is-missing") : ""}`}>
-                {x.value ?? (x.required ? "Not sent (required)" : "Not sent")}
-              </span>
+              <span className={`cv-field-value${x.value == null ? (x.required ? " is-required-missing" : " is-missing") : ""}`}>{x.value ?? (x.required ? "Not sent (required)" : "Not sent")}</span>
             </div>
           ))}
         </div>
@@ -39,18 +36,20 @@ function Overview({ plan }) {
 function DocsAndForms({ plan, forms, onOpenForm }) {
   const docs = plan?.policy_documents || [];
   return (
-    <div className="cv-card-body cv-cols" style={{ paddingTop: 18 }}>
+    <div className="cv-card-body cv-cols cv-tab-body">
       <div>
         <div className="cv-sub">Every case on this policy</div>
-        <div className="cv-card-meta" style={{ marginBottom: 8 }}>Requirements on the plan itself, and the forms on its coverage.</div>
+        <div className="cv-card-meta cv-sub-note">Requirements on the plan itself, and the forms on its coverage.</div>
         {docs.length === 0 && <div className="cv-card-meta">The plan lists no policy-wide documents.</div>}
         {docs.map((d, i) => {
           const [label, tone] = STAGE[d.stage] || STAGE.pre;
           return (
             <div key={i} className="cv-kv">
-              <span style={{ color: "var(--text-main)" }}>
+              <span className="cv-ink">
                 {d.form ? (
-                  <button type="button" className="cv-pick" onClick={() => onOpenForm(d.form)}>{d.display || "Form"}</button>
+                  <button type="button" className="cv-pick" onClick={() => onOpenForm(d.form)}>
+                    {d.display || "Form"}
+                  </button>
                 ) : (
                   d.display || d.code
                 )}{" "}
@@ -60,27 +59,27 @@ function DocsAndForms({ plan, forms, onOpenForm }) {
             </div>
           );
         })}
-        {plan?.plan?.proof_of_presence_required && (
-          <div className="cv-card-meta" style={{ marginTop: 10 }}>ADN on the plan means proof of presence: biometrics, or the consent form in its place.</div>
-        )}
+        {plan?.plan?.proof_of_presence_required && <div className="cv-card-meta cv-sub-note-top">ADN on the plan means proof of presence: biometrics, or the consent form in its place.</div>}
       </div>
       <div>
         <div className="cv-sub">Questionnaires in the plan ({forms.length})</div>
-        <div className="cv-card-meta" style={{ marginBottom: 8 }}>A policy form is asked on every case; a package's form only when that package is quoted.</div>
+        <div className="cv-card-meta cv-sub-note">A policy form is asked on every case; a package's form only when that package is quoted.</div>
         {forms.length === 0 && <div className="cv-card-meta">The plan carries no questionnaires.</div>}
         {forms.map((f) => {
           const [label, tone] = STAGE[f.stage] || STAGE.pre;
           return (
-            <div key={f.url} className="cv-kv" style={{ alignItems: "center" }}>
-              <span style={{ color: "var(--text-main)", minWidth: 0 }}>
-                <span style={{ display: "block", fontWeight: 600 }}>{f.title || f.form_id}</span>
+            <div key={f.url} className="cv-kv cv-kv-center">
+              <span className="cv-ink cv-kv-text">
+                <span className="cv-strong-block">{f.title || f.form_id}</span>
                 <span className="cv-card-meta">
                   {[f.kind === "stg" || /stg/i.test(f.kind || "") ? "Treatment guideline" : "Form", f.item_count != null ? `${f.item_count} questions` : null].filter(Boolean).join(" · ")}
                 </span>
               </span>
-              <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className="cv-kv-tools">
                 <span className={`cv-chip ${tone}`}>{label}</span>
-                <button type="button" className="cv-btn" onClick={() => onOpenForm(f.url)}>Preview</button>
+                <button type="button" className="cv-btn" onClick={() => onOpenForm(f.url)}>
+                  Preview
+                </button>
               </span>
             </div>
           );
@@ -118,19 +117,19 @@ function Exclusions({ plan }) {
 }
 
 function Cover({ rows }) {
-  if (rows == null) return <div className="cv-card-body cv-card-meta" style={{ paddingTop: 18 }}>Loading…</div>;
+  if (rows == null) return <div className="cv-card-body cv-card-meta cv-tab-body">Loading…</div>;
   if (rows.length === 0) {
     return (
-      <div className="cv-card-body" style={{ paddingTop: 18 }}>
-        <div style={{ fontWeight: 600 }}>This plan sends no cover benefits.</div>
-        <div className="cv-card-meta" style={{ marginTop: 6 }}>
+      <div className="cv-card-body cv-tab-body">
+        <div className="cv-strong">This plan sends no cover benefits.</div>
+        <div className="cv-card-meta cv-sub-note-top">
           Cover benefits are limits on the policy that are not packages, such as Blood, ICU, Oxygen or Ambulance. They show here with their limit when a payer sends them, and are never offered as a line item.
         </div>
       </div>
     );
   }
   return (
-    <div className="cv-tw cv-in-card" style={{ marginTop: 18 }}>
+    <div className="cv-tw cv-in-card cv-tab-body">
       <table>
         <thead>
           <tr>
@@ -143,7 +142,7 @@ function Cover({ rows }) {
         <tbody>
           {rows.map((b) => (
             <tr key={b.id}>
-              <td style={{ fontWeight: 600 }}>{b.display || b.code}</td>
+              <td className="cv-strong">{b.display || b.code}</td>
               <td className="cv-mono">{b.code}</td>
               <td>{b.category_display || b.category_code || "—"}</td>
               <td className="is-num">{b.rate != null ? formatMoney(b.rate) : "—"}</td>
@@ -158,12 +157,14 @@ function Cover({ rows }) {
 function ProfileCheck({ plan }) {
   return (
     <>
-      <div className="cv-card-intro" style={{ paddingTop: 16 }}>
+      <p className="cv-card-meta">
         Every element of the{" "}
-        <a href={PROFILE_URL} target="_blank" rel="noreferrer">NRCES InsurancePlan profile</a>
+        <a href={PROFILE_URL} target="_blank" rel="noreferrer">
+          NRCES InsurancePlan profile
+        </a>
         , what this payer sent, and whether it is kept as a field. The whole answer is also kept as received.
-      </div>
-      <div className="cv-tw cv-in-card">
+      </p>
+      <div className="cv-tw">
         <table>
           <thead>
             <tr>
@@ -175,17 +176,19 @@ function ProfileCheck({ plan }) {
             </tr>
           </thead>
           <tbody>
-            {profileRows(plan).map((r) => (
-              <tr key={`${r.path}${r.card}`}>
+            {profileRows(plan).map((r, i) => (
+              <tr key={`${i}-${r.path}`}>
                 <td className="cv-mono">{r.path}</td>
-                <td><span className="cv-prof-card">{r.card}</span></td>
+                <td>
+                  <span className="cv-prof-card">{r.card}</span>
+                </td>
                 <td>{r.ms ? <span className="cv-prof-ms">MS</span> : null}</td>
                 <td>
-                  <span className={`cv-chip ${r.sent ? "is-ok" : r.card.startsWith("1") ? "is-bad" : "is-todo"}`}>
-                    {r.sent ? "Yes" : r.card.startsWith("1") ? "No (required)" : "No"}
-                  </span>
+                  <span className={`cv-chip ${r.sent ? "is-todo" : r.card.startsWith("1") ? "is-warn" : "is-todo"}`}>{r.sent ? "Yes" : r.card.startsWith("1") ? "No (required)" : "No"}</span>
                 </td>
-                <td><span className={`cv-chip ${r.kept === "Yes" ? "is-ok" : "is-warn"}`}>{r.kept}</span></td>
+                <td>
+                  <span className={`cv-chip ${r.kept === "Yes" ? "is-todo" : "is-warn"}`}>{r.kept}</span>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -195,12 +198,10 @@ function ProfileCheck({ plan }) {
   );
 }
 
-export default function PlanCard({ plan, state, plannedCodes, canFetch, sending, fetchResult, onFetch }) {
+export default function PlanCard({ plan, state, plannedCodes, forms = [], canFetch, sending, fetchResult, onFetch, onOpenForm }) {
   const [tab, setTab] = useState("overview");
-  const [openForm, setOpenForm] = useState(null);
   const ready = state.key === "ready";
   const correlationId = ready ? plan.correlation_id : null;
-  const forms = usePlanForms(correlationId, plan?.form_count);
   const cover = useCoverBenefits(tab === "cover" ? correlationId : null);
   const gaps = ready ? missingRequired(plan) : [];
   const missingForms = plan?.missing_forms || [];
@@ -215,11 +216,11 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
     <section className="cv-card" aria-label="Insurance plan">
       <div className="cv-card-head">
         <h2 className="cv-card-title">Insurance plan</h2>
-        {ready && <span className="cv-chip is-ok">Ready</span>}
+        {ready && <span className="cv-chip is-todo">Ready</span>}
         {gaps.length > 0 && (
-          <button type="button" className="cv-chip is-warn" style={{ border: 0, cursor: "pointer" }} onClick={() => setTab("profile")}>
+          <span className="cv-chip is-warn">
             {gaps.length} required {gaps.length === 1 ? "field" : "fields"} not sent
-          </button>
+          </span>
         )}
         <span className="cv-card-meta">
           {[plan?.plan?.plan_title, plan?.fetched_at && `fetched ${formatDateTime(plan.fetched_at)}`, plan?.reused_from && "reused from an earlier fetch"].filter(Boolean).join(" · ")}
@@ -245,7 +246,7 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
             </div>
           )}
           {(plan?.subsetted || missingForms.length > 0) && (
-            <div className="cv-notice is-warn">
+            <div className="cv-notice is-warn cv-in-card">
               {plan?.subsetted && <div className="cv-notice-title">The payer sent a shortened plan</div>}
               <div className="cv-notice-body">
                 {[
@@ -254,7 +255,9 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
                     `The plan names ${missingForms.length} ${missingForms.length === 1 ? "form" : "forms"} it did not include: ${missingForms.map((f) => (f.title ? `${f.title} (${f.ref})` : `form ${f.ref}`)).join(", ")}.`,
                   missingForms.some((f) => f.ref === "100024" || f.ref === "100466") &&
                     "Without the consent forms, a PMJAY pre-auth or claim can only go with a biometric scan. Fetch the plan again; if they are still missing, ask the payer.",
-                ].filter(Boolean).join(" ")}
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               </div>
             </div>
           )}
@@ -267,14 +270,17 @@ export default function PlanCard({ plan, state, plannedCodes, canFetch, sending,
             ))}
           </div>
           {tab === "overview" && <Overview plan={plan} />}
-          {tab === "packages" && <PackageBrowser correlationId={correlationId} plan={plan} plannedCodes={plannedCodes} onOpenForm={setOpenForm} />}
-          {tab === "docs" && <DocsAndForms plan={plan} forms={forms} onOpenForm={setOpenForm} />}
+          {tab === "packages" && <PackageBrowser correlationId={correlationId} plan={plan} plannedCodes={plannedCodes} onOpenForm={onOpenForm} />}
+          {tab === "docs" && <DocsAndForms plan={plan} forms={forms} onOpenForm={onOpenForm} />}
           {tab === "rules" && <Exclusions plan={plan} />}
           {tab === "cover" && <Cover rows={cover} />}
-          {tab === "profile" && <ProfileCheck plan={plan} />}
+          <div className="cv-card-body cv-tab-body">
+            <TechnicalDetails summary="Profile check for the IT team" ids={[{ label: "Plan request", value: plan?.correlation_id }, { label: "Reused from", value: plan?.reused_from }]}>
+              <ProfileCheck plan={plan} />
+            </TechnicalDetails>
+          </div>
         </>
       )}
-      <FormDrawer correlationId={correlationId} url={openForm} onClose={() => setOpenForm(null)} />
     </section>
   );
 }

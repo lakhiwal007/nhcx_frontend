@@ -20,7 +20,10 @@ export function useCaseRecord(caseId, { seed = null, auto = true, onLoaded } = {
     };
   }, []);
 
-  if (state.key !== caseId) setState(fresh(caseId, auto));
+  if (state.key !== caseId) {
+    const carried = state.full && caseId && String(state.full.cashless_case_id) === String(caseId);
+    setState(carried ? { ...state, key: caseId, loading: false, error: null } : fresh(caseId, auto));
+  }
 
   const apply = useCallback((full) => {
     if (!full) return;

@@ -1,5 +1,6 @@
 import { describePayrError } from "../../api/payrErrors.js";
 import { formatDateTime } from "../../format.js";
+import TechnicalDetails from "../case/TechnicalDetails";
 
 export default function PlanState({ plan, state, canFetch, sending, onFetch, result }) {
   const busy = sending ? "Asking the payer…" : null;
@@ -12,8 +13,7 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
         title: "The plan has not been requested",
         body: plan?.skip_reason || "Nothing has been asked of the payer for this policy yet.",
         effect: "Packages cannot be quoted from the plan, and the plan check on the pre-auth shows “not checked”.",
-        action: "Fetch insurance plan",
-        primary: true,
+        action: "Fetch the insurance plan",
       };
       break;
     case "already":
@@ -31,7 +31,7 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
         body: `Requested ${state.sent ? formatDateTime(state.sent) : "just now"}${state.sent ? `, ${state.minutes} min ago` : ""}. Government payers usually answer within 15 to 60 minutes; this page checks again each time it loads.`,
         effect: "Fill in the clinical details meanwhile.",
         action: "Fetch again",
-        locked: "Allowed after 60 minutes: the payer refuses a second request meanwhile (PAYR-1406).",
+        locked: "Allowed after 60 minutes: the payer refuses a second request before then.",
       };
       break;
     case "late":
@@ -41,15 +41,14 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
         body: `The payer has not answered in ${state.minutes} minutes. The request may have been lost.`,
         effect: "Packages cannot be quoted until the plan arrives.",
         action: "Fetch again",
-        primary: true,
-        hint: plan?.correlation_id ? `If it still does not arrive, contact NHA support with request ${plan.correlation_id.slice(0, 8)}.` : null,
+        hint: plan?.correlation_id ? "If it still does not arrive, contact NHA support with the request id under the details below." : null,
       };
       break;
     case "no_plan":
       view = {
         tone: "warn",
         title: "The payer has no plan for this policy",
-        body: `The payer answered with no InsurancePlan: it has no package master filed under ${policy} for this hospital.`,
+        body: `The payer answered with no insurance plan: it has no package master filed under ${policy} for this hospital.`,
         effect: "The pre-auth can still be sent, but nothing can be checked against a plan. Check the policy number and the hospital's HFR ID.",
         action: "Fetch again",
       };
@@ -59,7 +58,7 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
         tone: "warn",
         title: "The plan lists no packages",
         body: plan?.plan?.plan_title ? `The payer sent ${plan.plan.plan_title}, but with no packages for this hospital.` : "The payer sent a plan with no packages for this hospital.",
-        effect: "No package can be quoted. The hospital may not be empanelled for any specialty under this policy (PAYR-1404).",
+        effect: "No package can be quoted. The hospital may not be empanelled for any specialty under this policy.",
         action: "Fetch again",
       };
       break;
@@ -67,7 +66,7 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
       const d = describePayrError(state.code);
       view = {
         tone: "bad",
-        title: d?.label ? `${state.code}: ${d.label}` : `The payer refused the request (${state.code})`,
+        title: d?.label || "The payer refused the request",
         body: d?.meaning || state.text,
         fixes: (d?.fix || []).map((f) => f.replace(/<policy_code>/g, policy)),
         effect: "The pre-auth will likely be refused too until this is fixed.",
@@ -82,7 +81,6 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
         body: state.text || "The plan request could not be sent.",
         effect: "Nothing reached the payer; nothing is waiting.",
         action: "Try again",
-        primary: true,
         hint: "Share the message with IT if it repeats.",
       };
       break;
@@ -95,19 +93,19 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
       <div className="cv-notice-title">{view.title}</div>
       <div className="cv-notice-body">{view.body}</div>
       {view.fixes?.length > 0 && (
-        <ol className="cv-notice-body" style={{ margin: "8px 0 0", paddingLeft: "20px" }}>
+        <ol className="cv-notice-body cv-notice-list">
           {view.fixes.map((f) => (
             <li key={f}>{f}</li>
           ))}
         </ol>
       )}
-      <div className="cv-notice-hint" style={{ marginTop: "8px" }}>
+      <div className="cv-notice-hint cv-notice-effect">
         <strong>For the pre-auth:</strong> {view.effect}
       </div>
       {(view.action || result) && (
         <div className="cv-notice-actions">
           {view.action && (
-            <button type="button" className={`cv-btn${view.primary ? " is-primary" : ""}`} disabled={disabled} title={view.locked || undefined} onClick={onFetch}>
+            <button type="button" className="cv-btn" disabled={disabled} title={view.locked || undefined} onClick={onFetch}>
               {busy || view.action}
             </button>
           )}
@@ -115,6 +113,14 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
           {result && <span className={`cv-chip ${result.tone}`}>{result.text}</span>}
         </div>
       )}
+      <TechnicalDetails
+        ids={[
+          { label: "Payer code", value: state.code },
+          { label: "Plan request", value: plan?.correlation_id },
+          { label: "Earlier request", value: result?.id },
+          { label: "Result code", value: result?.code },
+        ]}
+      />
     </div>
   );
 }
