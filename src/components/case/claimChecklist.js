@@ -1,9 +1,5 @@
-import { formatMoney } from "../../format.js";
+import { formatMoney, humanize } from "../../format.js";
 import { asRecord } from "./useCasePane";
-
-// One row per thing the claim needs, in the order staff work through them.
-// tone: ok | warn | bad | wait | idle. `blocks` marks a row that stops the final
-// claim, so the rows and the send cannot disagree.
 
 const GROUPS = [
   ["patient", "Patient"],
@@ -34,22 +30,22 @@ function patientRows(f) {
 
 function stayRow(f) {
   const row = { id: "stay", group: "claim", name: "Stay & pre-auth" };
-  if (!f.hasPreauthRef) return { ...row, tone: "bad", fact: "No pre-auth", blocks: true };
-  if (!f.dischargeDate) return { ...row, tone: "warn", fact: "Not discharged" };
+  if (!f.hasPreauthRef) return { ...row, tone: "bad", fact: "No pre-auth", blocks: true, his: true };
+  if (!f.dischargeDate) return { ...row, tone: "warn", fact: "Not discharged", his: true };
   return { ...row, tone: "ok", fact: f.preauthRef };
 }
 
 function billRow(f) {
   const row = { id: "bill", group: "claim", name: "Final bill" };
-  if (f.hisBlocked) return { ...row, tone: "bad", fact: "Records incomplete", blocks: true };
+  if (f.hisBlocked) return { ...row, tone: "bad", fact: "Records incomplete", blocks: true, his: true };
   if (f.ceilingExcess > 0) return { ...row, tone: "warn", fact: `${formatMoney(f.ceilingExcess)} over`, blocks: !f.ackOverCeiling };
   return { ...row, tone: "ok", fact: f.authorised != null ? "Within authorised" : formatMoney(f.total) };
 }
 
 function asksRow(f) {
   const row = { id: "asks", group: "documents", name: "Payer asks" };
-  if (f.blockingAsks) return { ...row, tone: "bad", fact: `${f.blockingAsks} must be done`, blocks: true };
   const open = f.asks.filter((a) => a.status !== "attached" && a.status !== "answered").length;
+  if (f.blockingAsks) return { ...row, tone: "bad", fact: f.locked ? `${open} open` : `${f.blockingAsks} must be done`, blocks: true };
   if (open) return { ...row, tone: "warn", fact: `${open} open` };
   return { ...row, tone: "ok", fact: f.asks.length ? "All in" : "Nothing extra" };
 }
@@ -63,20 +59,17 @@ function filesRow(f) {
 function dischargeRow(f) {
   if (!f.dischargeIntimation) return null;
   const row = { id: "discharge", group: "send", name: "Discharge claim" };
-  if (f.dischargeRejected) return { ...row, tone: "bad", fact: "Rejected" };
-  if (f.dischargeFailed) return { ...row, tone: "bad", fact: "Not delivered" };
+  if (f.dischargeRejected) return { ...row, tone: "refused", fact: "Rejected" };
+  if (f.dischargeFailed) return { ...row, tone: "refused", fact: "Not delivered" };
   if (f.dischargePolling) return { ...row, tone: "wait", fact: "Waiting" };
   if (f.dischargeNoAnswer) return { ...row, tone: "warn", fact: "No answer yet" };
-  if (f.dischargeDecision) {
-    const word = String(f.dischargeDecision).replace(/_/g, " ").toLowerCase();
-    return { ...row, tone: f.dischargeDecision === "APPROVED" ? "ok" : "warn", fact: word.charAt(0).toUpperCase() + word.slice(1) };
-  }
+  if (f.dischargeDecision) return { ...row, tone: f.dischargeDecision === "APPROVED" ? "ok" : "warn", fact: humanize(f.dischargeDecision) };
   return f.dischargeSent ? { ...row, tone: "ok", fact: "Sent" } : { ...row, tone: "idle", fact: "Not sent" };
 }
 
 function finalRow(f) {
   const row = { id: "final", group: "send", name: "Final claim" };
-  if (f.finalFailed) return { ...row, tone: "bad", fact: "Not delivered" };
+  if (f.finalFailed) return { ...row, tone: "refused", fact: "Not delivered" };
   return f.finalSent ? { ...row, tone: "ok", fact: "Sent" } : { ...row, tone: "idle", fact: "Not sent" };
 }
 
@@ -85,7 +78,7 @@ function decisionRow(f) {
   if (f.decision === "APPROVED") return { ...row, tone: "ok", fact: "Approved" };
   if (f.decision === "PARTIALLY_APPROVED") return { ...row, tone: "warn", fact: "Part approved" };
   if (f.decision === "QUERIED") return { ...row, tone: "warn", fact: "Queried" };
-  if (f.decision === "REJECTED") return { ...row, tone: "bad", fact: "Rejected" };
+  if (f.decision === "REJECTED") return { ...row, tone: "refused", fact: "Rejected" };
   if (f.notFound) return { ...row, tone: "warn", fact: "No record" };
   if (f.decision) return { ...row, tone: "warn", fact: "Unclear" };
   return f.finalSent ? { ...row, tone: "wait", fact: "Waiting" } : { ...row, tone: "idle", fact: "Not yet" };
@@ -95,22 +88,20 @@ export function buildClaimChecklist(f) {
   const yours = [
     ...patientRows(f),
     stayRow(f),
-    { id: "justification", group: "claim", name: "Justification", ...(f.justified ? { tone: "ok", fact: `${f.justified} coded` } : { tone: "warn", fact: "Thin" }) },
+    { id: "justification", group: "claim", name: "Justification", ...(f.justified ? { tone: "ok", fact: `${f.justified} coded` } : { tone: "warn", fact: "Thin", his: true }) },
     billRow(f),
     asksRow(f),
     filesRow(f),
   ].filter(Boolean);
-  const rows = [...(f.locked ? yours.map(asRecord) : yours), dischargeRow(f), finalRow(f), decisionRow(f)].filter(Boolean);
+  const rows = [...(f.locked ? yours.map((r) => ({ ...asRecord(r), blocks: false })) : yours), dischargeRow(f), finalRow(f), decisionRow(f)].filter(Boolean);
   return GROUPS.map(([id, title]) => ({ id, title, rows: rows.filter((r) => r.group === id) })).filter((g) => g.rows.length > 0);
 }
 
-// Once the final claim is out, the decision is what matters. Before that, open
-// what stops it, then a failed send, then what staff still have to look at.
-export function firstClaimItem(groups, { finalSent, locked }) {
+export function firstClaimItem(groups, { finalSent, locked, blockers }) {
   const rows = groups.flatMap((g) => g.rows);
   if (finalSent) return "decision";
-  const blocker = !locked && rows.find((r) => r.blocks);
-  const failed = rows.find((r) => r.group === "send" && r.tone === "bad");
+  const blocker = !locked && (blockers ? blockers[0] : rows.find((r) => r.blocks));
+  const attention = rows.find((r) => r.group === "send" && ["bad", "refused", "warn"].includes(r.tone));
   const look = rows.find((r) => r.group === "patient" && r.tone === "warn");
-  return (blocker || failed || look || { id: "bill" }).id;
+  return (blocker || attention || look || { id: "bill" }).id;
 }

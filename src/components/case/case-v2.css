@@ -476,3 +476,9 @@
 .cv-drawer-tabs { margin: 0 0 14px; padding: 0; }
 .ov-body .cv-card + .cv-card { margin-top: 12px; }
 .cv-col-check { width: 40px; }
+
+.cv-tw td.is-strong { font-weight: 600; }
+.cv-tw tr.is-over td { color: var(--warning); }
+.cv-ack { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-weight: 600; font-size: 13.5px; }
+.cv-ack input { margin-top: 3px; }
+.ov-body .cv-ask { margin-top: 0; }
