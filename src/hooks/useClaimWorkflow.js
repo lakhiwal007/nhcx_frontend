@@ -24,7 +24,7 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
   const filesKey = anchor ? `${anchor}:claim` : null;
   const dischargeId = caseState.dischargeCorrelationId || null;
   const finalId = caseState.claimCorrelationId || null;
-  const releaseId = caseState.releaseCorrelationId || null;
+  const releaseId = caseState.releaseCorrelationId || caseRecord?.release?.correlation_id || null;
 
   const [state, setState] = useState({ key: null, draft: null, missingFields: [], error: null, attempt: 0 });
   const [askForms, setAskForms] = useState([]);
