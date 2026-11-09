@@ -1,18 +1,17 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { Button } from "../Common";
-import { Section } from "./CaseFile";
+import { useSend } from "../../hooks/useSend";
+import { fieldList } from "./fieldLabels";
 
-const PATIENT_CONTEXT_FIELDS = [
-  { key: "abha", label: "ABHA Number", placeholder: "91-XXXX-XXXX-XXXX" },
-  { key: "member_id", label: "Member / PMJAY ID", placeholder: "PMJAY-MEM-XXXXX" },
-  { key: "dob", label: "Date of Birth", placeholder: "YYYY-MM-DD", type: "date" },
-  { key: "admission_date", label: "Admission Date", placeholder: "YYYY-MM-DD", type: "date" },
-  { key: "discharge_date", label: "Discharge Date", placeholder: "YYYY-MM-DD", type: "date" },
-  { key: "policy_number", label: "Policy Number", placeholder: "POL-XXXX" },
+const FIELDS = [
+  { key: "abha", label: "ABHA number", placeholder: "91-XXXX-XXXX-XXXX" },
+  { key: "member_id", label: "Member or PMJAY ID", placeholder: "PMJAY-MEM-XXXXX" },
+  { key: "dob", label: "Date of birth", type: "date" },
+  { key: "admission_date", label: "Admission date", type: "date" },
+  { key: "discharge_date", label: "Discharge date", type: "date" },
+  { key: "policy_number", label: "Policy number", placeholder: "POL-XXXX" },
 ];
 
-// Maps backend missing_fields values to form field keys
 const MISSING_FIELD_MAP = {
   "patient.identifier": ["abha", "member_id"],
   "patient.abha": ["abha"],
@@ -22,43 +21,62 @@ const MISSING_FIELD_MAP = {
   "patient.gender": [],
   admission_date: ["admission_date"],
   discharge_date: ["discharge_date"],
+  "discharge.date": ["discharge_date"],
   policy_number: ["policy_number"],
 };
 
-// The details NHCX needs that the hospital records could not supply, on the
-// pre-auth or the claim. Only the fields actually missing are asked for.
-export default function PatientDetailsForm({ claimId, cashlessCaseId, missingFields, locked, onResolved }) {
-  const [values, setValues] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
+const clean = (values) => Object.fromEntries(Object.entries(values).filter(([, v]) => v != null && String(v).trim() !== ""));
 
+export default function PatientDetailsForm({ claimId, cashlessCaseId, missingFields, known = {}, locked, onResolved }) {
+  const [values, setValues] = useState(() => clean(known));
   const relevantKeys = new Set(missingFields.flatMap((m) => MISSING_FIELD_MAP[m.toLowerCase()] ?? []));
-  const allFields = relevantKeys.size > 0 ? PATIENT_CONTEXT_FIELDS.filter((f) => relevantKeys.has(f.key)) : PATIENT_CONTEXT_FIELDS;
+  const fields = relevantKeys.size > 0 ? FIELDS.filter((f) => relevantKeys.has(f.key)) : FIELDS;
+  const unmapped = missingFields.filter((m) => !(MISSING_FIELD_MAP[m.toLowerCase()] || []).length);
+  const changed = fields.some((f) => (values[f.key] || "") !== (known[f.key] || ""));
 
-  const handleSave = async () => {
-    setSaving(true);
-    setSaveError(null);
-    try {
+  const save = useSend(
+    async () => {
+      const patient_context = clean(values);
       const res = claimId
-        ? await api.patchPatientContext(claimId, { patient_context: values })
-        : await api.patchCashlessPatientContext(cashlessCaseId, { patient_context: values });
-      onResolved(res.missing_fields ?? []);
-    } catch (err) {
-      setSaveError(err.message || "The details could not be saved.");
-    } finally {
-      setSaving(false);
-    }
-  };
+        ? await api.patchPatientContext(claimId, { patient_context })
+        : await api.patchCashlessPatientContext(cashlessCaseId, { patient_context });
+      return res?.missing_fields ?? [];
+    },
+    { success: "Patient details saved", onDone: (remaining) => onResolved(remaining) },
+  );
 
   return (
-    <Section id="pd-missing" title="Missing patient details" meta={<span className="is-bad">Needed before the request can be sent</span>}>
-      {saveError && <div className="cv-notice is-bad"><div className="cv-notice-body">{saveError}</div></div>}
-      <fieldset className="pd-form cv-plain" disabled={locked}>
-        {allFields.map((f) => (
-          <label key={f.key} className="pd-form-field">
-            <span>{f.label}</span>
+    <section className="cv-card" aria-label="Patient details">
+      <div className="cv-card-head">
+        <h2 className="cv-card-title">Patient details</h2>
+        <span className="cv-chip is-warn">Needed before the send</span>
+        <span className="cv-card-meta">The hospital records are missing {fieldList(missingFields)}.</span>
+        {!locked && changed && (
+          <span className="cv-card-tools">
+            <button type="button" className="cv-link" onClick={() => setValues(clean(known))}>
+              Reset to hospital record
+            </button>
+          </span>
+        )}
+      </div>
+      {unmapped.length > 0 && (
+        <div className="cv-card-intro">
+          {fieldList(unmapped)} can only be corrected in the hospital system. Ask the front desk to fix the record, then reload this page.
+        </div>
+      )}
+      {save.error && (
+        <div className="cv-card-body">
+          <div className="cv-notice is-bad" role="alert">
+            <div className="cv-notice-body">{save.error}</div>
+          </div>
+        </div>
+      )}
+      <fieldset className="cv-plain cv-card-body cv-form-grid" disabled={locked}>
+        {fields.map((f) => (
+          <label key={f.key} className="cv-field-stack">
+            <span className="cv-field-key">{f.label}</span>
             <input
-              className="input-modern pd-input"
+              className="cv-ctl"
               type={f.type || "text"}
               placeholder={f.placeholder}
               value={values[f.key] || ""}
@@ -67,11 +85,13 @@ export default function PatientDetailsForm({ claimId, cashlessCaseId, missingFie
           </label>
         ))}
       </fieldset>
-      <div className="pd-form-actions">
-        <Button write variant="primary" size="small" disabled={saving || locked} onClick={handleSave}>
-          {saving ? "Saving…" : "Save & refresh draft"}
-        </Button>
-      </div>
-    </Section>
+      {!locked && (
+        <div className="cv-card-body cv-pane-action">
+          <button type="button" className="cv-btn" disabled={save.busy} onClick={save.run}>
+            {save.busy ? "Saving…" : "Save details"}
+          </button>
+        </div>
+      )}
+    </section>
   );
 }

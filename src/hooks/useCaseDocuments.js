@@ -16,13 +16,16 @@ const merge = (seed, stored) => {
   return [...merged, ...extra];
 };
 
-export function useCaseDocuments(ctx, { key, seed = [], maxBytes } = {}) {
+const EMPTY = [];
+
+export function useCaseDocuments(ctx, { key, seed, maxBytes } = {}) {
+  const base = seed || EMPTY;
   const stored = ctx?.draftFiles?.[key];
-  const [state, setState] = useState(() => ({ seed, documents: merge(seed, stored) }));
+  const [state, setState] = useState(() => ({ seed: base, documents: merge(base, stored) }));
   const [error, setError] = useState(null);
   const counter = useRef(0);
 
-  if (state.seed !== seed) setState({ seed, documents: merge(seed, stored) });
+  if (state.seed !== base) setState({ seed: base, documents: merge(base, stored) });
 
   const documents = state.documents;
   const setDocuments = useCallback((updater) => {
