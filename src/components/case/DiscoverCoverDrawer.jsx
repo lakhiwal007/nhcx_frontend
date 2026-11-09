@@ -102,7 +102,7 @@ const waitedText = (ms) => {
 };
 
 export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false, lockReason, initialMemberId = "", initialPolicyNumber = "", initialActiveId = null, onAdopted }) {
-  const { patient, caseState, updateCaseState, cashlessCase, setCashlessCase } = ctx;
+  const { patient, caseState, updateCaseState, cashlessCase, resetCase } = ctx;
   const childId = patient?.child_id;
   const discoveries = caseState.discoveries || [];
   const answerRef = useRef(null);
@@ -226,7 +226,7 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
     async ({ discovery, cover }) => {
       const res = await api.adoptDiscoveredCover(discovery.correlation_id, { policy_code: cover.policy_code, member_id: cover.member_id });
       const policy = res.policy;
-      if (caseState.cashless_case_id) setCashlessCase(null);
+      if (caseState.cashless_case_id) resetCase();
       updateCaseState({
         policy,
         payer: { code: policy.payer_id, name: policy.payer_name || policy.payer_id },

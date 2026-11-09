@@ -9,11 +9,12 @@ import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
 import AttentionTray from "../case/AttentionTray";
 import CaseNotesDrawer from "../case/CaseNotes";
+import AnswerPayerQuery from "../case/AnswerPayerQuery";
+import TechnicalDetails from "../case/TechnicalDetails";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
 import { buildStages, landingStage, stageInfo } from "../case/caseStages";
 import { useCaseRecord } from "../../hooks/useCaseRecord";
-import "../case/case-workspace.css";
 import "../case/case-v2.css";
 
 import PayerPolicy from "./PayerPolicy";
@@ -28,6 +29,7 @@ import CaseTimeline from "./CaseTimeline";
 import ErrorBoundary from "../ErrorBoundary";
 
 const COMMS_POLL_MS = 60_000;
+const ISSUE_LABELS = { timeline: "the money summary", comms: "payer messages", case: "the case status" };
 
 function DiscoverRedirect() {
   const location = useLocation();
@@ -50,7 +52,9 @@ export default function CaseWrapper() {
     }
   }, [caseParam]);
 
-  const reportCase = useCallback((cid) => { knownCase.current = cid; }, []);
+  const reportCase = useCallback((cid) => {
+    knownCase.current = cid;
+  }, []);
 
   return <CaseWorkspace key={`${id}:${nonce}`} reportCase={reportCase} />;
 }
@@ -66,21 +70,10 @@ function CaseWorkspace({ reportCase }) {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Resume: load by cashless_case_id passed in nav state; new case: skip stale child_id save
   const childSaved = loadWorkflow(id);
   const resumeCaseId = location.state?.cashless_case_id ?? caseParam ?? (location.state?.newCase ? null : childSaved?.cashless_case_id) ?? null;
-  // The patient-level save points at whichever case was opened last; only
-  // reuse it for the case being opened, or another case's decision and
-  // payment leak into this one.
-  const childSavedForCase =
-    childSaved && (!childSaved.cashless_case_id || String(childSaved.cashless_case_id) === String(resumeCaseId))
-      ? childSaved
-      : null;
-  const saved = location.state?.newCase
-    ? null
-    : resumeCaseId
-      ? loadWorkflow(resumeCaseId) || childSavedForCase
-      : childSaved;
+  const childSavedForCase = childSaved && (!childSaved.cashless_case_id || String(childSaved.cashless_case_id) === String(resumeCaseId)) ? childSaved : null;
+  const saved = location.state?.newCase ? null : resumeCaseId ? loadWorkflow(resumeCaseId) || childSavedForCase : childSaved;
 
   const isNewCase = !!location.state?.newCase || (!!saved && !saved.cashless_case_id);
   const navAdmissionId = location.state?.admission_id ?? saved?.admission_id ?? null;
@@ -101,18 +94,11 @@ function CaseWorkspace({ reportCase }) {
     dischargeCorrelationId: null,
     draftData: null,
     ...saved,
-    // A Work Queue task knows the exact payer request it is about.
     ...(location.state?.preauthCorrelationId ? { preauthCorrelationId: location.state.preauthCorrelationId } : {}),
   });
 
   const [seed, setSeed] = useState(null);
-
-  // The rolled-up money ledger + decision provenance for this case (GET
-  // /timeline). Fetched once here and shared with the header money strip
-  // (billed→authorized→approved→collect) and the decision banners (raw payer
-  // signal / classified_by), so each screen doesn't hit /timeline on its own.
   const [timeline, setTimeline] = useState(null);
-
   const [loadIssues, setLoadIssues] = useState({});
   const [patientError, setPatientError] = useState(null);
   const flagIssue = useCallback((key, message) => {
@@ -125,30 +111,26 @@ function CaseWorkspace({ reportCase }) {
     });
   }, []);
 
-  // Files attached on a draft, by case. Too large for localStorage, so they last
-  // only while the case is open.
   const [draftFiles, setDraftFilesState] = useState({});
   const setDraftFiles = useCallback((key, files) => {
     setDraftFilesState((prev) => ({ ...prev, [key]: files }));
   }, []);
 
-  const updateCaseState = useCallback((updates) => {
-    setCaseState((prev) => {
-      const next = { ...prev, ...updates };
-      // Save under cashless_case_id once known so multiple cases for the same
-      // patient don't clobber each other in localStorage.
-      const storageKey = next.cashless_case_id ?? id;
-      saveWorkflow(storageKey, next);
-      if (next.cashless_case_id && String(storageKey) !== String(id)) {
-        saveWorkflow(id, { cashless_case_id: next.cashless_case_id });
-      }
-      return next;
-    });
-  }, [id]);
+  const updateCaseState = useCallback(
+    (updates) => {
+      setCaseState((prev) => {
+        const next = { ...prev, ...updates };
+        const storageKey = next.cashless_case_id ?? id;
+        saveWorkflow(storageKey, next);
+        if (next.cashless_case_id && String(storageKey) !== String(id)) {
+          saveWorkflow(id, { cashless_case_id: next.cashless_case_id });
+        }
+        return next;
+      });
+    },
+    [id],
+  );
 
-  // Shared money-ledger / audit-trail fetch. Re-runs as the case advances
-  // (new preauth/claim decision, discharge, settlement) so the header strip
-  // and banner provenance track the latest state without a manual reload.
   const ledgerCaseId = caseState.cashless_case_id;
   const refreshTimeline = useCallback(async () => {
     if (!ledgerCaseId) return;
@@ -161,7 +143,8 @@ function CaseWorkspace({ reportCase }) {
     }
   }, [ledgerCaseId, flagIssue]);
   useEffect(() => {
-    refreshTimeline();
+    const timer = setTimeout(refreshTimeline, 0);
+    return () => clearTimeout(timer);
   }, [refreshTimeline, caseState.preauthDecision, caseState.approvedAmount, caseState.claimCorrelationId, caseState.dischargeCorrelationId]);
 
   const { notes, loaded: notesLoaded, error: notesError, refresh: refreshNotes } = useCaseNotes(ledgerCaseId);
@@ -169,6 +152,7 @@ function CaseWorkspace({ reportCase }) {
 
   const [communications, setCommunications] = useState([]);
   const [openCommId, setOpenCommId] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
 
   const refreshComms = useCallback(async () => {
     if (!ledgerCaseId) return;
@@ -194,34 +178,24 @@ function CaseWorkspace({ reportCase }) {
   });
   const cashlessCase = caseRecord.record;
   const overrideCase = caseRecord.override;
-  const setCashlessCase = useCallback(
-    (patch) => {
-      if (patch === null) {
-        setSeed(null);
-        overrideCase(() => null);
-      } else {
-        overrideCase(patch);
-      }
-    },
-    [overrideCase],
-  );
+  const resetCase = useCallback(() => {
+    setSeed(null);
+    overrideCase(() => null);
+  }, [overrideCase]);
 
   useEffect(() => {
-    refreshComms();
-    if (!ledgerCaseId) return;
-    const timer = setInterval(refreshComms, COMMS_POLL_MS);
-    return () => clearInterval(timer);
+    const first = setTimeout(refreshComms, 0);
+    const timer = ledgerCaseId ? setInterval(refreshComms, COMMS_POLL_MS) : null;
+    return () => {
+      clearTimeout(first);
+      if (timer) clearInterval(timer);
+    };
   }, [refreshComms, ledgerCaseId]);
 
   const markCommRead = useCallback((correlationId) => {
-    setCommunications((prev) =>
-      prev.map((c) => (c.correlation_id === correlationId ? { ...c, provider_read: true } : c)),
-    );
+    setCommunications((prev) => prev.map((c) => (c.correlation_id === correlationId ? { ...c, provider_read: true } : c)));
   }, []);
 
-  // Stages are routed views swapped inside the scrollable .content pane;
-  // React Router keeps the scroll offset across navigations, so a new stage
-  // would otherwise open already scrolled down. Reset to the top on each change.
   useEffect(() => {
     const scroller = document.querySelector(".content");
     if (scroller) scroller.scrollTo({ top: 0 });
@@ -229,43 +203,39 @@ function CaseWorkspace({ reportCase }) {
   }, [currentStepPath]);
 
   const loadPatient = async () => {
-      setLoading(true);
-      setPatientError(null);
-      let found = false;
-      try {
-        const response = await api.searchChildren({ child_id: id });
-        const children = response?.children || [];
-        const child = children.find((c) => c.child_id.toString() === id) || children[0];
-        if (child) {
-          found = true;
-          setPatient(child);
-          const prior = child.latest_claim;
-          const priorMatchesTarget =
-            !!prior &&
-            !isNewCase &&
-            (resumeCaseId
-              ? String(prior.cashless_case_id) === String(resumeCaseId)
-              : !navAdmissionId || String(prior.admission_id ?? "") === String(navAdmissionId));
-
-          if (priorMatchesTarget) {
-            setSeed(prior);
-            updateCaseState({
-              cashless_case_id: resumeCaseId ?? prior.cashless_case_id ?? caseState.cashless_case_id,
-              claim_id: location.state?.claim_id ?? prior.claim_id ?? null,
-            });
-          }
+    setLoading(true);
+    setPatientError(null);
+    let found = false;
+    try {
+      const response = await api.searchChildren({ child_id: id });
+      const children = response?.children || [];
+      const child = children.find((c) => c.child_id.toString() === id) || children[0];
+      if (child) {
+        found = true;
+        setPatient(child);
+        const prior = child.latest_claim;
+        const priorMatchesTarget =
+          !!prior && !isNewCase && (resumeCaseId ? String(prior.cashless_case_id) === String(resumeCaseId) : !navAdmissionId || String(prior.admission_id ?? "") === String(navAdmissionId));
+        if (priorMatchesTarget) {
+          setSeed(prior);
+          updateCaseState({
+            cashless_case_id: resumeCaseId ?? prior.cashless_case_id ?? caseState.cashless_case_id,
+            claim_id: location.state?.claim_id ?? prior.claim_id ?? null,
+          });
         }
-      } catch (err) {
-        const message = err?.message || "The case could not be loaded.";
-        if (found) flagIssue("case", message);
-        else setPatientError(message);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (err) {
+      const message = err?.message || "The case could not be loaded.";
+      if (found) flagIssue("case", message);
+      else setPatientError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    loadPatient();
+    const timer = setTimeout(loadPatient, 0);
+    return () => clearTimeout(timer);
   }, [id]);
 
   useEffect(() => {
@@ -280,27 +250,32 @@ function CaseWorkspace({ reportCase }) {
   }, [caseState.cashless_case_id, loading, location.pathname, location.search, location.state, navigate, reportCase]);
 
   if (loading) {
-    return <LoadingBlock text="Loading Case…" />;
+    return <LoadingBlock text="Loading the case…" />;
   }
 
   if (!patient && patientError) {
     return (
       <EmptyState title="The case could not be loaded" description={patientError}>
-        <Button onClick={loadPatient} className="mt-4">Retry</Button>
-        <Button variant="outline" onClick={() => navigate("/registry")} className="mt-4">Back to Patient Registry</Button>
+        <Button onClick={loadPatient} className="mt-4">
+          Retry
+        </Button>
+        <Button variant="outline" onClick={() => navigate("/registry")} className="mt-4">
+          Back to Patient Registry
+        </Button>
       </EmptyState>
     );
   }
 
   if (!patient) {
     return (
-      <EmptyState title="Patient Not Found" description="The patient record you are looking for does not exist.">
-        <Button onClick={() => navigate("/registry")} className="mt-4">Back to Patient Registry</Button>
+      <EmptyState title="Patient not found" description="The patient record you are looking for does not exist.">
+        <Button onClick={() => navigate("/registry")} className="mt-4">
+          Back to Patient Registry
+        </Button>
       </EmptyState>
     );
   }
 
-  const issueLabels = { timeline: "the money summary", comms: "payer messages", case: "the case status" };
   const issues = caseRecord.error ? { ...loadIssues, case: caseRecord.error } : loadIssues;
   const issueKeys = Object.keys(issues);
   const retryIssues = () => {
@@ -322,34 +297,38 @@ function CaseWorkspace({ reportCase }) {
     moneyLedger: timeline?.money_ledger || null,
     paymentSummary: effectiveCase.payment || null,
   });
-  // Off-spine views (a branch opened before the decision calls for it, the
-  // audit trail) still get their own title instead of a generic "Case".
   const activeStage = stages.find((s) => s.state === "active") || stageInfo(currentStepPath);
   const caseClosed = stages.some((s) => s.id === "payment" && s.done);
 
   const stageTools = [];
   if (ledgerCaseId) stageTools.push({ label: notes.length ? `Notes (${notes.length})` : "Notes", onClick: () => setNotesOpen(true) });
-  stageTools.push(
-    currentStepPath === "timeline"
-      ? { label: "Back to case", onClick: () => navigate(-1) }
-      : { label: "Audit trail", onClick: () => navigate(`/case/${id}/timeline`) },
-  );
+  stageTools.push(currentStepPath === "timeline" ? { label: "Back to case", onClick: () => navigate(-1) } : { label: "Audit trail", onClick: () => navigate(`/case/${id}/timeline`) });
+
+  const from = location.state?.from;
+  const goBack = () => {
+    if (from) navigate(from);
+    else if (location.key !== "default") navigate(-1);
+    else navigate("/work-queue");
+  };
+  const backLabel = from === "/work-queue" ? "Work queue" : from === "/dashboard" ? "Cases" : from?.startsWith("/registry") ? "Registry" : "Back";
 
   const contextValue = {
     patient,
     cashlessCase,
-    setCashlessCase,
+    overrideCase,
+    resetCase,
     caseState,
     updateCaseState,
     moneyLedger: timeline?.money_ledger || null,
     timelineEvents: timeline?.events || [],
+    timelineTotal: timeline?.total_count ?? null,
     refreshTimeline,
-    // Settled: screens hide actions that would change the payer's decision.
     caseClosed,
     draftFiles,
     setDraftFiles,
     stageBar: { title: activeStage?.label || "Case", tools: stageTools },
     communications,
+    refreshComms,
     caseRecord: caseRecord.full,
     reloadCase: caseRecord.reload,
     applyCase: caseRecord.apply,
@@ -357,13 +336,20 @@ function CaseWorkspace({ reportCase }) {
     caseError: caseRecord.error,
   };
 
+  const replyQuestion = replyTo ? { notes: [], description: [replyTo.subject, ...(replyTo.payload || []).map((p) => p?.content_string).filter(Boolean)].filter(Boolean).join("\n"), requestedDocuments: replyTo.task_inputs ? Object.values(replyTo.task_inputs).filter((v) => typeof v === "string") : [] } : {};
+  const sendReply = async ({ answer, docs }) =>
+    api.respondToCommunication(replyTo.correlation_id, {
+      message: answer || undefined,
+      documents: (docs || []).map((d) => ({ title: d.attachment?.title || d.name, content_type: d.content_type || d.attachment?.contentType, data: d.attachment?.data })),
+    });
 
   return (
-    <div className="cx-root cv-root">
+    <div className="cv-root">
       <div className="cv-top">
         <CaseFileHeader
           patient={patient}
-          onBack={() => navigate("/dashboard")}
+          onBack={goBack}
+          backLabel={backLabel}
           caseState={caseState}
           effectiveCase={effectiveCase}
           preauthRef={preauthRef}
@@ -374,50 +360,27 @@ function CaseWorkspace({ reportCase }) {
       </div>
 
       <div className="cv-page">
-          {issueKeys.length > 0 && (
-            <div className="cv-notice is-warn">
-              <div className="cv-notice-body">
-                Could not refresh {issueKeys.map((k) => issueLabels[k] || k).join(", ")}. What is shown may be out of date: {issues[issueKeys[0]]}
-              </div>
-              <div className="cv-notice-actions">
-                <button type="button" className="cv-btn" onClick={retryIssues}>Retry</button>
-              </div>
+        {issueKeys.length > 0 && (
+          <div className="cv-notice is-warn">
+            <div className="cv-notice-body">
+              Could not refresh {issueKeys.map((k) => ISSUE_LABELS[k] || k).join(", ")}, so what is shown may be out of date.
+              <TechnicalDetails summary="What went wrong" ids={issueKeys.map((k) => ({ label: ISSUE_LABELS[k] || k, value: issues[k] }))} />
             </div>
-          )}
-          <AttentionTray
-            communications={communications}
-            notes={notes}
-            heldTasks={effectiveCase.held_tasks}
-            onOpenComm={setOpenCommId}
-            onOpenNotes={() => setNotesOpen(true)}
-          />
+            <div className="cv-notice-actions">
+              <button type="button" className="cv-btn" onClick={retryIssues}>
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        <AttentionTray communications={communications} notes={notes} heldTasks={effectiveCase.held_tasks} onOpenComm={setOpenCommId} onOpenNotes={() => setNotesOpen(true)} onReply={readOnly ? null : setReplyTo} />
 
-          <div className="cx-stage-body">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={location.pathname}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.18 }}
-              >
-                {/* Pin Routes to this exact location instead of reading it live from
-                    context. Without this, the previous Routes instance kept mounted by
-                    AnimatePresence during its exit animation also picks up the new
-                    location via context and briefly mounts the next screen a second
-                    time, double-firing its init effect (e.g. prepareCashless). */}
-                <ErrorBoundary key={currentStepPath}>
+        <div className="cv-stage-body">
+          <AnimatePresence mode="wait">
+            <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+              <ErrorBoundary key={currentStepPath}>
                 <Routes location={location}>
-                  <Route
-                    path="/"
-                    element={
-                      caseRecord.loading ? (
-                        <LoadingBlock compact text="Opening the case…" />
-                      ) : (
-                        <Navigate to={landingStage(effectiveCase, { full: caseRecord.full })} replace />
-                      )
-                    }
-                  />
+                  <Route path="/" element={caseRecord.loading ? <LoadingBlock compact text="Opening the case…" /> : <Navigate to={landingStage(effectiveCase, { full: caseRecord.full })} replace />} />
                   <Route path="payer" element={<PayerPolicy ctx={contextValue} />} />
                   <Route path="discover" element={<DiscoverRedirect />} />
                   <Route path="prep" element={<EligibilityPrep ctx={contextValue} />} />
@@ -429,10 +392,10 @@ function CaseWorkspace({ reportCase }) {
                   <Route path="payment" element={<PaymentReconciliation ctx={contextValue} />} />
                   <Route path="timeline" element={<CaseTimeline ctx={contextValue} />} />
                 </Routes>
-                </ErrorBoundary>
-              </motion.div>
-            </AnimatePresence>
-          </div>
+              </ErrorBoundary>
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
       <CaseNotesDrawer
@@ -457,6 +420,18 @@ function CaseWorkspace({ reportCase }) {
         }}
         onRead={markCommRead}
         showOpenCase={false}
+      />
+
+      <AnswerPayerQuery
+        open={!!replyTo}
+        onClose={() => setReplyTo(null)}
+        title="Reply to the payer"
+        question={replyQuestion}
+        send={sendReply}
+        onSent={refreshComms}
+        successMessage="Reply sent to the payer"
+        answerLabel="Your reply"
+        sendLabel="Send reply"
       />
     </div>
   );

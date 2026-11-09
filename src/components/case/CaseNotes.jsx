@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { Pin, PinOff, Trash2, StickyNote } from "lucide-react";
-import { api } from "../../api";
-import { useReadOnly, READ_ONLY_TITLE } from "../../readOnly";
+import { api, markHandled } from "../../api";
+import { useReadOnly } from "../../readOnly";
+import { useSend } from "../../hooks/useSend";
 import { Drawer } from "../Overlay";
-import { Button, LoadingBlock } from "../Common";
+import { LoadingBlock } from "../Common";
+import ConfirmModal from "../ConfirmModal";
 import Dropdown from "../Dropdown";
 import { formatDateTime, formatRelative } from "../../format.js";
 
@@ -22,9 +24,8 @@ export default function CaseNotesDrawer({ open, onClose, cashlessCaseId, notes, 
   const readOnly = useReadOnly();
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("general");
-  const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [confirmId, setConfirmId] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [userId, setUserId] = useState(null);
 
@@ -35,117 +36,135 @@ export default function CaseNotesDrawer({ open, onClose, cashlessCaseId, notes, 
 
   const canChange = (note) => !note.author_id || String(note.author_id) === String(userId);
 
-  const add = async () => {
-    const text = body.trim();
-    if (!text || saving) return;
-    setSaving(true);
-    setActionError(null);
-    try {
-      await api.createCaseNote(cashlessCaseId, { body: text, category });
+  const add = useSend(
+    async () => {
+      const text = body.trim();
+      if (!text) return undefined;
+      const res = await api.createCaseNote(cashlessCaseId, { body: text, category });
       setBody("");
       setCategory("general");
       await onChanged();
-    } catch (err) {
-      setActionError(err.message || "The note was not saved.");
-    } finally {
-      setSaving(false);
-    }
-  };
+      return res;
+    },
+    { success: "Note added" },
+  );
 
-  const act = async (note, fn) => {
+  const act = async (note, fn, failure) => {
     setBusyId(note.id);
     setActionError(null);
     try {
       await fn();
       await onChanged();
+      return true;
     } catch (err) {
-      setActionError(err.message || "That change was not saved.");
+      markHandled(err);
+      setActionError(err?.message || failure);
+      return false;
     } finally {
       setBusyId(null);
     }
   };
 
   return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      title="Internal notes"
-      subtitle="Visible to your hospital team only. Never sent to the payer."
-      width={520}
-    >
-      <div className="cn-compose">
-        <label className="cn-label" htmlFor="case-note-body">Add a note</label>
-        <textarea
-          id="case-note-body"
-          className="input-modern rp-textarea"
-          placeholder="e.g. Called the TPA at 3pm, they will release the approval after the CBC report"
-          value={body}
-          maxLength={MAX_LENGTH}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) add();
-          }}
-        />
-        <div className="cn-compose-row">
-          <Dropdown compact ariaLabel="Note category" value={category} options={NOTE_CATEGORIES} onChange={setCategory} />
-          <span className="cn-count ep-muted">{body.length}/{MAX_LENGTH}</span>
-          <Button write size="small" onClick={add} disabled={!body.trim() || saving}>
-            {saving ? "Saving…" : "Add note"}
-          </Button>
-        </div>
-      </div>
-
-      {(actionError || loadError) && <div className="ep-notice is-bad cn-error">{actionError || loadError}</div>}
-
-      {!loaded ? (
-        <LoadingBlock compact text="Loading notes…" />
-      ) : notes.length === 0 ? (
-        <div className="cn-empty">
-          <StickyNote size={18} aria-hidden="true" />
-          <span>No notes yet. Record payer calls, promised documents and follow-ups here so the next person on the desk knows where the case stands.</span>
-        </div>
-      ) : (
-        <ul className="cn-list">
-          {notes.map((note) => (
-            <li key={note.id} className={`cn-note${note.pinned ? " is-pinned" : ""}`}>
-              <div className="cn-note-head">
-                <span className="cn-chip">{categoryLabel(note.category)}</span>
-                {note.pinned && <span className="cn-pinned-label"><Pin size={11} aria-hidden="true" /> Pinned</span>}
-                <span className="cn-note-meta" title={formatDateTime(note.created_at)}>
-                  {note.author_name || "Staff"} · {formatRelative(note.created_at)}
-                </span>
+    <>
+      <Drawer open={open} onClose={onClose} title="Internal notes" subtitle="Visible to your hospital team only. Never sent to the payer." width={520}>
+        {!readOnly && (
+          <div className="cn-compose">
+            <label className="cv-field-key" htmlFor="case-note-body">
+              Add a note
+            </label>
+            <textarea
+              id="case-note-body"
+              className="cv-ctl cv-textarea cv-ctl-fill"
+              placeholder="e.g. Called the TPA at 3pm, they will release the approval after the CBC report"
+              value={body}
+              maxLength={MAX_LENGTH}
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && body.trim() && !add.busy) add.run();
+              }}
+            />
+            <div className="cn-compose-row">
+              <Dropdown compact ariaLabel="Note category" value={category} options={NOTE_CATEGORIES} onChange={setCategory} />
+              <span className="cn-count cv-card-meta">
+                {body.length}/{MAX_LENGTH}
+              </span>
+              <button type="button" className="cv-btn is-primary" onClick={add.run} disabled={!body.trim() || add.busy}>
+                {add.busy ? "Saving…" : "Add note"}
+              </button>
+            </div>
+            {add.error && (
+              <div className="cv-notice is-bad" role="alert">
+                <div className="cv-notice-body">{add.error}</div>
               </div>
-              <p className="cn-note-body">{note.body}</p>
-              <div className="cn-note-actions">
-                <button
-                  type="button"
-                  className="cn-action"
-                  disabled={busyId === note.id || readOnly}
-                  title={readOnly ? READ_ONLY_TITLE : undefined}
-                  onClick={() => act(note, () => api.updateCaseNote(cashlessCaseId, note.id, { pinned: !note.pinned }))}
-                >
-                  {note.pinned ? <PinOff size={13} aria-hidden="true" /> : <Pin size={13} aria-hidden="true" />}
-                  {note.pinned ? "Unpin" : "Pin to case"}
-                </button>
-                {canChange(note) && !readOnly && (
-                  <button
-                    type="button"
-                    className="cn-action is-danger"
-                    disabled={busyId === note.id}
-                    onClick={() =>
-                      confirmId === note.id
-                        ? act(note, () => api.deleteCaseNote(cashlessCaseId, note.id))
-                        : setConfirmId(note.id)}
-                    onBlur={() => setConfirmId((c) => (c === note.id ? null : c))}
-                  >
-                    <Trash2 size={13} aria-hidden="true" /> {confirmId === note.id ? "Click again to delete" : "Delete"}
-                  </button>
+            )}
+          </div>
+        )}
+
+        {(actionError || loadError) && (
+          <div className="cv-notice is-bad cn-error" role="alert">
+            <div className="cv-notice-body">{actionError || loadError}</div>
+          </div>
+        )}
+
+        {!loaded ? (
+          <LoadingBlock compact text="Loading notes…" />
+        ) : notes.length === 0 ? (
+          <div className="cn-empty">
+            <StickyNote size={18} aria-hidden="true" />
+            <span>No notes yet. Record payer calls, promised documents and follow-ups here so the next person on the desk knows where the case stands.</span>
+          </div>
+        ) : (
+          <ul className="cn-list">
+            {notes.map((note) => (
+              <li key={note.id} className={`cn-note${note.pinned ? " is-pinned" : ""}`}>
+                <div className="cn-note-head">
+                  <span className="cn-chip">{categoryLabel(note.category)}</span>
+                  {note.pinned && (
+                    <span className="cn-pinned-label">
+                      <Pin size={11} aria-hidden="true" /> Pinned
+                    </span>
+                  )}
+                  <span className="cn-note-meta" title={formatDateTime(note.created_at)}>
+                    {note.author_name || "Staff"} · {formatRelative(note.created_at)}
+                  </span>
+                </div>
+                <p className="cn-note-body">{note.body}</p>
+                {!readOnly && (
+                  <div className="cn-note-actions">
+                    <button type="button" className="cn-action" disabled={busyId === note.id} onClick={() => act(note, () => api.updateCaseNote(cashlessCaseId, note.id, { pinned: !note.pinned }), "The pin was not saved.")}>
+                      {note.pinned ? <PinOff size={13} aria-hidden="true" /> : <Pin size={13} aria-hidden="true" />}
+                      {note.pinned ? "Unpin" : "Pin to case"}
+                    </button>
+                    {canChange(note) && (
+                      <button type="button" className="cn-action is-danger" disabled={busyId === note.id} onClick={() => setDeleting(note)}>
+                        <Trash2 size={13} aria-hidden="true" /> Delete
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Drawer>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Drawer>
+
+      <ConfirmModal
+        open={!!deleting}
+        title="Delete this note?"
+        subtitle="It is removed for the whole team. The audit trail keeps no copy."
+        confirmLabel="Delete note"
+        danger
+        busy={!!deleting && busyId === deleting.id}
+        onCancel={() => setDeleting(null)}
+        onConfirm={async () => {
+          const note = deleting;
+          const ok = await act(note, () => api.deleteCaseNote(cashlessCaseId, note.id), "The note was not deleted.");
+          if (ok) setDeleting(null);
+        }}
+      >
+        {deleting && <p className="cn-note-body">{deleting.body}</p>}
+      </ConfirmModal>
+    </>
   );
 }

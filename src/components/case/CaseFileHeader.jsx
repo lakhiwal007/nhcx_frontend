@@ -1,33 +1,18 @@
-import { useEffect, useRef, useState } from "react";
-import { Check, ChevronLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import PayerName from "../PayerName";
+import CopyButton from "../CopyButton";
 import { stageAmounts } from "./caseStages";
 import { formatMoney, formatAge, humanize, formatCaseRef } from "../../format.js";
 
 function IdCell({ label, value }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef(null);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const copy = async () => {
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(String(value));
-      setCopied(true);
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), 1200);
-    } catch {
-      setCopied(false);
-    }
-  };
   return (
-    <button type="button" className="cv-idcell" onClick={copy} disabled={!value} title={value ? `Copy ${label}` : undefined}>
+    <div className="cv-idcell">
       <span className="cv-idcell-key">{label}</span>
       <span className="cv-idcell-val">
         <span className="cv-idcell-text">{value || "—"}</span>
-        {copied && <Check size={12} aria-hidden="true" />}
-        <span className="sr-only" aria-live="polite">{copied ? "Copied" : ""}</span>
+        {value && <CopyButton value={String(value)} label={`Copy ${label}`} iconOnly className="cv-idcell-copy" />}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -44,7 +29,7 @@ function MoneyCell({ label, value, due = false, note }) {
   );
 }
 
-export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, moneyLedger, statusPill, onBack }) {
+export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, moneyLedger, statusPill, onBack, backLabel = "Back" }) {
   const policyNumber = caseState.policy?.policy_number || effectiveCase.policy_number;
   const payerId = effectiveCase.payer_id;
   const payerName = caseState.payer?.name;
@@ -65,7 +50,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
             {onBack && (
               <button type="button" className="cv-link cv-head-back" onClick={onBack}>
                 <ChevronLeft size={14} aria-hidden="true" />
-                Back
+                {backLabel}
               </button>
             )}
             <h2 className="cv-head-name">{patient.name}</h2>
@@ -83,7 +68,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
             <IdCell label="Case" value={caseState.cashless_case_id && formatCaseRef(caseState.cashless_case_id)} />
             <IdCell label="Claim" value={caseState.claim_id} />
             <IdCell label="Patient" value={patient.child_id} />
-            <IdCell label="Preauth ref" value={preauthRef} />
+            <IdCell label="Pre-auth ref" value={preauthRef} />
             <IdCell label="Policy" value={policyNumber} />
             <IdCell label="ABHA" value={abha} />
           </div>

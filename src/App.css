@@ -1545,7 +1545,7 @@ h3,
 }
 
 /* Page content gets real breathing room inside the panel. The case
-   workspace (.cx-root) brings its own stage rail and layout, so it only
+   workspace (.cv-root) brings its own stage rail and layout, so it only
    takes a hairline --app-gutter (its rail bleeds back over it on the left,
    and its sticky offsets read the same token). */
 :root {
@@ -1560,14 +1560,14 @@ h3,
 
 /* The case fills the pane without a height of its own, so a short step does not
    scroll just because the shell's offsets add up to more than the case allows. */
-.main-view:has(> .cx-root) {
+.main-view:has(> .cv-root) {
     display: flex;
     flex: 1 0 auto;
     flex-direction: column;
     padding: var(--app-gutter);
 }
 
-.main-view > *:not(.cx-root) {
+.main-view > *:not(.cv-root) {
     max-width: var(--content-max);
     margin-inline: auto;
 }
@@ -4858,83 +4858,6 @@ code {
     grid-column: 1 / -1;
 }
 
-/* ─── Audit trail (CaseTimeline.jsx) ───────────────────────────────────── */
-.tl-select {
-    width: auto;
-    min-width: 160px;
-}
-
-.tl-failures {
-    margin-left: auto;
-    color: var(--text-main);
-    font-size: 13px;
-}
-
-.tl-empty {
-    padding-bottom: 14px;
-}
-
-.ep-table.tl-table {
-    min-width: 860px;
-}
-
-.tl-table th,
-.tl-table td {
-    padding-left: 12px;
-    padding-right: 12px;
-}
-
-.tl-table th:first-child,
-.tl-table td:first-child {
-    padding-left: 16px;
-}
-
-.tl-table tr.is-failed td:first-child {
-    color: var(--error);
-}
-
-.tl-when {
-    font-size: 12px;
-}
-
-.tl-event {
-    min-width: 320px;
-    font-size: 12.5px;
-}
-
-.tl-event .ep-strong {
-    font-size: 13px;
-}
-
-.tl-line {
-    margin-top: 3px;
-    overflow-wrap: anywhere;
-}
-
-.tl-line .ep-mono {
-    font-size: 11.5px;
-}
-
-.tl-ids {
-    font-size: 11px;
-}
-
-.tl-notes {
-    margin: 4px 0 0;
-    padding-left: 16px;
-    color: var(--text-muted);
-}
-
-.tl-actor {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.tl-actor svg {
-    color: var(--text-muted);
-}
-
 /* ─── FHIR bundle (FhirBundleModal.jsx) ─────────────────────────────────── */
 .fb-sides {
     display: grid;
@@ -4991,11 +4914,6 @@ code {
     .fb-sides {
         grid-template-columns: minmax(0, 1fr);
     }
-}
-
-/* Settled case: one read-only note above the stage body (CaseWrapper). */
-.cx-closed-note {
-    margin: 0 0 12px;
 }
 
 /* Overlay titles take focus on open (Overlay.jsx); no ring for that. */

@@ -11,7 +11,7 @@ const CLAIM_DECIDED = ["approved", "partial", "rejected"];
 const CANCELLABLE_PREAUTH = ["submitting", "approved", "partial", "queried"];
 
 export function usePreauthDecision(ctx) {
-  const { caseState, updateCaseState, cashlessCase, setCashlessCase, caseRecord, applyCase, reloadCase, timelineEvents, caseClosed } = ctx;
+  const { caseState, updateCaseState, cashlessCase, overrideCase, caseRecord, applyCase, reloadCase, timelineEvents, caseClosed } = ctx;
   const { preauthCorrelationId: correlationId, claim_id, cashless_case_id } = caseState;
   const recoveredId = caseRecord?.preauth?.correlation_id || null;
   useEffect(() => {
@@ -21,9 +21,9 @@ export function usePreauthDecision(ctx) {
   const restart = useCallback(
     (newId) => {
       updateCaseState({ preauthCorrelationId: newId, preauthDecision: null });
-      setCashlessCase?.((prev) => (prev ? { ...prev, preauth_status: null } : prev));
+      overrideCase?.({ preauth_status: null });
     },
-    [updateCaseState, setCashlessCase],
+    [updateCaseState, overrideCase],
   );
 
   const [cancelRefused, setCancelRefused] = useState(false);

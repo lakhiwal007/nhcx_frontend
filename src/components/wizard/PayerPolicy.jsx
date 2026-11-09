@@ -92,7 +92,7 @@ const EMPTY_RESULT = { n: 0, policies: [], error: null, foundBy: null, memberIdO
 export default function PayerPolicy({ ctx }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { patient, caseState, updateCaseState, cashlessCase, setCashlessCase } = ctx;
+  const { patient, caseState, updateCaseState, cashlessCase, resetCase } = ctx;
   const { showTips } = useTips();
   const lock = useCaseLock(ctx, "payer");
   const locked = lock.viewOnly || lock.settled;
@@ -115,7 +115,7 @@ export default function PayerPolicy({ ctx }) {
 
   const applyPolicy = (policy) => {
     setSelectedPolicy(policy);
-    if (caseState.cashless_case_id) setCashlessCase(null);
+    if (caseState.cashless_case_id) resetCase();
     updateCaseState({ policy, payer: payerFromPolicy(policy), ...POLICY_CHANGE_RESET });
   };
 
