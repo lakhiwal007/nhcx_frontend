@@ -49,6 +49,8 @@ import CaseWrapper from "./components/wizard/CaseWrapper";
 import { LoadingBlock } from "./components/Common";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { PageActionsSlot } from "./components/PageActions";
+import Toasts from "./components/Toasts";
+import { useMediaQuery } from "./hooks/useMediaQuery";
 import { TipsProvider } from "./help/TipsContext.jsx";
 import TipsToggle from "./help/TipsToggle.jsx";
 import { loadPayerGuide } from "./api/payrErrors.js";
@@ -76,8 +78,6 @@ export default function App() {
   const [theme, setTheme] = useState(
     () => localStorage.getItem(THEME_KEY) || "light",
   );
-  const [apiErrors, setApiErrors] = useState([]);
-  const apiErrorTimers = useRef({});
   const [pendingTaskCount, setPendingTaskCount] = useState(0);
   const [urgentTaskCount, setUrgentTaskCount] = useState(0);
   const [unreadCommsCount, setUnreadCommsCount] = useState(0);
@@ -112,6 +112,7 @@ export default function App() {
   const facilityRecoveryAttempted = useRef(false);
   const taskPollRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
+  const narrow = useMediaQuery("(max-width: 768px)");
 
   useEffect(() => {
     const sync = () => {
@@ -239,16 +240,8 @@ export default function App() {
   }, [hasProvider]);
 
   useEffect(() => {
-    const MAX_TOASTS = 4;
-    const scheduleDismiss = (id) => {
-      clearTimeout(apiErrorTimers.current[id]);
-      apiErrorTimers.current[id] = setTimeout(() => {
-        setApiErrors((prev) => prev.filter((err) => err.id !== id));
-        delete apiErrorTimers.current[id];
-      }, 5000);
-    };
     const handleApiError = (e) => {
-      const { message, kind } = e.detail || {};
+      const { kind } = e.detail || {};
 
       // No refresh endpoint exists — a token with no exp claim never expires
       // as far as the wrapper is concerned, so a 401 here means the deep
@@ -283,27 +276,16 @@ export default function App() {
           window.dispatchEvent(new Event("provider-changed"));
         }).catch(() => {});
       }
-
-      setApiErrors((prev) => {
-        const existing = prev.find((err) => err.message === message);
-        if (existing) {
-          scheduleDismiss(existing.id);
-          return prev.map((err) =>
-            err.id === existing.id ? { ...err, count: err.count + 1 } : err,
-          );
-        }
-        const id = Date.now() + Math.random();
-        scheduleDismiss(id);
-        return [...prev, { id, message, count: 1 }].slice(-MAX_TOASTS);
-      });
     };
     window.addEventListener("api-error", handleApiError);
     return () => {
       window.removeEventListener("api-error", handleApiError);
-      Object.values(apiErrorTimers.current).forEach(clearTimeout);
-      apiErrorTimers.current = {};
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
@@ -401,7 +383,7 @@ export default function App() {
 
   if (sessionExpired || clinicAccessError) {
     return (
-      <div data-theme={theme} className="session-block-screen">
+      <div className="session-block-screen">
         <div className="session-block-card">
           <AlertCircle size={28} color="var(--error)" />
           {sessionExpired ? (
@@ -430,7 +412,6 @@ export default function App() {
     <TipsProvider>
     <div
       className={`app-container ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isMobileMenuOpen ? "mobile-menu-open" : ""} dir-${layoutDirection.toLowerCase()}`}
-      data-theme={theme}
     >
       <AnimatePresence>
         {isMobileMenuOpen && (
@@ -520,7 +501,7 @@ export default function App() {
                 );
               })}
             </div>
-            <div className="page-actions" ref={setPageActionsEl} />
+            {!narrow && <div className="page-actions" ref={setPageActionsEl} />}
           </div>
           )}
         </>
@@ -647,7 +628,7 @@ export default function App() {
           </div>
 
           <div className="top-actions">
-            {layoutDirection !== "B" && <div className="page-actions" ref={setPageActionsEl} />}
+            {(layoutDirection !== "B" || narrow) && <div className="page-actions" ref={setPageActionsEl} />}
             {!hasProvider ? (
               <button onClick={() => navigate("/settings")} className="topbar-facility is-missing">
                 <Building2 size={13} />
@@ -753,42 +734,7 @@ export default function App() {
       </main>
       </div>
 
-      <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: "var(--z-toast)", display: "flex", flexDirection: "column", gap: "10px", maxWidth: "380px" }}>
-        <AnimatePresence>
-          {apiErrors.map((err) => (
-            <motion.div
-              key={err.id}
-              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 60, scale: 0.92 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 60, scale: 0.88 }}
-              transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              style={{
-                background: "linear-gradient(135deg, var(--error) 0%, color-mix(in srgb, var(--error) 70%, black) 100%)",
-                color: "white",
-                padding: "14px 18px",
-                borderRadius: "var(--radius-md)",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "12px",
-                boxShadow: "0 8px 24px color-mix(in srgb, var(--error) 40%, transparent), inset 0 1px 0 rgba(255,255,255,0.25)",
-                border: "1px solid rgba(255,255,255,0.15)",
-              }}
-            >
-              <AlertCircle size={18} style={{ flexShrink: 0, marginTop: "1px" }} />
-              <div style={{ fontSize: "13px", fontWeight: 600, lineHeight: 1.5, flex: 1 }}>
-                {err.message}
-                {err.count > 1 && ` (×${err.count})`}
-              </div>
-              <button
-                onClick={() => setApiErrors((prev) => prev.filter((e) => e.id !== err.id))}
-                style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "white", cursor: "pointer", padding: "4px 6px", display: "flex", borderRadius: "var(--radius-xs)", flexShrink: 0, marginTop: "-2px" }}
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      <Toasts />
     </div>
     </TipsProvider>
   );

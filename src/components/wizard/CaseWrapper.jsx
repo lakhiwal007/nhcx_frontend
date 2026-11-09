@@ -11,7 +11,8 @@ import AttentionTray from "../case/AttentionTray";
 import CaseNotesDrawer from "../case/CaseNotes";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, projectCaseStatus, caseRules, landingStage, stageInfo, stageAmounts } from "../case/caseStages";
+import { buildStages, landingStage, stageInfo, stageAmounts } from "../case/caseStages";
+import { useCaseRecord } from "../../hooks/useCaseRecord";
 import "../case/case-workspace.css";
 import "../case/case-v2.css";
 
@@ -98,7 +99,7 @@ function CaseWorkspace({ reportCase }) {
     ...(location.state?.preauthCorrelationId ? { preauthCorrelationId: location.state.preauthCorrelationId } : {}),
   });
 
-  const [cashlessCase, setCashlessCase] = useState(null);
+  const [seed, setSeed] = useState(null);
 
   // The rolled-up money ledger + decision provenance for this case (GET
   // /timeline). Fetched once here and shared with the header money strip
@@ -174,16 +175,30 @@ function CaseWorkspace({ reportCase }) {
     }
   }, [ledgerCaseId, flagIssue]);
 
-  const reloadCase = useCallback(async () => {
-    if (!ledgerCaseId) return;
-    try {
-      const full = await api.getCashlessStatus(ledgerCaseId);
-      if (full) setCashlessCase((prev) => ({ ...prev, ...caseRules(full) }));
-      flagIssue("case", null);
-    } catch (err) {
-      flagIssue("case", err?.message || "The case status could not be read.");
-    }
-  }, [ledgerCaseId, flagIssue]);
+  const caseRecord = useCaseRecord(ledgerCaseId, {
+    seed,
+    onLoaded: (full) => {
+      const claimId = location.state?.claim_id ?? full.claim?.claim_id ?? null;
+      const sameCase = String(full.cashless_case_id) === String(caseState.cashless_case_id);
+      const sameClaim = claimId == null || claimId === caseState.claim_id;
+      if (full.cashless_case_id && (!sameCase || !sameClaim)) {
+        updateCaseState({ cashless_case_id: full.cashless_case_id, claim_id: claimId ?? caseState.claim_id ?? null });
+      }
+    },
+  });
+  const cashlessCase = caseRecord.record;
+  const overrideCase = caseRecord.override;
+  const setCashlessCase = useCallback(
+    (patch) => {
+      if (patch === null) {
+        setSeed(null);
+        overrideCase(() => null);
+      } else {
+        overrideCase(patch);
+      }
+    },
+    [overrideCase],
+  );
 
   useEffect(() => {
     refreshComms();
@@ -210,7 +225,6 @@ function CaseWorkspace({ reportCase }) {
   const loadPatient = async () => {
       setLoading(true);
       setPatientError(null);
-      flagIssue("case", null);
       let found = false;
       try {
         const response = await api.searchChildren({ child_id: id });
@@ -228,27 +242,11 @@ function CaseWorkspace({ reportCase }) {
               : !navAdmissionId || String(prior.admission_id ?? "") === String(navAdmissionId));
 
           if (priorMatchesTarget) {
-            setCashlessCase(prior);
+            setSeed(prior);
             updateCaseState({
               cashless_case_id: resumeCaseId ?? prior.cashless_case_id ?? caseState.cashless_case_id,
               claim_id: location.state?.claim_id ?? prior.claim_id ?? null,
             });
-            const priorCaseId = resumeCaseId ?? prior.cashless_case_id;
-            if (priorCaseId) {
-              api
-                .getCashlessStatus(priorCaseId)
-                .then((full) => full && setCashlessCase((prev) => ({ ...prev, ...caseRules(full) })))
-                .catch((err) => flagIssue("case", err?.message || "The case status could not be read."));
-            }
-          } else if (resumeCaseId) {
-            const full = await api.getCashlessStatus(resumeCaseId);
-            if (full) {
-              setCashlessCase(projectCaseStatus(full));
-              updateCaseState({
-                cashless_case_id: full.cashless_case_id,
-                claim_id: location.state?.claim_id ?? full.claim?.claim_id ?? null,
-              });
-            }
           }
         }
       } catch (err) {
@@ -297,11 +295,12 @@ function CaseWorkspace({ reportCase }) {
   }
 
   const issueLabels = { timeline: "the money summary", comms: "payer messages", case: "the case status" };
-  const issueKeys = Object.keys(loadIssues);
+  const issues = caseRecord.error ? { ...loadIssues, case: caseRecord.error } : loadIssues;
+  const issueKeys = Object.keys(issues);
   const retryIssues = () => {
     refreshTimeline();
     refreshComms();
-    reloadCase();
+    caseRecord.reload();
   };
 
   const effectiveCase = cashlessCase || {};
@@ -344,6 +343,11 @@ function CaseWorkspace({ reportCase }) {
     draftFiles,
     setDraftFiles,
     stageBar: { title: activeStage?.label || "Case", tools: stageTools },
+    caseRecord: caseRecord.full,
+    reloadCase: caseRecord.reload,
+    applyCase: caseRecord.apply,
+    caseLoading: caseRecord.loading,
+    caseError: caseRecord.error,
   };
 
 
@@ -366,7 +370,7 @@ function CaseWorkspace({ reportCase }) {
           {issueKeys.length > 0 && (
             <div className="cv-notice is-warn">
               <div className="cv-notice-body">
-                Could not refresh {issueKeys.map((k) => issueLabels[k] || k).join(", ")}. What is shown may be out of date: {loadIssues[issueKeys[0]]}
+                Could not refresh {issueKeys.map((k) => issueLabels[k] || k).join(", ")}. What is shown may be out of date: {issues[issueKeys[0]]}
               </div>
               <div className="cv-notice-actions">
                 <button type="button" className="cv-btn" onClick={retryIssues}>Retry</button>
@@ -397,7 +401,16 @@ function CaseWorkspace({ reportCase }) {
                     time, double-firing its init effect (e.g. prepareCashless). */}
                 <ErrorBoundary key={currentStepPath}>
                 <Routes location={location}>
-                  <Route path="/" element={<Navigate to={landingStage(effectiveCase)} replace />} />
+                  <Route
+                    path="/"
+                    element={
+                      caseRecord.loading ? (
+                        <LoadingBlock compact text="Opening the case…" />
+                      ) : (
+                        <Navigate to={landingStage(effectiveCase, { full: caseRecord.full })} replace />
+                      )
+                    }
+                  />
                   <Route path="payer" element={<PayerPolicy ctx={contextValue} />} />
                   <Route path="discover" element={<CoverageDiscovery ctx={contextValue} />} />
                   <Route path="prep" element={<EligibilityPrep ctx={contextValue} />} />

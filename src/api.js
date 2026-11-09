@@ -4,6 +4,7 @@
 //  Set USE_MOCK = false →  makes real fetch calls to BASE_URL
 // ─────────────────────────────────────────────────────────────────────────────
 import { enrichPayrMessage, describePayrError } from "./api/payrErrors.js";
+import { toast } from "./toast";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 const mockDiscoveries = [];
@@ -111,8 +112,17 @@ const buildUrl = (path, params = {}) => {
   return url.toString();
 };
 
-const dispatchError = (msg, kind) =>
-  window.dispatchEvent(new CustomEvent("api-error", { detail: { message: msg, kind } }));
+const dispatchError = (err) => {
+  if (err?.kind) window.dispatchEvent(new CustomEvent("api-error", { detail: { message: err.message, kind: err.kind } }));
+  setTimeout(() => {
+    if (!err?.handled && err?.kind !== "AUTH_EXPIRED") toast.error(err?.message);
+  }, 0);
+};
+
+export const markHandled = (err) => {
+  if (err && typeof err === "object") err.handled = true;
+  return err;
+};
 
 // Thrown for any non-2xx wrapper response. `kind` is the classified auth
 // failure (see authMessage) so App.jsx can react structurally — re-bootstrap
@@ -121,6 +131,7 @@ class ApiError extends Error {
   constructor(message, kind = null) {
     super(message);
     this.kind = kind;
+    this.handled = false;
   }
 }
 
@@ -136,7 +147,7 @@ const refuseIfReadOnly = (path) => {
   if (!readOnlySession) return;
   if (typeof path === "string" && FACILITY_ADMIN_PATH.test(path)) return;
   const err = new ApiError(READ_ONLY_MESSAGE, "READ_ONLY");
-  dispatchError(err.message, err.kind);
+  dispatchError(err);
   throw err;
 };
 
@@ -216,7 +227,7 @@ const http = {
     } catch (err) {
       // A cancelled poll (tab hidden / navigation) is not a real error.
       if (err.name === "AbortError") throw err;
-      dispatchError(err.message, err.kind);
+      dispatchError(err);
       throw err;
     }
   },
@@ -238,7 +249,7 @@ const http = {
       }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message, err.kind);
+      dispatchError(err);
       throw err;
     }
   },
@@ -257,7 +268,7 @@ const http = {
       }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message, err.kind);
+      dispatchError(err);
       throw err;
     }
   },
@@ -276,7 +287,7 @@ const http = {
       }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message, err.kind);
+      dispatchError(err);
       throw err;
     }
   },
@@ -295,7 +306,7 @@ const http = {
       }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message, err.kind);
+      dispatchError(err);
       throw err;
     }
   },
@@ -316,7 +327,7 @@ const http = {
       }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message, err.kind);
+      dispatchError(err);
       throw err;
     }
   },
@@ -338,7 +349,7 @@ const http = {
       }
       return await res.json();
     } catch (err) {
-      dispatchError(err.message, err.kind);
+      dispatchError(err);
       throw err;
     }
   },
@@ -3841,7 +3852,55 @@ const real = {
 
 // ─── Exported API  ────────────────────────────────────────────────────────────
 //  Automatically picks mock or real based on the USE_MOCK flag above.
-export const api = USE_MOCK ? mock : real;
+class SendRefusedError extends ApiError {
+  constructor(res) {
+    super(res?.error_message || res?.message || res?.error?.message || "The payer did not accept the request.", "SEND_FAILED");
+    this.response = res;
+  }
+}
+
+const assertAccepted = (res) => {
+  if (res?.status === "failed") {
+    const err = new SendRefusedError(res);
+    dispatchError(err);
+    throw err;
+  }
+  return res;
+};
+
+const SEND_METHODS = new Set([
+  "submitPreauth",
+  "resubmitPreauth",
+  "respondPreauthQuery",
+  "cancelPreauth",
+  "submitPreauthEnhancement",
+  "submitDischargeClaim",
+  "submitFinalClaim",
+  "respondClaimQuery",
+  "requestClaimRelease",
+  "resubmitDischargeClaim",
+  "submitReprocess",
+  "acknowledgePayment",
+  "linkPayment",
+  "sendCommunication",
+  "respondToCommunication",
+  "acknowledgeCommunication",
+  "requestGatewayStatus",
+  "discoverCoverage",
+  "adoptDiscoveredCover",
+  "requestInsurancePlan",
+  "rawPost",
+]);
+
+const wrapSends = (impl) =>
+  Object.fromEntries(
+    Object.entries(impl).map(([name, fn]) => [
+      name,
+      SEND_METHODS.has(name) ? (...args) => Promise.resolve(fn(...args)).then(assertAccepted) : fn,
+    ]),
+  );
+
+export const api = wrapSends(USE_MOCK ? mock : real);
 
 // Also export the flag so UI can display a "MOCK MODE" banner if needed.
 export { USE_MOCK };

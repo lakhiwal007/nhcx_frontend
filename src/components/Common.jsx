@@ -19,7 +19,7 @@ import {
 import { glossary } from "../help/glossary.js";
 import { useTips } from "../help/tips.js";
 import { formatMoney, safeHref } from "../format.js";
-import { MAX_ATTACHMENT_MB } from "../api/config.js";
+import { readFileAsAttachment, MAX_ATTACHMENT_BYTES, attachmentLimitText } from "../files";
 
 export { formatMoney };
 
@@ -330,30 +330,9 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
     const doc = pendingDocRef.current;
     e.target.value = "";
     if (!file || !doc) return;
-    if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
-      setUploadError(`${file.name} is larger than ${MAX_ATTACHMENT_MB}MB — please attach a smaller file.`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const match = /^data:(.*?);base64,(.*)$/.exec(reader.result || "");
-      if (!match) {
-        setUploadError(`Could not read ${file.name}.`);
-        return;
-      }
-      const [, contentType, data] = match;
-      onUpload?.(doc, {
-        url: reader.result,
-        content_type: contentType || file.type || "application/octet-stream",
-        attachment: {
-          contentType: contentType || file.type || "application/octet-stream",
-          data,
-          title: file.name,
-        },
-      });
-    };
-    reader.onerror = () => setUploadError(`Could not read ${file.name}.`);
-    reader.readAsDataURL(file);
+    readFileAsAttachment(file)
+      .then(({ url, content_type, attachment }) => onUpload?.(doc, { url, content_type, attachment }))
+      .catch((err) => setUploadError(err?.message || `Could not read ${file.name}.`));
   };
 
   return (
@@ -627,21 +606,7 @@ export const QueryResponseFields = ({
   const fileInputRef = useRef(null);
   const [error, setError] = useState(null);
 
-  const readFile = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const match = /^data:(.*?);base64,(.*)$/.exec(reader.result || "");
-        if (!match) return reject(new Error(file.name));
-        resolve({
-          title: file.name,
-          contentType: match[1] || file.type || "application/octet-stream",
-          data: match[2],
-        });
-      };
-      reader.onerror = () => reject(new Error(file.name));
-      reader.readAsDataURL(file);
-    });
+  const readFile = (file) => readFileAsAttachment(file).then(({ title, contentType, data }) => ({ title, contentType, data }));
 
   const handleFileChange = async (e) => {
     const picked = [...(e.target.files || [])];
@@ -649,12 +614,12 @@ export const QueryResponseFields = ({
     if (picked.length === 0) return;
     setError(null);
 
-    const tooBig = picked.filter((f) => f.size > MAX_ATTACHMENT_MB * 1024 * 1024);
+    const tooBig = picked.filter((f) => f.size > MAX_ATTACHMENT_BYTES);
     if (tooBig.length > 0) {
-      setError(`${tooBig.map((f) => f.name).join(", ")} — larger than ${MAX_ATTACHMENT_MB}MB, please attach smaller files.`);
+      setError(`${tooBig.map((f) => f.name).join(", ")} — larger than ${attachmentLimitText()}, please attach smaller files.`);
     }
 
-    const usable = picked.filter((f) => f.size <= MAX_ATTACHMENT_MB * 1024 * 1024);
+    const usable = picked.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
     if (usable.length === 0) return;
 
     try {

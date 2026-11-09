@@ -1,5 +1,5 @@
-// Stage model + live status derivation for the Case Spine.
-// Pure data helpers — depends only on data already on caseState / effectiveCase.
+import { formatMoney } from "../../format.js";
+import { taskStep } from "../../tasks";
 
 const CORE = [
   { id: "payer", label: "Policy", path: "payer", hint: "Select the patient's active policy — its payer comes with it." },
@@ -52,8 +52,7 @@ export function stageInfo(path) {
   return VIEWS[path] || null;
 }
 
-const fmt = (n) =>
-  n != null && !Number.isNaN(Number(n)) ? `₹${Number(n).toLocaleString("en-IN")}` : null;
+const fmt = (n) => (n != null && !Number.isNaN(Number(n)) ? formatMoney(n) : null);
 
 // A payment stage reaches us in several spellings: the claim column
 // ("settled"), the notice stage ("PAYMENT_SETTLED"), or the FHIR paymentStatus
@@ -81,18 +80,37 @@ export const STEP_FORWARD_LABEL = {
   payment: "Payment",
 };
 
-const STEP_LANDING_ROUTE = {
-  ...STEP_FORWARD_ROUTE,
-  preauth_ready: "review",
-};
+const up = (v) => (v ? String(v).toUpperCase() : null);
 
-export function landingStage(effectiveCase = {}) {
-  const step = effectiveCase.current_step;
-  if (STEP_LANDING_ROUTE[step]) return STEP_LANDING_ROUTE[step];
-  if (step === "insurance_and_eligibility" && (effectiveCase.payer_id || effectiveCase.policy_number)) {
-    return "prep";
-  }
-  return "payer";
+const PAYMENT_STEPS = new Set(["payment_pending", "settled"]);
+const PAID_STATES = new Set(["PAYMENT_SETTLED", "PAYMENT_INITIATED", "PAYMENT_PROCESSED"]);
+
+export function landingStage(record = {}, { full = null, tasks } = {}) {
+  const r = record || {};
+  const preauth = full?.preauth || null;
+  const claim = full?.claim || null;
+  const step = r.current_step || full?.current_step;
+  const pDecision = up(preauth?.decision || r.preauth_status);
+  const cDecision = up(claim?.decision || r.claim_decision);
+  const cancellationPending = preauth?.purpose === "cancel" && preauth?.status === "pending";
+  const nextActions = full?.next_actions || [];
+
+  let dest;
+  if (cancellationPending) dest = "status";
+  else if (PAID_STATES.has(up(claim?.payment_status || r.payment_status)) || PAYMENT_STEPS.has(step)) dest = "payment";
+  else if (cDecision === "APPROVED" || cDecision === "PARTIALLY_APPROVED") dest = "payment";
+  else if (cDecision || claim?.correlation_id || r.claim_id || step === "claim_submitted" || step === "claim_decided") dest = "claim";
+  else if (pDecision === "APPROVED" || pDecision === "PARTIALLY_APPROVED") dest = "claim";
+  else if (pDecision === "QUERIED" || pDecision === "REJECTED" || pDecision === "CANCELLED") dest = "status";
+  else if (preauth?.correlation_id || step === "preauth_submitted" || step === "preauth_decided") dest = "status";
+  else if (step === "preauth_ready" || nextActions.includes("prepare_preauth") || nextActions.includes("submit_preauth")) dest = "review";
+  else if (r.policy_number || r.payer_id || full?.policy_number || full?.payer_id) dest = "prep";
+  else dest = "payer";
+
+  const pending = tasks ?? full?.pending_tasks ?? [];
+  const actionable = cancellationPending ? null : pending.find((t) => taskStep(t.task_type));
+  const taskRoute = actionable ? taskStep(actionable.task_type) : null;
+  return taskRoute && routeAtOrAfter(taskRoute, dest) ? taskRoute : dest;
 }
 
 // A /cashless/{id} response is nested — preauth, claim and payment each arrive
@@ -201,7 +219,7 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       note: preauthStarted ? "Preauth submitted" : "",
     },
     status: (() => {
-      if (decision === "QUERIED") return { done: false, note: "Query - action needed", tone: "urgent" };
+      if (decision === "QUERIED") return { done: false, note: "Query - answer needed", tone: "wait", live: true };
       if (decision === "APPROVED") return { done: true, note: approvedAmount ? `Approved ${approvedAmount}` : "Approved", tone: "approve" };
       if (decision === "PARTIALLY_APPROVED") return { done: true, note: approvedAmount ? `Partial ${approvedAmount}` : "Partially approved", tone: "approve" };
       if (decision === "REJECTED") return { done: true, note: "Rejected", tone: "urgent" };
@@ -253,7 +271,7 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       const claimLeg = effectiveCase.legs?.claim;
       const claimRejected = claimLeg ? claimLeg === "rejected" : /reject|denied/i.test(String(claimDecision || ""));
       if (claimRejected) {
-        visible.push({ ...BRANCHES.reprocess, branch: true, done: false, note: "Action available", tone: "urgent" });
+        visible.push({ ...BRANCHES.reprocess, branch: true, done: false, note: "Action available", tone: "wait", live: true });
       } else if (effectiveCase.reprocess) {
         const decided = !!effectiveCase.reprocess.decision;
         visible.push({ ...BRANCHES.reprocess, branch: true, done: decided, note: decided ? "Appeal decided" : "Appeal sent", tone: decided ? undefined : "wait", live: !decided });
@@ -285,17 +303,33 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
   });
 }
 
-export function nowHint(stages) {
-  const urgent = stages.find((s) => s.tone === "urgent" && !s.branch);
-  if (urgent) {
-    const note = String(urgent.note || "");
-    if (urgent.id === "status" && /query/i.test(note)) return { tone: "urgent", text: "The payer asked a question. Open Approval and press Respond to query." };
-    if (urgent.id === "status" && /reject/i.test(note)) return { tone: "urgent", text: "The preauth was rejected. Open Approval to read why, then resubmit or treat the patient as cash." };
-    if (urgent.id === "status" && /cancel/i.test(note)) return { tone: "urgent", text: "The preauth was cancelled. Start a new case if the patient is admitted again." };
-    if (urgent.id === "claim") return { tone: "urgent", text: "Open Claim to read the payer's decision. If you disagree, ask for a reprocess." };
-  }
-  if (stages.some((s) => s.live && !s.done)) {
-    return { tone: "wait", text: "Nothing to do right now: the payer is deciding. The answer appears here and in the Work Queue." };
-  }
-  return null;
+const ROUTE_ORDER = ["payer", "prep", "review", "status", "claim", "reprocess", "payment"];
+
+export const routeAtOrAfter = (route, reference) => {
+  const a = ROUTE_ORDER.indexOf(route);
+  const b = ROUTE_ORDER.indexOf(reference);
+  if (a === -1 || b === -1) return true;
+  return a >= b;
+};
+
+const PREAUTH_STAGES = new Set(["review", "status", "enhancement"]);
+
+export function lockFor(record, stage, { readOnly = false, closed = false } = {}) {
+  const r = record || {};
+  const viewOnly = !!readOnly;
+  const settled = !!closed;
+  const forward = STEP_FORWARD_ROUTE[r.current_step] || null;
+  const movedOnTo = forward && stage && !routeAtOrAfter(stage, forward) ? forward : null;
+  const claimWithPayer = PREAUTH_STAGES.has(stage) && CLAIM_WITH_PAYER.includes(r.legs?.claim);
+  const movedOnLabel = movedOnTo ? STEP_FORWARD_LABEL[movedOnTo] || movedOnTo : null;
+  const reason = viewOnly
+    ? "This account can view only."
+    : settled
+      ? "The case is settled."
+      : movedOnTo
+        ? `The case has moved on to ${movedOnLabel}.`
+        : claimWithPayer
+          ? "The claim is with the payer, so the pre-auth can no longer change."
+          : null;
+  return { locked: !!reason, reason, movedOnTo, movedOnLabel, viewOnly, settled, claimWithPayer };
 }

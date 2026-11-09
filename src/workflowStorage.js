@@ -60,14 +60,4 @@ export const loadWorkflow = (childId) => {
   }
 };
 
-// ─── Route order ──────────────────────────────────────────────────────────────
-
-const ROUTE_ORDER = ['payer','prep','review','status','claim','reprocess','payment'];
-
-/** True when `route` sits at or after `reference` in the case lifecycle. */
-export const routeAtOrAfter = (route, reference) => {
-  const a = ROUTE_ORDER.indexOf(route);
-  const b = ROUTE_ORDER.indexOf(reference);
-  if (a === -1 || b === -1) return true;
-  return a >= b;
-};
+export { routeAtOrAfter } from "./components/case/caseStages";

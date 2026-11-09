@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import FormEditor from "./PayerForms";
 import { liveAsks } from "./askStatus";
+import { readFileAsAttachment } from "../../files";
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const SOURCE = { ruling: "payer's ruling", plan: "plan, every case", package: "plan, for the package", consent: "PMJAY, in place of biometrics" };
@@ -22,19 +23,6 @@ function detail(row) {
   if (row.file_name) parts.push(row.file_name);
   return parts.join(" · ");
 }
-
-const readFile = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const match = /^data:(.*?);base64,(.*)$/.exec(reader.result || "");
-      if (!match) return reject(new Error(`Could not read ${file.name}.`));
-      const type = match[1] || file.type || "application/pdf";
-      resolve({ url: reader.result, content_type: type, attachment: { contentType: type, data: match[2], title: file.name } });
-    };
-    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
-    reader.readAsDataURL(file);
-  });
 
 export default function PayerAsks({ caseId, stage, asks, documents, readOnly, onAttach, onFormsChange, reloadKey, title = "What the payer asks for" }) {
   const [forms, setForms] = useState({ key: null, rows: [], readOnly: false, error: null });
@@ -81,7 +69,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
       return;
     }
     try {
-      onAttach(row, await readFile(file));
+      onAttach(row, await readFileAsAttachment(file, { maxBytes: 0, fallbackType: "application/pdf" }));
     } catch (err) {
       setError(err.message);
     }
