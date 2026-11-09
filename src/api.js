@@ -2715,12 +2715,39 @@ const mock = {
     if (params.claim_id != null && String(params.claim_id) !== "102") {
       return { status: "not_found", filters: { claim_id: params.claim_id }, settled: false, total_events: 0, events: [] };
     }
+    const unlinked = params.claim_id == null ? [{
+      id: 77,
+      correlation_id: "c9a1e6b0-2222-4a2e-9c3a-000000000077",
+      claim_id: null,
+      cashless_case_id: null,
+      payer_id: "2044@hcx",
+      payer_name: "Star Health & Allied",
+      provider_id: "1@hcx",
+      payment_reference: "PAY-2026-00077",
+      claim_reference: "CLM-777",
+      event_key: "c9a1e6b0-2222-4a2e-9c3a-000000000077:33:PAY-2026-00077:CLM-777:UTR555000111",
+      payment_stage: "PAYMENT_SETTLED",
+      workflow_id: 33,
+      notice_identifier: "NOTICE-2026-00077",
+      notice_amount: 18000,
+      gross_amount: 18000,
+      tds_amount: 180,
+      net_payment_amount: 17820,
+      payment_date: "2026-05-18",
+      utr: "UTR555000111",
+      utr_type: "NEFT",
+      currency: "INR",
+      acknowledgement_status: "pending",
+      acknowledgement_error: null,
+      received_at: "2026-05-18T11:00:00+05:30",
+    }] : [];
     return {
       status: "found",
       latest_stage: "PAYMENT_SETTLED",
       settled: true,
-      total_events: 2,
+      total_events: 2 + unlinked.length,
       events: [
+        ...unlinked,
         {
           correlation_id: "c9a1e6b0-1111-4a2e-9c3a-000000000001",
           claim_id: 102,

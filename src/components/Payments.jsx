@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
-import { AlertCircle, Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { api, markHandled } from "../api";
+import { useReadOnly } from "../readOnly";
 import { SkeletonTable, Button, TablePagination, Tip } from "./Common";
 import PageActions from "./PageActions";
-import { formatMoney, formatDate, formatDateTime } from "../format.js";
-import { api } from "../api";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { groupPaymentEvents, stageLabel } from "../paymentEvents.js";
 import Dropdown from "./Dropdown";
-import { Modal } from "./Overlay";
+import PayerName from "./PayerName";
+import { formatMoney, formatDate, formatCaseRef } from "../format.js";
+import { groupPaymentEvents, ackState, ackLabel, stageWord } from "../paymentEvents.js";
+import PaymentDrawer from "./payments/PaymentDrawer";
+import LinkPaymentDrawer from "./payments/LinkPaymentDrawer";
 
-const PAYMENTS_PAGE_SIZE = 20;
+const PAGE_SIZE = 20;
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },
@@ -18,21 +21,22 @@ const SORT_OPTIONS = [
   { value: "highest_tds", label: "Highest TDS" },
 ];
 
-// Stage chips; "ack" is the work item — notices the payer is still waiting on.
-const STAGE_TABS = [
-  { key: "all", label: "All", match: () => true },
-  { key: "settled", label: "Settled", match: (p) => p.settled, dot: "var(--success)" },
-  { key: "progress", label: "In progress", match: (p) => !p.settled, dot: "var(--info)" },
-  { key: "ack", label: "Ack pending", match: (p) => p.pending_ack, dot: "var(--warning)" },
-  { key: "unlinked", label: "Unlinked", match: (p) => p.claim_id == null, dot: "var(--warning)" },
+const unlinked = (p) => p.claim_id == null && p.cashless_case_id == null;
+const needsAck = (p) => ackState(p) !== "done";
+
+const TILES = [
+  { key: "all", label: "All payments", match: () => true, dot: "var(--text-muted)" },
+  { key: "settled", label: "Settled", match: (p) => !unlinked(p) && p.settled, dot: "var(--success)" },
+  { key: "progress", label: "In progress", match: (p) => !unlinked(p) && !p.settled, dot: "var(--info)" },
+  { key: "unlinked", label: "Unlinked", match: unlinked, dot: "var(--warning)" },
 ];
 
 const CSV_COLUMNS = [
   ["Payment reference", (p) => p.payment_reference],
-  ["Patient", (p, patient) => patient?.patient_name || patient?.child_name],
-  ["Claim", (p) => p.claim_reference],
+  ["Case", (p) => (p.cashless_case_id ? formatCaseRef(p.cashless_case_id) : "")],
+  ["Claim named by payer", (p) => p.claim_reference],
   ["Payer", (p) => p.payer_name || p.payer_id],
-  ["Stage", (p) => stageLabel(p.payment_stage)],
+  ["Stage", (p) => stageWord(p.payment_stage)],
   ["Payment date", (p) => p.payment_date],
   ["UTR", (p) => p.utr],
   ["Gross", (p) => p.gross_amount],
@@ -46,9 +50,9 @@ const csvCell = (v) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-function downloadCsv(rows, patientFor) {
+function downloadCsv(rows) {
   const lines = [CSV_COLUMNS.map(([h]) => h).join(",")];
-  rows.forEach((p) => lines.push(CSV_COLUMNS.map(([, f]) => csvCell(f(p, patientFor(p)))).join(",")));
+  rows.forEach((p) => lines.push(CSV_COLUMNS.map(([, f]) => csvCell(f(p))).join(",")));
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -59,99 +63,52 @@ function downloadCsv(rows, patientFor) {
 }
 
 const caseLink = (p) => (p.cashless_case_id ? `/dashboard?case=${encodeURIComponent(p.cashless_case_id)}` : `/dashboard?q=${encodeURIComponent(p.claim_reference || "")}`);
-
-function computePaymentMetrics(unique) {
-  const now = new Date();
-  const isThisMonth = (d) => {
-    const date = d ? new Date(d) : null;
-    return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-  };
-  const settled = unique.filter((p) => p.settled);
-  return {
-    settledThisMonth: settled.filter((p) => isThisMonth(p.payment_date)).reduce((s, p) => s + (Number(p.net_payment_amount) || 0), 0),
-    pendingAck: unique.filter((p) => p.pending_ack).length,
-    totalTds: unique.reduce((s, p) => s + (Number(p.tds_amount) || 0), 0),
-    totalNetSettled: settled.reduce((s, p) => s + (Number(p.net_payment_amount) || 0), 0),
-  };
-}
-
-const ackLabel = (p) =>
-  p.acknowledgement_status === "submitted" ? "Acknowledged" : p.acknowledgement_status === "failed" ? "Failed" : "Pending";
+const net = (list) => list.reduce((s, p) => s + (Number(p.net_payment_amount) || 0), 0);
+const ackTone = (state) => (state === "failed" ? "is-bad" : state === "pending" ? "is-info" : "is-ok");
 
 export default function Payments() {
   const navigate = useNavigate();
+  const readOnly = useReadOnly();
   const [searchParams] = useSearchParams();
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [stageTab, setStageTab] = useState(searchParams.get("view") === "unlinked" ? "unlinked" : "all");
-  const [payerFilter, setPayerFilter] = useState("");
-  const [linkDrafts, setLinkDrafts] = useState({});
-  const [linkState, setLinkState] = useState({});
-  const [sortBy, setSortBy] = useState("newest");
-  const [selectedPayment, setSelectedPayment] = useState(null);
-  const [paymentsPage, setPaymentsPage] = useState(0);
+  const urlView = searchParams.get("view") || "all";
+  const [data, setData] = useState({ key: -1, payments: null, error: null });
   const [reloadKey, setReloadKey] = useState(0);
+  const [search, setSearch] = useState("");
+  const [tile, setTile] = useState(() => (TILES.some((t) => t.key === urlView) ? urlView : "all"));
+  const [ackOnly, setAckOnly] = useState(urlView === "ack");
+  const [payerFilter, setPayerFilter] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [linking, setLinking] = useState(null);
 
   useEffect(() => {
-    const fetchPayments = async () => {
-      setLoading(true);
-      setLoadError(false);
-      try {
-        const paymentsRes = await api.searchPaymentStatus();
-        setPayments(groupPaymentEvents(paymentsRes?.events || []));
-      } catch (err) {
-        console.error(err);
-        setLoadError(true);
-      } finally {
-        setLoading(false);
-      }
+    let live = true;
+    api
+      .searchPaymentStatus()
+      .then((res) => live && setData({ key: reloadKey, payments: groupPaymentEvents(res?.events || []), error: null }))
+      .catch((err) => {
+        markHandled(err);
+        if (live) setData((prev) => ({ ...prev, key: reloadKey, error: err?.message || "The payments could not be loaded." }));
+      });
+    return () => {
+      live = false;
     };
-    fetchPayments();
   }, [reloadKey]);
 
-  const patientFor = (pay) =>
-    pay.patient_name || pay.child_id != null ? { patient_name: pay.patient_name, child_id: pay.child_id } : null;
+  const loading = data.key !== reloadKey;
+  const payments = data.payments || [];
+  const refresh = () => setReloadKey((k) => k + 1);
+  const current = payments.find((p) => p.group_key === selected?.group_key) || selected;
 
-  const linkPayment = async (pay) => {
-    const raw = (linkDrafts[pay.group_key] || "").trim();
-    const caseId = Number(raw.replace(/^case-/i, ""));
-    if (!(caseId > 0)) {
-      setLinkState((prev) => ({ ...prev, [pay.group_key]: { error: "Type the case number, like CASE-41." } }));
-      return;
-    }
-    setLinkState((prev) => ({ ...prev, [pay.group_key]: { busy: true } }));
-    try {
-      await api.linkPayment(pay.id, { cashless_case_id: caseId });
-      setLinkState((prev) => ({ ...prev, [pay.group_key]: { done: true } }));
-      setReloadKey((k) => k + 1);
-    } catch (err) {
-      setLinkState((prev) => ({ ...prev, [pay.group_key]: { error: err.message || "The payment could not be linked." } }));
-    }
-  };
-
-  const payerOptions = [
-    { value: "", label: "All payers" },
-    ...Array.from(new Map(payments.map((p) => [p.payer_id || p.payer_name, p.payer_name || p.payer_id])).entries())
-      .filter(([value]) => value)
-      .map(([value, label]) => ({ value, label })),
-  ];
-
-  const q = searchQuery.trim().toLowerCase();
-  const searched = payments.filter(
-    (p) =>
-      (!payerFilter || (p.payer_id || p.payer_name) === payerFilter) &&
-      (!q ||
-        p.claim_reference?.toLowerCase().includes(q) ||
-        p.payment_reference?.toLowerCase().includes(q) ||
-        p.utr?.toLowerCase().includes(q) ||
-        patientFor(p)?.patient_name?.toLowerCase().includes(q)),
-  );
-  const tabCounts = Object.fromEntries(STAGE_TABS.map((t) => [t.key, searched.filter(t.match).length]));
-  const activeTab = STAGE_TABS.find((t) => t.key === stageTab) || STAGE_TABS[0];
-
-  const filtered = searched.filter(activeTab.match).sort((a, b) => {
+  const payerOptions = [{ value: "", label: "All payers" }, ...Array.from(new Map(payments.map((p) => [p.payer_id || p.payer_name, p.payer_name || p.payer_id])).entries()).filter(([value]) => value).map(([value, label]) => ({ value, label }))];
+  const q = search.trim().toLowerCase();
+  const searched = payments.filter((p) => (!payerFilter || (p.payer_id || p.payer_name) === payerFilter) && (!q || [p.claim_reference, p.payment_reference, p.utr, p.patient_name, p.cashless_case_id && formatCaseRef(p.cashless_case_id)].some((v) => v && String(v).toLowerCase().includes(q))));
+  const scoped = ackOnly ? searched.filter(needsAck) : searched;
+  const tileRows = Object.fromEntries(TILES.map((t) => [t.key, scoped.filter(t.match)]));
+  const ackCount = searched.filter(needsAck).length;
+  const activeTile = TILES.find((t) => t.key === tile) || TILES[0];
+  const filtered = tileRows[activeTile.key].slice().sort((a, b) => {
     const dA = Date.parse(a.payment_date) || 0;
     const dB = Date.parse(b.payment_date) || 0;
     if (sortBy === "oldest") return dA - dB;
@@ -159,108 +116,121 @@ export default function Payments() {
     if (sortBy === "highest_tds") return (b.tds_amount || 0) - (a.tds_amount || 0);
     return dB - dA;
   });
-
-  const paymentsPageCount = Math.max(1, Math.ceil(filtered.length / PAYMENTS_PAGE_SIZE));
-  const safePaymentsPage = Math.min(paymentsPage, paymentsPageCount - 1);
-  const pagedPayments = filtered.slice(safePaymentsPage * PAYMENTS_PAGE_SIZE, (safePaymentsPage + 1) * PAYMENTS_PAGE_SIZE);
-  const metrics = computePaymentMetrics(payments);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
   const sum = (key) => filtered.reduce((s, p) => s + Math.abs(Number(p[key]) || 0), 0);
-
-  const KPIS = [
-    { key: "net", label: "Net settled", value: formatMoney(metrics.totalNetSettled), color: "var(--success)" },
-    { key: "month", label: "Settled this month", value: formatMoney(metrics.settledThisMonth), color: "var(--primary)" },
-    { key: "tds", label: "TDS deducted", value: formatMoney(metrics.totalTds), color: "var(--text-muted)" },
-    { key: "ack", label: "Acknowledgements pending", value: metrics.pendingAck, color: "var(--warning)" },
-  ];
+  const pickTile = (key) => {
+    setTile(key);
+    setPage(0);
+  };
+  const openCase = (p) => navigate(caseLink(p));
 
   return (
     <div className="cc-screen payments-screen">
       <PageActions>
-        <Button variant="outline" size="small" icon={Download} disabled={loading || filtered.length === 0} onClick={() => downloadCsv(filtered, patientFor)} title="Download the payments shown as a CSV for the bank reconciliation">
+        <Button variant="outline" size="small" icon={Download} disabled={loading || filtered.length === 0} onClick={() => downloadCsv(filtered)} title="Download the payments shown as a CSV for the bank reconciliation">
           Download CSV
         </Button>
-        <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={() => setReloadKey((k) => k + 1)} title="Reload the payments">
+        <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={refresh} title="Reload the payments">
           {loading ? "Refreshing…" : "Refresh"}
         </Button>
       </PageActions>
 
-      {loadError && (
-        <div className="inline-error-banner" style={{ margin: 0 }}>
-          <AlertCircle size={16} />
-          Could not load payment events. Showing the last known results, if any.
+      {data.error && (
+        <div className="cv-notice is-warn" role="alert">
+          <div className="cv-notice-body">The payments could not be loaded{data.payments ? ", so the list may be out of date" : ""}: {data.error}</div>
+          <div className="cv-notice-actions">
+            <button type="button" className="cc-act" onClick={refresh}>
+              Retry
+            </button>
+          </div>
         </div>
       )}
 
-      {!loading && payments.length > 0 && (
-        <div className="cc-kpis">
-          {KPIS.map((k) => (
-            <div key={k.key} className="cc-kpi">
-              <div className="cc-kpi-label">
-                <span className="cc-kpi-dot" style={{ background: k.color }} />
-                {k.label}
-              </div>
-              <div className="cc-kpi-value">{k.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="cc-kpis" role="group" aria-label="Payment stage">
+        {TILES.map((t) => (
+          <button key={t.key} type="button" aria-pressed={tile === t.key} className={`cc-kpi cc-kpi-btn${tile === t.key ? " is-on" : ""}`} onClick={() => pickTile(t.key)}>
+            <span className="cc-kpi-label">
+              <span className="cc-kpi-dot" style={{ background: t.dot }} />
+              {t.label}
+            </span>
+            {loading && !data.payments ? (
+              <span className="skeleton-line cc-kpi-skeleton" />
+            ) : (
+              <span className="cc-kpi-value">
+                {tileRows[t.key].length}
+                <span className="pm-kpi-sub">{formatMoney(net(tileRows[t.key]))}</span>
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-      <Tip className="wq-page-tip">
-        Money the payers have sent for settled claims. Match each UTR with the hospital's bank statement.
-      </Tip>
+      <Tip className="wq-page-tip">Money the payers have sent. Settled payments carry a UTR to match with the bank statement; an unlinked payment names a claim this hospital does not know and needs a case picked for it.</Tip>
 
       <div className="wq-panel">
         <div className="wq-toolbar">
           <input
             className="input-modern wq-search"
-            placeholder="Search claim, payment ref, UTR or patient…"
+            placeholder="Search case, claim, payment reference or UTR…"
             aria-label="Search payments"
-            value={searchQuery}
+            value={search}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPaymentsPage(0);
+              setSearch(e.target.value);
+              setPage(0);
             }}
           />
-          <div className="wq-chips" role="tablist" aria-label="Payment stage">
-            {STAGE_TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={stageTab === t.key}
-                className={`wq-chip${stageTab === t.key ? " is-on" : ""}`}
-                onClick={() => {
-                  setStageTab(t.key);
-                  setPaymentsPage(0);
-                }}
-              >
-                {t.dot && <span className="wq-chip-dot" style={{ "--wq-dot": t.dot }} />}
-                {t.label}
-                <span className="wq-chip-count">{loading ? "–" : tabCounts[t.key]}</span>
-              </button>
-            ))}
+          <div className="wq-chips" role="group" aria-label="Acknowledgement">
+            <button
+              type="button"
+              className={`wq-chip${ackOnly ? " is-on" : ""}`}
+              aria-pressed={ackOnly}
+              onClick={() => {
+                setAckOnly((v) => !v);
+                setPage(0);
+              }}
+            >
+              <span className="wq-chip-dot is-urgent" aria-hidden="true" />
+              Acknowledgement due
+              <span className="wq-chip-count">{loading && !data.payments ? "–" : ackCount}</span>
+            </button>
           </div>
           <div className="wq-toolbar-spacer" />
           {payerOptions.length > 2 && (
-            <div style={{ width: "200px" }}>
-              <Dropdown compact ariaLabel="Payer" value={payerFilter} options={payerOptions} onChange={(v) => { setPayerFilter(v); setPaymentsPage(0); }} />
+            <div className="cm-filter">
+              <Dropdown
+                compact
+                ariaLabel="Payer"
+                value={payerFilter}
+                options={payerOptions}
+                onChange={(v) => {
+                  setPayerFilter(v);
+                  setPage(0);
+                }}
+              />
             </div>
           )}
-          <div style={{ width: "160px" }}>
-            <Dropdown compact ariaLabel="Sort" value={sortBy} options={SORT_OPTIONS} onChange={(v) => { setSortBy(v); setPaymentsPage(0); }} />
+          <div className="cc-sort">
+            <Dropdown
+              compact
+              ariaLabel="Sort"
+              value={sortBy}
+              options={SORT_OPTIONS}
+              onChange={(v) => {
+                setSortBy(v);
+                setPage(0);
+              }}
+            />
           </div>
         </div>
 
-        {loading ? (
+        {loading && !data.payments ? (
           <SkeletonTable rows={5} cols={6} />
         ) : filtered.length === 0 ? (
           <div className="wq-empty">
             <div className="wq-empty-title">{payments.length ? "No payments match these filters" : "No payments yet"}</div>
-            <div className="cc-empty-hint">
-              {payments.length
-                ? "Try a different search or stage."
-                : "Payments appear here once a payer settles a claim, usually days after the claim is approved."}
-            </div>
+            <div className="cc-empty-hint">{payments.length ? "Try a different search, tile or payer." : "Payments appear here once a payer settles a claim, usually days after the claim is approved."}</div>
           </div>
         ) : (
           <>
@@ -269,80 +239,52 @@ export default function Payments() {
                 <thead>
                   <tr>
                     <th>Payment</th>
-                    <th>Patient · Claim</th>
+                    <th>Case · payer</th>
                     <th>Stage</th>
                     <th className="cc-num">Gross</th>
                     <th className="cc-num">TDS</th>
                     <th className="cc-num">Net credited</th>
-                    <th>Acknowledgement</th>
+                    <th>Acknowledged</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedPayments.map((pay, i) => {
-                    const patient = patientFor(pay);
+                  {paged.map((pay) => {
+                    const ack = ackState(pay);
                     return (
                       <tr
-                        key={pay.group_key || i}
+                        key={pay.group_key}
                         tabIndex={0}
-                        onClick={() => setSelectedPayment(pay)}
+                        onClick={() => setSelected(pay)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") setSelectedPayment(pay);
+                          if (e.key === "Enter") setSelected(pay);
                         }}
                       >
                         <td>
-                          <div className="wq-mono cc-case-id">{pay.payment_reference || "—"}</div>
-                          <div className="wq-sub">
-                            {[pay.payment_date && formatDate(pay.payment_date), pay.utr && `UTR ${pay.utr}`, pay.notice_count > 1 && `${pay.notice_count} notices`]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </div>
+                          <div className="wq-mono cc-case-id">{pay.payment_reference || pay.notice_identifier || "—"}</div>
+                          <div className="wq-sub">{[pay.payment_date && formatDate(pay.payment_date), pay.utr && `UTR ${pay.utr}`, pay.notice_count > 1 && `${pay.notice_count} notices`].filter(Boolean).join(" · ")}</div>
                         </td>
-                        <td onClick={(e) => pay.claim_id == null && e.stopPropagation()}>
-                          <div className="cc-patient">{patient?.patient_name || patient?.child_name || "—"}</div>
-                          {pay.claim_id == null && (
-                            <div className="pm-link-form">
-                              <div className="wq-sub">Matches no case here{pay.claim_reference ? ` (payer named ${pay.claim_reference})` : ""}.</div>
-                              {linkState[pay.group_key]?.done ? (
-                                <div className="wq-sub">Linked.</div>
-                              ) : (
-                                <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginTop: 4 }}>
-                                  <input
-                                    className="input-modern"
-                                    style={{ width: 120, fontSize: 12, padding: "4px 6px" }}
-                                    placeholder="CASE-41"
-                                    aria-label="Case to link this payment to"
-                                    value={linkDrafts[pay.group_key] || ""}
-                                    onChange={(e) => setLinkDrafts((prev) => ({ ...prev, [pay.group_key]: e.target.value }))}
-                                    onKeyDown={(e) => { if (e.key === "Enter") linkPayment(pay); }}
-                                  />
-                                  <Button write size="small" disabled={!!linkState[pay.group_key]?.busy} onClick={() => linkPayment(pay)}>
-                                    {linkState[pay.group_key]?.busy ? "Linking…" : "Link"}
-                                  </Button>
-                                </div>
-                              )}
-                              {linkState[pay.group_key]?.error && <div className="wq-sub is-warn">{linkState[pay.group_key].error}</div>}
-                            </div>
-                          )}
-                          {pay.claim_reference && pay.claim_id != null && (
-                            <button
-                              type="button"
-                              className="pd-inline-link pm-claim-link"
-                              title="Find this claim in Cashless Cases"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(caseLink(pay));
-                              }}
-                            >
-                              {pay.claim_reference}
-                            </button>
+                        <td>
+                          {unlinked(pay) ? (
+                            <>
+                              <div className="cc-patient pm-unlinked">Not linked to a case</div>
+                              <div className="wq-sub">Payer named {pay.claim_reference ? <span className="wq-mono">{pay.claim_reference}</span> : "no claim"}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="cc-patient">{pay.patient_name || (pay.cashless_case_id ? formatCaseRef(pay.cashless_case_id) : pay.claim_reference)}</div>
+                              <div className="wq-sub">
+                                <PayerName id={pay.payer_id} name={pay.payer_name} />
+                                {pay.cashless_case_id && pay.patient_name ? ` · ${formatCaseRef(pay.cashless_case_id)}` : pay.claim_reference && pay.cashless_case_id ? ` · ${pay.claim_reference}` : ""}
+                              </div>
+                            </>
                           )}
                         </td>
-                        <td className="ep-cap">{stageLabel(pay.payment_stage) || "—"}</td>
+                        <td>{stageWord(pay.payment_stage) || "—"}</td>
                         <td className="wq-num cc-num">{formatMoney(pay.gross_amount)}</td>
                         <td className="wq-num cc-num">{pay.tds_amount != null ? formatMoney(Math.abs(pay.tds_amount)) : "—"}</td>
-                        <td className="wq-num cc-num ep-strong">{formatMoney(pay.net_payment_amount)}</td>
-                        <td className={pay.acknowledgement_status === "failed" ? "is-bad" : pay.acknowledgement_status === "submitted" ? undefined : "ep-muted"}>
-                          {ackLabel(pay)}
+                        <td className="wq-num cc-num pm-net">{formatMoney(pay.net_payment_amount)}</td>
+                        <td>
+                          <span className={`cv-chip ${ackTone(ack)}`}>{ackLabel(ack)}</span>
                         </td>
                       </tr>
                     );
@@ -351,9 +293,7 @@ export default function Payments() {
                 {filtered.length > 1 && (
                   <tfoot>
                     <tr className="pm-total">
-                      <td colSpan={3}>
-                        {filtered.length} payments
-                      </td>
+                      <td colSpan={3}>{filtered.length} payments</td>
                       <td className="wq-num cc-num">{formatMoney(sum("gross_amount"))}</td>
                       <td className="wq-num cc-num">{formatMoney(sum("tds_amount"))}</td>
                       <td className="wq-num cc-num">{formatMoney(sum("net_payment_amount"))}</td>
@@ -364,119 +304,26 @@ export default function Payments() {
               </table>
             </div>
             <div className="wq-pagination">
-              <TablePagination
-                page={safePaymentsPage}
-                pageSize={PAYMENTS_PAGE_SIZE}
-                total={filtered.length}
-                onPageChange={setPaymentsPage}
-                label="payments"
-              />
+              <TablePagination page={safePage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} label="payments" />
             </div>
           </>
         )}
       </div>
 
-      <PaymentDetailModal
-        payment={selectedPayment}
-        patient={selectedPayment ? patientFor(selectedPayment) : null}
-        onClose={() => setSelectedPayment(null)}
-        navigate={navigate}
+      <PaymentDrawer
+        payment={current}
+        onClose={() => setSelected(null)}
+        onOpenCase={(p) => {
+          setSelected(null);
+          openCase(p);
+        }}
+        onLink={(p) => {
+          setSelected(null);
+          if (!readOnly) setLinking(p);
+        }}
+        onChanged={refresh}
       />
+      <LinkPaymentDrawer payment={linking} onClose={() => setLinking(null)} onLinked={refresh} />
     </div>
-  );
-}
-
-// Row click opens this — the payment event alone doesn't carry every field
-// worth showing (patient identity, notice/recon detail, acknowledgement
-// lifecycle), so the list surfaces a summary and this fills in the rest.
-function PaymentDetailModal({ payment, patient, onClose, navigate }) {
-  const group = (title, rows) => {
-    const shown = rows.filter(([, v]) => v != null && v !== "" && v !== "—");
-    if (!shown.length) return null;
-    return (
-      <div className="pm-group">
-        <div className="pm-group-title">{title}</div>
-        <dl>
-          {shown.map(([label, value, mono]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd className={mono ? "wq-mono" : undefined}>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-    );
-  };
-
-  return (
-    <Modal
-      open={!!payment}
-      onClose={onClose}
-      title={payment?.payment_reference || "Payment"}
-      subtitle={payment ? `${stageLabel(payment.payment_stage) || "—"} · ${ackLabel(payment)}` : null}
-      width={540}
-    >
-      {payment && (
-        <>
-            <div className="pm-modal-amount">
-              <span className="ep-muted">Net credited</span>
-              <span className="wq-num">{formatMoney(payment.net_payment_amount)}</span>
-            </div>
-
-            {group("Patient", [
-              ["Name", patient?.patient_name || patient?.child_name],
-              ["Patient ID", patient?.child_id != null ? String(patient.child_id) : null, true],
-              ["Facility", patient?.facility_name],
-            ])}
-            {group("Claim & payer", [
-              ["Claim reference", payment.claim_reference, true],
-              ["Claim ID", payment.claim_id != null ? String(payment.claim_id) : null, true],
-              ["Payer", payment.payer_id, true],
-              ["Provider", payment.provider_id, true],
-            ])}
-            {group("Settlement", [
-              ["Payment date", payment.payment_date ? formatDate(payment.payment_date) : null],
-              ["Gross", formatMoney(payment.gross_amount), true],
-              ["TDS", payment.tds_amount != null ? formatMoney(Math.abs(payment.tds_amount)) : null, true],
-              ["Net credited", formatMoney(payment.net_payment_amount), true],
-              ["UTR", payment.utr, true],
-              ["UTR type", payment.utr_type],
-              ["Currency", payment.currency],
-            ])}
-            {group("Notice", [
-              ["Notice identifier", payment.notice_identifier, true],
-              ["Notice status", payment.notice_status],
-              ["Notice amount", payment.notice_amount != null ? formatMoney(payment.notice_amount) : null, true],
-              ["Created", payment.notice_created_at ? formatDateTime(payment.notice_created_at) : null],
-              ["Reconciliation identifier", payment.recon_identifier, true],
-            ])}
-            {group("Acknowledgement", [
-              ["Status", ackLabel(payment)],
-              ["Acknowledged at", payment.acknowledged_at ? formatDateTime(payment.acknowledged_at) : null],
-              ["Attempts", payment.acknowledgement_attempts != null ? String(payment.acknowledgement_attempts) : null],
-            ])}
-            {payment.acknowledgement_error && <div className="ep-notice is-bad">{payment.acknowledgement_error}</div>}
-            {group("References", [
-              ["Correlation ID", payment.correlation_id, true],
-              ["Event key", payment.event_key, true],
-              ["Workflow", payment.workflow_id != null ? String(payment.workflow_id) : null, true],
-            ])}
-
-            {payment.claim_reference && (
-              <Button
-                variant="outline"
-                size="small"
-                className="pm-modal-btn"
-                onClick={() => {
-                  onClose();
-                  navigate(caseLink(payment));
-                }}
-              >
-                Find this claim in Cashless Cases
-              </Button>
-            )}
-        </>
-      )}
-    </Modal>
   );
 }

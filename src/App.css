@@ -3184,12 +3184,6 @@ tr.en-excluded td {
     outline-offset: -2px;
 }
 
-.pm-claim-link {
-    margin: 2px 0 0;
-    padding: 0;
-    font-family: var(--font-mono);
-    font-size: 12px;
-}
 
 .wq-table tfoot tr.pm-total td {
     padding: 10px 12px;
@@ -3204,69 +3198,16 @@ tr.en-excluded td {
     gap: 18px;
 }
 
-.pm-modal-amount {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin: 0 0 4px;
-    padding: 0 0 10px;
-    border-bottom: 1px solid var(--border-color);
-    font-size: 13px;
-}
 
-.pm-modal-amount .wq-mono {
-    font-size: 18px;
-    font-weight: var(--fw-semibold);
-}
 
-.pm-group {
-    margin-top: 14px;
-}
 
-.pm-group-title {
-    margin-bottom: 4px;
-    font-size: 12px;
-    font-weight: var(--fw-semibold);
-}
 
-.pm-group dl {
-    margin: 0;
-}
 
-.pm-group dl > div {
-    display: grid;
-    grid-template-columns: 170px minmax(0, 1fr);
-    gap: 12px;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border-color);
-    font-size: 12.5px;
-}
 
-.pm-group dt {
-    color: var(--text-muted);
-}
 
-.pm-group dd {
-    margin: 0;
-    font-weight: var(--fw-medium);
-    overflow-wrap: anywhere;
-}
 
-.pm-group dd.wq-mono {
-    font-size: 12px;
-    white-space: normal;
-    word-break: break-all;
-}
 
-.pm-group + .ep-notice {
-    margin-top: 10px;
-}
 
-.pm-modal-btn.btn-modern {
-    width: 100%;
-    justify-content: center;
-    margin-top: 16px;
-}
 
 /* ─── Payment table summary row ──────────────────────────────────────────── */
 .table-modern tfoot tr td {
@@ -5372,4 +5313,20 @@ code {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.pm-kpi-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: var(--fw-medium);
+    color: var(--text-muted);
+}
+
+.pm-net {
+    font-weight: var(--fw-semibold);
+}
+
+.pm-unlinked {
+    color: var(--warning);
 }
