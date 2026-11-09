@@ -117,7 +117,18 @@ function PackageDetail({ benefit, onOpenForm }) {
 
 export default function PackageBrowser({ correlationId, plan, plannedCodes, onOpenForm }) {
   const categories = useMemo(() => (plan?.categories || []).filter((c) => c.code), [plan]);
-  const [category, setCategory] = useState("");
+  const [pickedCategory, setPickedCategory] = useState(() => {
+    try { return localStorage.getItem("nhcx_pkg_category"); } catch { return null; }
+  });
+  const paediatricDefault = useMemo(
+    () => categories.find((c) => /^MP\b|paed|pedia|child|neonat/i.test(`${c.code} ${c.display || ""}`))?.code || "",
+    [categories],
+  );
+  const category = pickedCategory === null ? paediatricDefault : pickedCategory;
+  const setCategory = (value) => {
+    setPickedCategory(value);
+    try { localStorage.setItem("nhcx_pkg_category", value); } catch { /* storage may be blocked */ }
+  };
   const [catFilter, setCatFilter] = useState("");
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");

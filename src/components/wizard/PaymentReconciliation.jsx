@@ -111,17 +111,10 @@ export default function PaymentReconciliation({ ctx }) {
   const handleAcknowledge = async (pay) => {
     const key = pay.group_key;
     const overrides = ackOverrides[key] || {};
-    const amount = overrides.amount_received;
-    if (amount && !(Number(amount) > 0)) {
-      setAckResults((prev) => ({ ...prev, [key]: { success: false, message: "Enter an amount above zero." } }));
-      return;
-    }
     setAcknowledging((prev) => ({ ...prev, [key]: true }));
     try {
-      const body = { payment_reference: pay.payment_reference || pay.notice_identifier };
+      const body = { payment_id: pay.id, payment_reference: pay.payment_reference || pay.notice_identifier };
       if (overrides.claim_number) body.claim_number = overrides.claim_number;
-      if (amount) body.amount_received = Number(amount);
-      if (overrides.utr) body.utr = overrides.utr;
       const res = await api.acknowledgePayment(body);
       if (res?.status === "failed") throw new Error(res.message || "The acknowledgement was refused.");
       setAckResults((prev) => ({ ...prev, [key]: { success: true, correlation_id: res?.correlation_id } }));
@@ -487,14 +480,7 @@ export default function PaymentReconciliation({ ctx }) {
                                     <span>Claim number</span>
                                     <input className="input-modern pd-input" placeholder="Override claim number" value={ackOverrides[key]?.claim_number || ""} onChange={(e) => updateOverride(key, "claim_number", e.target.value)} />
                                   </label>
-                                  <label>
-                                    <span>Amount received</span>
-                                    <input className="input-modern pd-input ep-mono" type="number" placeholder="Override amount" value={ackOverrides[key]?.amount_received || ""} onChange={(e) => updateOverride(key, "amount_received", e.target.value)} />
-                                  </label>
-                                  <label>
-                                    <span>UTR</span>
-                                    <input className="input-modern pd-input ep-mono" placeholder="Override UTR" value={ackOverrides[key]?.utr || ""} onChange={(e) => updateOverride(key, "utr", e.target.value)} />
-                                  </label>
+                                  <div className="cv-card-meta">The amount and UTR are the payer's own figures and go back to it as received.</div>
                                 </div>
                               </td>
                             </tr>

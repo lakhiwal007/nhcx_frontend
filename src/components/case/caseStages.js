@@ -43,7 +43,7 @@ export const POLICY_CHANGE_RESET = {
 };
 
 // Claim leg states in which the backend refuses any further pre-auth send.
-export const CLAIM_WITH_PAYER = ["submitting", "queried", "approved", "partial", "rejected"];
+export const CLAIM_WITH_PAYER = ["submitting", "queried", "unclear", "approved", "partial", "rejected"];
 
 export function stageInfo(path) {
   const core = CORE.find((s) => s.path === path);

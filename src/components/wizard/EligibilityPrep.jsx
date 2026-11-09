@@ -436,7 +436,7 @@ export default function EligibilityPrep({ ctx }) {
       : notInForce
         ? { tone: "bad", label: "Not eligible", text: "The payer reports the policy as not in force.", next: "Ask the patient for a renewed or different policy and pick it on the Policy step, or treat the patient as cash." }
         : polling || isPending
-          ? { tone: "info", label: "Waiting for the payer", text: "Answers fill in as each check returns, usually within a minute or two." }
+          ? { tone: "info", label: "Waiting for the payer", text: "Answers fill in as each check returns. Private insurers usually answer within minutes; PMJAY can take up to an hour." }
           : inforce
             ? { tone: "ok", label: "Eligible", text: "The policy is in force for this admission." }
             : isComplete
@@ -500,7 +500,7 @@ export default function EligibilityPrep({ ctx }) {
                 type="button"
                 className="cv-btn"
                 disabled={!canRerun}
-                title="Sends the plan and eligibility requests to the payer again."
+                title="Sends the eligibility checks to the payer again. The package master has its own Fetch again on its card."
                 onClick={handleForceRefresh}
               >
                 {rerunLabel}

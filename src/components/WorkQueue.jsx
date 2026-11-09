@@ -84,6 +84,8 @@ const TASK_TYPE_SHORT = {
   review_callback_failure: "Payer response",
   cancel_superseded_preauth: "Withdraw",
   chase_payer_answer: "No answer",
+  review_payer_decision: "Unclear answer",
+  link_payment_to_claim: "Unlinked payment",
 };
 
 const shortTaskType = (type) =>
@@ -128,6 +130,8 @@ const TASK_TYPE_OPTIONS = [
   { value: "review_callback_failure", label: "Callback Failure" },
   { value: "cancel_superseded_preauth", label: "Withdraw Preauth" },
   { value: "chase_payer_answer", label: "No Answer From Payer" },
+  { value: "review_payer_decision", label: "Unclear Payer Answer" },
+  { value: "link_payment_to_claim", label: "Unlinked Payment" },
 ];
 
 // Doc requirements arrive either as a flat {name}/{display} shape, or as a raw

@@ -127,6 +127,7 @@ export default function PreauthStatus({ ctx }) {
           return;
         }
       }
+      if (res.submitted_at) startTimeRef.current = Date.parse(res.submitted_at) || startTimeRef.current;
       setStatusData(res);
       const stateUpdates = {};
       if (res.preauth_ref) stateUpdates.preauthRef = res.preauth_ref;

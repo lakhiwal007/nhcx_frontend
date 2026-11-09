@@ -484,8 +484,8 @@ export default function PreauthDraft({ ctx }) {
             )}
           </span>
         </div>
-        {asksError && <div className="cv-notice-hint cv-verdict-note is-bad">The payer's asks could not be reloaded, so the list may be out of date: {asksError}</div>}
-        {submitError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not sent:</strong> {submitError} Fix what the message names and send again; your draft is kept.</div>}
+        {asksError && <div className="cv-notice-hint cv-verdict-note is-warn">The payer's asks could not be reloaded, so the list may be out of date: {asksError}</div>}
+        {submitError && <div className="cv-notice-hint cv-verdict-note is-warn"><strong>Not sent:</strong> {submitError} Fix what the message names and send again; your draft is kept.</div>}
         {notices.map((n, i) => (
           <div key={i} className={`cv-notice-hint cv-verdict-note cv-verdict-line${n.tone === "bad" ? " is-bad" : n.tone === "warn" ? " is-warn" : ""}`}>
             <span>{n.text}</span>

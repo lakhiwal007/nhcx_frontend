@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, Download, RefreshCw } from "lucide-react";
 import { SkeletonTable, Button, TablePagination, Tip } from "./Common";
 import PageActions from "./PageActions";
 import { formatMoney, formatDate, formatDateTime } from "../format.js";
 import { api } from "../api";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { groupPaymentEvents, stageLabel } from "../paymentEvents.js";
 import Dropdown from "./Dropdown";
 import { Modal } from "./Overlay";
@@ -24,7 +24,39 @@ const STAGE_TABS = [
   { key: "settled", label: "Settled", match: (p) => p.settled, dot: "var(--success)" },
   { key: "progress", label: "In progress", match: (p) => !p.settled, dot: "var(--info)" },
   { key: "ack", label: "Ack pending", match: (p) => p.pending_ack, dot: "var(--warning)" },
+  { key: "unlinked", label: "Unlinked", match: (p) => p.claim_id == null, dot: "var(--warning)" },
 ];
+
+const CSV_COLUMNS = [
+  ["Payment reference", (p) => p.payment_reference],
+  ["Patient", (p, patient) => patient?.patient_name || patient?.child_name],
+  ["Claim", (p) => p.claim_reference],
+  ["Payer", (p) => p.payer_name || p.payer_id],
+  ["Stage", (p) => stageLabel(p.payment_stage)],
+  ["Payment date", (p) => p.payment_date],
+  ["UTR", (p) => p.utr],
+  ["Gross", (p) => p.gross_amount],
+  ["TDS", (p) => p.tds_amount],
+  ["Net credited", (p) => p.net_payment_amount],
+  ["Acknowledgement", (p) => ackLabel(p)],
+];
+
+const csvCell = (v) => {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+function downloadCsv(rows, patientFor) {
+  const lines = [CSV_COLUMNS.map(([h]) => h).join(",")];
+  rows.forEach((p) => lines.push(CSV_COLUMNS.map(([, f]) => csvCell(f(p, patientFor(p)))).join(",")));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const claimSearchKey = (p) => p.cashless_case_id ?? p.claim_reference;
 
@@ -48,12 +80,15 @@ const ackLabel = (p) =>
 
 export default function Payments() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [payments, setPayments] = useState([]);
-  const [claimsById, setClaimsById] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [stageTab, setStageTab] = useState("all");
+  const [stageTab, setStageTab] = useState(searchParams.get("view") === "unlinked" ? "unlinked" : "all");
+  const [payerFilter, setPayerFilter] = useState("");
+  const [linkDrafts, setLinkDrafts] = useState({});
+  const [linkState, setLinkState] = useState({});
   const [sortBy, setSortBy] = useState("newest");
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [paymentsPage, setPaymentsPage] = useState(0);
@@ -64,14 +99,8 @@ export default function Payments() {
       setLoading(true);
       setLoadError(false);
       try {
-        const [paymentsRes, claimsRes] = await Promise.all([
-          api.searchPaymentStatus(),
-          api.getDashboardClaims({ limit: 200 }).catch(() => null),
-        ]);
+        const paymentsRes = await api.searchPaymentStatus();
         setPayments(groupPaymentEvents(paymentsRes?.events || []));
-        const byId = {};
-        (claimsRes?.claims || []).forEach((c) => { byId[c.id] = c; });
-        setClaimsById(byId);
       } catch (err) {
         console.error(err);
         setLoadError(true);
@@ -82,26 +111,42 @@ export default function Payments() {
     fetchPayments();
   }, [reloadKey]);
 
-  const patientFor = (pay) => {
-    const joined = claimsById[pay.claim_id];
-    if (pay.patient_name || pay.child_id != null) {
-      return {
-        patient_name: pay.patient_name ?? joined?.patient_name,
-        child_name: joined?.child_name,
-        child_id: pay.child_id ?? joined?.child_id,
-      };
+  const patientFor = (pay) =>
+    pay.patient_name || pay.child_id != null ? { patient_name: pay.patient_name, child_id: pay.child_id } : null;
+
+  const linkPayment = async (pay) => {
+    const raw = (linkDrafts[pay.group_key] || "").trim();
+    const caseId = Number(raw.replace(/^case-/i, ""));
+    if (!(caseId > 0)) {
+      setLinkState((prev) => ({ ...prev, [pay.group_key]: { error: "Type the case number, like CASE-41." } }));
+      return;
     }
-    return joined;
+    setLinkState((prev) => ({ ...prev, [pay.group_key]: { busy: true } }));
+    try {
+      await api.linkPayment(pay.id, { cashless_case_id: caseId });
+      setLinkState((prev) => ({ ...prev, [pay.group_key]: { done: true } }));
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      setLinkState((prev) => ({ ...prev, [pay.group_key]: { error: err.message || "The payment could not be linked." } }));
+    }
   };
+
+  const payerOptions = [
+    { value: "", label: "All payers" },
+    ...Array.from(new Map(payments.map((p) => [p.payer_id || p.payer_name, p.payer_name || p.payer_id])).entries())
+      .filter(([value]) => value)
+      .map(([value, label]) => ({ value, label })),
+  ];
 
   const q = searchQuery.trim().toLowerCase();
   const searched = payments.filter(
     (p) =>
-      !q ||
-      p.claim_reference?.toLowerCase().includes(q) ||
-      p.payment_reference?.toLowerCase().includes(q) ||
-      p.utr?.toLowerCase().includes(q) ||
-      patientFor(p)?.patient_name?.toLowerCase().includes(q),
+      (!payerFilter || (p.payer_id || p.payer_name) === payerFilter) &&
+      (!q ||
+        p.claim_reference?.toLowerCase().includes(q) ||
+        p.payment_reference?.toLowerCase().includes(q) ||
+        p.utr?.toLowerCase().includes(q) ||
+        patientFor(p)?.patient_name?.toLowerCase().includes(q)),
   );
   const tabCounts = Object.fromEntries(STAGE_TABS.map((t) => [t.key, searched.filter(t.match).length]));
   const activeTab = STAGE_TABS.find((t) => t.key === stageTab) || STAGE_TABS[0];
@@ -131,6 +176,9 @@ export default function Payments() {
   return (
     <div className="cc-screen payments-screen">
       <PageActions>
+        <Button variant="outline" size="small" icon={Download} disabled={loading || filtered.length === 0} onClick={() => downloadCsv(filtered, patientFor)} title="Download the payments shown as a CSV for the bank reconciliation">
+          Download CSV
+        </Button>
         <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={() => setReloadKey((k) => k + 1)} title="Reload the payments">
           {loading ? "Refreshing…" : "Refresh"}
         </Button>
@@ -193,6 +241,11 @@ export default function Payments() {
             ))}
           </div>
           <div className="wq-toolbar-spacer" />
+          {payerOptions.length > 2 && (
+            <div style={{ width: "200px" }}>
+              <Dropdown compact ariaLabel="Payer" value={payerFilter} options={payerOptions} onChange={(v) => { setPayerFilter(v); setPaymentsPage(0); }} />
+            </div>
+          )}
           <div style={{ width: "160px" }}>
             <Dropdown compact ariaLabel="Sort" value={sortBy} options={SORT_OPTIONS} onChange={(v) => { setSortBy(v); setPaymentsPage(0); }} />
           </div>
@@ -244,9 +297,33 @@ export default function Payments() {
                               .join(" · ")}
                           </div>
                         </td>
-                        <td>
+                        <td onClick={(e) => pay.claim_id == null && e.stopPropagation()}>
                           <div className="cc-patient">{patient?.patient_name || patient?.child_name || "—"}</div>
-                          {pay.claim_reference && (
+                          {pay.claim_id == null && (
+                            <div className="pm-link-form">
+                              <div className="wq-sub">Matches no case here{pay.claim_reference ? ` (payer named ${pay.claim_reference})` : ""}.</div>
+                              {linkState[pay.group_key]?.done ? (
+                                <div className="wq-sub">Linked.</div>
+                              ) : (
+                                <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginTop: 4 }}>
+                                  <input
+                                    className="input-modern"
+                                    style={{ width: 120, fontSize: 12, padding: "4px 6px" }}
+                                    placeholder="CASE-41"
+                                    aria-label="Case to link this payment to"
+                                    value={linkDrafts[pay.group_key] || ""}
+                                    onChange={(e) => setLinkDrafts((prev) => ({ ...prev, [pay.group_key]: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === "Enter") linkPayment(pay); }}
+                                  />
+                                  <Button write size="small" disabled={!!linkState[pay.group_key]?.busy} onClick={() => linkPayment(pay)}>
+                                    {linkState[pay.group_key]?.busy ? "Linking…" : "Link"}
+                                  </Button>
+                                </div>
+                              )}
+                              {linkState[pay.group_key]?.error && <div className="wq-sub is-warn">{linkState[pay.group_key].error}</div>}
+                            </div>
+                          )}
+                          {pay.claim_reference && pay.claim_id != null && (
                             <button
                               type="button"
                               className="pd-inline-link pm-claim-link"

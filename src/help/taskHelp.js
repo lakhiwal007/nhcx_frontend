@@ -19,6 +19,8 @@ export const TASK_HELP = {
   review_callback_failure: "A payer answer arrived but couldn't be read. Press Retry; if it fails again, tell your IT team.",
   cancel_superseded_preauth: "An older preauth for this case is no longer needed. Withdraw it so the payer doesn't hold two.",
   chase_payer_answer: "The payer has had this for hours and not answered. Call the payer desk, or ask the gateway where it stands if that payer answers status enquiries.",
+  review_payer_decision: "The payer answered but the reply names no decision. Nothing can be sent until the payer says what it decided; call the payer desk or send a message.",
+  link_payment_to_claim: "Money arrived that matches no case here. Open Payments, find it under Unlinked and link it to the right case so the payer can be acknowledged.",
 };
 
 export const taskHelp = (type) => TASK_HELP[type] || null;

@@ -217,6 +217,49 @@ export default function ClaimsScreen({ ctx }) {
   const [showQueryDrawer, setShowQueryDrawer] = useState(false);
   const [showReleaseDrawer, setShowReleaseDrawer] = useState(false);
   const [releaseMessage, setReleaseMessage] = useState("");
+  const [releaseCorrelationId, setReleaseCorrelationId] = useState(null);
+  const [releaseStatus, setReleaseStatus] = useState(null);
+  const [enquiring, setEnquiring] = useState(false);
+  const [enquiryNote, setEnquiryNote] = useState(null);
+
+  useEffect(() => {
+    if (!releaseCorrelationId) return undefined;
+    let stopped = false;
+    let timer = null;
+    const tick = async () => {
+      try {
+        const res = await api.getReprocessStatus(releaseCorrelationId);
+        if (stopped) return;
+        setReleaseStatus(res);
+        if (res?.status === "complete" || res?.status === "failed") clearInterval(timer);
+      } catch {
+        // keep polling
+      }
+    };
+    timer = setInterval(tick, POLL_INTERVAL_MS);
+    tick();
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [releaseCorrelationId]);
+
+  const handleClaimEnquiry = async () => {
+    setEnquiring(true);
+    setEnquiryNote(null);
+    try {
+      const res = await api.requestGatewayStatus({ correlation_id: finalCorrelationId, claim_id: resolvedClaimId, use_case: "claim" });
+      if (res.status === "failed" || !res.enquiry_correlation_id) {
+        setEnquiryNote(res.message || res.error?.message || "The status enquiry could not be sent.");
+        return;
+      }
+      setEnquiryNote("Asked. The gateway's answer lands in the case timeline.");
+    } catch (err) {
+      setEnquiryNote(err.message || "The status enquiry could not be sent.");
+    } finally {
+      setEnquiring(false);
+    }
+  };
   const [releaseAmount, setReleaseAmount] = useState("");
   const [releaseNote, setReleaseNote] = useState("");
   // Corrects a rejected *discharge*
@@ -542,6 +585,8 @@ export default function ClaimsScreen({ ctx }) {
       }
       setShowReleaseDrawer(false);
       setReleaseMessage(res.message || "Balance release request sent to the payer.");
+      setReleaseStatus(null);
+      setReleaseCorrelationId(res.correlation_id || null);
     } catch (err) {
       setSubmitError(err.message || "The balance request could not be sent. Please try again.");
     } finally {
@@ -835,16 +880,22 @@ export default function ClaimsScreen({ ctx }) {
       tone: "info",
       text: `Discharge claim: ${dischargeSentence}${dischargeStatus?.submitted_at ? `, sent ${formatDateTime(dischargeStatus.submitted_at)}` : ""}.`,
     },
-    finalFailed && { tone: "bad", text: `The final claim did not reach the payer. ${claimStatus?.error_message || ""} Submit it again.` },
+    finalFailed && (/PAYR-\d+|NHCX-\d+/.test(claimStatus?.error_message || "")
+      ? { tone: "warn", text: `The payer refused the final claim: ${claimStatus.error_message}. Fix what it names and send it again.` }
+      : { tone: "bad", text: `The final claim did not reach the payer. ${claimStatus?.error_message || ""} Submit it again.` }),
     claimStatus?.status === "not_found" && { tone: "warn", text: "The payer's system has no record of this claim yet. Refresh in a while, and call its helpdesk if it stays like this." },
     claimStatus?.status === "complete" && !claimDecided && { tone: "warn", text: "The payer answered without a clear decision. Read its response under Decision, and call its helpdesk if it is not clear." },
-    isPartialApproval && { tone: "warn", text: "Approved for less than the bill. See what was cut under Decision; if the cut is wrong, ask for the balance with your reason, otherwise bill the patient the difference." },
+    isPartialApproval && { tone: "warn", text: dischargeIntimation
+      ? "Approved for less than the bill. See what was cut under Decision; if the cut is wrong, ask for the balance with your reason, otherwise bill the patient the difference."
+      : "Approved for less than the bill. See what was cut under Decision; if the cut is wrong, ask for the balance with your reason. A PMJAY beneficiary is never billed the difference." },
     isClaimQueried && { tone: "warn", text: "The payer has a question. The payment waits until you answer." },
     recoverError && { tone: "warn", text: `This case's claim status could not be read, so a claim already sent may not show here: ${recoverError}` },
     asksError && { tone: "warn", text: `The payer's asks could not be reloaded, so the list may be out of date: ${asksError}` },
     submitError && { tone: "bad", text: submitError },
     dischargeSubmitError && { tone: "bad", text: dischargeSubmitError },
-    releaseMessage && { tone: "info", text: releaseMessage },
+    releaseMessage && !releaseStatus?.status?.match(/complete|failed/) && { tone: "info", text: releaseMessage },
+    releaseStatus?.status === "complete" && { tone: "info", text: `The payer answered the balance request: ${releaseStatus.answer || releaseStatus.decision || "see the timeline"}${releaseStatus.detail ? ` — ${releaseStatus.detail}` : ""}.` },
+    releaseStatus?.status === "failed" && { tone: "warn", text: `The balance request was refused: ${releaseStatus.error_message || releaseStatus.message || "see the timeline"}.` },
   ].filter(Boolean);
 
   const billTable = (
@@ -912,6 +963,15 @@ export default function ClaimsScreen({ ctx }) {
         <div className="cv-kv"><span>Status</span><span>Waiting for the payer's decision</span></div>
         <div className="cv-kv"><span>Checking every</span><span>{POLL_INTERVAL_MS / 1000} seconds</span></div>
         <div className="cv-kv"><span>Request</span><span className="cv-mono">{correlationId}</span></div>
+        {title === "Final claim" && cashlessCase?.answers_status_enquiry !== false && (
+          <div className="cv-kv">
+            <span>Where it stands</span>
+            <span>
+              <button type="button" className="cv-btn" disabled={enquiring} onClick={handleClaimEnquiry}>{enquiring ? "Asking…" : "Ask the gateway"}</button>
+              {enquiryNote && <div className="cv-card-meta">{enquiryNote}</div>}
+            </span>
+          </div>
+        )}
         {pollError && <div className="cv-notice is-warn"><div className="cv-notice-body">The last check failed, and this page keeps trying: {pollError}</div></div>}
       </div>,
       { chip: <span className="cv-chip is-info">Waiting</span> },
@@ -1220,6 +1280,14 @@ export default function ClaimsScreen({ ctx }) {
         <p className="cv-drawer-intro">
           Answer the payer's question and attach any documents it asked for.
         </p>
+        {(claimStatus?.process_notes || []).length > 0 && (
+          <div className="cv-notice is-warn cv-drawer-note">
+            <div className="cv-notice-body">
+              <strong>The payer asked:</strong>
+              {(claimStatus.process_notes || []).map((n, i) => <div key={i}>{typeof n === "string" ? n : n?.text}</div>)}
+            </div>
+          </div>
+        )}
         <div style={{ marginBottom: "var(--space-4)" }}>
           <label className="cv-drawer-label">Clarification</label>
           <textarea
@@ -1289,6 +1357,14 @@ export default function ClaimsScreen({ ctx }) {
             ? "Answer the payer's question. The discharge claim goes back with your answer, the documents attached on this step and any line you correct below; the final claim stays untouched."
             : "Correct clinical or billing data on the discharge intimation. Only the fields you change are sent; everything else is re-derived from the hospital DB. This resends under NHCX workflow DC01 (Discharge Correction Intimation) — it does not touch the final claim."}
         </p>
+        {dischargeQueried && (dischargeStatus?.process_notes || []).length > 0 && (
+          <div className="cv-notice is-warn cv-drawer-note">
+            <div className="cv-notice-body">
+              <strong>The payer asked:</strong>
+              {(dischargeStatus.process_notes || []).map((n, i) => <div key={i}>{typeof n === "string" ? n : n?.text}</div>)}
+            </div>
+          </div>
+        )}
         {dischargeQueried && (
           <div style={{ marginBottom: "var(--space-4)" }}>
             <label className="cv-drawer-label">Your answer</label>

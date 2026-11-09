@@ -122,7 +122,7 @@ export default function PayerPolicy({ ctx }) {
     setPayerFilter(null);
     setFoundBy(null);
     try {
-      const body = { child_id: patient.child_id, force_refresh: false };
+      const body = { child_id: patient.child_id };
       if (caseState.admission_id) body.admission_id = caseState.admission_id;
       const trimmedMemberId = typedMemberId.trim();
       if (trimmedMemberId) body.member_id = trimmedMemberId;
@@ -195,6 +195,10 @@ export default function PayerPolicy({ ctx }) {
 
   const handlePolicySelect = (policy) => {
     if (locked || policyNumberOf(policy) === selectedNumber) return;
+    if (!isUsable(policy)) {
+      setPolicyError(isExpired(policy) ? "This policy has expired, so the payer will not cover the admission. Pick another one, or discover with the payer." : "This policy is not active with the payer. Pick another one, or discover with the payer.");
+      return;
+    }
     if (caseState.cashless_case_id) setPendingPolicy(policy);
     else applyPolicy(policy);
   };
@@ -266,7 +270,7 @@ export default function PayerPolicy({ ctx }) {
                 Search by
                 <InfoTip
                   title="Search by"
-                  text="Auto tries the ABHA number, then the member ID, then the mobile number. Choose Member ID to type the number printed on the insurance card."
+                  text="Auto tries the ABHA number first, then the mobile number. Choose Member ID to type the number printed on the insurance card; the payer finds the policy fastest that way."
                 />
               </span>
               <div className="pp-searchby-select">

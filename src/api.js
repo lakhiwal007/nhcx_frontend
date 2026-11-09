@@ -2797,6 +2797,12 @@ const mock = {
     };
   },
 
+  linkPayment: async (payment_id, data) => {
+    await delay(500);
+    if (typeof window !== "undefined") window.__mockLastLink = { payment_id, ...data };
+    return { id: payment_id, claim_id: 102, cashless_case_id: data.cashless_case_id, acknowledgement_status: "pending" };
+  },
+
   // ─── Tasks ──────────────────────────────────────────────────────────────────
   listTasks: async (params = {}) => {
     await delay(600);
@@ -3771,6 +3777,9 @@ const real = {
 
   acknowledgePayment: (data) =>
     http.post("/cashless/payment/acknowledge", data),
+
+  linkPayment: (payment_id, data) =>
+    http.patch(`/cashless/payment/${payment_id}/link`, data),
 
   listTasks: (params = {}) => http.get("/cashless/tasks", params),
 

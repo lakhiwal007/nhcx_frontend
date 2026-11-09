@@ -21,7 +21,9 @@ export const taskStep = (taskType) => TASK_STEPS[taskType] || null;
 
 export const taskScreen = (taskType, childId, workflow) => {
   if (taskType === 'review_communication') return '/communications';
-  const step = taskType === 'chase_payer_answer' ? (workflow === 'claim' ? 'claim' : 'status') : TASK_STEPS[taskType];
+  if (taskType === 'link_payment_to_claim') return '/payments?view=unlinked';
+  const byWorkflow = taskType === 'chase_payer_answer' || taskType === 'review_payer_decision';
+  const step = byWorkflow ? (workflow === 'claim' ? 'claim' : 'status') : TASK_STEPS[taskType];
   return step ? `/case/${childId}/${step}` : null;
 };
 
