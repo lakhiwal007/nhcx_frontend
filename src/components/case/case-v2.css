@@ -470,3 +470,8 @@
 .cv-field-stack { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 13.5px; }
 .cv-field-key { font-size: 12.5px; color: var(--cv-soft); }
 @media (max-width: 720px) { .cv-form-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.cv-kv.is-total { font-weight: 600; border-top: 2px solid var(--cv-line-strong); }
+.cv-kv .money { font-variant-numeric: tabular-nums; }
+.cv-drawer-tabs { margin: 0 0 14px; padding: 0; }
+.ov-body .cv-card + .cv-card { margin-top: 12px; }

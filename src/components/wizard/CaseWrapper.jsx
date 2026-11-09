@@ -349,6 +349,7 @@ function CaseWorkspace({ reportCase }) {
     draftFiles,
     setDraftFiles,
     stageBar: { title: activeStage?.label || "Case", tools: stageTools },
+    communications,
     caseRecord: caseRecord.full,
     reloadCase: caseRecord.reload,
     applyCase: caseRecord.apply,
