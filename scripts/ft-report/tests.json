@@ -1,0 +1,185 @@
+{
+  "payers": {
+    "irdai": { "key": "irdai", "name": "IRDAI test payer (Sandbox Payer NHA)", "code": "1000004957@hcx", "adapter": "generic", "desk": "IRDAI payer desk, token login" },
+    "pmjay": { "key": "pmjay", "name": "PMJAY test payer (PMJAY, NHA)", "code": "1518@hcx", "adapter": "gov", "desk": "NHCX Payer Service role walk" }
+  },
+  "tests": [
+    {
+      "id": "T3", "title": "IRDAI Policy Search and Eligibility", "payer": "irdai",
+      "proves": "Finds the IRDAI test beneficiary's policy by member id, then checks it in force: discovery and validation both answered.",
+      "screens": ["S1", "S2", "S3", "S5", "S6", "S14"], "apis": ["A1", "A2", "A3"], "callbacks": ["C2"],
+      "steps": [
+        { "slug": "s5-new-claim", "what": "opens a new claim for the patient from the claim master", "expected": "A case opens for the patient with no policy chosen yet." },
+        { "slug": "s1-search-by-member-id", "what": "finds the beneficiary's policy on the registry by member id", "expected": "At least one policy of the IRDAI test payer is listed with its payer named." },
+        { "slug": "s2-select-policy", "what": "addresses the case to the processing id of the chosen policy", "expected": "The claim opens on the claim detail with the payer and processing id shown." },
+        { "slug": "s3-discovery-and-validation", "what": "sends discovery and validation and shows the payer's verdict on each", "expected": "Both checks go out (NHCX 202), are answered on their own correlation id, and the verdict shows the policy's period and sum insured; once in force the insurance plan is requested without a desk action." },
+        { "slug": "s1-unknown-member-id", "what": "turns an unknown member id into an empty result, not an error", "expected": "The registry's NHCX-1016 reads as \"No policy matches that identifier.\"" }
+      ]
+    },
+    {
+      "id": "T4", "title": "IRDAI Insurance Plan and Authorisation Requirements", "payer": "irdai",
+      "proves": "Asks the IRDAI test payer for its plan and packages, chooses a package, and gets the payer's ruling on what the pre-authorisation needs.",
+      "screens": ["S6", "S7", "S8"], "apis": ["A2", "A3"], "callbacks": ["C2", "C3", "C4"],
+      "steps": [
+        { "slug": "s7-plan-fetched", "what": "fetches the payer's insurance plan without a desk action", "expected": "The Validation card reads \"Insurance plan: fetched <time>\"; the plan is ready, names the policy and lists at least one package with its code and rate." },
+        { "slug": "s8-quote-package-line", "what": "quotes a line from the plan's packages only", "expected": "The Code type-ahead offers only the plan's packages and implants; the quantity is set and the line priced from the plan." },
+        { "slug": "s8-auth-requirements", "what": "asks the payer what the chosen package needs and shows the ruling", "expected": "The ruling arrives on the auth-requirements correlation id and lists the documents and forms per line; the claim is ready for pre-authorisation." }
+      ]
+    },
+    {
+      "id": "T5", "title": "IRDAI Pre-authorisation Approved", "payer": "irdai",
+      "proves": "Sends a pre-authorisation to the IRDAI test payer, approves it on the IRDAI payer desk, and sees the approval arrive.",
+      "screens": ["S4", "S8", "S9"], "apis": ["A4", "A14", "A15"], "callbacks": ["C5"],
+      "steps": [
+        { "slug": "s9-send-preauth", "what": "saves the pre-authorisation details and sends the pre-authorisation", "expected": "The send is accepted (NHCX 202) and the leg is stored under the ids the send returned; the correlation id is on the Logs tab only." },
+        { "slug": "payer-approve", "what": "lets the payer find the case and approve it", "expected": "The IRDAI desk finds the case by the leg's claim number, pending, with the claimed amount, and approves with remarks." },
+        { "slug": "s9-approved", "what": "shows the payer's approval with the approved amount", "expected": "The reply arrives on the leg's correlation id; the leg is approved with the amount, the tab carries a dot until opened, and \"Ask where it stands\" is no longer offered." }
+      ]
+    },
+    {
+      "id": "T6", "title": "IRDAI Pre-authorisation Rejected and Sent Again", "payer": "irdai",
+      "proves": "The IRDAI test payer rejects a pre-authorisation with a reason; the provider sees the reason, then sends a fresh request that is approved.",
+      "screens": ["S9"], "apis": ["A4", "A14", "A15"], "callbacks": ["C5"],
+      "steps": [
+        { "slug": "s9-send-preauth", "what": "sends the pre-authorisation", "expected": "The send is accepted (NHCX 202)." },
+        { "slug": "payer-reject", "what": "lets the payer reject with a remark", "expected": "A reject without a remark is refused before any call; with the remark it is accepted." },
+        { "slug": "s9-rejected-reason", "what": "shows the rejection with the payer's reason", "expected": "The leg ends rejected, not queried, with the reason shown." },
+        { "slug": "s9-send-again-approved", "what": "sends a fresh pre-authorisation that the payer approves", "expected": "The second send travels on a new correlation id and ends approved; the rejected leg stays in the history." }
+      ]
+    },
+    {
+      "id": "T7", "title": "IRDAI Query Answered", "payer": "irdai",
+      "proves": "The IRDAI test payer asks a question on a pre-authorisation; the provider answers it with text and a document, and the payer then approves.",
+      "screens": ["S9", "S10"], "apis": ["A4", "A7", "A14", "A15"], "callbacks": ["C5", "C9"],
+      "steps": [
+        { "slug": "s9-send-preauth", "what": "sends the pre-authorisation", "expected": "The send is accepted (NHCX 202)." },
+        { "slug": "payer-query", "what": "lets the payer raise a query with a remark", "expected": "The question arrives as a payer communication with the payer's text, matched to the claim." },
+        { "slug": "s10-read-and-reply", "what": "shows the question and sends the reply with a document", "expected": "The Communication tab carries a dot while open; the reply goes out (NHCX 202) on the question's thread with the PDF attached." },
+        { "slug": "s9-approved-after-query", "what": "shows the approval after the payer's query was answered", "expected": "The leg is approved; the question and the answer stay on the Communication screen." }
+      ]
+    },
+    {
+      "id": "T8", "title": "IRDAI Enhancement", "payer": "irdai",
+      "proves": "On an approved pre-authorisation, asks the IRDAI test payer for more: one enhancement approved, a second rejected, and the approved total kept right.",
+      "screens": ["S9"], "apis": ["A4", "A14", "A15"], "callbacks": ["C5"],
+      "steps": [
+        { "slug": "s9-enhancement-approved", "what": "raises an enhancement with an added line that the payer approves", "expected": "The enhancement goes out under the enhancement workflow id on a new correlation id and raises the approved total by its approved amount." },
+        { "slug": "s9-enhancement-rejected", "what": "raises a second enhancement that the payer rejects with a remark", "expected": "The total is unchanged and the reason is shown." },
+        { "slug": "s9-approved-total", "what": "shows the approved total as the approval plus the approved enhancement", "expected": "The original approval is unchanged by either answer." }
+      ]
+    },
+    {
+      "id": "T9", "title": "IRDAI Status Enquiry and Cancel", "payer": "irdai",
+      "proves": "Asks the IRDAI test payer where a pending pre-authorisation stands, then cancels one; a refused cancel leaves the leg as it was.",
+      "screens": ["S9"], "apis": ["A6", "A14", "A15"], "callbacks": ["C5", "C7", "C8"],
+      "steps": [
+        { "slug": "s9-status-enquiry", "what": "asks the payer where a pending pre-authorisation stands", "expected": "The enquiry goes out under workflow id 1, is offered only while submitting, and the answer names the stage without changing the leg." },
+        { "slug": "s9-cancel", "what": "cancels a pending pre-authorisation with a reason", "expected": "The cancel is answered and the leg ends cancelled." },
+        { "slug": "s9-cancel-decided", "what": "handles a cancel on a decided pre-authorisation as the payer answers it", "expected": "A refusal returns the leg to approved and is shown; a sandbox acceptance is recorded as skipped, never as a pass." }
+      ]
+    },
+    {
+      "id": "T10", "title": "IRDAI Claim Approved, Part-approved and Rejected", "payer": "irdai",
+      "proves": "Files three claims with the IRDAI test payer after discharge: one approved in full, one approved in part at line level, one rejected.",
+      "screens": ["S11"], "apis": ["A4", "A5", "A6", "A14", "A15"], "callbacks": ["C6"],
+      "steps": [
+        { "slug": "s11-claim-approved", "what": "sends the bill as the claim and shows the full approval", "expected": "The claim goes out under the claim workflow id on its own correlation id, referring to its pre-authorisation, and is approved for the claimed amount." },
+        { "slug": "s11-claim-part-approved", "what": "shows a part approval decided line by line", "expected": "The claim is approved at the sum of the allowed line amounts, each line's allowed amount shown." },
+        { "slug": "s11-claim-rejected", "what": "shows a rejected claim with its reason", "expected": "The claim is rejected with the payer's reason; outcome complete on a rejection is not read as an approval." },
+        { "slug": "s11-verdicts", "what": "shows each claim's verdict on the claim screen", "expected": "Approved, part-approved and rejected verdicts are each shown as the payer decided them." },
+        { "slug": "s9-read-only-after-claim", "what": "locks the pre-authorisation once the claim is with the payer", "expected": "Adding a line, saving details, attaching a document and an enhancement are refused; cancel is allowed while the claim is undecided and refused once decided." }
+      ]
+    },
+    {
+      "id": "T11", "title": "IRDAI Payment Notice and Acknowledgement", "payer": "irdai",
+      "proves": "The IRDAI test payer pays an approved claim; the provider records the payment with its UTR and TDS, acknowledges it, and keeps a second instalment beside the first.",
+      "screens": ["S12"], "apis": ["A8", "A15"], "callbacks": ["C10"],
+      "steps": [
+        { "slug": "s12-first-instalment", "what": "records the payer's first payment notice with its UTR and acknowledges it", "expected": "The notice is matched by claim number and acknowledged once (NHCX 202); amount, TDS, net paid and UTR are shown; initiated then cleared land as one row." },
+        { "slug": "s12-second-instalment", "what": "records a second instalment beside the first", "expected": "Two payments, two UTRs, a total that adds them, the claim paid once the instalments cover the approved amount; each cleared payment is posted to the bill." }
+      ]
+    },
+    {
+      "id": "T12", "title": "IRDAI Reprocess and Balance Release", "payer": "irdai",
+      "proves": "Asks the IRDAI test payer to look again at a rejected claim, and to release the unpaid balance of a partly paid one.",
+      "screens": ["S11"], "apis": ["A6", "A14", "A15"], "callbacks": ["C6", "C8"],
+      "steps": [
+        { "slug": "s11-no-reprocess-on-approved", "what": "offers no reprocess on an approved claim", "expected": "\"Ask for a reprocess\" is not offered; a reprocess of any claim but a rejected one is refused." },
+        { "slug": "s11-reprocess-rejected", "what": "asks for a reprocess of the rejected claim with reason and remark", "expected": "The Task goes out under workflow id 36 naming the claim; the reason list offers only claimrejected and rejectiondisputed." },
+        { "slug": "s11-reprocess-approved", "what": "shows the claim approved after the payer looked again", "expected": "The claim shows approved and keeps the earlier rejection in its history, whether the verdict came on the Task's thread or the claim's." },
+        { "slug": "s11-balance-release", "what": "asks for the unpaid balance of the partly paid claim", "expected": "The release is shown against the claim with its amount and note; a later payment is recorded as a further instalment." }
+      ]
+    },
+    {
+      "id": "T13", "title": "PMJAY Eligibility, Package Master and Ruling", "payer": "pmjay",
+      "proves": "Finds the PMJAY beneficiary's policy, checks it in force, requests PMJAY's package master without waiting for it, seeds one for the tests, and gets PMJAY's ruling on what the chosen package needs.",
+      "screens": ["S1", "S2", "S3", "S5", "S7", "S8", "S9", "S11"], "apis": ["A1", "A2", "A3", "A18"], "callbacks": ["C2", "C3", "C4"],
+      "steps": [
+        { "slug": "s1-pmjay-policy", "what": "finds the PMJAY policy by member id and addresses the case to the processing id", "expected": "The policy comes back with both ids and the beneficiary's ABHA number." },
+        { "slug": "s3-discovery-and-validation", "what": "sends discovery and validation to PMJAY", "expected": "Both checks are answered; every line carries the AB-PMJAY programme code and the facility is named by its HFR id." },
+        { "slug": "s7-plan-requested-once", "what": "requests the package master once and does not wait for it", "expected": "One plan request (NHCX 202, workflow id 1) without a desk action; no second request while fetching; the seed reads ready with its two packages and seven questionnaires." },
+        { "slug": "s8-quote-and-ruling", "what": "quotes SB043F and gets PMJAY's ruling for the pre stage", "expected": "The ruling arrives on the auth-requirements correlation id and lists what the package needs." }
+      ]
+    },
+    {
+      "id": "T14", "title": "PMJAY Pre-authorisation Through the Payer Service", "payer": "pmjay",
+      "proves": "Sends a PMJAY pre-authorisation, reads who holds it on the NHCX Payer Service, approves it at PPD-Trust, and sees PMJAY's decision arrive.",
+      "screens": ["S4", "S9"], "apis": ["A4", "A14", "A15"], "callbacks": ["C5"],
+      "steps": [
+        { "slug": "s9-send-preauth", "what": "sends the pre-authorisation and shows PMJAY's acknowledgement", "expected": "The send goes out under PMJAY's pre-authorisation workflow id with AB-PMJAY on every line and is acknowledged." },
+        { "slug": "payer-approve-cycle", "what": "lets the desk approve at PPD-Trust, or records the sandbox's own decision", "expected": "Either PPD-Trust approves and the cycle stops completed, or the steps read skipped (sandbox auto-decided)." },
+        { "slug": "s9-approved", "what": "shows PMJAY's approval with the approved amount", "expected": "The leg is approved with PMJAY's amount; every action and trail is recorded against the claim." }
+      ]
+    },
+    {
+      "id": "T15", "title": "PMJAY Query Answered by Resubmission", "payer": "pmjay",
+      "proves": "PMJAY queries a pre-authorisation; the provider answers by sending the pre-authorisation again under the query-response workflow id, and PMJAY then approves.",
+      "screens": ["S9"], "apis": ["A4", "A14", "A15"], "callbacks": ["C5", "C9"],
+      "steps": [
+        { "slug": "payer-query-cycle", "what": "lets the desk query the pre-authorisation with a remark", "expected": "The cycle stops decided; the leg is queried with PMJAY's remark shown." },
+        { "slug": "s9-answer-by-resubmission", "what": "answers the query by sending the pre-authorisation again from the pre-authorisation tab", "expected": "The answer travels on the leg's correlation id under the query-response workflow id with request.initiated; no Communication reply is sent." },
+        { "slug": "s9-approved", "what": "shows the approval after the answer", "expected": "The leg ends approved." }
+      ]
+    },
+    {
+      "id": "T16", "title": "PMJAY Rejection and Enhancement", "payer": "pmjay",
+      "proves": "PMJAY rejects one pre-authorisation with its reason; on another, approved, an enhancement is sent and approved through the role walk.",
+      "screens": ["S9"], "apis": ["A4", "A14", "A15"], "callbacks": ["C5"],
+      "steps": [
+        { "slug": "s9-rejected", "what": "shows PMJAY's rejection with its reason", "expected": "The reject cycle stops decided; the leg is rejected with the reason, not queried." },
+        { "slug": "s9-enhancement-approved", "what": "raises a second cycle of MG072C as an enhancement that PMJAY approves", "expected": "The enhancement goes out under the enhancement workflow id on a new correlation id; the approved total is 3,000." }
+      ]
+    },
+    {
+      "id": "T17", "title": "PMJAY Claim Through the Role Walk", "payer": "pmjay",
+      "proves": "Files a PMJAY claim after discharge and walks it through every Payer Service role to Claim Review Committee; a queried claim is answered under PMJAY's claim query workflow id.",
+      "screens": ["S11"], "apis": ["A5", "A14", "A15"], "callbacks": ["C6"],
+      "steps": [
+        { "slug": "s11-claim-approved", "what": "sends the claim, shows the acknowledgement and the decision after the role walk", "expected": "The trail walks the roles in order to Claim Review Committee within 8 rounds, or reads skipped (sandbox auto-decided); the claim ends approved with PMJAY's amount." },
+        { "slug": "s11-claim-query-answered", "what": "answers a queried claim under PMJAY's claim query-response workflow id", "expected": "The answer goes out with request.initiated and the claim ends approved; a decided claim is never sent again and the pre-authorisation is read only once the claim is sent." }
+      ]
+    },
+    {
+      "id": "T18", "title": "PMJAY Payment Notice, Status Refusal and Cancel", "payer": "pmjay",
+      "proves": "Acknowledges PMJAY's payment notice under its own workflow id, records PMJAY's refusal of a status enquiry as expected, and cancels a pending pre-authorisation.",
+      "screens": ["S9", "S12"], "apis": ["A6", "A8", "A14"], "callbacks": ["C7", "C10"],
+      "steps": [
+        { "slug": "s12-payment-notice", "what": "records PMJAY's payment notice and acknowledges it under PMJAY's workflow id", "expected": "The notice is matched by claim number and shown on Payments; a notice that does not arrive within the wait is blocked (sandbox), not a failure." },
+        { "slug": "s9-status-refused-then-cancel", "what": "records PMJAY's refusal of the status enquiry as the expected answer, then cancels", "expected": "The enquiry goes out under workflow id 1 and is refused as expected; the cancel is answered and the leg ends cancelled." },
+        { "slug": "s9-cancel-decided-refused", "what": "refuses a cancel once the claim is decided", "expected": "\"The payer has decided the claim; the pre-authorisation can no longer be cancelled.\" before any call." }
+      ]
+    },
+    {
+      "id": "T19", "title": "PMJAY Beneficiary Verification and ABHA", "payer": "pmjay",
+      "proves": "Registers a patient from a verified ABHA, authenticates the beneficiary biometrically on the pre-authorisation so the token rides on the eligibility check and the pre-authorisation, and shows the consent questionnaire standing in when no token is held.",
+      "screens": ["S1", "S3", "S8", "S9", "S11", "S13", "S14", "S15", "S18"], "apis": ["A2", "A4", "A5", "A18", "A19"], "callbacks": [],
+      "steps": [
+        { "slug": "s13-register-with-abha", "what": "registers a patient from a verified ABHA profile", "expected": "The file carries the ABHA number, address, name, gender, date of birth and mobile the ABHA service returned; no Aadhaar, OTP or token appears in any log." },
+        { "slug": "s3-validation-without-token", "what": "sends the validation check with no user token and the consent form in the bundle", "expected": "No user-token header; the Authentication Consent QuestionnaireResponse rides where the master ships that form." },
+        { "slug": "s18-verify-preauth", "what": "authenticates the beneficiary on the pre-authorisation and sends with the token", "expected": "The card reads \"Verified, token live\"; the next validation and the pre-authorisation carry the user-token header and x-hcx-ben-abha-id and no consent form." },
+        { "slug": "s18-refresh-token", "what": "refreshes a lapsed token", "expected": "The refresh replaces the token and the next send carries it; a lapsed refresh token is refused with the stated message." },
+        { "slug": "s18-verify-discharge", "what": "verifies by face at discharge and sends the claim with the discharge token", "expected": "The claim carries the discharge token and x-hcx-ben-abha-id and no Discharge Consent form; the attempts are listed per stage." }
+      ]
+    }
+  ]
+}
