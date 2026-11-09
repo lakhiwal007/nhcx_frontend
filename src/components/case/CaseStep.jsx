@@ -168,8 +168,8 @@ export default function CaseStep({
           )}
         </div>
       ) : (
-        <div className="cv-work">
-          <CaseChecklist groups={checklist} open={shown} onOpen={onOpen} label={checklistLabel} />
+        <div className={`cv-work${checklist.length ? "" : " is-solo"}`}>
+          {checklist.length > 0 && <CaseChecklist groups={checklist} open={shown} onOpen={onOpen} label={checklistLabel} />}
           <div className="cv-work-pane" ref={paneRef}>
             {Children.map(children, (child) =>
               isValidElement(child) && child.props?.id != null ? cloneElement(child, { hidden: child.props.id !== shown }) : child,

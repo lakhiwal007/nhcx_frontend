@@ -325,6 +325,7 @@
 
 .cv-work { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
 .cv-work-pane { min-width: 0; }
+.cv-work.is-solo { grid-template-columns: minmax(0, 1fr); }
 
 .cv-check { position: sticky; top: calc(var(--cv-verdict-h, 72px) + 16px); display: flex; flex-direction: column; gap: 12px; padding: 10px 8px; background: var(--cv-card); border: 1px solid var(--cv-line); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }
 .cv-check-title { padding: 0 8px 4px; font-size: 12px; font-weight: 600; color: var(--cv-soft); }
@@ -482,3 +483,4 @@
 .cv-ack { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-weight: 600; font-size: 13.5px; }
 .cv-ack input { margin-top: 3px; }
 .ov-body .cv-ask { margin-top: 0; }
+.rp-explain { min-height: 140px; }

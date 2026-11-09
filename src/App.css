@@ -3336,11 +3336,6 @@ tr.en-excluded td {
 }
 
 /* ─── Reprocess / appeal (ReprocessScreen) ──────────────────────────────── */
-.rp-form {
-    grid-template-columns: minmax(0, 1fr);
-    padding-bottom: 14px;
-}
-
 .rp-textarea {
     min-height: 110px;
     padding: 10px 12px;

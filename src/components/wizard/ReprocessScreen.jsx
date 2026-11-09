@@ -1,506 +1,408 @@
-import { useState, useEffect } from "react";
-import StageBar from "../case/StageBar";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Send } from "lucide-react";
-import { api } from "../../api";
-import { useReadOnly } from "../../readOnly";
-import { usePoll } from "../../hooks/usePoll";
-import { DocumentChecklist, LoadingBlock, NextStep, formatMoney } from "../Common";
-import { formatDate } from "../../format.js";
+import { ArrowLeft, ArrowRight, RefreshCw, Send } from "lucide-react";
+import { DocumentChecklist, NextStep, Tip } from "../Common";
+import { formatDateTime, formatMoney } from "../../format.js";
 import Dropdown from "../Dropdown";
-import { projectCaseStatus } from "../case/caseStages";
-import CaseChecklist from "../case/CaseChecklist";
+import ConfirmModal from "../ConfirmModal";
+import { useCaseLock } from "../../hooks/useCaseLock";
+import { useReprocess, REASON_CODES, reasonName } from "../../hooks/useReprocess";
 import { useCasePane } from "../case/useCasePane";
+import CaseStep, { Pane, Verdict } from "../case/CaseStep";
+import AdjudicationTable from "../case/AdjudicationTable";
+import PayerWords from "../case/PayerWords";
+import TechnicalDetails from "../case/TechnicalDetails";
 import { buildReprocessChecklist, firstReprocessItem } from "../case/reprocessChecklist";
 
-const POLL_INTERVAL_MS = 7000;
-const REASON_CODES = [
-  { value: "claimrejected", label: "Reprocess request due to claim rejected by payer", short: "Claim rejected" },
-  { value: "rejectiondisputed", label: "Rejection disputed, additional evidence provided", short: "Disputed" },
-];
-const EVIDENCE = { category: "attachment", name: "Justification / Supporting Document", code: "ATTACHMENT", optional: true };
-const FINISHED = ["complete", "failed", "not_found"];
+const SOFT_WARNING_MS = 300_000;
+const minutes = (ms) => Math.max(1, Math.round((ms || 0) / 60000));
+const money = (v) => (v == null ? "—" : formatMoney(v));
 
-const reasonName = (code) => REASON_CODES.find((r) => r.value === code)?.label || code;
+function Card({ title, meta, chip, children }) {
+  return (
+    <section className="cv-card" aria-label={title}>
+      <div className="cv-card-head">
+        <h2 className="cv-card-title">{title}</h2>
+        {chip}
+        {meta && <span className="cv-card-meta">{meta}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-// The backend takes an appeal only on a rejected final claim that is not paid in full.
-function unavailableReason(claimLeg, settled) {
-  if (settled) return "This claim is settled, so there is nothing left to appeal.";
-  if (!claimLeg || claimLeg === "rejected") return null;
-  if (claimLeg === "approved" || claimLeg === "partial") return "The payer did not reject this claim. To recover an unpaid balance, use Ask for the balance on the Claim step.";
-  if (claimLeg === "queried") return "The payer has an open query on this claim. Answer it on the Claim step.";
-  if (claimLeg === "submitting") return "The payer has not decided this claim yet. An appeal can follow only a rejection.";
-  return "Only a final claim the payer has rejected can be appealed.";
+function RejectionCard({ rejection }) {
+  const has = rejection.notes.length > 0 || rejection.errors.length > 0 || rejection.reasonCodes.length > 0;
+  return (
+    <Card title="Why the payer rejected the claim" meta="Answer these points in your explanation.">
+      <div className="cv-card-body">
+        {has ? (
+          <>
+            <PayerWords notes={rejection.notes} errors={rejection.errors} empty="" />
+            {rejection.reasonCodes.length > 0 && (
+              <div className="cv-kv">
+                <span>Reason codes</span>
+                <span className="cv-mono">{rejection.reasonCodes.join(", ")}</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="cv-card-meta">The rejection came without notes. Read the decision on the Claim step and the audit trail before you write.</div>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 export default function ReprocessScreen({ ctx }) {
   const navigate = useNavigate();
-  const { caseState, cashlessCase, setCashlessCase, caseClosed, draftFiles, setDraftFiles } = ctx;
-  const caseId = caseState.cashless_case_id;
-  const readOnly = useReadOnly();
-  const { picked, paneRef, openItem } = useCasePane();
-  const filesKey = caseId || caseState.claim_id ? `${caseId || caseState.claim_id}:reprocess` : null;
+  const lock = useCaseLock(ctx, "reprocess");
+  const locked = lock.viewOnly || lock.settled;
+  const r = useReprocess(ctx, { locked });
+  const pane = useCasePane();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const [caseNow, setCaseNow] = useState(null);
-  const [loading, setLoading] = useState(!!caseId);
-  const [loadError, setLoadError] = useState(null);
-  // Staff leave for the Claim step to read the payer's notes, so the draft stays.
-  const draftKey = filesKey ? `${filesKey}:text` : null;
-  const [reasonCode, setReasonCode] = useState(draftFiles?.[draftKey]?.reasonCode || "claimrejected");
-  const [description, setDescription] = useState(draftFiles?.[draftKey]?.description || "");
-  const [supportingDocs, setSupportingDocs] = useState(() => {
-    const docs = [EVIDENCE];
-    (draftFiles?.[filesKey] || []).forEach((file) => {
-      const idx = docs.findIndex((d) => d.code === file.code);
-      if (idx >= 0) docs[idx] = { ...docs[idx], ...file };
-      else docs.push(file);
-    });
-    return docs;
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
-  const [sentId, setSentId] = useState(null);
-  const [dismissedId, setDismissedId] = useState(null);
-  const [status, setStatus] = useState(null);
-  const [pollError, setPollError] = useState(null);
-
-  const loadCase = async () => {
-    if (!caseId) return;
-    setLoadError(null);
-    try {
-      const res = await api.getCashlessStatus(caseId);
-      setCaseNow(res);
-      setCashlessCase((prev) => (prev ? { ...prev, ...projectCaseStatus(res) } : prev));
-    } catch (err) {
-      setLoadError(err.message || "The case could not be read.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(loadCase, 0);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId]);
-
-  useEffect(() => {
-    if (!filesKey) return;
-    setDraftFiles(filesKey, supportingDocs.filter((d) => d.attachment || d.custom));
-  }, [supportingDocs, filesKey, setDraftFiles]);
-
-  useEffect(() => {
-    if (draftKey) setDraftFiles(draftKey, { reasonCode, description });
-  }, [draftKey, reasonCode, description, setDraftFiles]);
-
-  const appeal = caseNow?.reprocess;
-  const recoveredId = appeal?.correlation_id !== dismissedId ? appeal?.correlation_id : null;
-  const correlationId = sentId || recoveredId;
-  const claimId = caseNow?.claim?.claim_id ?? caseNow?.claim_id ?? cashlessCase?.claim_id ?? caseState.claim_id;
-  const claimLeg = (caseNow?.legs ?? cashlessCase?.legs)?.claim;
-
-  const pollStatus = async (signal) => {
-    try {
-      const res = await api.getReprocessStatus(correlationId, signal);
-      setStatus(res);
-      setPollError(null);
-      if (FINISHED.includes(res.status)) loadCase();
-    } catch (err) {
-      if (err?.name !== "AbortError") setPollError(err.message || "The appeal status could not be read.");
-    }
-  };
-  usePoll(pollStatus, {
-    active: correlationId && !FINISHED.includes(status?.status) ? correlationId : null,
-    intervalMs: POLL_INTERVAL_MS,
-  });
-
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const res = await api.submitReprocess({
-        claim_id: claimId,
-        reason_code: reasonCode,
-        description: description.trim(),
-        supporting_documents: supportingDocs.filter((d) => d.url),
-      });
-      if (res.status === "failed") {
-        setSubmitError(res.message || res.error?.message || "Reprocess submission failed. Please try again.");
-        return;
-      }
-      if (filesKey) setDraftFiles(filesKey, []);
-      if (draftKey) setDraftFiles(draftKey, null);
-      setStatus(null);
-      setSentId(res.correlation_id);
-      loadCase();
-    } catch (err) {
-      setSubmitError(err.message || "Reprocess submission failed. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleRetry = () => {
-    setSubmitError(null);
-    setPollError(null);
-    setStatus(null);
-    setSentId(null);
-    setDismissedId(correlationId);
-  };
-
-  const checkAgain = () => {
-    setPollError(null);
-    setStatus(null);
-  };
-
-  const handleUpload = (doc, uploaded) => {
-    setSupportingDocs((prev) =>
-      prev.map((d) => (d.code === doc.code ? { ...d, ...uploaded } : d))
-    );
-  };
-
-  // Lets the hospital attach a document that isn't on the backend's
-  // pre-populated required/optional checklist (e.g. a payer-specific extra).
-  const addDocument = () => {
-    setSupportingDocs((prev) => [
-      ...(prev || []),
-      { code: `CUSTOM-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: "", category: "additional", optional: true, custom: true },
-    ]);
-  };
-  const renameDocument = (idx, name) => {
-    setSupportingDocs((prev) => prev.map((d, i) => (i === idx ? { ...d, name } : d)));
-  };
-  const removeDocument = (idx) => {
-    setSupportingDocs((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  // The case can name the decision before the first poll answers.
-  const seeded = !status && correlationId === appeal?.correlation_id ? appeal : null;
-  const decision = String(status?.decision ?? seeded?.decision ?? "").replace(/^REPROCESS_/, "") || null;
-  const isComplete = status?.status === "complete" || !!seeded?.decision;
-  const isFailed = status?.status === "failed";
-  const isNotFound = status?.status === "not_found";
-  const attached = supportingDocs.filter((d) => d.url).length;
-  const explanation = description.trim();
-  const sentReason = status?.reason_code ?? seeded?.reason_code ?? (sentId ? reasonCode : null);
-  const reasonLabel = reasonName(reasonCode);
-  const failureMessage = status?.errors?.[0]?.message || status?.error_message || "The request did not reach the payer.";
-  const payerError = status?.claim_response?.errors?.[0]?.detail;
-  const canAppeal = !unavailableReason(claimLeg, caseClosed);
-  const canSend = !readOnly && !submitting && !!explanation && !!claimId;
-  const appealApproved = decision === "APPROVED" || decision === "PARTIALLY_APPROVED";
-  const verdict = isFailed
-    ? { tone: "bad", label: "Not delivered", text: "The payer never received the appeal." }
-    : isNotFound
-      ? { tone: "warn", label: "No record", text: "The payer has no record of this request yet. Check again, or look at the Audit trail." }
-      : !isComplete
-        ? { tone: "info", label: "Awaiting payer", text: "This can take a few days. You can leave this page; the answer appears here and in the Work Queue." }
-        : appealApproved
-          ? { tone: decision === "PARTIALLY_APPROVED" ? "warn" : "ok", label: decision === "PARTIALLY_APPROVED" ? "Partially approved" : "Appeal accepted", text: "Track the money on the Payment step." }
-          : decision === "QUERIED"
-            ? { tone: "warn", label: "Query raised", text: "The payer has a question about the appeal. Answer it on the Claim step." }
-            : decision === "REJECTED"
-              ? { tone: "bad", label: "Appeal rejected", text: "You can appeal again with new evidence or contact the payer directly; if the decision stands, the patient may have to pay." }
-              : { tone: "info", label: "Decision received", text: "The payer gave no clear decision. Read its notes and the Audit trail." };
-
-  if (loading) return <LoadingBlock compact />;
-
-  if (loadError && !correlationId) {
-    return (
-      <NextStep
-        tone="bad"
-        title="The case could not be read"
-        actions={
-          <>
-            <button type="button" className="cv-btn" onClick={loadCase}>Retry</button>
-            <button type="button" className="cv-btn" onClick={() => navigate("../claim")}>Back to claim</button>
-          </>
-        }
-      >
-        {loadError}
-      </NextStep>
-    );
-  }
-
-  if (!correlationId && !canAppeal) {
-    return (
-      <NextStep
-        tone="warn"
-        title="Appeal not available"
-        actions={<button type="button" className="cv-btn" onClick={() => navigate("../claim")}>Back to claim</button>}
-      >
-        {unavailableReason(claimLeg, caseClosed)}
-      </NextStep>
-    );
-  }
-
-  const claimResponse = status?.claim_response;
-  const totals = claimResponse?.totals || {};
-  const lines = claimResponse?.items || [];
-  const notes = status?.process_notes || [];
-  const approved = totals.benefit?.value;
-  const cutLines = lines.filter((line) => {
-    const adj = line.adjudication || {};
-    const allowed = adj.benefit?.value;
-    return allowed != null && adj.submitted?.value != null && allowed < adj.submitted.value;
-  }).length;
-  const noteCount = notes.length + (payerError ? 1 : 0);
+  const data = r.data;
+  const view = r.view;
+  const decision = view.decision;
+  const isFailed = view.phase === "failed";
+  const isNotFound = view.phase === "not_found";
+  const isComplete = view.phase === "decided";
+  const isAccepted = decision === "APPROVED";
+  const isPartial = decision === "PARTIALLY_APPROVED";
+  const isQueried = decision === "QUERIED";
+  const isRejected = decision === "REJECTED";
+  const isUnclear = isComplete && (!decision || decision === "UNKNOWN");
+  const sent = !!r.correlationId;
+  const toClaim = (openAction) => navigate("../claim", openAction ? { state: { openAction, claim_id: r.claimId, cashless_case_id: r.caseId } } : undefined);
 
   const groups = buildReprocessChecklist({
-    sent: !!correlationId,
-    reasonShort: REASON_CODES.find((c) => c.value === reasonCode)?.short,
-    explained: !!explanation,
-    attached,
+    sent,
+    locked,
+    reasonShort: REASON_CODES.find((c) => c.value === r.reasonCode)?.short,
+    explained: !!r.explanation,
+    attached: r.attached.length,
     failed: isFailed,
     notFound: isNotFound,
     complete: isComplete,
-    approved,
-    lines: lines.length,
-    cut: cutLines,
-    notes: noteCount,
-    readNotes: decision === "REJECTED" || decision === "QUERIED",
+    decision,
+    approved: r.approved,
+    lines: r.lines,
+    notes: view.notes.length + r.payerErrors.length,
+    readNotes: isRejected || isQueried,
   });
   const blockers = groups.flatMap((g) => g.rows).filter((row) => row.blocks);
-  const open = firstReprocessItem(groups, picked);
-  const paneFor = (id) => ({ hidden: open !== id });
-  const backToClaim = (
-    <button type="button" className="cv-btn" onClick={() => navigate("../claim")}><ArrowLeft size={14} /> Back to claim</button>
+  const open = firstReprocessItem(groups, pane.picked);
+  const canSend = !locked && !r.send.busy && !!r.explanation && !!r.claimId;
+
+  const chip = r.loadError && !sent
+    ? ["Not loaded", "warn"]
+    : !sent && r.unavailable
+      ? ["Not available", "todo"]
+      : !sent
+        ? locked
+          ? ["Not sent", "todo"]
+          : blockers.length > 0
+            ? [`${blockers.length} must be done`, "warn"]
+            : ["Ready to send", "ok"]
+        : isFailed
+          ? ["Not delivered", "bad"]
+          : isNotFound
+            ? ["No record", "warn"]
+            : !isComplete
+              ? ["Awaiting payer", "info"]
+              : isUnclear
+                ? ["Unclear answer", "warn"]
+                : isAccepted
+                  ? ["Appeal accepted", "ok"]
+                  : isPartial
+                    ? ["Partly accepted", "warn"]
+                    : isQueried
+                      ? ["Query raised", "warn"]
+                      : ["Appeal rejected", "bad"];
+
+  let primary = null;
+  if (!sent && !r.unavailable && !r.loadError) {
+    primary = {
+      label: "Send appeal",
+      icon: Send,
+      busy: r.send.busy,
+      busyLabel: "Sending…",
+      disabled: !canSend,
+      reason: !r.claimId ? "This case has no claim to appeal." : blockers.length ? `First: ${blockers.map((b) => b.name.toLowerCase()).join(", ")}.` : lock.reason,
+      onClick: () => setConfirmOpen(true),
+    };
+  } else if (isFailed) {
+    primary = { label: "Try again", icon: Send, onClick: r.startAnother };
+  } else if (isNotFound || isUnclear) {
+    primary = { label: "Check again", icon: RefreshCw, write: false, busy: r.status.checking, busyLabel: "Checking…", onClick: r.status.refresh };
+  } else if (isAccepted || isPartial) {
+    primary = { label: "Go to payment", icon: ArrowRight, write: false, onClick: () => navigate("../payment") };
+  } else if (isQueried) {
+    primary = { label: "Answer on the Claim step", icon: ArrowRight, write: false, onClick: () => toClaim("respond_claim_query") };
+  } else if (isRejected && !r.unavailable) {
+    primary = { label: "File another appeal", icon: Send, onClick: r.startAnother };
+  }
+  if (primary?.write !== false && locked) primary = null;
+
+  const secondary = [
+    { label: "Back to claim", icon: ArrowLeft, write: false, onClick: () => toClaim() },
+    sent && !isComplete && !isFailed && !isNotFound && { label: "Check again", icon: RefreshCw, write: false, busy: r.status.checking, busyLabel: "Checking…", onClick: r.status.refresh },
+    isPartial && !locked && { label: "Ask for the balance", write: false, onClick: () => toClaim("request_claim_release") },
+  ];
+
+  const notes = [
+    r.send.error && { tone: "bad", text: `Not sent: ${r.send.error} Fix what the message names and send again; your draft is kept.` },
+    lock.viewOnly && { tone: "info", text: lock.reason },
+    r.loadError && { tone: "warn", text: `The case could not be read, so an appeal already sent may not show here: ${r.loadError}`, action: { label: "Retry", onClick: r.reload } },
+    isFailed && { tone: "bad", text: `The appeal did not reach the payer. ${view.message || ""}`.trim() },
+    isNotFound && { tone: "warn", text: "The payer has no record of this appeal yet. Check again in a while, or look at the audit trail." },
+    isUnclear && { tone: "warn", text: "The payer answered without a clear decision. Read its notes and the audit trail, and call its helpdesk if it stays unclear." },
+    isQueried && { tone: "warn", text: "The payer has a question about the appeal. It is answered on the Claim step, and the decision waits until you do." },
+    isRejected && { tone: "warn", text: "The payer kept its decision. You can appeal again with new evidence or contact the payer directly; if the decision stands, the patient may have to pay." },
+    isPartial && { tone: "warn", text: "The payer accepted part of the appeal. See what it cut under Amounts; the rest can be asked for as a balance on the Claim step." },
+    r.status.error && { tone: "warn", text: `The last check failed, and this page keeps trying: ${r.status.error}` },
+    sent && !isComplete && !isFailed && !isNotFound && r.status.elapsedMs > SOFT_WARNING_MS && { tone: "info", text: "An appeal can take days. You can leave this page; the answer appears here and in the Work Queue." },
+  ];
+  const tipText = !sent && !r.unavailable && !locked
+    ? "An appeal without new evidence is usually rejected again. Answer each point in the payer's rejection and attach what it asks for."
+    : isAccepted
+      ? "The payer accepted the appeal. Track the money on the Payment step."
+      : null;
+
+  const summary = sent && isComplete && r.approved != null ? (
+    <>
+      <strong>{money(r.approved)}</strong>
+      {r.totals.submitted?.value != null ? ` of ${formatMoney(r.totals.submitted.value)} claimed` : " approved"}
+    </>
+  ) : sent && !isComplete && !isFailed && !isNotFound ? (
+    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : r.send.result ? "just now" : "earlier"} · waiting ${minutes(r.status.elapsedMs)} min · checking automatically`
+  ) : !sent && r.claimId ? (
+    <>Appeal of claim <span className="cv-mono">{r.claimId}</span></>
+  ) : null;
+
+  const verdict = (
+    <Verdict ctx={ctx} chip={chip[0]} chipTone={chip[1]} summary={summary} notes={notes} primary={primary} secondary={secondary}>
+      {tipText && <Tip className="cv-verdict-note">{tipText}</Tip>}
+    </Verdict>
   );
 
-  if (correlationId) {
+  if (!sent && r.unavailable && !r.loading) {
     return (
-      <div className="cv-elig">
-        <div className={`cv-notice cv-verdict is-${verdict.tone}`}>
-          <div className="cv-verdict-row">
-            <StageBar ctx={ctx} />
-            <span className={`cv-chip is-${verdict.tone}`}>{verdict.label}</span>
-            <span className="cv-notice-body">{verdict.text}</span>
-            <span className="cv-verdict-actions">
-              {backToClaim}
-              {isFailed ? (
-                <button type="button" className="cv-btn is-primary" onClick={handleRetry}>Try again</button>
-              ) : isNotFound ? (
-                <button type="button" className="cv-btn is-primary" onClick={checkAgain}>Check again</button>
-              ) : appealApproved ? (
-                <button type="button" className="cv-btn is-primary" onClick={() => navigate("../payment")}>Go to payment <ArrowRight size={14} /></button>
-              ) : decision === "QUERIED" ? (
-                <button type="button" className="cv-btn is-primary" onClick={() => navigate("../claim")}>Respond on the claim <ArrowRight size={14} /></button>
-              ) : decision === "REJECTED" && canAppeal && !readOnly ? (
-                <button type="button" className="cv-btn is-primary" onClick={handleRetry}><Send size={15} /> File another appeal</button>
-              ) : null}
-            </span>
-          </div>
-          {pollError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not updated:</strong> {pollError} Still trying.</div>}
-        </div>
-
-        <div className="cv-work">
-          <CaseChecklist groups={groups} open={open} onOpen={openItem} label="Appeal checklist" />
-
-          <div className="cv-work-pane" ref={paneRef}>
-            <div {...paneFor("delivery")}>
-              <section className="cv-card" aria-label="Delivery">
-                <div className="cv-card-head"><h2 className="cv-card-title">Delivery</h2></div>
-                <p className="cv-card-intro">{failureMessage}</p>
-              </section>
-            </div>
-
-            <div {...paneFor("record")}>
-              <section className="cv-card" aria-label="Payer's record">
-                <div className="cv-card-head"><h2 className="cv-card-title">Payer's record</h2></div>
-                <p className="cv-card-intro">{verdict.text}</p>
-              </section>
-            </div>
-
-            <div {...paneFor("waiting")}>
-              <section className="cv-card" aria-label="Payer's answer">
-                <div className="cv-card-head">
-                  <h2 className="cv-card-title">Payer's answer</h2>
-                  <span className="cv-card-meta">Checking every {POLL_INTERVAL_MS / 1000} seconds</span>
-                </div>
-                <p className="cv-card-intro">Waiting for the payer's decision.</p>
-              </section>
-            </div>
-
-            <div {...paneFor("amounts")}>
-              <section className="cv-card" aria-label="Amounts">
-                <div className="cv-card-head">
-                  <h2 className="cv-card-title">Amounts</h2>
-                  {claimResponse?.outcome && <span className="cv-card-meta">Outcome: {claimResponse.outcome}</span>}
-                </div>
-                {approved == null ? (
-                  <p className="cv-card-intro">The payer's answer gives no amounts.</p>
-                ) : (
-                  <div className="cv-card-body">
-                    {[
-                      ["Claimed", totals.submitted],
-                      ["Eligible", totals.eligible],
-                      ["Co-pay", totals.copay],
-                      ["Approved", { value: approved }],
-                    ].filter(([, money]) => money?.value != null).map(([label, money]) => (
-                      <div key={label} className="cv-kv"><span>{label}</span><span>{formatMoney(money.value)}</span></div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
-
-            {lines.length > 0 && (
-              <div {...paneFor("lines")}>
-                <section className="cv-card" aria-label="Line by line">
-                  <div className="cv-card-head"><h2 className="cv-card-title">Line by line</h2></div>
-                  <div className="cv-tw cv-in-card">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th style={{ width: 70 }}>Line</th>
-                          <th style={{ width: 120 }}>Claimed</th>
-                          <th style={{ width: 120 }}>Eligible</th>
-                          <th style={{ width: 120 }}>Approved</th>
-                          <th>Reason</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {lines.map((line, i) => {
-                          const adj = line.adjudication || {};
-                          return (
-                            <tr key={line.sequence ?? i}>
-                              <td>{line.sequence ?? i + 1}</td>
-                              <td>{formatMoney(adj.submitted?.value)}</td>
-                              <td>{formatMoney(adj.eligible?.value)}</td>
-                              <td>{formatMoney(adj.benefit?.value)}</td>
-                              <td>{adj.eligible?.reason || adj.benefit?.reason || adj.reason?.text || "—"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              </div>
-            )}
-
-            {noteCount > 0 && (
-              <div {...paneFor("notes")}>
-                <section className="cv-card" aria-label="Payer notes">
-                  <div className="cv-card-head"><h2 className="cv-card-title">Payer notes</h2></div>
-                  <div className="cv-card-body">
-                    <ol className="ds-notes">
-                      {notes.map((n, i) => (
-                        <li key={n.number ?? i}>
-                          <span className="ep-mono ep-muted">{n.number ?? i + 1}</span>
-                          <span>{n.text}</span>
-                        </li>
-                      ))}
-                      {payerError && (
-                        <li>
-                          <span className="ep-mono ep-muted">!</span>
-                          <span>{payerError}</span>
-                        </li>
-                      )}
-                    </ol>
-                  </div>
-                </section>
-              </div>
-            )}
-
-            <div {...paneFor("details")}>
-              <section className="cv-card" aria-label="Appeal details">
-                <div className="cv-card-head"><h2 className="cv-card-title">Appeal details</h2></div>
-                <div className="cv-card-body">
-                  {[
-                    ["Reason given", sentReason ? reasonName(sentReason) : null],
-                    ["Explanation", sentId ? explanation : null],
-                    ["Documents", sentId ? String(attached) : null],
-                    ["Sent", status?.submitted_at ? formatDate(status.submitted_at) : null],
-                    ["Request ID", correlationId],
-                  ].filter(([, value]) => value).map(([label, value]) => (
-                    <div key={label} className="cv-kv"><span>{label}</span><span>{value}</span></div>
-                  ))}
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
-      </div>
+      <CaseStep ctx={ctx} verdict={verdict} checklist={[]} open="blocked" onOpen={() => {}}>
+        <Pane id="blocked">
+          <NextStep
+            tone={lock.settled ? "info" : "warn"}
+            title="Appeal not available"
+            actions={
+              r.claimLeg === "partial" && !locked ? (
+                <button type="button" className="cv-btn is-primary" onClick={() => toClaim("request_claim_release")}>
+                  Ask for the balance
+                </button>
+              ) : r.claimLeg === "queried" && !locked ? (
+                <button type="button" className="cv-btn is-primary" onClick={() => toClaim("respond_claim_query")}>
+                  Answer on the Claim step
+                </button>
+              ) : (
+                <button type="button" className="cv-btn" onClick={() => toClaim()}>
+                  Back to claim
+                </button>
+              )
+            }
+          >
+            {r.unavailable}
+          </NextStep>
+        </Pane>
+      </CaseStep>
     );
   }
 
-  const barState = readOnly ? ["Not sent", "is-todo", "info"] : blockers.length > 0 ? [`${blockers.length} must be done`, "is-warn", "warn"] : ["Ready to send", "is-ok", "ok"];
+  const names = {};
+  r.lines.forEach((line, i) => {
+    names[line.sequence ?? i + 1] = line.service_name || line.name || `Line ${line.sequence ?? i + 1}`;
+  });
+  const statement = [
+    { label: "Claimed", value: r.totals.submitted?.value },
+    r.totals.eligible?.value != null && r.totals.submitted?.value != null && r.totals.submitted.value - r.totals.eligible.value > 0 && { label: "Disallowed", value: -(r.totals.submitted.value - r.totals.eligible.value) },
+    r.totals.copay?.value > 0 && { label: "Co-payment", value: -r.totals.copay.value },
+    { label: "Approved", value: r.approved, total: true },
+  ].filter(Boolean);
+  const bundle = r.caseId && r.correlationId ? { cashlessCaseId: r.caseId, transactionType: "reprocess", correlationId: r.correlationId } : null;
 
   return (
-    <div className="cv-elig">
-      <div className={`cv-notice cv-verdict is-${barState[2]}`}>
-        <div className="cv-verdict-row">
-          <StageBar ctx={ctx} />
-          <span className={`cv-chip ${barState[1]}`}>{barState[0]}</span>
-          <span className="cv-notice-body">Appeal of claim {claimId ? <strong>{claimId}</strong> : null}</span>
-          <span className="cv-verdict-actions">
-            {backToClaim}
-            {!readOnly && (
-              <button
-                type="button"
-                className="cv-btn is-primary"
-                disabled={!canSend}
-                title={canSend || submitting ? undefined : !claimId ? "This case has no claim to appeal." : "Finish the items marked in red first."}
-                onClick={handleSubmit}
-              >
-                <Send size={15} /> {submitting ? "Submitting…" : "Submit appeal"}
-              </button>
-            )}
-          </span>
-        </div>
-        {submitError && <div className="cv-notice-hint cv-verdict-note is-bad"><strong>Not sent:</strong> {submitError} Fix what the message names and send again.</div>}
-      </div>
-
-      <div className="cv-work">
-        <CaseChecklist groups={groups} open={open} onOpen={openItem} label="Appeal checklist" />
-
-        <div className="cv-work-pane" ref={paneRef}>
-          <div {...paneFor("reason")}>
-            <section className="cv-card" aria-label="Reason">
-              <div className="cv-card-head"><h2 className="cv-card-title">Reason</h2></div>
+    <>
+      <CaseStep
+        ctx={ctx}
+        verdict={verdict}
+        checklist={groups}
+        open={open}
+        onOpen={pane.openItem}
+        checklistLabel="Appeal checklist"
+        loading={r.loading}
+        loadingText="Reading the case…"
+        paneRef={pane.paneRef}
+      >
+        <Pane id="reason">
+          <div className="cv-pane-stack">
+            <RejectionCard rejection={r.rejection} />
+            <Card title="Reason for the appeal" meta="The payer sees this code with your explanation.">
               <div className="cv-card-body">
-                {readOnly ? reasonLabel : <Dropdown compact ariaLabel="Appeal reason" value={reasonCode} options={REASON_CODES} onChange={setReasonCode} />}
+                {locked ? <div className="cv-kv"><span>Reason</span><span>{reasonName(r.reasonCode)}</span></div> : <Dropdown compact ariaLabel="Appeal reason" value={r.reasonCode} options={REASON_CODES} onChange={r.setReasonCode} />}
               </div>
-            </section>
+            </Card>
           </div>
+        </Pane>
 
-          <div {...paneFor("explanation")}>
-            <section className="cv-card" aria-label="Explanation">
-              <div className="cv-card-head"><h2 className="cv-card-title">Explanation</h2></div>
-              <p className="cv-card-intro">Say in plain words why the payer should look again, and point to the evidence you attach.</p>
+        <Pane id="explanation">
+          <div className="cv-pane-stack">
+            <RejectionCard rejection={r.rejection} />
+            <Card title="Explanation" meta="Say in plain words why the payer should look again, and point to the evidence you attach.">
               <div className="cv-card-body">
                 <textarea
-                  className="input-modern rp-textarea"
+                  className="cv-ctl cv-textarea cv-ctl-fill rp-explain"
                   aria-label="Explanation"
-                  placeholder="Explain why the claim should be re-evaluated, referring to the payer's notes…"
-                  value={description}
-                  readOnly={readOnly}
-                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Explain why the claim should be re-evaluated, answering the payer's notes…"
+                  value={r.description}
+                  readOnly={locked}
+                  onChange={(e) => r.setDescription(e.target.value)}
                 />
               </div>
-            </section>
+            </Card>
           </div>
+        </Pane>
 
-          <div {...paneFor("documents")}>
-            <section className="cv-card" aria-label="Documents">
-              <div className="cv-card-head"><h2 className="cv-card-title">Documents</h2></div>
-              <p className="cv-card-intro">An appeal without new evidence is usually rejected again. Attach anything the payer's rejection notes ask for.</p>
+        <Pane id="documents">
+          <Card title="Documents" meta="Attach anything the payer's rejection asks for. Attached files stay while you move between steps; reloading the page drops them.">
+            <div className="cv-card-body">
+              {r.documents.error && (
+                <div className="cv-notice is-bad cv-drawer-note" role="alert">
+                  <div className="cv-notice-body">{r.documents.error}</div>
+                </div>
+              )}
+              <DocumentChecklist
+                documents={r.documents.documents}
+                onUpload={(doc, uploaded) => r.documents.attach(r.documents.documents.indexOf(doc), uploaded)}
+                onAddDocument={r.documents.addCustom}
+                onRenameDocument={r.documents.rename}
+                onRemoveDocument={r.documents.remove}
+                readOnly={locked}
+                hideSummary
+              />
+            </div>
+          </Card>
+        </Pane>
+
+        <Pane id="decision">
+          {isFailed ? (
+            <Card title="Not delivered">
               <div className="cv-card-body">
-                <DocumentChecklist
-                  documents={supportingDocs}
-                  onUpload={handleUpload}
-                  onAddDocument={addDocument}
-                  onRenameDocument={renameDocument}
-                  onRemoveDocument={removeDocument}
-                  readOnly={readOnly}
-                  hideSummary
+                <div className="cv-kv"><span>Reason</span><span>{view.message || "The request did not reach the payer."}</span></div>
+                {view.errors.length > 0 && (
+                  <div className="cv-sub-note-top">
+                    <PayerWords notes={[]} errors={view.errors} empty="" />
+                  </div>
+                )}
+                <TechnicalDetails ids={[{ label: "Request id", value: r.correlationId }]} bundle={bundle} />
+              </div>
+            </Card>
+          ) : isNotFound ? (
+            <Card title="No answer on record">
+              <div className="cv-card-intro">The payer's system has not registered this appeal yet. It usually appears within a few minutes.</div>
+              <div className="cv-card-body">
+                <TechnicalDetails ids={[{ label: "Request id", value: r.correlationId }]} bundle={bundle} />
+              </div>
+            </Card>
+          ) : !isComplete ? (
+            <Card title="Waiting for the payer" chip={<span className="cv-chip is-info">Waiting</span>}>
+              <div className="cv-card-body">
+                <div className="cv-kv"><span>Sent</span><span>{data?.submitted_at ? formatDateTime(data.submitted_at) : "—"}</span></div>
+                <div className="cv-kv"><span>Waiting for</span><span>{r.status.elapsedMs == null ? "—" : `${minutes(r.status.elapsedMs)} min`}</span></div>
+                <div className="cv-kv"><span>Last checked</span><span>{r.status.lastCheckedAt ? formatDateTime(new Date(r.status.lastCheckedAt)) : "checking now"}</span></div>
+                <TechnicalDetails ids={[{ label: "Request id", value: r.correlationId }]} bundle={bundle} />
+              </div>
+            </Card>
+          ) : (
+            <Card title="Payer decision" meta={isUnclear ? "The payer answered without a clear decision." : undefined}>
+              <div className="cv-card-body">
+                <div className="cv-kv"><span>Decision</span><span>{isUnclear ? "Unclear" : chip[0]}</span></div>
+                {r.approved != null && <div className="cv-kv"><span>Approved</span><span>{formatMoney(r.approved)}</span></div>}
+                {(view.notes.length > 0 || r.payerErrors.length > 0) && (
+                  <div className="cv-sub-note-top">
+                    <PayerWords notes={view.notes} errors={r.payerErrors} />
+                  </div>
+                )}
+                <TechnicalDetails
+                  ids={[
+                    { label: "Raw outcome", value: r.claimResponse?.outcome },
+                    { label: "Request id", value: r.correlationId },
+                  ]}
+                  bundle={bundle}
                 />
               </div>
-            </section>
-          </div>
-        </div>
-      </div>
-    </div>
+            </Card>
+          )}
+        </Pane>
+
+        <Pane id="amounts">
+          <Card title="Amounts" meta="What was claimed, what the payer cut, and what it now approves.">
+            <div className="cv-card-body">
+              {statement.map((row) => (
+                <div key={row.label} className={`cv-kv${row.total ? " is-total" : ""}`}>
+                  <span>{row.label}</span>
+                  <span className="money">{row.value == null ? "—" : row.value < 0 ? `− ${formatMoney(-row.value)}` : formatMoney(row.value)}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Pane>
+
+        <Pane id="lines">
+          <Card title="Line by line" meta="The payer's answer for each line of the claim after the appeal.">
+            <div className="cv-in-card cv-sub-note-top">
+              <AdjudicationTable items={r.lines} totals={r.totals} names={names} requestedLabel="Claimed" />
+            </div>
+          </Card>
+        </Pane>
+
+        <Pane id="notes">
+          <Card title="Payer notes" meta="The payer's own words. Read these first when an appeal is queried or rejected.">
+            <div className="cv-card-body">
+              <PayerWords notes={view.notes} errors={r.payerErrors} />
+            </div>
+          </Card>
+        </Pane>
+
+        <Pane id="details">
+          <Card title="What was sent">
+            <div className="cv-card-body">
+              <div className="cv-kv"><span>Reason given</span><span>{r.sentReason ? reasonName(r.sentReason) : "—"}</span></div>
+              {r.send.result && <div className="cv-kv"><span>Explanation</span><span>{r.explanation || "—"}</span></div>}
+              {r.send.result && <div className="cv-kv"><span>Documents</span><span>{r.attached.length}</span></div>}
+              <div className="cv-kv"><span>Sent</span><span>{data?.submitted_at ? formatDateTime(data.submitted_at) : "—"}</span></div>
+              <TechnicalDetails ids={[{ label: "Request id", value: r.correlationId }]} bundle={bundle} />
+            </div>
+          </Card>
+        </Pane>
+      </CaseStep>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Send the appeal?"
+        subtitle="The payer looks at the rejected claim again with your explanation and evidence. Its answer can take days."
+        confirmLabel="Send appeal"
+        busy={r.send.busy}
+        disabled={!canSend}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          r.send.run();
+        }}
+      >
+        <div className="cv-kv"><span>Reason</span><span>{reasonName(r.reasonCode)}</span></div>
+        <div className="cv-kv"><span>Explanation</span><span>{r.explanation.length > 120 ? `${r.explanation.slice(0, 120)}…` : r.explanation}</span></div>
+        <div className="cv-kv"><span>Documents</span><span>{r.attached.length ? `${r.attached.length} attached` : "None"}</span></div>
+        {!r.attached.length && <p className="cv-card-meta cv-sub-note-top">An appeal without new evidence is usually rejected again.</p>}
+      </ConfirmModal>
+    </>
   );
 }
