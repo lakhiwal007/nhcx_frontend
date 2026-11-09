@@ -11,16 +11,14 @@
   --cv-ok: var(--success);
   --cv-warn: var(--warning);
   --cv-bad: var(--error);
-  --cv-ground: color-mix(in srgb, var(--bg-main) 93%, var(--text-main));
-  --cv-rail: color-mix(in srgb, var(--bg-card) 55%, var(--cv-ground));
+  --cv-rail: var(--neutral-soft);
 }
 .cv-root {
-  background: var(--cv-ground);
+  background: var(--cv-card);
   font-size: 14px;
 }
 
 .cv-top {
-  background: var(--cv-card);
   border-bottom: 1px solid var(--cv-line);
   padding: 8px 20px 12px;
 }
@@ -364,11 +362,10 @@
 .cv-elig { display: flex; flex-direction: column; gap: 16px; }
 .cv-verdict { position: sticky; top: 0; z-index: 3; padding: 9px 14px; box-shadow: var(--shadow-xs); }
 .cv-verdict { background: var(--cv-card); }
-.cv-verdict:has(> .cv-verdict-row > .cv-chip.is-ok) { background: var(--success-soft); border-color: var(--success-line); }
-.cv-verdict:has(> .cv-verdict-row > .cv-chip.is-info) { background: var(--info-soft); border-color: var(--info-line); }
-.cv-verdict:has(> .cv-verdict-row > .cv-chip.is-warn) { background: var(--warning-soft); border-color: var(--warning-line); }
-.cv-verdict:has(> .cv-verdict-row > .cv-chip.is-bad) { background: var(--error-soft); border-color: var(--error-line); }
-.cv-verdict:has(> .cv-verdict-row > .cv-chip) .cv-chip:first-of-type { background: var(--cv-card); }
+.cv-verdict:has(> .cv-verdict-row > .cv-chip.is-ok) { background: color-mix(in srgb, var(--success-soft) 50%, var(--cv-card)); border-color: color-mix(in srgb, var(--success-line) 55%, var(--cv-line)); }
+.cv-verdict:has(> .cv-verdict-row > .cv-chip.is-info) { background: color-mix(in srgb, var(--info-soft) 50%, var(--cv-card)); border-color: color-mix(in srgb, var(--info-line) 55%, var(--cv-line)); }
+.cv-verdict:has(> .cv-verdict-row > .cv-chip.is-warn) { background: color-mix(in srgb, var(--warning-soft) 50%, var(--cv-card)); border-color: color-mix(in srgb, var(--warning-line) 55%, var(--cv-line)); }
+.cv-verdict:has(> .cv-verdict-row > .cv-chip.is-bad) { background: color-mix(in srgb, var(--error-soft) 50%, var(--cv-card)); border-color: color-mix(in srgb, var(--error-line) 55%, var(--cv-line)); }
 .cv-verdict .cv-stage-tools { border-left-color: color-mix(in srgb, var(--cv-ink) 14%, transparent); }
 .cv-verdict-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cv-verdict-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
