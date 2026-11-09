@@ -11,7 +11,7 @@ import AttentionTray from "../case/AttentionTray";
 import CaseNotesDrawer from "../case/CaseNotes";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
-import { buildStages, landingStage, stageInfo, stageAmounts } from "../case/caseStages";
+import { buildStages, landingStage, stageInfo } from "../case/caseStages";
 import { useCaseRecord } from "../../hooks/useCaseRecord";
 import "../case/case-workspace.css";
 import "../case/case-v2.css";
@@ -369,7 +369,7 @@ function CaseWorkspace({ reportCase }) {
           moneyLedger={timeline?.money_ledger || null}
           statusPill={caseClosed ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
         />
-        <CaseStepper stages={stages} amounts={stageAmounts({ moneyLedger: timeline?.money_ledger || null, effectiveCase })} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
+        <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
       </div>
 
       <div className="cv-page">
