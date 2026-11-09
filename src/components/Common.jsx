@@ -1,48 +1,12 @@
 import { useState, useRef, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
 import { useReadOnly, READ_ONLY_TITLE } from "../readOnly";
-import {
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  Info,
-  FileText,
-  CheckCircle2,
-  Plus,
-  Trash2,
-  Paperclip,
-  Lightbulb,
-  AlertTriangle,
-  XCircle,
-} from "lucide-react";
+import { AlertCircle, Info, FileText, CheckCircle2, Plus, Trash2, Paperclip, Lightbulb, AlertTriangle, XCircle } from "lucide-react";
 import { glossary } from "../help/glossary.js";
 import { useTips } from "../help/tips.js";
-import { formatMoney, safeHref } from "../format.js";
+import { safeHref, humanize } from "../format.js";
 import { readFileAsAttachment, MAX_ATTACHMENT_BYTES, attachmentLimitText } from "../files";
 
-export { formatMoney };
-
-/**
- * Generic content container with an optional header and header action.
- * The base surface for every panel in the app (dashboards, forms, detail views).
- * @category Layout
- */
-export const Card = ({ title, children, className = "", headerAction }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    className={`card-modern ${className}`}
-  >
-    {title && (
-      <div className="card-header-modern">
-        <h3>{title}</h3>
-        {headerAction}
-      </div>
-    )}
-    <div className="card-body-modern">{children}</div>
-  </motion.div>
-);
 
 /**
  * Primary interactive control. Variants:
@@ -213,104 +177,6 @@ export const NextStep = ({ tone = "info", title, children, steps = [], actions, 
   );
 };
 
-/**
- * Pill badge that maps a workflow status string (e.g. "complete", "pending",
- * "failed", "partial") to a semantic tone (success/warning/error/info) with a
- * matching icon. Unrecognized statuses fall back to the neutral info tone.
- * @category Feedback
- */
-export const StatusBadge = ({ status }) => {
-  const getStatusConfig = (s) => {
-    switch (s != null ? String(s).toLowerCase() : "") {
-      case "complete":
-      case "approved":
-      case "active":
-        return { class: "badge-success", icon: CheckCircle };
-      case "pending":
-      case "submitted":
-      case "draft":
-        return { class: "badge-warning", icon: Clock };
-      case "failed":
-      case "rejected":
-      case "queried":
-        return { class: "badge-error", icon: AlertCircle };
-      case "partial":
-      case "partially_approved":
-        return { class: "badge-info", icon: Info };
-      default:
-        return { class: "badge-info", icon: Info };
-    }
-  };
-
-  const config = getStatusConfig(status);
-  const Icon = config.icon;
-
-  return (
-    <span className={`badge-modern ${config.class}`}>
-      <Icon size={14} />
-      {(status != null ? String(status) : "Unknown").replace(/_/g, " ")}
-    </span>
-  );
-};
-
-/**
- * Labeled text input with an optional leading icon. Renders a `<label>`
- * above the field when `label` is given; the icon (a lucide-react component)
- * sits inset on the left when provided.
- * @category Forms
- */
-export const Input = ({
-  label,
-  value,
-  onChange,
-  onKeyDown,
-  placeholder,
-  type = "text",
-  name,
-  icon: Icon,
-}) => (
-  <div className="input-group-modern">
-    {label && <label className="input-label-modern">{label}</label>}
-    <div className="input-wrapper-modern" style={{ position: "relative" }}>
-      {Icon && (
-        <Icon
-          size={18}
-          style={{
-            position: "absolute",
-            left: "12px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "#64748b",
-          }}
-        />
-      )}
-      <input
-        style={Icon ? { paddingLeft: "40px" } : {}}
-        className="input-modern"
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        placeholder={placeholder}
-      />
-    </div>
-  </div>
-);
-
-// ─── Reusable Flow Components (as per README) ─────────────────────────────
-
-/**
- * Checklist of insurance-claim documents, each row colour-coded by state
- * (attached / required & missing / optional) with an upload action per row
- * and a summary banner when required documents are still missing. When
- * `onAddDocument` is supplied, the hospital can also attach documents that
- * aren't on the pre-populated required/optional list.
- * @category Domain
- */
-// `hideSummary` drops the "N required documents still needed" banner for
-// screens that already state the count elsewhere. `readOnly` shows the list
-// with no way to attach, rename, add or remove.
 export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument, hideSummary = false, readOnly = false }) => {
   const fileInputRef = useRef(null);
   const pendingDocRef = useRef(null);
@@ -336,206 +202,98 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
   };
 
   return (
-    <div>
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
+    <div className="doc-list">
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="sr-only" aria-label="Choose a file" />
       {uploadError && (
-        <div
-          className="warning-banner tone-error mb-4"
-          style={{ display: "flex", gap: "10px", alignItems: "center" }}
-        >
-          <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0 }} />
-          <span style={{ color: "var(--error)", fontWeight: 600, fontSize: "13px" }}>{uploadError}</span>
+        <div className="cv-notice is-bad" role="alert">
+          <div className="cv-notice-body">{uploadError}</div>
         </div>
       )}
       {!hideSummary && missingRequired.length > 0 && (
-        <div
-          className="warning-banner tone-error mb-4"
-          style={{
-            display: "flex",
-            gap: "10px",
-            alignItems: "center",
-          }}
-        >
-          <AlertCircle size={16} color="var(--error)" style={{ flexShrink: 0 }} />
-          <span
-            style={{ color: "var(--error)", fontWeight: 600, fontSize: "13px" }}
-          >
+        <div className="cv-notice is-warn">
+          <div className="cv-notice-body">
             {missingRequired.length} required document{missingRequired.length > 1 ? "s" : ""} still needed
-          </span>
+          </div>
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        {(documents || []).map((doc, i) => {
-          const attached = !!doc.url;
-          const viewHref = safeHref(doc.url);
-          const missing = !doc.optional && !attached;
-          // The left rail colour encodes the row's state so blockers are
-          // scannable: green = attached, red = required & missing, grey = optional.
-          const accent = attached
-            ? "var(--success)"
-            : missing
-              ? "var(--error)"
-              : "var(--border-color)";
-          const StatusIcon = attached ? CheckCircle2 : missing ? AlertCircle : FileText;
-          return (
-            <div
-              key={i}
-              className="doc-row"
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "var(--space-3)",
-                padding: "11px 14px",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-color)",
-                background: "var(--bg-card)",
-              }}
-            >
-              <StatusIcon size={17} color={accent} style={{ flexShrink: 0, marginTop: "1px" }} />
-
-              {/* min-width:0 lets long names wrap instead of overflowing the card */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {doc.custom && onRenameDocument && !readOnly ? (
-                  <input
-                    className="input-modern"
-                    style={{ fontSize: "13px", padding: "4px 8px", fontWeight: 600 }}
-                    placeholder="Document name"
-                    value={doc.name || ""}
-                    onChange={(e) => onRenameDocument(i, e.target.value)}
-                  />
-                ) : (
-                  <div style={{ fontWeight: 600, fontSize: "13.5px", lineHeight: 1.35, overflowWrap: "anywhere" }}>
-                    {doc.name || doc.code || "Document"}
-                  </div>
-                )}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", marginTop: "3px", fontSize: "11.5px", color: "var(--text-muted)" }}>
-                  {doc.code && !doc.custom && (
-                    <span style={{ fontFamily: "var(--cx-font-mono, ui-monospace, monospace)", overflowWrap: "anywhere" }}>
-                      {doc.code}
-                    </span>
-                  )}
-                  {doc.event_date && <span>{doc.event_date}</span>}
-                  {doc.category && <span style={{ textTransform: "capitalize" }}>{doc.category}</span>}
-                </div>
-              </div>
-
-              {/* fixed action zone — never shrinks, stays aligned to the first line */}
-              <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "1px" }}>
-                {missing && (
-                  <span style={{ fontSize: "10px", color: "var(--error)", fontWeight: 700 }}>
-                    REQUIRED
-                  </span>
-                )}
-                {attached && viewHref ? (
-                  <a
-                    href={viewHref}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="badge-modern badge-success"
-                    style={{ fontSize: "10px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "var(--space-1)", whiteSpace: "nowrap" }}
-                  >
-                    <CheckCircle2 size={11} /> Attached
-                  </a>
-                ) : attached ? (
-                  <span
-                    className="badge-modern badge-success"
-                    title="This document's link could not be opened safely."
-                    style={{ fontSize: "10px", display: "inline-flex", alignItems: "center", gap: "var(--space-1)", whiteSpace: "nowrap" }}
-                  >
-                    <CheckCircle2 size={11} /> Attached
-                  </span>
-                ) : readOnly ? null : (
-                  <Button
-                    variant="outline"
-                    size="small"
-                    onClick={() => handlePick(doc)}
-                  >
-                    {doc.optional ? "Attach" : "Upload"}
-                  </Button>
-                )}
-                {doc.custom && onRemoveDocument && !readOnly && (
-                  <button
-                    onClick={() => onRemoveDocument(i)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", padding: "2px", display: "flex", flexShrink: 0, transition: "transform 0.15s ease" }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
+      {(documents || []).map((doc, i) => {
+        const attached = !!doc.url;
+        const viewHref = safeHref(doc.url);
+        const missing = !doc.optional && !attached;
+        const StatusIcon = attached ? CheckCircle2 : missing ? AlertCircle : FileText;
+        return (
+          <div key={i} className={`doc-row${attached ? " is-attached" : missing ? " is-missing" : ""}`}>
+            <StatusIcon size={17} className="doc-icon" aria-hidden="true" />
+            <div className="doc-main">
+              {doc.custom && onRenameDocument && !readOnly ? (
+                <input className="cv-ctl cv-ctl-fill doc-name-input" placeholder="Document name" aria-label="Document name" value={doc.name || ""} onChange={(e) => onRenameDocument(i, e.target.value)} />
+              ) : (
+                <div className="doc-name">{doc.name || doc.code || "Document"}</div>
+              )}
+              <div className="doc-meta">
+                {doc.code && !doc.custom && <span className="cv-mono">{doc.code}</span>}
+                {doc.event_date && <span>{doc.event_date}</span>}
+                {doc.category && <span>{humanize(doc.category)}</span>}
               </div>
             </div>
-          );
-        })}
-      </div>
+            <div className="doc-actions">
+              {missing && <span className="doc-required">Required</span>}
+              {attached && viewHref ? (
+                <a href={viewHref} target="_blank" rel="noreferrer noopener" className="cv-chip is-ok doc-attached">
+                  <CheckCircle2 size={11} aria-hidden="true" /> Attached
+                </a>
+              ) : attached ? (
+                <span className="cv-chip is-ok doc-attached" title="This document's link could not be opened safely.">
+                  <CheckCircle2 size={11} aria-hidden="true" /> Attached
+                </span>
+              ) : readOnly ? null : (
+                <Button variant="outline" size="small" onClick={() => handlePick(doc)}>
+                  {doc.optional ? "Attach" : "Upload"}
+                </Button>
+              )}
+              {doc.custom && onRemoveDocument && !readOnly && (
+                <button type="button" className="cv-icon-btn doc-remove" aria-label={`Remove ${doc.name || "this document"}`} onClick={() => onRemoveDocument(i)}>
+                  <Trash2 size={13} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
       {onAddDocument && !readOnly && (
-        <button
-          onClick={onAddDocument}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "var(--space-1)", fontSize: "12px", fontWeight: 700, padding: "6px", marginTop: "var(--space-2)" }}
-        >
-          <Plus size={13} /> Add Document
+        <button type="button" className="cv-link doc-add" onClick={onAddDocument}>
+          <Plus size={13} aria-hidden="true" /> Add a document
         </button>
       )}
     </div>
   );
 };
 
-/**
- * Full-block loading indicator: spinner plus an optional status message.
- * `compact` drops the message layout for small inline uses (e.g. within a card).
- * @category Feedback
- */
 export const LoadingBlock = ({ text, compact = false }) => (
-  <div className={compact ? "flex-center py-8" : "flex-center py-20 flex-col"}>
+  <div className={compact ? "flex-center py-8" : "flex-center py-20 flex-col"} role="status">
     <div className={compact ? "spinner" : "spinner mb-4"} />
     {text && <p className="text-muted">{text}</p>}
   </div>
 );
 
-/**
- * Centered empty-state card: optional icon, title, description, and children
- * (e.g. a call-to-action Button).
- * @category Feedback
- */
-export const EmptyState = ({
-  icon: Icon,
-  iconSize = 48,
-  iconColor,
-  iconOpacity = 0.3,
-  title,
-  description,
-  children,
-}) => (
+export const EmptyState = ({ icon: Icon, iconSize = 48, title, description, children }) => (
   <div className="empty-view">
-    {Icon && (
-      <Icon size={iconSize} style={{ opacity: iconOpacity, color: iconColor, marginBottom: "var(--space-4)" }} />
-    )}
+    {Icon && <Icon size={iconSize} className="empty-view-icon" aria-hidden="true" />}
     <h3>{title}</h3>
     {description && <p>{description}</p>}
     {children}
   </div>
 );
 
-/**
- * Loading placeholder shaped like a data table, with staggered shimmer rows.
- * Use while a table's real rows are still being fetched.
- * @category Feedback
- */
 export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
-  <div className="table-responsive-wrapper">
+  <div className="table-responsive-wrapper" aria-hidden="true">
     <table className="table-modern">
       <tbody>
         {Array.from({ length: rows }).map((_, i) => (
           <tr key={i} className="skeleton-row">
             {Array.from({ length: cols }).map((_, j) => (
               <td key={j}>
-                <span
-                  className="skeleton-line"
-                  style={{
-                    height: "13px",
-                    width: j === cols - 1 ? "64px" : j === 0 ? "80px" : `${Math.max(45, 85 - j * 10)}%`,
-                  }}
-                />
+                <span className={`skeleton-line skeleton-cell${j === 0 ? " is-first" : j === cols - 1 ? " is-last" : ""}`} style={{ "--skeleton-w": `${Math.max(45, 85 - j * 10)}%` }} />
               </td>
             ))}
           </tr>
@@ -545,66 +303,35 @@ export const SkeletonTable = ({ rows = 5, cols = 5 }) => (
   </div>
 );
 
-/**
- * Footer pager for a client-side paginated table: "Showing X–Y of N" plus
- * Prev/Next buttons. `page` is zero-based. Renders nothing when `total` fits
- * on one page.
- * @category Navigation
- */
 export const TablePagination = ({ page, pageSize, total, onPageChange, label = "rows" }) => {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   if (total <= pageSize) return null;
-
   const from = total === 0 ? 0 : page * pageSize + 1;
   const to = Math.min(total, (page + 1) * pageSize);
-
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "var(--space-3)",
-        flexWrap: "wrap",
-        paddingTop: "var(--space-4)",
-        marginTop: "var(--space-2)",
-        borderTop: "1px solid var(--border-color)",
-      }}
-    >
-      <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>
+    <nav className="pager" aria-label="Pages">
+      <span className="pager-info">
         Showing {from}–{to} of {total} {label}
       </span>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-        <Button variant="outline" disabled={page === 0} onClick={() => onPageChange(page - 1)}>
-          ‹ Prev
+      <div className="pager-nav">
+        <Button variant="outline" size="small" disabled={page === 0} onClick={() => onPageChange(page - 1)}>
+          Previous
         </Button>
-        <span style={{ fontSize: "12px", color: "var(--text-muted)", minWidth: "84px", textAlign: "center" }}>
+        <span className="pager-page">
           Page {page + 1} of {pageCount}
         </span>
-        <Button variant="outline" disabled={page >= pageCount - 1} onClick={() => onPageChange(page + 1)}>
-          Next ›
+        <Button variant="outline" size="small" disabled={page >= pageCount - 1} onClick={() => onPageChange(page + 1)}>
+          Next
         </Button>
       </div>
-    </div>
+    </nav>
   );
 };
 
-/**
- * Controlled form fields for answering a payer query: a response textarea
- * plus a supporting-documents file picker. Parent owns `answer` and
- * `documents` (each `{title, contentType, data}` with base64 `data`).
- * @category Forms
- */
-export const QueryResponseFields = ({
-  answer,
-  onAnswerChange,
-  documents = [],
-  onDocumentsChange,
-  label = "Your Response",
-  placeholder = "Describe the clinical justification for the requested service…",
-}) => {
+export const QueryResponseFields = ({ answer, onAnswerChange, documents = [], onDocumentsChange, label = "Your answer", placeholder = "Answer the payer, and attach what it asks for" }) => {
   const fileInputRef = useRef(null);
   const [error, setError] = useState(null);
+  const id = useId();
 
   const readFile = (file) => readFileAsAttachment(file).then(({ title, contentType, data }) => ({ title, contentType, data }));
 
@@ -613,15 +340,10 @@ export const QueryResponseFields = ({
     e.target.value = "";
     if (picked.length === 0) return;
     setError(null);
-
     const tooBig = picked.filter((f) => f.size > MAX_ATTACHMENT_BYTES);
-    if (tooBig.length > 0) {
-      setError(`${tooBig.map((f) => f.name).join(", ")} — larger than ${attachmentLimitText()}, please attach smaller files.`);
-    }
-
+    if (tooBig.length > 0) setError(`${tooBig.map((f) => f.name).join(", ")}: larger than ${attachmentLimitText()}. Attach smaller files.`);
     const usable = picked.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
     if (usable.length === 0) return;
-
     try {
       const read = await Promise.all(usable.map(readFile));
       onDocumentsChange([...documents, ...read]);
@@ -636,48 +358,40 @@ export const QueryResponseFields = ({
   };
 
   return (
-    <>
-      <div style={{ marginBottom: "var(--space-4)" }}>
-        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>{label}</label>
-        <textarea
-          className="input-modern"
-          rows={4}
-          placeholder={placeholder}
-          value={answer}
-          onChange={(e) => onAnswerChange(e.target.value)}
-        />
-      </div>
-      <div style={{ marginBottom: "var(--space-5)" }}>
-        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>
-          Supporting Documents{documents.length > 0 ? ` (${documents.length})` : ""}
+    <div className="qr-fields">
+      <div className="cv-field-stack">
+        <label className="cv-field-key" htmlFor={`${id}-answer`}>
+          {label}
         </label>
-        <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
-        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
-          <Button variant="outline" icon={Paperclip} onClick={() => fileInputRef.current?.click()}>
+        <textarea id={`${id}-answer`} className="cv-ctl cv-textarea cv-ctl-fill" rows={4} placeholder={placeholder} value={answer} onChange={(e) => onAnswerChange(e.target.value)} />
+      </div>
+      <div className="cv-field-stack">
+        <span className="cv-field-key">Supporting documents{documents.length > 0 ? ` (${documents.length})` : ""}</span>
+        <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="sr-only" aria-label="Choose files" />
+        <div>
+          <Button variant="outline" size="small" icon={Paperclip} onClick={() => fileInputRef.current?.click()}>
             {documents.length > 0 ? "Add more files" : "Choose files"}
           </Button>
         </div>
         {documents.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "8px" }}>
+          <ul className="qr-files">
             {documents.map((d, i) => (
-              <div key={`${d.title}-${i}`} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", padding: "5px 9px", background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "6px" }}>
-                <Paperclip size={12} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
-                <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
-                <button
-                  onClick={() => removeAt(i)}
-                  style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}
-                  title={`Remove ${d.title}`}
-                >
-                  <Trash2 size={14} />
+              <li key={`${d.title}-${i}`}>
+                <Paperclip size={12} aria-hidden="true" />
+                <span className="qr-file-name">{d.title}</span>
+                <button type="button" className="cv-icon-btn" onClick={() => removeAt(i)} aria-label={`Remove ${d.title}`}>
+                  <Trash2 size={14} aria-hidden="true" />
                 </button>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
         {error && (
-          <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>{error}</div>
+          <div className="cv-notice is-bad" role="alert">
+            <div className="cv-notice-body">{error}</div>
+          </div>
         )}
       </div>
-    </>
+    </div>
   );
 };

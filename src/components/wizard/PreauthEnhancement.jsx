@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
-import { DocumentChecklist, NextStep, formatMoney } from "../Common";
-import { formatDate } from "../../format.js";
+import { DocumentChecklist, NextStep } from "../Common";
+import { formatDate, formatMoney } from "../../format.js";
 import PatientDetailsForm from "../case/PatientDetailsForm";
 import SendGateModal from "../case/SendGateModal";
 import CaseStep, { Pane, Verdict } from "../case/CaseStep";

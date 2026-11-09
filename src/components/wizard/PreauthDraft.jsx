@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, FileJson, ArrowRight } from "lucide-react";
-import { DocumentChecklist, formatMoney } from "../Common";
-import { formatDate } from "../../format.js";
+import { DocumentChecklist } from "../Common";
+import { formatDate, formatMoney } from "../../format.js";
 import PatientDetailsForm from "../case/PatientDetailsForm";
 import PayerAsks from "../case/PayerAsks";
 import BiometricCard from "../case/BiometricCard";
