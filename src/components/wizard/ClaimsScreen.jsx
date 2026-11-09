@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, RefreshCw, Send, Wifi, MessageSquare, Wallet } from "lucide-react";
 import { DocumentChecklist, NextStep, Tip } from "../Common";
-import { formatDate, formatDateTime, formatMoney, humanize } from "../../format.js";
+import { formatCaseRef, formatDate, formatDateTime, formatMoney, humanize } from "../../format.js";
 import { useCaseLock } from "../../hooks/useCaseLock";
 import { useClaimWorkflow } from "../../hooks/useClaimWorkflow";
 import { useSendGate } from "../../hooks/useSendGate";
@@ -20,7 +20,7 @@ import DischargeResubmitDrawer from "../case/DischargeResubmitDrawer";
 import ReleaseDrawer from "../case/ReleaseDrawer";
 import SendGateModal from "../case/SendGateModal";
 import ConfirmModal from "../ConfirmModal";
-import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
+import SendMessageDrawer, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendMessageDrawer";
 import { fieldList } from "../case/fieldLabels";
 import { firstClaimItem } from "../case/claimChecklist";
 
@@ -747,11 +747,12 @@ export default function ClaimsScreen({ ctx }) {
         />
       )}
 
-      <SendCommunicationModal
+      <SendMessageDrawer
         open={messageOpen}
         onClose={() => setMessageOpen(false)}
         defaultPayerId={caseState.payer?.code || cashlessCase?.payer_id || ""}
-        defaultClaimReference={data?.claim_response_ref || ""}
+        defaultClaimReference={data?.claim_response_ref || draft?.preauth_ref || ""}
+        references={[data?.claim_response_ref && { value: data.claim_response_ref, label: "Claim" }, draft?.preauth_ref && { value: draft.preauth_ref, label: "Pre-auth" }, c.caseId && { value: formatCaseRef(c.caseId), label: "Case" }].filter(Boolean)}
         claimId={c.claimId}
         cashlessCaseId={c.caseId}
       />

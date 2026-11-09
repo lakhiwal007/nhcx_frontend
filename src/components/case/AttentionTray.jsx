@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MessageSquare, Pin, Clock, ChevronDown } from "lucide-react";
 import { formatRelative } from "../../format.js";
-import { commHeadline, commPreview } from "../CommunicationDetail";
+import { commHeadline, commPreview } from "../../communications";
 
 function itemsFor({ communications, notes, heldTasks }) {
   const items = [];

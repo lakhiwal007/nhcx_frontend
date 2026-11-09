@@ -1,3 +1,4 @@
+:root,
 .cv-root {
   --cv-ink: var(--text-main);
   --cv-soft: var(--text-muted);
@@ -10,6 +11,8 @@
   --cv-ok: var(--success);
   --cv-warn: var(--warning);
   --cv-bad: var(--error);
+}
+.cv-root {
   background: var(--bg-main);
   font-size: 14px;
 }

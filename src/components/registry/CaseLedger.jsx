@@ -8,7 +8,7 @@ import TechnicalDetails from "../case/TechnicalDetails";
 import { CaseStatusChip, StageTrack } from "../caseJourney";
 import { formatDate, formatMoney, formatCaseRef, formatRelative, humanize, priorityLabel } from "../../format.js";
 import { taskLabel } from "../../tasks";
-import { commHeadline, commPreview } from "../CommunicationDetail";
+import { commHeadline, commPreview } from "../../communications";
 import { admissionMoney, amountOf, billingLabel, casesOfVisit, daysBetween, isOpenCase, money } from "./registryUtil";
 
 function Ledger({ columns, rows, label, empty }) {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, RefreshCw, PlusCircle, X, Wifi, Send, MessageSquare } from "lucide-react";
 import { NextStep, Tip } from "../Common";
-import { formatDate, formatDateTime, formatMoney, humanize } from "../../format.js";
+import { formatCaseRef, formatDate, formatDateTime, formatMoney, humanize } from "../../format.js";
 import { useCaseLock } from "../../hooks/useCaseLock";
 import { usePreauthDecision } from "../../hooks/usePreauthDecision";
 import { useCasePane } from "../case/useCasePane";
@@ -14,7 +14,7 @@ import AnswerPayerQuery from "../case/AnswerPayerQuery";
 import ResubmitPreauthDrawer from "../case/ResubmitPreauthDrawer";
 import CancelPreauthModal from "../case/CancelPreauthModal";
 import PayrErrorList from "../PayrErrorList";
-import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendCommunicationModal";
+import SendMessageDrawer, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../SendMessageDrawer";
 import { buildApprovalChecklist, firstApprovalItem } from "../case/approvalChecklist";
 
 const SOFT_WARNING_MS = 120_000;
@@ -427,7 +427,7 @@ export default function PreauthStatus({ ctx }) {
 
       <CancelPreauthModal open={cancelOpen} onClose={() => setCancelOpen(false)} preauthRef={data?.preauth_ref} approvedAmount={approvedValue} cancel={p.cancel} />
 
-      <SendCommunicationModal open={messageOpen} onClose={() => setMessageOpen(false)} defaultPayerId={caseState.payer?.code || cashlessCase?.payer_id || ""} defaultClaimReference={data?.preauth_ref || ""} claimId={claim_id} cashlessCaseId={cashless_case_id} />
+      <SendMessageDrawer open={messageOpen} onClose={() => setMessageOpen(false)} defaultPayerId={caseState.payer?.code || cashlessCase?.payer_id || ""} defaultClaimReference={data?.preauth_ref || ""} references={[data?.preauth_ref && { value: data.preauth_ref, label: "Pre-auth" }, cashless_case_id && { value: formatCaseRef(cashless_case_id), label: "Case" }].filter(Boolean)} claimId={claim_id} cashlessCaseId={cashless_case_id} />
     </>
   );
 }

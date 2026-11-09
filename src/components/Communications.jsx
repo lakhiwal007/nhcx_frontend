@@ -1,20 +1,17 @@
 import { useState, useEffect } from "react";
-import { Paperclip, AlertCircle, Send, RefreshCw } from "lucide-react";
-import { api } from "../api";
+import { Paperclip, Send, RefreshCw } from "lucide-react";
+import { api, markHandled } from "../api";
 import { Button, SkeletonTable, TablePagination, Tip } from "./Common";
 import PageActions from "./PageActions";
 import Dropdown from "./Dropdown";
 import { formatDateTime, formatRelative, priorityLabel } from "../format.js";
-import SendCommunicationModal, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendCommunicationModal";
+import SendMessageDrawer, { OUTBOUND_COMMUNICATIONS_ENABLED } from "./SendMessageDrawer";
 import PayerName from "./PayerName";
-import CommunicationDetailDrawer, {
-  REASON_CONFIG,
-  commHeadline,
-  commPreview,
-  commHasAttachment,
-} from "./CommunicationDetail";
+import CommunicationDetailDrawer from "./CommunicationDetail";
+import { commHeadline, commPreview, commHasAttachment, commTime, hasOpenTask, isUrgent, priorityRank, reasonLabel } from "../communications";
+import { taskLabel } from "../tasks";
 
-const COMMS_PAGE_SIZE = 20;
+const PAGE_SIZE = 20;
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },
@@ -22,168 +19,153 @@ const SORT_OPTIONS = [
   { value: "priority", label: "Priority first" },
 ];
 
+const VIEWS = [
+  { key: "unread", label: "Unread", match: (c) => !c.provider_read, dot: "var(--info)" },
+  { key: "action", label: "Needs action", match: hasOpenTask, dot: "var(--warning)" },
+  { key: "read", label: "Read", match: (c) => !!c.provider_read },
+  { key: "all", label: "All", match: () => true },
+];
+
 export default function Communications({ allFacilitiesMode = false }) {
-  const [communications, setCommunications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [data, setData] = useState({ key: -1, list: null, error: null });
+  const [reloadKey, setReloadKey] = useState(0);
+  const [search, setSearch] = useState("");
   const [payerFilter, setPayerFilter] = useState("");
-  const [selectedCorrelationId, setSelectedCorrelationId] = useState(null);
-  const [showSendModal, setShowSendModal] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [sendOpen, setSendOpen] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
-  // One view filter: unread / action / read / all (persisted per browser).
-  const [readFilter, setReadFilter] = useState(() => localStorage.getItem("communications_readFilter") || "unread");
+  const [page, setPage] = useState(0);
+  const [view, setView] = useState(() => localStorage.getItem("communications_readFilter") || "unread");
 
-  useEffect(() => { localStorage.setItem("communications_readFilter", readFilter); }, [readFilter]);
+  useEffect(() => {
+    localStorage.setItem("communications_readFilter", view);
+  }, [view]);
 
-  const fetchComms = async (params = {}) => {
-    setLoading(true);
-    setLoadError(false);
-    try {
-      const res = await api.listCommunications(params);
-      setCommunications(res?.communications || []);
-    } catch (_) {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    let live = true;
+    api
+      .listCommunications({ limit: 200 })
+      .then((res) => live && setData({ key: reloadKey, list: res?.communications || [], error: null }))
+      .catch((err) => {
+        markHandled(err);
+        if (live) setData((prev) => ({ ...prev, key: reloadKey, error: err?.message || "The messages could not be loaded." }));
+      });
+    return () => {
+      live = false;
+    };
+  }, [reloadKey]);
 
-  useEffect(() => { fetchComms({ limit: 200 }); }, []);
+  const loading = data.key !== reloadKey;
+  const communications = data.list || [];
+  const refresh = () => setReloadKey((k) => k + 1);
+  const markRead = (id) => setData((prev) => ({ ...prev, list: (prev.list || []).map((c) => (c.correlation_id === id ? { ...c, provider_read: true } : c)) }));
 
-  const handleRead = (correlationId) => {
-    setCommunications((prev) =>
-      prev.map((c) => c.correlation_id === correlationId ? { ...c, provider_read: true } : c)
-    );
-  };
-
-  const uniquePayers = [...new Set(communications.map((c) => c.payer_id).filter(Boolean))];
-  const payerLabel = (code) => communications.find((c) => c.payer_id === code)?.payer_name || code;
-
-  const [commsPage, setCommsPage] = useState(0);
-  const isAction = (c) => c.pending_tasks?.length > 0;
-  const VIEWS = [
-    { key: "unread", label: "Unread", match: (c) => !c.provider_read, dot: "var(--info)" },
-    { key: "action", label: "Needs action", match: isAction, dot: "var(--warning)" },
-    { key: "read", label: "Read", match: (c) => !!c.provider_read },
-    { key: "all", label: "All", match: () => true },
-  ];
-  const view = VIEWS.find((v) => v.key === readFilter) || VIEWS[0];
-
-  const q = searchQuery.trim().toLowerCase();
+  const payers = [...new Map(communications.filter((c) => c.payer_id).map((c) => [c.payer_id, c.payer_name || c.payer_id])).entries()];
+  const q = search.trim().toLowerCase();
   const searched = communications.filter((c) => {
-    const matchSearch = !q ||
-      c.topic_display?.toLowerCase().includes(q) ||
-      c.payer_id?.toLowerCase().includes(q) ||
-      c.payer_name?.toLowerCase().includes(q) ||
-      c.claim_reference?.toLowerCase().includes(q) ||
-      c.reason_display?.toLowerCase().includes(q) ||
-      c.subject?.toLowerCase().includes(q);
-    return matchSearch && (!payerFilter || c.payer_id === payerFilter);
+    const hit = !q || [c.topic_display, c.payer_id, c.payer_name, c.claim_reference, c.reason_display, c.subject, reasonLabel(c)].some((v) => v?.toLowerCase().includes(q));
+    return hit && (!payerFilter || c.payer_id === payerFilter);
   });
-  const viewCounts = Object.fromEntries(VIEWS.map((v) => [v.key, searched.filter(v.match).length]));
-
-  const priorityRank = (c) => (c.priority === "urgent" || c.priority === "stat" ? 2 : c.priority === "asap" ? 1 : 0);
-  const filteredComms = searched.filter(view.match).sort((a, b) => {
+  const current = VIEWS.find((v) => v.key === view) || VIEWS[0];
+  const counts = Object.fromEntries(VIEWS.map((v) => [v.key, searched.filter(v.match).length]));
+  const filtered = searched.filter(current.match).sort((a, b) => {
     if (sortBy === "priority" && priorityRank(a) !== priorityRank(b)) return priorityRank(b) - priorityRank(a);
-    const tA = Date.parse(a.sent_at) || 0;
-    const tB = Date.parse(b.sent_at) || 0;
+    const tA = Date.parse(commTime(a)) || 0;
+    const tB = Date.parse(commTime(b)) || 0;
     return sortBy === "oldest" ? tA - tB : tB - tA;
   });
-
-  const commsPageCount = Math.max(1, Math.ceil(filteredComms.length / COMMS_PAGE_SIZE));
-  const safeCommsPage = Math.min(commsPage, commsPageCount - 1);
-  const pagedComms = filteredComms.slice(safeCommsPage * COMMS_PAGE_SIZE, (safeCommsPage + 1) * COMMS_PAGE_SIZE);
-
-  const payerOptions = [{ value: "", label: "All payers" }, ...uniquePayers.map((p) => ({ value: p, label: payerLabel(p) }))];
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const pickView = (key) => {
+    setView(key);
+    setPage(0);
+  };
 
   return (
     <div className="cc-screen communications-screen">
       <PageActions>
-        <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={() => fetchComms({ limit: 200 })} title="Reload the messages">
+        <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={refresh} title="Reload the messages">
           {loading ? "Refreshing…" : "Refresh"}
         </Button>
-        {OUTBOUND_COMMUNICATIONS_ENABLED && (
-          <Button variant="outline" size="small" icon={Send} onClick={() => setShowSendModal(true)} title="Message payer">
+        {OUTBOUND_COMMUNICATIONS_ENABLED && !allFacilitiesMode && (
+          <Button variant="primary" size="small" icon={Send} write onClick={() => setSendOpen(true)}>
             Message payer
           </Button>
         )}
       </PageActions>
 
-      {loadError && (
-        <div className="inline-error-banner" style={{ margin: 0 }}>
-          <AlertCircle size={16} />
-          Could not load communications. Showing the last known results, if any.
+      {data.error && (
+        <div className="cv-notice is-warn" role="alert">
+          <div className="cv-notice-body">The messages could not be loaded{data.list ? ", so the list may be out of date" : ""}: {data.error}</div>
+          <div className="cv-notice-actions">
+            <button type="button" className="cc-act" onClick={refresh}>
+              Retry
+            </button>
+          </div>
         </div>
       )}
 
-      <Tip className="wq-page-tip">
-        Messages from payers about your cases. A query needs a reply with what the payer asks for; a notification only needs
-        reading.
-      </Tip>
+      <Tip className="wq-page-tip">Messages from payers about your cases. A query needs a reply with what the payer asks for; a notification only needs reading.</Tip>
 
       <div className="wq-panel">
         <div className="wq-toolbar">
           <input
             className="input-modern wq-search"
-            placeholder="Search topic, payer, claim, subject…"
+            placeholder="Search topic, payer, reference or subject…"
             aria-label="Search messages"
-            value={searchQuery}
+            value={search}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCommsPage(0);
+              setSearch(e.target.value);
+              setPage(0);
             }}
           />
-          <div className="wq-chips" role="tablist" aria-label="Message view">
+          <div className="wq-chips" role="group" aria-label="Message view">
             {VIEWS.map((v) => (
-              <button
-                key={v.key}
-                type="button"
-                role="tab"
-                aria-selected={view.key === v.key}
-                className={`wq-chip${view.key === v.key ? " is-on" : ""}`}
-                onClick={() => {
-                  setReadFilter(v.key);
-                  setCommsPage(0);
-                }}
-              >
+              <button key={v.key} type="button" aria-pressed={current.key === v.key} className={`wq-chip${current.key === v.key ? " is-on" : ""}`} onClick={() => pickView(v.key)}>
                 {v.dot && <span className="wq-chip-dot" style={{ "--wq-dot": v.dot }} />}
                 {v.label}
-                <span className="wq-chip-count">{loading ? "–" : viewCounts[v.key]}</span>
+                <span className="wq-chip-count">{loading && !data.list ? "–" : counts[v.key]}</span>
               </button>
             ))}
           </div>
           <div className="wq-toolbar-spacer" />
-          {uniquePayers.length > 1 && (
-            <div style={{ width: "180px" }}>
-              <Dropdown compact ariaLabel="Payer" value={payerFilter} options={payerOptions} onChange={(v) => { setPayerFilter(v); setCommsPage(0); }} />
+          {payers.length > 1 && (
+            <div className="cm-filter">
+              <Dropdown
+                compact
+                ariaLabel="Payer"
+                value={payerFilter}
+                options={[{ value: "", label: "All payers" }, ...payers.map(([code, name]) => ({ value: code, label: name }))]}
+                onChange={(v) => {
+                  setPayerFilter(v);
+                  setPage(0);
+                }}
+              />
             </div>
           )}
-          <div style={{ width: "160px" }}>
-            <Dropdown compact ariaLabel="Sort" value={sortBy} options={SORT_OPTIONS} onChange={(v) => { setSortBy(v); setCommsPage(0); }} />
+          <div className="cc-sort">
+            <Dropdown
+              compact
+              ariaLabel="Sort"
+              value={sortBy}
+              options={SORT_OPTIONS}
+              onChange={(v) => {
+                setSortBy(v);
+                setPage(0);
+              }}
+            />
           </div>
         </div>
 
-        {loading ? (
+        {loading && !data.list ? (
           <SkeletonTable rows={5} cols={4} />
-        ) : filteredComms.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="wq-empty">
-            <div className="wq-empty-title">
-              {view.key === "unread" && communications.length > 0 && !q && !payerFilter
-                ? "You're all caught up"
-                : communications.length === 0
-                  ? "No payer messages yet"
-                  : "No messages match these filters"}
-            </div>
-            {communications.length > 0 && (
-              <div className="cc-empty-hint">
-                {view.key === "unread" && !q && !payerFilter
-                  ? `All ${communications.length} payer message${communications.length === 1 ? " has" : "s have"} been read.`
-                  : "Try a different search, payer or view."}
-              </div>
-            )}
-            {communications.length > 0 && view.key !== "all" && (
-              <Button variant="outline" size="small" onClick={() => setReadFilter("all")}>
+            <div className="wq-empty-title">{current.key === "unread" && communications.length > 0 && !q && !payerFilter ? "You're all caught up" : communications.length === 0 ? "No payer messages yet" : "No messages match these filters"}</div>
+            {communications.length > 0 && <div className="cc-empty-hint">{current.key === "unread" && !q && !payerFilter ? `All ${communications.length} payer message${communications.length === 1 ? " has" : "s have"} been read.` : "Try a different search, payer or view."}</div>}
+            {communications.length > 0 && current.key !== "all" && (
+              <Button variant="outline" size="small" onClick={() => pickView("all")}>
                 Show all messages
               </Button>
             )}
@@ -191,43 +173,35 @@ export default function Communications({ allFacilitiesMode = false }) {
         ) : (
           <>
             <ul className="cm-inbox">
-              {pagedComms.map((comm) => {
-                const hasAction = isAction(comm);
-                const isUnread = !comm.provider_read;
+              {paged.map((comm) => {
+                const action = hasOpenTask(comm);
+                const unread = !comm.provider_read;
                 const preview = commPreview(comm);
-                const reasonLabel = REASON_CONFIG[comm.reason_code]?.label || comm.reason_display || comm.reason_code;
-                const urgent = /urgent|stat/i.test(comm.priority || "");
                 return (
                   <li key={comm.correlation_id}>
-                    <button
-                      type="button"
-                      className={`cm-item${isUnread ? " is-unread" : ""}${hasAction ? " is-action" : ""}`}
-                      onClick={() => setSelectedCorrelationId(comm.correlation_id)}
-                    >
-                      <span className="cm-item-dot" aria-label={isUnread ? "Unread" : undefined} />
+                    <button type="button" className={`cm-item${unread ? " is-unread" : ""}${action ? " is-action" : ""}`} onClick={() => setSelected(comm.correlation_id)}>
+                      <span className="cm-item-dot" aria-label={unread ? "Unread" : undefined} />
                       <span className="cm-item-main">
                         <span className="cm-item-title">
                           {commHeadline(comm)}
                           {commHasAttachment(comm) && <Paperclip size={13} className="cm-item-icon" aria-label="Has attachment" />}
                         </span>
-                        <span className="cm-item-preview">{preview || "No message body was sent with this notification."}</span>
+                        <span className="cm-item-preview">{preview || "No message text came with this notification."}</span>
                         <span className="cm-item-tags">
-                          {comm.priority && <span className={urgent ? "is-bad" : undefined}>{priorityLabel(comm.priority)}</span>}
-                          {reasonLabel && <span>{reasonLabel}</span>}
-                          {hasAction && (
-                            <span className="cm-item-task">
-                              {comm.pending_tasks.length} open task{comm.pending_tasks.length > 1 ? "s" : ""}: {comm.pending_tasks.map((t) => t.title).join(", ")}
-                            </span>
-                          )}
+                          {comm.priority && <span className={isUrgent(comm) ? "is-bad" : undefined}>{priorityLabel(comm.priority)}</span>}
+                          {reasonLabel(comm) && reasonLabel(comm) !== commHeadline(comm) && <span>{reasonLabel(comm)}</span>}
+                          {action && <span className="cm-item-task">{comm.pending_tasks.map((t) => taskLabel(t.task_type) || t.title).join(", ")}</span>}
                         </span>
                       </span>
                       <span className="cm-item-side">
-                        <span className="cm-item-payer"><PayerName id={comm.payer_id} name={comm.payer_name} /></span>
+                        <span className="cm-item-payer">
+                          <PayerName id={comm.payer_id} name={comm.payer_name} />
+                        </span>
                         {comm.claim_reference && <span className="wq-mono cm-item-ref">{comm.claim_reference}</span>}
                         {comm.facility_name && <span className="cm-item-ref">{comm.facility_name}</span>}
                       </span>
-                      <span className="cm-item-time" title={formatDateTime(comm.sent_at)}>
-                        {formatRelative(comm.sent_at)}
+                      <span className="cm-item-time" title={formatDateTime(commTime(comm))}>
+                        {formatRelative(commTime(comm))}
                       </span>
                     </button>
                   </li>
@@ -235,27 +209,15 @@ export default function Communications({ allFacilitiesMode = false }) {
               })}
             </ul>
             <div className="wq-pagination">
-              <TablePagination
-                page={safeCommsPage}
-                pageSize={COMMS_PAGE_SIZE}
-                total={filteredComms.length}
-                onPageChange={setCommsPage}
-                label="messages"
-              />
+              <TablePagination page={safePage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} label="messages" />
             </div>
           </>
         )}
       </div>
 
-      <CommunicationDetailDrawer
-        correlationId={selectedCorrelationId}
-        open={!!selectedCorrelationId}
-        onClose={() => setSelectedCorrelationId(null)}
-        onRead={handleRead}
-        allFacilitiesMode={allFacilitiesMode}
-      />
+      <CommunicationDetailDrawer correlationId={selected} open={!!selected} onClose={() => setSelected(null)} onRead={markRead} onChanged={refresh} allFacilitiesMode={allFacilitiesMode} />
 
-      <SendCommunicationModal open={showSendModal} onClose={() => setShowSendModal(false)} />
+      <SendMessageDrawer open={sendOpen} onClose={() => setSendOpen(false)} onSent={refresh} />
     </div>
   );
 }

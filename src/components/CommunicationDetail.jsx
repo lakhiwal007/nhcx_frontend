@@ -1,486 +1,328 @@
-import { useState, useEffect } from "react";
-import {
-  CheckCircle2, Paperclip, FileText, ExternalLink, Circle, Send,
-} from "lucide-react";
-import { api } from "../api";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ExternalLink, FileText, Paperclip } from "lucide-react";
+import { api, markHandled } from "../api";
 import { useReadOnly } from "../readOnly";
+import { useSend } from "../hooks/useSend";
 import { resolveAction } from "../api/actionMap";
-import { Button, QueryResponseFields, NextStep } from "./Common";
+import { QueryResponseFields, LoadingBlock } from "./Common";
 import { Drawer } from "./Overlay";
+import ConfirmModal from "./ConfirmModal";
+import PayerName from "./PayerName";
+import TechnicalDetails from "./case/TechnicalDetails";
 import { formatDateTime, humanize, priorityLabel, safeHref } from "../format.js";
 import { buildActionBody, documentFromFile, carriesDocuments } from "../queryResponse.js";
-import { useNavigate } from "react-router-dom";
-import PayerName from "./PayerName";
+import { REASONS, commHeadline, commPreview, parseDocumentsFromTaskInputs, reasonLabel, isUrgent, sameMoment } from "../communications";
 
-export const PRIORITY_CONFIG = {
-  urgent: { badge: "badge-error" },
-  asap:   { badge: "badge-error" },
-  stat:   { badge: "badge-error" },
-  routine:{ badge: "badge-info" },
-};
 
-// Two timestamps within a minute of each other are the same moment.
-const sameMoment = (a, b) => !!a && !!b && Math.abs(new Date(a) - new Date(b)) < 60_000;
-
-export const REASON_CONFIG = {
-  tatquery:      { badge: "badge-warning", label: "TAT Dispute",      hint: "Time-sensitive - payer is disputing turnaround. Open the referenced claim and respond fast.", borderColor: "var(--warning)" },
-  additionalinfo:{ badge: "badge-error",   label: "Additional Info",  hint: "The payer needs more documents before they can proceed with this claim. Submit the requested documents below to unblock it.", borderColor: "var(--error)" },
-  grievance:     { badge: "badge-error",   label: "Grievance",        hint: "Needs a human owner. Resolve outside NHCX, then mark this task complete.", borderColor: "var(--error)" },
-  policychange:  { badge: "badge-warning", label: "Policy Change",    hint: "Re-fetch policies for this patient before the next workflow action.", borderColor: "var(--warning)" },
-  walletupdate:  { badge: "badge-info",    label: "Wallet Update",    hint: "Informational - refresh the case eligibility / benefit view.", borderColor: "var(--info)" },
-};
-
-export const CATEGORY_LABELS = {
-  alert: "Payer Alert",
-  notification: "Notification",
-  reminder: "Reminder",
-  instruction: "Instruction",
-};
-
-const NON_DOCUMENT_KEYS = new Set(["claimnumber", "claimid", "include", "_include", "payload", "subject"]);
-
-export function commHeadline(comm) {
-  if (!comm) return "";
-  if (comm.topic_display) return comm.topic_display;
-  if (comm.reason_display) return comm.reason_display;
-  const reasonCfg = REASON_CONFIG[comm.reason_code];
-  if (reasonCfg) return reasonCfg.label;
-  if (comm.category_display) return comm.category_display;
-  const category = CATEGORY_LABELS[String(comm.category || "").toLowerCase()];
-  if (category) return category;
-  const payer = comm.payer_name || comm.payer_id;
-  return payer ? `Message from ${payer}` : "Payer message";
-}
-
-export function commPreview(comm) {
-  if (comm?.subject) return comm.subject;
-  return comm?.payload?.find((p) => p.content_string)?.content_string || "";
-}
-
-export function commHasAttachment(comm) {
-  return !!comm?.payload?.some((p) => p.content_attachment);
-}
-
-export function parseDocumentsFromTaskInputs(taskInputs) {
-  if (!taskInputs) return [];
-  return Object.entries(taskInputs)
-    .filter(([k]) => !NON_DOCUMENT_KEYS.has(String(k).toLowerCase()))
-    .map(([code, name]) => ({ code, name: typeof name === "string" ? name : code }));
-}
-
-export function priorityBadge(priority) {
-  const cfg = PRIORITY_CONFIG[priority?.toLowerCase()] ?? { badge: "badge-info" };
-  return <span className={`badge-modern ${cfg.badge}`}>{priorityLabel(priority) || "-"}</span>;
-}
-
-function DetailField({ label, value }) {
-  if (!value) return null;
-  return (
-    <div>
-      <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 700, marginBottom: "3px" }}>{label}</div>
-      <div style={{ fontSize: "13px", fontWeight: 500 }}>{value}</div>
-    </div>
-  );
-}
-
-export default function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, allFacilitiesMode, showOpenCase = true }) {
+export default function CommunicationDetailDrawer({ correlationId, open, onClose, onRead, onChanged, allFacilitiesMode = false, showOpenCase = true }) {
   const navigate = useNavigate();
-  const readOnly = useReadOnly();
-  const [detail, setDetail] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [executing, setExecuting] = useState(false);
-  const [executeResult, setExecuteResult] = useState(null);
-  const [completing, setCompleting] = useState(false);
-  const [responseAnswer, setResponseAnswer] = useState("");
-  const [responseDoc, setResponseDoc] = useState([]);
-  const [respondMessage, setRespondMessage] = useState("");
-  const [respondDocs, setRespondDocs] = useState([]);
-  const [responding, setResponding] = useState(false);
-  const [respondResult, setRespondResult] = useState(null);
-  const [acking, setAcking] = useState(false);
-  const [detailError, setDetailError] = useState(null);
-  const [completeError, setCompleteError] = useState(null);
-  const [loadKey, setLoadKey] = useState(0);
+  const readOnly = useReadOnly() || allFacilitiesMode;
+  const [state, setState] = useState({ key: null, detail: null, error: null, attempt: 0 });
+  const [answer, setAnswer] = useState("");
+  const [docs, setDocs] = useState([]);
+  const [replied, setReplied] = useState(null);
+  const [confirmReviewed, setConfirmReviewed] = useState(false);
 
+  const loadKey = open && correlationId ? `${correlationId}|${state.attempt}` : null;
   useEffect(() => {
-    if (!open || !correlationId) return;
-    setLoading(true);
-    setDetail(null);
-    setDetailError(null);
-    setCompleteError(null);
-    setExecuteResult(null);
-    setResponseAnswer("");
-    setResponseDoc([]);
-    setRespondMessage("");
-    setRespondDocs([]);
-    setRespondResult(null);
-    api.getCommunicationStatus(correlationId)
+    if (!loadKey) return undefined;
+    const id = loadKey.split("|")[0];
+    let live = true;
+    api
+      .getCommunicationStatus(id)
       .then((res) => {
-        setDetail(res);
+        if (!live) return;
+        setState((prev) => ({ ...prev, key: loadKey, detail: res, error: null }));
         if (!res.provider_read && !readOnly) {
-          api.markCommunicationRead(correlationId)
-            .then(() => onRead?.(correlationId))
+          api
+            .markCommunicationRead(id)
+            .then(() => onRead?.(id))
             .catch(() => {});
         }
       })
-      .catch((err) => setDetailError(err.message || "The message could not be read."))
-      .finally(() => setLoading(false));
-  }, [open, correlationId, loadKey]);
+      .catch((err) => {
+        markHandled(err);
+        if (live) setState((prev) => ({ ...prev, key: loadKey, detail: null, error: err?.message || "The message could not be read." }));
+      });
+    return () => {
+      live = false;
+    };
+  }, [loadKey, readOnly, onRead]);
+
+  const loading = !!loadKey && state.key !== loadKey;
+  const detail = state.key === loadKey ? state.detail : null;
+  const error = state.key === loadKey ? state.error : null;
+  const reload = () => setState((prev) => ({ ...prev, attempt: prev.attempt + 1 }));
 
   const reviewTask = detail?.pending_tasks?.find((t) => t.task_type === "review_communication");
   const taskId = reviewTask?.id ?? reviewTask?.task_id;
-  const reasonCfg = REASON_CONFIG[detail?.reason_code] ?? {};
   const taskAction = reviewTask?.action;
   const actionable = !!taskAction && taskAction.code !== "review_communication";
-  const respondingDisabled =
-    responding || allFacilitiesMode || (!respondMessage.trim() && respondDocs.length === 0);
-  // `acknowledged` is only the receipt the backend auto-sends to the payer; it
-  // says nothing about whether the hospital has replied. A query is answered
-  // once its review task is closed (or a reply was just sent from here).
   const inbound = detail?.direction !== "outbound";
-  const answered =
-    respondResult?.success ||
-    (!reviewTask && !!detail?.completed_tasks?.some((t) => t.task_type === "review_communication"));
-  // A task with its own document action is answered through "Required action".
-  // Only a query takes an answer; a notification is acknowledged, a note is read.
+  const answered = !!replied || (!reviewTask && !!detail?.completed_tasks?.some((t) => t.task_type === "review_communication"));
   const isQuery = !detail?.kind || detail.kind === "query";
-  const canReply = inbound && isQuery && !answered && !actionable;
-  const requiredDocs = reviewTask?.required_documents?.length
-    ? reviewTask.required_documents
-    : parseDocumentsFromTaskInputs(detail?.task_inputs);
+  const canReply = inbound && isQuery && !answered && !actionable && !readOnly;
+  const requiredDocs = reviewTask?.required_documents?.length ? reviewTask.required_documents : parseDocumentsFromTaskInputs(detail?.task_inputs);
+  const reason = REASONS[detail?.reason_code];
 
-  const handleExecuteAction = async () => {
-    if (!taskAction) return;
-    setExecuting(true);
-    setExecuteResult(null);
-    try {
-      // Resolve method+URL via stable action.code (ACTION_MAP); fall back to
-      // the DB-stored action.endpoint (assumed POST) only when unknown.
+  const reply = useSend(
+    async () => {
+      const res = await api.respondToCommunication(correlationId, {
+        message: answer.trim() || undefined,
+        documents: docs.map((d) => ({ title: d.title, content_type: d.contentType, data: d.data })),
+      });
+      setReplied(res);
+      setAnswer("");
+      setDocs([]);
+      onChanged?.();
+      return res;
+    },
+    { success: "Reply sent to the payer" },
+  );
+
+  const act = useSend(
+    async () => {
       const { method, url } = resolveAction(taskAction);
       const hint = taskAction.payload_hint ?? {};
       const body = carriesDocuments(taskAction.code)
-        ? {
-            ...hint,
-            ...buildActionBody(taskAction.code, {
-              claim_id: hint.claim_id ?? detail?.claim_id,
-              cashless_case_id: hint.cashless_case_id ?? detail?.cashless_case_id,
-              answer: responseAnswer,
-              docs: responseDoc.map(documentFromFile),
-            }),
-          }
+        ? { ...hint, ...buildActionBody(taskAction.code, { claim_id: hint.claim_id ?? detail?.claim_id, cashless_case_id: hint.cashless_case_id ?? detail?.cashless_case_id, answer, docs: docs.map(documentFromFile) }) }
         : hint;
-      const res = method === "GET"
-        ? await api.rawGet(url, hint)
-        : await api.rawPost(url, body);
-      setExecuteResult({ success: res?.status !== "failed", correlation_id: res?.correlation_id, message: res?.message });
-    } catch (err) {
-      setExecuteResult({ success: false, message: err.message });
-    } finally {
-      setExecuting(false);
-    }
-  };
+      const res = method === "GET" ? await api.rawGet(url, hint) : await api.rawPost(url, body);
+      if (res?.status === "failed") throw new Error(res?.message || "The payer did not accept it.");
+      setReplied(res);
+      setAnswer("");
+      setDocs([]);
+      onChanged?.();
+      return res;
+    },
+    { success: "Sent to the payer" },
+  );
 
-  const handleRespond = async () => {
-    setResponding(true);
-    setRespondResult(null);
-    try {
-      const res = await api.respondToCommunication(correlationId, {
-        message: respondMessage || undefined,
-        documents: respondDocs.map((d) => ({
-          title: d.title,
-          content_type: d.contentType,
-          data: d.data,
-        })),
-      });
-      setRespondResult({ success: res?.status !== "failed", message: res?.message });
-    } catch (err) {
-      setRespondResult({ success: false, message: err.message });
-    } finally {
-      setResponding(false);
-    }
-  };
-
-  const handleAcknowledge = async () => {
-    setAcking(true);
-    try {
-      const res = await api.acknowledgeCommunication(correlationId);
-      setDetail((prev) => ({
-        ...prev,
-        acknowledged: !!res?.acknowledged,
-        acknowledged_at: res?.acknowledged_at ?? prev?.acknowledged_at,
-        ack_correlation_id: res?.ack_correlation_id ?? prev?.ack_correlation_id,
-        ack_error: res?.acknowledged ? null : res?.ack_error || res?.message || prev?.ack_error,
-      }));
-    } catch (err) {
-      setDetail((prev) => ({ ...prev, ack_error: err.message || prev?.ack_error }));
-    } finally {
-      setAcking(false);
-    }
-  };
-
-  const handleMarkReviewed = async () => {
-    if (!taskId) return;
-    setCompleting(true);
-    setCompleteError(null);
-    try {
-      await api.completeTask(taskId, {
-        note: "Reviewed from Communications screen",
-        metadata: executeResult?.correlation_id ? { submitted_correlation_id: executeResult.correlation_id } : {},
-      });
+  const complete = useSend(
+    async () => {
+      const res = await api.completeTask(taskId, { note: "Reviewed from Communications", metadata: replied?.correlation_id ? { submitted_correlation_id: replied.correlation_id } : {} });
+      onChanged?.();
       onClose();
-    } catch (err) {
-      setCompleteError(err.message || "The task could not be marked reviewed.");
-    } finally {
-      setCompleting(false);
+      return res;
+    },
+    { success: "Marked as reviewed" },
+  );
+
+  const ack = useSend(
+    async () => {
+      const res = await api.acknowledgeCommunication(correlationId);
+      setState((prev) => ({ ...prev, detail: prev.detail ? { ...prev.detail, acknowledged: !!res?.acknowledged, acknowledged_at: res?.acknowledged_at ?? prev.detail.acknowledged_at, ack_error: res?.acknowledged ? null : res?.ack_error || res?.message || prev.detail.ack_error } : prev.detail }));
+      if (!res?.acknowledged) throw new Error(res?.ack_error || res?.message || "The payer did not accept the acknowledgement.");
+      return res;
+    },
+    { success: "Receipt acknowledged to the payer" },
+  );
+
+  const openCase = () => {
+    if (detail?.cashless_case_id && detail?.child_id) {
+      navigate(`/case/${detail.child_id}/?case=${detail.cashless_case_id}`, { state: { cashless_case_id: detail.cashless_case_id, claim_id: detail.claim_id ?? null, from: "/communications" } });
     }
+  };
+  const markReviewed = () => {
+    if (canReply && !replied) setConfirmReviewed(true);
+    else complete.run();
   };
 
-  const handleOpenCase = () => {
-    if (detail?.cashless_case_id && detail?.child_id) {
-      navigate(`/case/${detail.child_id}/`, {
-        state: { cashless_case_id: detail.cashless_case_id, claim_id: detail.claim_id ?? null },
-      });
-    }
-  };
+  const status = !detail
+    ? null
+    : !inbound
+      ? { tone: "info", title: "Sent to the payer", text: "The payer's answer appears in this list when it arrives." }
+      : actionable && !replied
+        ? { tone: "warn", title: "The payer needs documents", text: "Send what it lists below. The case waits until you do." }
+        : canReply
+          ? { tone: "warn", title: "The payer is waiting for your reply", text: "Read the message, then reply below with what it asks for." }
+          : answered
+            ? { tone: "ok", title: "Answered", text: "Your reply has been sent. The payer's next answer appears in the case." }
+            : detail.kind === "notification"
+              ? { tone: "info", title: "For your information", text: "An update from the payer, acknowledged automatically. No reply is needed." }
+              : { tone: "info", title: "For your information", text: "A note from the payer. No reply is needed." };
+
+  const primary = !detail || readOnly
+    ? null
+    : canReply
+      ? { label: reply.busy ? "Sending…" : "Send reply", disabled: reply.busy || (!answer.trim() && docs.length === 0), onClick: reply.run }
+      : actionable && !replied
+        ? { label: act.busy ? "Sending…" : taskAction.label || "Send the documents", disabled: act.busy || (carriesDocuments(taskAction.code) && docs.length === 0 && !answer.trim()), onClick: act.run }
+        : taskId
+          ? { label: complete.busy ? "Marking…" : "Mark reviewed", disabled: complete.busy, onClick: markReviewed }
+          : null;
 
   return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      width={600}
-      stack
-      title="Communication detail"
-      titleExtra={
-        <>
-          {detail?.reason_code && <span className={`badge-modern ${reasonCfg.badge || "badge-info"}`}>{reasonCfg.label || detail.reason_code}</span>}
-          {detail?.priority && priorityBadge(detail.priority)}
-        </>
-      }
-      footer={
-        <>
-              {taskId && (
-                <Button
-                  variant="primary"
-                  disabled={completing || allFacilitiesMode || (actionable && !executeResult?.success)}
-                  onClick={handleMarkReviewed}
-                  style={{ flex: 1, justifyContent: "center" }}
-                  title={
-                    allFacilitiesMode
-                      ? "This account can view only"
-                      : actionable && !executeResult?.success
-                        ? "Submit the required documents first"
-                        : undefined
-                  }
-                >
-                  {completing ? "Completing…" : "Mark as Reviewed ✓"}
-                </Button>
-              )}
+    <>
+      <Drawer
+        open={open}
+        onClose={onClose}
+        width={600}
+        stack
+        title={detail ? commHeadline(detail) : "Payer message"}
+        titleExtra={
+          detail && (
+            <>
+              {reasonLabel(detail) && <span className={`cv-chip is-${reason?.tone || "todo"}`}>{reasonLabel(detail)}</span>}
+              {detail.priority && <span className={`cv-chip is-${isUrgent(detail) ? "bad" : "todo"}`}>{priorityLabel(detail.priority)}</span>}
+            </>
+          )
+        }
+        footer={
+          (primary || (showOpenCase && detail?.cashless_case_id && detail?.child_id)) && (
+            <div className="cv-drawer-actions">
               {showOpenCase && detail?.cashless_case_id && detail?.child_id && (
-                <Button variant="outline" icon={ExternalLink} onClick={handleOpenCase}>Open Case</Button>
+                <button type="button" className="cv-btn" onClick={openCase}>
+                  <ExternalLink size={14} aria-hidden="true" /> Open case
+                </button>
               )}
-        </>
-      }
-    >
-              {loading && <div className="flex-center py-10"><div className="spinner" /></div>}
-
-              {detailError && !loading && (
-                <NextStep
-                  tone="bad"
-                  title="The message could not be opened"
-                  actions={<Button variant="outline" onClick={() => setLoadKey((k) => k + 1)}>Retry</Button>}
-                >
-                  {detailError}
-                </NextStep>
+              {primary && (
+                <button type="button" className="cv-btn is-primary" disabled={primary.disabled} onClick={primary.onClick}>
+                  {primary.label}
+                </button>
               )}
+            </div>
+          )
+        }
+      >
+        {loading && <LoadingBlock compact text="Reading the message…" />}
+        {error && !loading && (
+          <div className="cv-notice is-bad" role="alert">
+            <div className="cv-notice-body">The message could not be opened: {error}</div>
+            <div className="cv-notice-actions">
+              <button type="button" className="cv-btn" onClick={reload}>
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        {detail && (
+          <div className="cm-detail">
+            {status && (
+              <div className={`cv-notice is-${status.tone}`}>
+                <div className="cv-notice-body">
+                  <strong>{status.title}.</strong> {status.text}
+                  {reason?.hint ? ` ${reason.hint}` : ""}
+                </div>
+              </div>
+            )}
 
-              {completeError && <div className="cv-notice is-bad"><div className="cv-notice-body">{completeError}</div></div>}
-
-              {detail && (
-                <>
-                  <div style={{ fontSize: "18px", fontWeight: 700, lineHeight: 1.3 }}>{commHeadline(detail)}</div>
-
-                  {inbound && (
-                    <NextStep
-                      tone={canReply ? "warn" : "info"}
-                      title={canReply ? "The payer is waiting for your answer" : answered ? "Answered" : "For your information"}
-                    >
-                      {canReply
-                        ? "Read the message, then use Reply to the payer below to attach what it asks for. The case waits until you answer."
-                        : answered
-                          ? "Your reply has been sent. The payer's next answer will appear in the case."
-                          : detail?.kind === "notification"
-                            ? "An update from the payer. It is acknowledged to the payer automatically; no reply is needed."
-                            : "A note from the payer. Read it; no reply is needed."}
-                    </NextStep>
-                  )}
-                  {reasonCfg.hint && (
-                    <div style={{ padding: "12px 16px", background: "var(--bg-main)", border: `1px solid ${reasonCfg.borderColor || "var(--border-color)"}`, borderRadius: "8px", fontSize: "13px", lineHeight: 1.5 }}>
-                      {reasonCfg.hint}
-                    </div>
-                  )}
-
-                  <div className="grid-2-col" style={{ gap: "14px", padding: "var(--space-4)", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
-                    <DetailField label="Payer" value={(detail.payer_name || detail.payer_id) && <PayerName id={detail.payer_id} name={detail.payer_name} />} />
-                    <DetailField label="Claim Reference" value={detail.claim_reference} />
-                    <DetailField label="Subject" value={detail.subject} />
-                    <DetailField label="Requested by" value={detail.task_requester} />
-                    <DetailField label="Received" value={formatDateTime(detail.received_at || detail.sent_at)} />
-                    {!sameMoment(detail.sent_at, detail.received_at) && detail.received_at && (
-                      <DetailField label="Sent by payer" value={formatDateTime(detail.sent_at)} />
+            <div className="cm-facts">
+              <div className="cv-kv"><span>Payer</span><span><PayerName id={detail.payer_id} name={detail.payer_name} /></span></div>
+              {detail.claim_reference && <div className="cv-kv"><span>About</span><span className="cv-mono">{detail.claim_reference}</span></div>}
+              {detail.subject && <div className="cv-kv"><span>Subject</span><span>{detail.subject}</span></div>}
+              <div className="cv-kv"><span>Received</span><span>{formatDateTime(detail.received_at || detail.sent_at)}</span></div>
+              {detail.received_at && !sameMoment(detail.sent_at, detail.received_at) && <div className="cv-kv"><span>Sent by payer</span><span>{formatDateTime(detail.sent_at)}</span></div>}
+              {detail.task_requester && <div className="cv-kv"><span>Requested by</span><span>{detail.task_requester}</span></div>}
+              {detail.acknowledged ? (
+                <div className="cv-kv"><span>Receipt</span><span>Acknowledged to the payer{detail.acknowledged_at ? ` ${formatDateTime(detail.acknowledged_at)}` : ""}</span></div>
+              ) : detail.ack_error ? (
+                <div className="cv-kv">
+                  <span>Receipt</span>
+                  <span className="is-bad">
+                    Not acknowledged: {detail.ack_error}
+                    {inbound && !readOnly && (
+                      <>
+                        {" "}
+                        <button type="button" className="cv-link" disabled={ack.busy} onClick={ack.run}>
+                          {ack.busy ? "Acknowledging…" : "Acknowledge again"}
+                        </button>
+                      </>
                     )}
-                    {detail.comm_status && <DetailField label="Message status" value={humanize(detail.comm_status)} />}
-                    {detail.authored_on && !sameMoment(detail.authored_on, detail.received_at || detail.sent_at) && (
-                      <DetailField label="Task created" value={formatDateTime(detail.authored_on)} />
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            {detail.payload?.length > 0 && (
+              <section className="cm-section">
+                <h4 className="cv-sub">What the payer wrote</h4>
+                {detail.payload.map((p, i) => (
+                  <div key={i} className="cm-bubble">
+                    {p.content_string && <p>{p.content_string}</p>}
+                    {safeHref(p.content_attachment) && (
+                      <a className="cv-link cm-bubble-link" href={safeHref(p.content_attachment)} target="_blank" rel="noreferrer">
+                        <Paperclip size={14} aria-hidden="true" /> View attachment
+                      </a>
                     )}
-                    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-color)", marginTop: "var(--space-1)", flexWrap: "wrap", fontSize: "12.5px" }}>
-                      {inbound && reviewTask ? (
-                        <span style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, color: "var(--warning)" }}>
-                          <Circle size={11} /> Awaiting your reply
-                        </span>
-                      ) : answered ? (
-                        <span style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
-                          <CheckCircle2 size={12} color="var(--success)" /> Answered
-                        </span>
-                      ) : (
-                        <span style={{ fontWeight: 600 }}>{inbound ? "Reply optional" : "Sent to payer"}</span>
-                      )}
-                      {detail.acknowledged && (
-                        <span style={{ color: "var(--text-muted)" }} title={detail.ack_correlation_id ? `ACK ${detail.ack_correlation_id}` : undefined}>
-                          · Receipt acknowledged to payer{detail.acknowledged_at ? ` ${formatDateTime(detail.acknowledged_at)}` : ""}
-                        </span>
-                      )}
-                      {!detail.acknowledged && detail.ack_error && (
-                        <>
-                          <span style={{ color: "var(--error)" }}>· Acknowledgement to payer failed: {detail.ack_error}</span>
-                          {inbound && detail.kind === "notification" && !allFacilitiesMode && (
-                            <Button variant="outline" size="small" disabled={acking} onClick={handleAcknowledge}>
-                              {acking ? "Acknowledging…" : "Acknowledge again"}
-                            </Button>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    {p.content_reference && <div className="cv-card-meta">Reference {p.content_reference}</div>}
                   </div>
+                ))}
+              </section>
+            )}
+            {detail.payload?.length === 0 && commPreview(detail) === "" && <p className="cv-card-meta">The payer sent no text with this message.</p>}
 
-                  {detail.payload?.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "10px" }}>Message from Payer</div>
-                      {detail.payload.map((p, i) => (
-                        <div key={i} style={{ padding: "14px 16px", background: "var(--bg-main)", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "var(--space-2)", fontSize: "13px", lineHeight: 1.6 }}>
-                          {p.content_string && <p style={{ margin: 0 }}>{p.content_string}</p>}
-                          {safeHref(p.content_attachment) && (
-                            <a href={safeHref(p.content_attachment)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--primary)", fontWeight: 600, textDecoration: "none", marginTop: p.content_string ? "8px" : 0 }}>
-                              <Paperclip size={14} /> View Attachment
-                            </a>
-                          )}
-                          {p.content_reference && <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "var(--space-1)" }}>Ref: {p.content_reference}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            {requiredDocs.length > 0 && (
+              <section className="cm-section">
+                <h4 className="cv-sub">Documents the payer asks for</h4>
+                <ul className="cm-docs">
+                  {requiredDocs.map((doc, i) => (
+                    <li key={i}>
+                      <FileText size={14} aria-hidden="true" />
+                      <span>{doc.name || doc.display || doc.code}</span>
+                      {doc.code && <span className="cv-mono cv-card-meta">{doc.code}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-                  {requiredDocs.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "10px" }}>Documents Requested ({requiredDocs.length})</div>
-                      {requiredDocs.map((doc, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 12px", background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "8px", marginBottom: "6px", fontSize: "13px" }}>
-                          <FileText size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                          <span style={{ fontWeight: 600 }}>{doc.name || doc.display}</span>
-                          <code style={{ fontSize: "11px", color: "var(--text-muted)", marginLeft: "auto" }}>{doc.code}</code>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            {(canReply || (actionable && !replied)) && (
+              <section className="cm-section">
+                <h4 className="cv-sub">{actionable ? "Send the documents" : "Reply to the payer"}</h4>
+                <QueryResponseFields label={actionable ? "Note to the payer (optional)" : "Your reply"} placeholder={actionable ? "Anything the payer should know about these documents" : "Answer the payer, and attach what it asks for"} answer={answer} onAnswerChange={setAnswer} documents={docs} onDocumentsChange={setDocs} />
+                {(reply.error || act.error) && (
+                  <div className="cv-notice is-bad" role="alert">
+                    <div className="cv-notice-body">{reply.error || act.error}</div>
+                  </div>
+                )}
+              </section>
+            )}
 
-                  {canReply && (
-                    <div style={{ padding: "var(--space-4)", background: "var(--bg-main)", border: "1px solid var(--border-color)", borderRadius: "10px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "4px" }}>
-                        Reply To The Payer
-                      </div>
-                      <div style={{ fontSize: "12.5px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
-                        Attach the documents the payer asked for. This answers their request directly,
-                        whether it concerns the preauth or the claim.
-                      </div>
-                      {!respondResult ? (
-                        <>
-                          <QueryResponseFields
-                            label="Message To Payer"
-                            placeholder="Add a note for the payer…"
-                            answer={respondMessage}
-                            onAnswerChange={setRespondMessage}
-                            documents={respondDocs}
-                            onDocumentsChange={setRespondDocs}
-                          />
-                          <Button
-                            variant="primary"
-                            icon={Send}
-                            disabled={respondingDisabled}
-                            title={allFacilitiesMode ? "This account can view only" : undefined}
-                            onClick={handleRespond}
-                            style={{ justifyContent: "center" }}
-                          >
-                            {responding ? "Sending…" : "Send Response"}
-                          </Button>
-                        </>
-                      ) : (
-                        <div style={{ padding: "10px 14px", background: respondResult.success ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${respondResult.success ? "var(--success)" : "var(--error)"}`, borderRadius: "8px", fontSize: "13px" }}>
-                          <div style={{ fontWeight: 700, color: respondResult.success ? "var(--success)" : "var(--error)" }}>
-                            {respondResult.success ? "Response sent" : "Could not send response"}
-                          </div>
-                          {respondResult.message && (
-                            <div style={{ color: "var(--text-muted)", marginTop: "var(--space-1)" }}>{respondResult.message}</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+            {replied && (
+              <div className="cv-notice is-ok">
+                <div className="cv-notice-body">
+                  Sent to the payer.{replied.message ? ` ${replied.message}` : ""}
+                  {taskId ? " Mark this message reviewed to close it from your queue." : ""}
+                </div>
+              </div>
+            )}
+            {complete.error && (
+              <div className="cv-notice is-bad" role="alert">
+                <div className="cv-notice-body">{complete.error}</div>
+              </div>
+            )}
 
-                  {actionable && (
-                    <div style={{ padding: "var(--space-4)", background: "rgba(239,68,68,0.04)", border: "1px solid var(--error)", borderRadius: "10px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--error)", marginBottom: "10px" }}>Required Action</div>
-                      <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
-                        Submit the documents listed above to the payer to unblock this claim. Once submitted, mark this communication as reviewed to close it from your queue.
-                      </div>
-                      {!executeResult && carriesDocuments(taskAction.code) && (
-                        <QueryResponseFields
-                          answer={responseAnswer}
-                          onAnswerChange={setResponseAnswer}
-                          documents={responseDoc}
-                          onDocumentsChange={setResponseDoc}
-                        />
-                      )}
-                      {!executeResult ? (
-                        <Button
-                          variant="primary"
-                          disabled={executing || allFacilitiesMode}
-                          title={allFacilitiesMode ? "This account can view only" : undefined}
-                          onClick={handleExecuteAction}
-                          style={{ justifyContent: "center" }}
-                        >
-                          {executing ? "Submitting…" : taskAction.label}
-                        </Button>
-                      ) : (
-                        <div style={{ padding: "10px 14px", background: executeResult.success ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${executeResult.success ? "var(--success)" : "var(--error)"}`, borderRadius: "8px", fontSize: "13px" }}>
-                          <div style={{ fontWeight: 700, color: executeResult.success ? "var(--success)" : "var(--error)", marginBottom: "var(--space-1)" }}>
-                            {executeResult.success ? "Submitted successfully" : "Submission failed"}
-                          </div>
-                          {executeResult.correlation_id && <code style={{ fontSize: "11px" }}>{executeResult.correlation_id}</code>}
-                          {executeResult.message && <div style={{ color: "var(--text-muted)" }}>{executeResult.message}</div>}
-                        </div>
-                      )}
-                    </div>
-                  )}
+            {detail.completed_tasks?.length > 0 && (
+              <section className="cm-section">
+                <h4 className="cv-sub">Done on this message</h4>
+                <ul className="cm-done">
+                  {detail.completed_tasks.map((t, i) => (
+                    <li key={i}>{t.title || humanize(t.task_type)}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-                  {detail.completed_tasks?.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "var(--space-2)" }}>Completed Actions</div>
-                      {detail.completed_tasks.map((t, i) => (
-                        <div key={i} style={{ fontSize: "12px", color: "var(--text-muted)", padding: "6px 10px", background: "var(--bg-main)", borderRadius: "6px", marginBottom: "var(--space-1)" }}>✓ {t.title}</div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-    </Drawer>
+            <TechnicalDetails ids={[{ label: "Correlation id", value: detail.correlation_id }, { label: "Acknowledgement id", value: detail.ack_correlation_id }, { label: "Message status", value: detail.comm_status }, { label: "Reason code", value: detail.reason_code }, { label: "Task created", value: detail.authored_on ? formatDateTime(detail.authored_on) : null }, { label: "Sent id", value: replied?.correlation_id }]} />
+          </div>
+        )}
+      </Drawer>
+
+      <ConfirmModal
+        open={confirmReviewed}
+        title="Mark reviewed without replying?"
+        subtitle="The payer asked a question on this message and has not been answered. Marking it reviewed closes the task on your side only."
+        confirmLabel="Mark reviewed anyway"
+        cancelLabel="Go back"
+        busy={complete.busy}
+        onCancel={() => setConfirmReviewed(false)}
+        onConfirm={() => {
+          setConfirmReviewed(false);
+          complete.run();
+        }}
+      />
+    </>
   );
 }
