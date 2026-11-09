@@ -71,17 +71,7 @@ export default function PatientHeader({ patient, current, focusCase, openTasks =
           <Fact label="Case" value={<span className="mono">{formatCaseRef(focusCase.cashless_case_id)}</span>} />
           <Fact label="Payer" value={<PayerName id={focusCase.payer_id} name={focusCase.payer_name} fallback="Not chosen yet" />} />
           <Fact label="Policy" value={focusCase.policy_number || "—"} mono={!!focusCase.policy_number} />
-          <Fact
-            label="Stage"
-            value={
-              <>
-                {stage}
-                <span className="pt-glance-chip">
-                  <CaseStatusChip claim={focusCase} />
-                </span>
-              </>
-            }
-          />
+          <Fact label="Stage" value={<span className="pt-glance-chip" title={stage}><CaseStatusChip claim={focusCase} /></span>} />
           <Fact label="Approved" value={approved != null ? formatMoney(approved) : "Not yet"} />
           <Fact label="Open tasks" value={openTasks ? `${openTasks} waiting` : "None"} warn={openTasks > 0} />
         </div>

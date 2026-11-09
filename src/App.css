@@ -5173,8 +5173,12 @@ code {
 
 .pt-glance-chip {
     display: inline-block;
-    margin-left: 8px;
     vertical-align: middle;
+}
+
+.pt-glance .pt-fact-value {
+    overflow: visible;
+    white-space: normal;
 }
 
 .pt-stage-line {
