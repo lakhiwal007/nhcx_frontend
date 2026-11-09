@@ -183,7 +183,10 @@ export default function PaymentReconciliation({ ctx }) {
   const approved = ledger.approved?.value ?? null;
   const shortBy = allSettled && approved != null && gross != null && gross < approved ? approved - gross : null;
   const toCollect = ledger.reconciliation?.to_collect_from_patient ?? ledger.patient_payable?.value ?? null;
-  const latestUtr = hasEvents ? settledPayments.concat(openPayments).map((p) => p.utr).filter(Boolean).shift() || null : settlement.utr ?? null;
+  const eventTime = (p) => Date.parse(p.received_at) || Date.parse(p.payment_date) || 0;
+  const latestUtr = hasEvents
+    ? [...settledPayments, ...openPayments].filter((p) => p.utr).sort((a, b) => eventTime(b) - eventTime(a))[0]?.utr || null
+    : settlement.utr ?? null;
   const missingUtr = settledPayments.some((p) => !p.utr);
 
   const backToCases = (

@@ -238,10 +238,10 @@ export default function ReprocessScreen({ ctx }) {
   const totals = claimResponse?.totals || {};
   const lines = claimResponse?.items || [];
   const notes = status?.process_notes || [];
-  const approved = totals.benefit?.value ?? totals.eligible?.value;
+  const approved = totals.benefit?.value;
   const cutLines = lines.filter((line) => {
     const adj = line.adjudication || {};
-    const allowed = adj.benefit?.value ?? adj.eligible?.value;
+    const allowed = adj.benefit?.value;
     return allowed != null && adj.submitted?.value != null && allowed < adj.submitted.value;
   }).length;
   const noteCount = notes.length + (payerError ? 1 : 0);
@@ -367,7 +367,7 @@ export default function ReprocessScreen({ ctx }) {
                               <td>{line.sequence ?? i + 1}</td>
                               <td>{formatMoney(adj.submitted?.value)}</td>
                               <td>{formatMoney(adj.eligible?.value)}</td>
-                              <td>{formatMoney(adj.benefit?.value ?? adj.eligible?.value)}</td>
+                              <td>{formatMoney(adj.benefit?.value)}</td>
                               <td>{adj.eligible?.reason || adj.benefit?.reason || adj.reason?.text || "—"}</td>
                             </tr>
                           );

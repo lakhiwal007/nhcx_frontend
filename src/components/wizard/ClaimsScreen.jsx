@@ -170,7 +170,7 @@ function ClaimLines({ status, draftItems }) {
                 <td className="is-num">{money(adj.submitted?.value)}</td>
                 <td className="is-num">{money(adj.eligible?.value)}</td>
                 <td className="is-num">{money(adj.copay?.value)}</td>
-                <td className="is-num" style={{ fontWeight: 600 }}>{money(adj.benefit?.value ?? adj.eligible?.value)}</td>
+                <td className="is-num" style={{ fontWeight: 600 }}>{money(adj.benefit?.value)}</td>
                 <td>{reasons.length ? reasons.join(" · ") : "—"}</td>
               </tr>
             );
@@ -437,7 +437,7 @@ export default function ClaimsScreen({ ctx }) {
         if (field === "quantity" || field === "unit_price") {
           const qty = field === "quantity" ? val : it.quantity;
           const price = field === "unit_price" ? val : it.unit_price;
-          next.net_amount = qty * price;
+          next.net_amount = Math.round(qty * price * 100) / 100;
         }
         return next;
       })

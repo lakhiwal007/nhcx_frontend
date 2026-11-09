@@ -51,7 +51,7 @@ export const formatMoney = (v, { dash = DASH, currency = "₹", signed = false }
   if (Number.isNaN(n)) return dash;
   const sign = n < 0 ? "-" : signed && n > 0 ? "+" : "";
   const gap = /^[A-Za-z]{2,}$/.test(currency) ? " " : "";
-  return `${sign}${currency}${gap}${Math.abs(n).toLocaleString("en-IN")}`;
+  return `${sign}${currency}${gap}${Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export const CASE_REF_PREFIX = "CASE-";

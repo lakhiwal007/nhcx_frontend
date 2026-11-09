@@ -36,10 +36,10 @@ function computePaymentMetrics(unique) {
   };
   const settled = unique.filter((p) => p.settled);
   return {
-    settledThisMonth: settled.filter((p) => isThisMonth(p.payment_date)).reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
+    settledThisMonth: settled.filter((p) => isThisMonth(p.payment_date)).reduce((s, p) => s + (Number(p.net_payment_amount) || 0), 0),
     pendingAck: unique.filter((p) => p.pending_ack).length,
-    totalTds: unique.reduce((s, p) => s + (p.tds_amount ?? 0), 0),
-    totalNetSettled: settled.reduce((s, p) => s + (p.net_payment_amount ?? 0), 0),
+    totalTds: unique.reduce((s, p) => s + (Number(p.tds_amount) || 0), 0),
+    totalNetSettled: settled.reduce((s, p) => s + (Number(p.net_payment_amount) || 0), 0),
   };
 }
 
@@ -119,12 +119,12 @@ export default function Payments() {
   const safePaymentsPage = Math.min(paymentsPage, paymentsPageCount - 1);
   const pagedPayments = filtered.slice(safePaymentsPage * PAYMENTS_PAGE_SIZE, (safePaymentsPage + 1) * PAYMENTS_PAGE_SIZE);
   const metrics = computePaymentMetrics(payments);
-  const sum = (key) => filtered.reduce((s, p) => s + Math.abs(p[key] ?? 0), 0);
+  const sum = (key) => filtered.reduce((s, p) => s + Math.abs(Number(p[key]) || 0), 0);
 
   const KPIS = [
-    { key: "net", label: "Net settled", value: formatMoney(Math.round(metrics.totalNetSettled)), color: "var(--success)" },
-    { key: "month", label: "Settled this month", value: formatMoney(Math.round(metrics.settledThisMonth)), color: "var(--primary)" },
-    { key: "tds", label: "TDS deducted", value: formatMoney(Math.round(metrics.totalTds)), color: "var(--text-muted)" },
+    { key: "net", label: "Net settled", value: formatMoney(metrics.totalNetSettled), color: "var(--success)" },
+    { key: "month", label: "Settled this month", value: formatMoney(metrics.settledThisMonth), color: "var(--primary)" },
+    { key: "tds", label: "TDS deducted", value: formatMoney(metrics.totalTds), color: "var(--text-muted)" },
     { key: "ack", label: "Acknowledgements pending", value: metrics.pendingAck, color: "var(--warning)" },
   ];
 
