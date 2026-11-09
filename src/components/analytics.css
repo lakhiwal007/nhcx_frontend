@@ -233,3 +233,31 @@
         grid-row: 2;
     }
 }
+
+.an-wait {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 4px 16px 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-main);
+    font-size: 13.5px;
+}
+
+.an-wait > svg {
+    color: var(--text-muted);
+    flex: none;
+}
+
+.an-wait-text {
+    flex: 1;
+    min-width: 200px;
+}
+
+.an-panel-title .info-tip-btn {
+    margin-left: 6px;
+    vertical-align: middle;
+}
