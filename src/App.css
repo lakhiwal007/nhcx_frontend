@@ -5330,3 +5330,265 @@ code {
 .pm-unlinked {
     color: var(--warning);
 }
+
+/* ─── Settings (Settings.jsx + settings/*) ──────────────────────────────── */
+.st-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.st-section-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.st-section-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: var(--fw-semibold);
+}
+
+.st-section-meta {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.st-section-tools {
+    margin-left: auto;
+}
+
+.st-search {
+    width: 260px;
+    max-width: 100%;
+    height: 34px;
+}
+
+.st-pad {
+    padding: 14px 18px;
+}
+
+.st-pad + .st-pad {
+    padding-top: 0;
+}
+
+.st-embedded {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.st-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.st-table th {
+    padding: 8px 14px;
+    background: var(--bg-main);
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    font-size: 11px;
+    font-weight: var(--fw-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.st-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+}
+
+.st-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.st-strong {
+    display: block;
+    font-weight: var(--fw-semibold);
+}
+
+.st-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.st-group-intro {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.st-field.is-invalid .cv-ctl {
+    border-color: var(--error);
+}
+
+.st-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+.st-prefs {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.st-pref {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+}
+
+.st-pref-label {
+    min-width: 110px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.st-stepper {
+    display: flex;
+    gap: 0;
+    margin: 0 0 4px;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+}
+
+.st-stepper li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.st-stepper li::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    margin: 0 8px;
+    background: var(--border-color);
+}
+
+.st-stepper li:last-child::after {
+    display: none;
+}
+
+.st-stepper li:last-child {
+    flex: none;
+}
+
+.st-stepper-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: var(--fw-semibold);
+    flex: none;
+}
+
+.st-stepper li.is-current .st-stepper-dot {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+}
+
+.st-stepper li.is-current {
+    color: var(--text-main);
+    font-weight: var(--fw-semibold);
+}
+
+.st-stepper li.is-done .st-stepper-dot {
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.st-stepper-label {
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .st-stepper-label {
+        display: none;
+    }
+    .st-stepper li.is-current .st-stepper-label {
+        display: inline;
+    }
+}
+
+@media (max-width: 768px) {
+    .st-table,
+    .st-table tbody,
+    .st-table tr,
+    .st-table td {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .st-table thead {
+        display: none;
+    }
+    .st-table tr {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .st-table tbody tr:last-child {
+        border-bottom: none;
+    }
+    .st-table td {
+        padding: 3px 14px;
+        border-bottom: none;
+    }
+    .st-table td:empty {
+        display: none;
+    }
+    .st-admin-table {
+        min-width: 0;
+    }
+    .st-admin-table th,
+    .st-admin-table td {
+        white-space: normal;
+    }
+    .st-col-actions {
+        width: auto;
+        white-space: normal;
+    }
+    .st-row-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        padding-top: 4px;
+    }
+    .st-pick-row td.st-col-pick {
+        display: inline-block;
+        width: 36px;
+        padding-right: 0;
+        vertical-align: top;
+    }
+    .st-pick-row td:nth-child(2) {
+        display: inline-block;
+        width: calc(100% - 40px);
+    }
+}

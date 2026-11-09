@@ -64,8 +64,9 @@ function LegacyBasePath() {
 }
 
 function RequireProvider({ hasProvider, sessionReady }) {
+  const location = useLocation();
   if (!sessionReady) return <LoadingBlock text="Loading…" />;
-  return hasProvider ? <Outlet /> : <Navigate to="/settings" replace />;
+  return hasProvider ? <Outlet /> : <Navigate to="/settings" replace state={{ from: `${location.pathname}${location.search}` }} />;
 }
 
 export default function App() {
