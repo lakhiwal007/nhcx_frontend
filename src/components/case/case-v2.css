@@ -628,3 +628,27 @@
 .tl-event .cv-tech { margin-top: 6px; }
 .tl-actor { display: inline-flex; align-items: center; gap: 4px; }
 .tl-actor svg { color: var(--cv-soft); }
+
+.bio-start { display: flex; flex-direction: column; gap: 4px; }
+.bio-methods { display: flex; flex-wrap: wrap; gap: 8px; }
+.bio-method { display: inline-flex; align-items: center; gap: 6px; }
+.bio-panel { display: flex; flex-direction: column; gap: 14px; }
+.bio-method-line span:last-child { display: inline-flex; align-items: center; gap: 6px; }
+.bio-steps { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--cv-soft); }
+.bio-steps li { display: inline-flex; align-items: center; gap: 7px; }
+.bio-steps li.is-current { color: var(--cv-ink); font-weight: 600; }
+.bio-step-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid var(--cv-line-strong); border-radius: 50%; font-size: 11px; font-weight: 600; flex: none; }
+.bio-steps li.is-current .bio-step-dot { border-color: var(--cv-primary); background: var(--cv-primary); color: #fff; }
+.bio-steps li.is-done .bio-step-dot { border-color: var(--cv-ok); color: var(--cv-ok); }
+.bio-face { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.bio-qr { padding: 8px; background: #fff; border: 1px solid var(--cv-line); border-radius: var(--radius-md); line-height: 0; flex: none; }
+.bio-face-text { flex: 1 1 240px; min-width: 0; }
+.bio-wait { display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; }
+.bio-wait.is-done { color: var(--cv-ok); }
+.bio-spinner { width: 14px; height: 14px; border-width: 2px; margin: 0; }
+.bio-device-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bio-paste > summary { list-style: none; cursor: pointer; font-size: 13px; }
+.bio-paste > summary::-webkit-details-marker { display: none; }
+.bio-paste-body { margin-top: 8px; }
+.bio-pid { height: auto; min-height: 110px; font-size: 12px; }
+.bio-actions { display: flex; gap: 8px; flex-wrap: wrap; }
