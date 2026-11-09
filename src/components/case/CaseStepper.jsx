@@ -4,7 +4,7 @@ import { formatMoney } from "../../format.js";
 const ticked = (s) => s.state === "done" || s.done;
 const tooltip = (s, extra) => [s.note && `${s.note}.`, s.hint, extra].filter(Boolean).join(" ");
 
-export default function CaseStepper({ stages, amounts = {}, onNavigate }) {
+export default function CaseStepper({ stages, amounts = {}, onNavigate, trailing = null }) {
   const core = stages.filter((s) => !s.branch);
   const branches = stages.filter((s) => s.branch);
   const next = core.find((s) => !ticked(s)) || null;
@@ -43,6 +43,7 @@ export default function CaseStepper({ stages, amounts = {}, onNavigate }) {
           );
         })}
       </ol>
+      {trailing}
       {branches.length > 0 && (
         <div className="cv-chain-branches">
           {branches.map((b) => (

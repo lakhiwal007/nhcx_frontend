@@ -7,7 +7,8 @@ import { Button, EmptyState, LoadingBlock } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
 import CaseFileHeader from "../case/CaseFileHeader";
 import CaseStepper from "../case/CaseStepper";
-import AttentionTray from "../case/AttentionTray";
+import { NeedsYouPanel, NeedsYouChip } from "../case/NeedsYou";
+import { attentionItems } from "../case/attentionItems";
 import CaseNotesDrawer from "../case/CaseNotes";
 import AnswerPayerQuery from "../case/AnswerPayerQuery";
 import TechnicalDetails from "../case/TechnicalDetails";
@@ -285,6 +286,8 @@ function CaseWorkspace({ reportCase }) {
   };
 
   const effectiveCase = cashlessCase || {};
+  const asks = attentionItems({ communications, notes, heldTasks: effectiveCase.held_tasks });
+  const askHandlers = { items: asks, onOpenComm: setOpenCommId, onOpenNotes: () => setNotesOpen(true), onReply: readOnly ? null : setReplyTo };
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
   const preauthDecision = caseState.preauthDecision || effectiveCase.preauth_status;
 
@@ -355,8 +358,9 @@ function CaseWorkspace({ reportCase }) {
           preauthRef={preauthRef}
           moneyLedger={timeline?.money_ledger || null}
           statusPill={caseClosed ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
+          aside={asks.length > 0 ? <NeedsYouPanel {...askHandlers} /> : null}
         />
-        <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} />
+        <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} trailing={asks.length > 0 ? <NeedsYouChip {...askHandlers} /> : null} />
       </div>
 
       <div className="cv-page">
@@ -373,7 +377,6 @@ function CaseWorkspace({ reportCase }) {
             </div>
           </div>
         )}
-        <AttentionTray communications={communications} notes={notes} heldTasks={effectiveCase.held_tasks} onOpenComm={setOpenCommId} onOpenNotes={() => setNotesOpen(true)} onReply={readOnly ? null : setReplyTo} />
 
         <div className="cv-stage-body">
           <AnimatePresence mode="wait">

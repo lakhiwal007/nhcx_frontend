@@ -29,7 +29,7 @@ function MoneyCell({ label, value, due = false, note }) {
   );
 }
 
-export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, moneyLedger, statusPill, onBack, backLabel = "Back" }) {
+export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, moneyLedger, statusPill, onBack, backLabel = "Back", aside = null }) {
   const policyNumber = caseState.policy?.policy_number || effectiveCase.policy_number;
   const payerId = effectiveCase.payer_id;
   const payerName = caseState.payer?.name;
@@ -44,7 +44,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
 
   return (
     <section className="cv-head" aria-label="Patient, ids and money">
-      <div className="cv-head-panels">
+      <div className={`cv-head-panels${aside ? " has-asks" : ""}`}>
         <div className="cv-panel">
           <div className="cv-head-line">
             {onBack && (
@@ -81,6 +81,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
             <MoneyCell label="Patient pays" value={payable} due={payable > 0} note={estimate ? "(estimate)" : null} />
           </div>
         </div>
+        {aside}
       </div>
     </section>
   );
