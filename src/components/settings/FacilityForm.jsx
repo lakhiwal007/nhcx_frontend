@@ -1,5 +1,5 @@
 import { Field, TextInput, TextArea, GenerateKeypairButton, PEM_PLACEHOLDER } from "./fields";
-import { ROLE_OPTIONS, LINKED_REGISTRY_OPTIONS, ENVIRONMENT_OPTIONS, OWNERSHIP_OPTIONS } from "./facilityForm";
+import { ROLE_OPTIONS, LINKED_REGISTRY_OPTIONS, ENVIRONMENT_OPTIONS, OWNERSHIP_OPTIONS } from "./facilityModel";
 
 function Checks({ id, options, value = [], onChange }) {
   const toggle = (v) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);

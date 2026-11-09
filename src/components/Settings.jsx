@@ -9,7 +9,7 @@ import { Drawer } from "./Overlay";
 import PageActions from "./PageActions";
 import { ReadOnlyContext } from "../readOnly";
 import FacilityForm from "./settings/FacilityForm";
-import { EMPTY_FORM, formFromFacility, validateFacility, facilityPayload } from "./settings/facilityForm";
+import { EMPTY_FORM, formFromFacility, validateFacility, facilityPayload } from "./settings/facilityModel";
 import { KeyUploadDrawer, CertificateRotationDrawer } from "./settings/KeyDrawers";
 import OnboardingWizard from "./settings/OnboardingWizard";
 import Practitioners from "./settings/Practitioners";
