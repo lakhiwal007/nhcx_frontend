@@ -18,6 +18,22 @@ export const stageLabel = (stage) =>
     .replace(/^PAYMENT[_-]/i, "")
     .toLowerCase();
 
+const STAGE_WORDS = { PAYMENT_INITIATED: "Initiated", PAYMENT_PROCESSED: "Processed", PAYMENT_SETTLED: "Settled" };
+
+export const stageWord = (stage) => {
+  const key = String(stage || "").toUpperCase();
+  if (STAGE_WORDS[key]) return STAGE_WORDS[key];
+  const word = stageLabel(stage);
+  return word ? word.charAt(0).toUpperCase() + word.slice(1) : "";
+};
+
+const ACK_WORDS = { submitted: "Acknowledged", failed: "Failed", done: "Acknowledged", pending: "In progress", sent: "Sent" };
+
+export const ackLabel = (value) => {
+  const state = typeof value === "string" ? value : value?.history ? ackState(value) : value?.acknowledgement_status;
+  return ACK_WORDS[state] || "In progress";
+};
+
 const referenceOf = (event) =>
   event.payment_reference || event.claim_reference || event.notice_identifier || "no-ref";
 

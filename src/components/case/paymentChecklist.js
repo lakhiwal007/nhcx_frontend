@@ -1,6 +1,5 @@
 import { formatMoney } from "../../format.js";
-
-// One row per thing the desk reconciles. tone: ok | warn | bad | wait | idle.
+import { groupRows } from "./checklistShared";
 
 const GROUPS = [
   ["settlement", "Settlement"],
@@ -23,23 +22,21 @@ function utrRow(f) {
 
 function ackRow(f) {
   const row = { id: "acks", group: "ack", name: "Acknowledgements" };
-  if (f.ackFailed) return { ...row, tone: "bad", fact: `${f.ackFailed} failed` };
+  if (f.ackFailed) return { ...row, tone: "refused", fact: `${f.ackFailed} failed` };
   return f.ackPending ? { ...row, tone: "wait", fact: `${f.ackPending} in progress` } : { ...row, tone: "ok", fact: "All sent" };
 }
 
 export function buildPaymentChecklist(f) {
-  const rows = [
+  return groupRows(GROUPS, [
     amountRow(f),
     utrRow(f),
-    { id: "payments", group: "payments", name: "Payments", tone: "idle", fact: String(f.payments) },
-    f.notices > f.payments && { id: "notices", group: "payments", name: "Notices", tone: "idle", fact: String(f.notices) },
+    { id: "payments", group: "payments", name: "Payments", tone: "idle", fact: f.payments === 1 ? "1 payment" : `${f.payments} payments` },
     ackRow(f),
-  ].filter(Boolean);
-  return GROUPS.map(([id, title]) => ({ id, title, rows: rows.filter((r) => r.group === id) })).filter((g) => g.rows.length > 0);
+  ]);
 }
 
 export function firstPaymentItem(groups, picked) {
   const rows = groups.flatMap((g) => g.rows);
   if (rows.some((r) => r.id === picked)) return picked;
-  return (rows.find((r) => r.tone === "bad") || rows.find((r) => r.tone === "warn") || rows[0])?.id;
+  return (rows.find((r) => r.tone === "refused" || r.tone === "bad") || rows.find((r) => r.tone === "warn") || rows[0])?.id;
 }

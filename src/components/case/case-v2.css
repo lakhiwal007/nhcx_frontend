@@ -484,3 +484,15 @@
 .cv-ack input { margin-top: 3px; }
 .ov-body .cv-ask { margin-top: 0; }
 .rp-explain { min-height: 140px; }
+.pay-toggle-col { width: 36px; padding-right: 0 !important; }
+.cv-tw tr.pay-subrow td { background: var(--cv-wash); padding: 14px 16px 16px; }
+.pay-detail { display: flex; flex-direction: column; gap: 12px; }
+.pay-notices { background: var(--cv-card); }
+.pay-notices th, .pay-notices td { font-size: 13px; padding: 8px 12px; }
+.cv-tw tr.pay-breakdown td { color: var(--cv-soft); }
+.pay-retry { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.pay-retry-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.pay-override { max-width: 360px; }
+.cv-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--cv-soft); cursor: pointer; }
+.cv-icon-btn:hover { background: var(--cv-wash); color: var(--cv-ink); }
+.cv-icon-btn:focus-visible { outline: 2px solid var(--cv-primary); outline-offset: 1px; }
