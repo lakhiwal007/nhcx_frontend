@@ -18,6 +18,7 @@ export const TASK_HELP = {
   review_communication: "The payer sent a message. Open it, read it and reply if it asks for something.",
   review_callback_failure: "A payer answer arrived but couldn't be read. Press Retry; if it fails again, tell your IT team.",
   cancel_superseded_preauth: "An older preauth for this case is no longer needed. Withdraw it so the payer doesn't hold two.",
+  chase_payer_answer: "The payer has had this for hours and not answered. Call the payer desk, or ask the gateway where it stands if that payer answers status enquiries.",
 };
 
 export const taskHelp = (type) => TASK_HELP[type] || null;

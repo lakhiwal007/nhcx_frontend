@@ -19,9 +19,9 @@ export const TASK_STEPS = {
 
 export const taskStep = (taskType) => TASK_STEPS[taskType] || null;
 
-export const taskScreen = (taskType, childId) => {
+export const taskScreen = (taskType, childId, workflow) => {
   if (taskType === 'review_communication') return '/communications';
-  const step = TASK_STEPS[taskType];
+  const step = taskType === 'chase_payer_answer' ? (workflow === 'claim' ? 'claim' : 'status') : TASK_STEPS[taskType];
   return step ? `/case/${childId}/${step}` : null;
 };
 

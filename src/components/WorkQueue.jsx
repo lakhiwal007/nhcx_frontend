@@ -83,6 +83,7 @@ const TASK_TYPE_SHORT = {
   review_communication: "Message",
   review_callback_failure: "Payer response",
   cancel_superseded_preauth: "Withdraw",
+  chase_payer_answer: "No answer",
 };
 
 const shortTaskType = (type) =>
@@ -126,6 +127,7 @@ const TASK_TYPE_OPTIONS = [
   { value: "review_communication", label: "Review Communication" },
   { value: "review_callback_failure", label: "Callback Failure" },
   { value: "cancel_superseded_preauth", label: "Withdraw Preauth" },
+  { value: "chase_payer_answer", label: "No Answer From Payer" },
 ];
 
 // Doc requirements arrive either as a flat {name}/{display} shape, or as a raw
@@ -623,7 +625,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       setPageError((prev) => prev || "This task has no patient on record, so its case cannot be opened.");
       return;
     }
-    const path = taskScreen(task.task_type, cid) || `/case/${cid}/`;
+    const path = taskScreen(task.task_type, cid, task.workflow) || `/case/${cid}/`;
     navigate(path, { state: taskNavState(task) });
   };
 

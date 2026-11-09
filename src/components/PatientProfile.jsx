@@ -496,7 +496,7 @@ function PatientDetail({ patient }) {
     }
   };
   const openTask = (task) => {
-    const path = taskScreen(task.task_type, patient.child_id) || `/case/${patient.child_id}/`;
+    const path = taskScreen(task.task_type, patient.child_id, task.workflow) || `/case/${patient.child_id}/`;
     navigate(path, { state: taskNavState(task) });
   };
 
