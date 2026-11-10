@@ -28,6 +28,7 @@ import ReprocessScreen from "./ReprocessScreen";
 import PaymentReconciliation from "./PaymentReconciliation";
 import CaseTimeline from "./CaseTimeline";
 import ErrorBoundary from "../ErrorBoundary";
+import { formatCaseRef, formatDate } from "../../format.js";
 
 const COMMS_POLL_MS = 60_000;
 const ISSUE_LABELS = { timeline: "the money summary", comms: "payer messages", case: "the case status" };
@@ -346,6 +347,8 @@ function CaseWorkspace({ reportCase }) {
       documents: (docs || []).map((d) => ({ title: d.attachment?.title || d.name, content_type: d.content_type || d.attachment?.contentType, data: d.attachment?.data })),
     });
 
+  const readmission = effectiveCase?.readmission || null;
+
   return (
     <div className="cv-root">
       <div className="cv-top">
@@ -357,7 +360,16 @@ function CaseWorkspace({ reportCase }) {
           effectiveCase={effectiveCase}
           preauthRef={preauthRef}
           moneyLedger={timeline?.money_ledger || null}
-          statusPill={caseClosed ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
+          statusPill={
+            <>
+              {caseClosed ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
+              {readmission && (
+                <span className="cv-chip is-info" title={`Discharged on ${formatDate(readmission.discharged_on)} under ${formatCaseRef(readmission.previous_case_id)}. Shown for the desk only; nothing about it goes to the payer.`}>
+                  Readmission · {readmission.days_since_discharge === 0 ? "same day as" : `${readmission.days_since_discharge} ${readmission.days_since_discharge === 1 ? "day" : "days"} after`} {formatCaseRef(readmission.previous_case_id)}
+                </span>
+              )}
+            </>
+          }
           aside={asks.length > 0 ? <NeedsYouPanel {...askHandlers} /> : null}
         />
         <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} trailing={asks.length > 0 ? <NeedsYouChip {...askHandlers} /> : null} />
