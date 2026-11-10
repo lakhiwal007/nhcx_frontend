@@ -259,6 +259,7 @@ export default function ClaimsScreen({ ctx }) {
     lock.viewOnly && { tone: "info", text: lock.reason },
     !c.error && !c.hasPreauthRef && !c.docsLocked && draft && { tone: "warn", text: "The payer must approve the pre-auth before you can claim.", action: { label: "Open Approval", onClick: () => navigate("../status") } },
     c.hisBlockers.length > 0 && { tone: "warn", text: `The hospital records are missing ${fieldList(c.hisBlockers)}. Ask the doctor or billing desk to add it, then reload this page.` },
+    ...(draft?.reminders || []).map((r) => ({ tone: "info", text: r.message })),
     c.dischargeRejected && { tone: "bad", text: "The payer rejected the discharge claim. No final claim exists yet, so there is nothing to appeal: correct it and send it again." },
     c.dischargeQueried && { tone: "warn", text: "The payer has a question about the discharge claim. The final claim cannot go until it is answered." },
     c.dischargeFailed && { tone: "bad", text: `The discharge claim did not reach the payer. ${c.dischargeView.message || ""}`.trim() },

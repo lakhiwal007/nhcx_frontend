@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Building2, Radar, UserRound } from "lucide-react";
+import { Building2, Check, Radar, UserRound } from "lucide-react";
 import { api } from "../../api";
 import { Drawer } from "../Overlay";
 import { InfoTip, Tip, NextStep } from "../Common";
@@ -88,6 +88,23 @@ const initials = (name) =>
     .map((part) => part[0].toUpperCase())
     .join("");
 
+const fromServer = (row) => {
+  const state = discoveryState(row.status);
+  return {
+    correlation_id: row.correlation_id,
+    payer_id: row.payer_id,
+    payer_name: row.payer_name || row.payer_id,
+    sent_at: row.sent_at,
+    status: state,
+    covers: row.covers || [],
+    error: state === "failed" ? statusError(row) : null,
+    policy_number: row.policy_number || null,
+    member_id: row.member_id || null,
+    mobile: row.mobile || null,
+    aadhaar_last4: row.aadhaar_last4 || null,
+  };
+};
+
 const stripPhoto = (cover) => {
   const { photo, ...rest } = cover;
   return photo ? rest : cover;
@@ -141,6 +158,27 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
     saveDiscoveries(latest.current.discoveries.map((d) => (d.correlation_id === id ? { ...d, ...patch } : d)));
 
   const payerQueryReady = !payer && payerQuery.trim().length >= 2;
+
+  useEffect(() => {
+    if (!open || !childId) return undefined;
+    let live = true;
+    api
+      .listDiscoveries(childId)
+      .then((res) => {
+        if (!live) return;
+        const held = latest.current.discoveries;
+        const known = new Set(held.map((d) => d.correlation_id));
+        const older = (res?.discoveries || []).filter((row) => !known.has(row.correlation_id)).map(fromServer);
+        if (older.length === 0) return;
+        const merged = [...held, ...older].sort((a, b) => (Date.parse(b.sent_at) || 0) - (Date.parse(a.sent_at) || 0));
+        saveDiscoveries(merged);
+        setActiveId((current) => current || merged[0]?.correlation_id || null);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [open, childId]);
 
   useEffect(() => {
     const query = payerQuery.trim();
@@ -316,7 +354,14 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
                       Change
                     </button>
                   </div>
-                ) : (
+                ) : null}
+                {payer?.in_network && (
+                  <div className="cd-payer-note cd-in-network">
+                    <Check size={14} aria-hidden="true" />
+                    In network: this hospital has fetched an insurance plan from {payer.name}.
+                  </div>
+                )}
+                {payer ? null : (
                   <div className="cd-typeahead">
                     <input
                       className="cv-ctl"
@@ -490,7 +535,7 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
 
         {discoveries.length > 0 && (
           <section className="cd-section">
-            <div className="cd-section-title">Asked on this case</div>
+            <div className="cd-section-title">Asked for this patient</div>
             <div className="cd-sent">
               {discoveries.map((d) => (
                 <button

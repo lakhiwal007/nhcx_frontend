@@ -99,7 +99,7 @@ export default function Payments() {
   useEffect(() => {
     let live = true;
     api
-      .searchPaymentStatus()
+      .searchPaymentStatus({ paid_from: dateFrom || undefined, paid_to: dateTo || undefined })
       .then((res) => live && setData({ key: reloadKey, payments: groupPaymentEvents(res?.events || []), error: null }))
       .catch((err) => {
         markHandled(err);
@@ -108,7 +108,7 @@ export default function Payments() {
     return () => {
       live = false;
     };
-  }, [reloadKey]);
+  }, [reloadKey, dateFrom, dateTo]);
 
   const loading = data.key !== reloadKey;
   const payments = data.payments || [];

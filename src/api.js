@@ -1610,6 +1610,7 @@ const mock = {
         name: "Sample Payer",
         scheme_type: "PMJAY",
         status: "active",
+        in_network: true,
       },
       {
         code: "2044@hcx",
@@ -2373,6 +2374,11 @@ const mock = {
       abha_number: data.abha_number || undefined,
     });
     return { correlation_id, request_id: correlation_id, payer_id: data.payer_id, status: "submitted", message: "Eligibility request queued to the payer." };
+  },
+
+  listDiscoveries: async (child_id) => {
+    await delay(300);
+    return { child_id, discoveries: mockDiscoveries.map((d) => ({ ...d, status: "pending", covers: [] })) };
   },
 
   adoptDiscoveredCover: async (correlation_id, data) => {
@@ -3774,6 +3780,7 @@ const real = {
     http.get(`/cashless/coverage_eligibility/status/${correlation_id}`, {}, { signal }),
   discoverCoverage: (data) =>
     http.post("/cashless/coverage_eligibility/check", { ...data, purpose: "discovery" }),
+  listDiscoveries: (child_id) => http.get("/cashless/coverage_eligibility/discoveries", { child_id }),
   adoptDiscoveredCover: (correlation_id, data) =>
     http.post(`/cashless/coverage_eligibility/discoveries/${encodeURIComponent(correlation_id)}/adopt`, data),
 
