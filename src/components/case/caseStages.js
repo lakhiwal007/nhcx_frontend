@@ -1,5 +1,6 @@
 import { formatMoney } from "../../format.js";
 import { taskStep } from "../../tasks";
+import { isDischargeDecision } from "../../caseStatus.js";
 
 const CORE = [
   { id: "payer", label: "Policy", path: "payer", hint: "Select the patient's active policy — its payer comes with it." },
@@ -231,6 +232,9 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     })(),
     claim: (() => {
       const label = claimDecision ? String(claimDecision).replace(/_/g, " ") : "";
+      if (isDischargeDecision(effectiveCase)) {
+        return { done: false, note: `Discharge ${label.toLowerCase()}`, tone: /reject|denied|quer/i.test(label) ? "urgent" : "wait", live: true };
+      }
       if (claimDecision && /reject|denied|short/i.test(String(claimDecision))) return { done: true, note: label, tone: "urgent" };
       if (claimDecision && /approv|paid/i.test(String(claimDecision))) return { done: true, note: label, tone: "approve" };
       if (claimDecision) return { done: false, note: label, tone: "wait" };

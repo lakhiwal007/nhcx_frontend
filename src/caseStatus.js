@@ -27,6 +27,21 @@ const CLAIM_DECISION_CONFIG = {
   REJECTED: { label: "Claim Rejected", badgeClass: "badge-error" },
 };
 
+const DISCHARGE_DECISION_CONFIG = {
+  APPROVED: { label: "Discharge Approved", badgeClass: "badge-success" },
+  PARTIALLY_APPROVED: { label: "Discharge Partially Approved", badgeClass: "badge-warning" },
+  QUERIED: { label: "Discharge Query", badgeClass: "badge-error" },
+  REJECTED: { label: "Discharge Rejected", badgeClass: "badge-error" },
+};
+
+const FINAL_CLAIM_STEPS = ["claim_decided", "payment_pending", "settled"];
+
+export const isDischargeDecision = (c) => {
+  if (!c?.claim_decision) return false;
+  if (c.legs?.claim) return c.legs.claim === "draft";
+  return !!c.current_step && !FINAL_CLAIM_STEPS.includes(c.current_step);
+};
+
 const DECISION_CONFIG = {
   APPROVED: { label: "Preauth Approved", badgeClass: "badge-success" },
   PARTIALLY_APPROVED: { label: "Partially Approved", badgeClass: "badge-warning" },
@@ -60,7 +75,8 @@ export const resolveCaseStatus = (claim) => {
   if (MONEY_STEPS[claim.current_step]) return MONEY_STEPS[claim.current_step];
 
   const claimDecision = claim.claim_decision?.toUpperCase();
-  if (claimDecision && CLAIM_DECISION_CONFIG[claimDecision]) return CLAIM_DECISION_CONFIG[claimDecision];
+  const decisionConfig = isDischargeDecision(claim) ? DISCHARGE_DECISION_CONFIG : CLAIM_DECISION_CONFIG;
+  if (claimDecision && decisionConfig[claimDecision]) return decisionConfig[claimDecision];
 
   const preauthDecision = claim.preauth_status?.toUpperCase();
   if (preauthDecision && DECISION_CONFIG[preauthDecision]) return DECISION_CONFIG[preauthDecision];
