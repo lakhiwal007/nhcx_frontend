@@ -104,6 +104,7 @@ export default function PayerPolicy({ ctx }) {
   const [memberId, setMemberId] = useState("");
   const [payerFilter, setPayerFilter] = useState(null);
   const [rowNotice, setRowNotice] = useState(null);
+  const [autoPicked, setAutoPicked] = useState(null);
   const [query, setQuery] = useState(() => (locked || selectedPolicy || !patient?.child_id ? null : { n: 1, idType: "", memberId: "" }));
   const [result, setResult] = useState(EMPTY_RESULT);
   const [discover, setDiscover] = useState(() => {
@@ -147,7 +148,10 @@ export default function PayerPolicy({ ctx }) {
           searchedMemberId: typed,
         });
         const usable = found.filter(isUsable);
-        if (usable.length === 1 && !latest.current.selectedPolicy && !latest.current.caseId) latest.current.applyPolicy(usable[0]);
+        if (usable.length === 1 && !latest.current.selectedPolicy && !latest.current.caseId) {
+          latest.current.applyPolicy(usable[0]);
+          setAutoPicked({ number: policyNumberOf(usable[0]), foundBy: IDENTIFIER_TYPE_LABELS[used?.type] || null });
+        }
       } catch (err) {
         if (cancelled) return;
         markHandled(err);
@@ -272,7 +276,13 @@ export default function PayerPolicy({ ctx }) {
           "Pick the policy that pays for this admission."
         )
       }
-      notes={[lock.reason && { tone: "info", text: lock.reason }]}
+      notes={[
+        lock.reason && { tone: "info", text: lock.reason },
+        autoPicked && autoPicked.number === selectedNumber && {
+          tone: "info",
+          text: `${autoPicked.foundBy ? `Found by ${autoPicked.foundBy}` : "The only policy found"} · picked automatically`,
+        },
+      ]}
       primary={{
         label: "Continue to eligibility",
         icon: ArrowRight,
