@@ -135,6 +135,8 @@ export function projectCaseStatus(full) {
     cashless_case_id: full.cashless_case_id,
     claim_id: full.claim?.claim_id ?? full.claim_id ?? null,
     status: full.status,
+    closure: full.closure ?? null,
+    close_blocker: full.close_blocker ?? null,
     current_step: full.current_step,
     payer_id: full.payer_id,
     policy_number: full.policy_number,
@@ -317,7 +319,8 @@ const PREAUTH_STAGES = new Set(["review", "status", "enhancement"]);
 export function lockFor(record, stage, { readOnly = false, closed = false } = {}) {
   const r = record || {};
   const viewOnly = !!readOnly;
-  const settled = !!closed;
+  const shut = r.status === "closed";
+  const settled = !!closed || shut;
   const forward = STEP_FORWARD_ROUTE[r.current_step] || null;
   const movedOnTo = forward && stage && !routeAtOrAfter(stage, forward) ? forward : null;
   const claimWithPayer = PREAUTH_STAGES.has(stage) && CLAIM_WITH_PAYER.includes(r.legs?.claim);
@@ -325,7 +328,9 @@ export function lockFor(record, stage, { readOnly = false, closed = false } = {}
   const reason = viewOnly
     ? "This account can view only."
     : settled
-      ? "The case is settled."
+      ? shut
+        ? "The case is closed."
+        : "The case is settled."
       : movedOnTo
         ? `The case has moved on to ${movedOnLabel}.`
         : claimWithPayer

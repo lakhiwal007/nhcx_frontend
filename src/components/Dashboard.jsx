@@ -9,7 +9,7 @@ import PayerName from "./PayerName";
 import RowMenu from "./dashboard/RowMenu";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { formatMoney, formatDate, formatRelative, formatCaseRef } from "../format.js";
-import { stageIndex, isSettled, needsAttention } from "../caseStatus.js";
+import { stageIndex, isSettled, isClosedCase, needsAttention } from "../caseStatus.js";
 import { taskLabel } from "../tasks";
 import { CaseStatusChip, StageTrack } from "./caseJourney";
 
@@ -17,11 +17,12 @@ const PAGE_SIZE = 20;
 
 const STAGE_TABS = [
   { key: "all", label: "All cases", match: () => true, dot: "var(--text-muted)" },
-  { key: "eligibility", label: "Eligibility", match: (c) => stageIndex(c) === 0, dot: "var(--info)" },
-  { key: "preauth", label: "Pre-auth", match: (c) => stageIndex(c) === 1, dot: "var(--info)" },
-  { key: "claim", label: "Claim", match: (c) => stageIndex(c) === 2, dot: "var(--accent)" },
-  { key: "payment", label: "Payment", match: (c) => stageIndex(c) === 3 && !isSettled(c), dot: "var(--warning)" },
-  { key: "settled", label: "Settled", match: isSettled, dot: "var(--success)" },
+  { key: "eligibility", label: "Eligibility", match: (c) => !isClosedCase(c) && stageIndex(c) === 0, dot: "var(--info)" },
+  { key: "preauth", label: "Pre-auth", match: (c) => !isClosedCase(c) && stageIndex(c) === 1, dot: "var(--info)" },
+  { key: "claim", label: "Claim", match: (c) => !isClosedCase(c) && stageIndex(c) === 2, dot: "var(--accent)" },
+  { key: "payment", label: "Payment", match: (c) => !isClosedCase(c) && stageIndex(c) === 3 && !isSettled(c), dot: "var(--warning)" },
+  { key: "settled", label: "Settled", match: (c) => !isClosedCase(c) && isSettled(c), dot: "var(--success)" },
+  { key: "closed", label: "Closed", match: isClosedCase, dot: "var(--text-muted)" },
 ];
 
 const SORT_OPTIONS = [

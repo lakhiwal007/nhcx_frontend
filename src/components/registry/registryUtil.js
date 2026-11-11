@@ -10,7 +10,7 @@ export const sortedVisits = (patient) => [...(patient?.visits || [])].sort((a, b
 
 export const currentAdmission = (visits) => visits.find((v) => !v.ended_at) || visits[0] || null;
 
-export const isOpenCase = (c) => !!c && !isSettled(c) && !/CANCELLED/i.test(c.preauth_status || "") && c.status !== "superseded";
+export const isOpenCase = (c) => !!c && !isSettled(c) && !/CANCELLED/i.test(c.preauth_status || "") && c.status !== "superseded" && c.status !== "closed";
 
 export function admissionMoney(visit) {
   const invoices = visit?.invoices || [];

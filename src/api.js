@@ -732,6 +732,28 @@ const mockPayCase = (res) => {
 const MOCK_CANCEL_ID = "b05fd989-e852-4542-8476-e6ac99e709cb";
 const mockApprovalKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("ap") : null);
 
+const MOCK_CLOSED_KEY = "nhcx_mock_closed";
+const mockClosures = () => {
+  try {
+    return JSON.parse(window.sessionStorage.getItem(MOCK_CLOSED_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+const saveMockClosures = (all) => {
+  try {
+    window.sessionStorage.setItem(MOCK_CLOSED_KEY, JSON.stringify(all));
+  } catch {
+    return;
+  }
+};
+const withMockClosure = (record) => {
+  const closure = mockClosures()[String(record.cashless_case_id)];
+  if (closure) return { ...record, status: "closed", next_actions: [], pending_tasks: [], held_tasks: [], closure, close_blocker: null };
+  const held = mockCaseOpen() !== "draft";
+  return { ...record, close_blocker: held ? "The payer holds a pre-authorisation for this case. Cancel it before closing the case." : null };
+};
+
 const mockCaseOpen = () => {
   if (typeof window === "undefined") return false;
   const value = new URLSearchParams(window.location.search).get("open");
@@ -1818,10 +1840,26 @@ const mock = {
     };
   },
 
+  closeCase: async (cashless_case_id, data = {}) => {
+    await delay(500);
+    const labels = { duplicate_case: "Duplicate case", wrong_policy: "Wrong policy or payer", cash_patient: "Patient is paying cash", payer_declined: "Payer declined, not pursuing", other: "Other" };
+    const closure = { reason: data.reason, reason_label: labels[data.reason], note: data.note, closed_at: new Date().toISOString(), closed_by_name: "Desk user" };
+    saveMockClosures({ ...mockClosures(), [String(cashless_case_id)]: closure });
+    return { cashless_case_id, status: "closed", closure };
+  },
+
+  reopenCase: async (cashless_case_id) => {
+    await delay(500);
+    const all = mockClosures();
+    delete all[String(cashless_case_id)];
+    saveMockClosures(all);
+    return { cashless_case_id, status: "complete" };
+  },
+
   getCashlessStatus: async (cashless_case_id) => {
     await delay(1000);
     const journey = MOCK_CASE_JOURNEYS[String(cashless_case_id)] || MOCK_CASE_JOURNEYS.default;
-    return mockCeState({
+    return withMockClosure(mockCeState({
       cashless_case_id,
       claim_id: journey.claim_id,
       child_id: journey.child_id,
@@ -1953,7 +1991,7 @@ const mock = {
       preauth: mockCaseOpen() === "draft" ? null : journey.preauth,
       claim: journey.claim,
       payment: journey.payment ?? null,
-    });
+    }));
   },
 
   getCaseTimeline: async (cashless_case_id, params = {}) => {
@@ -3795,6 +3833,10 @@ const real = {
 
   patchCashlessPatientContext: (cashless_case_id, data) =>
     http.patch(`/cashless/${cashless_case_id}/patient-context`, data),
+
+  closeCase: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/close`, data),
+
+  reopenCase: (cashless_case_id) => http.post(`/cashless/${cashless_case_id}/reopen`),
 
   submitDischargeClaim: (data) => http.post("/cashless/claims/discharge", data),
 

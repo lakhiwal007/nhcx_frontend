@@ -13,6 +13,7 @@ import { StageTrack } from "./caseJourney";
 import CommunicationDetailDrawer from "./CommunicationDetail";
 import PatientHeader, { Avatar } from "./registry/PatientHeader";
 import { AdmissionsLedger, CasesLedger, MessagesLedger, AdmissionDrawer, CaseDrawer } from "./registry/CaseLedger";
+import StartCasePrompt from "./registry/StartCasePrompt";
 import { currentAdmission, isOpenCase, sortedVisits, patientCases, casesOfVisit, estimatedBill } from "./registry/registryUtil";
 
 const PAGE_SIZE = 20;
@@ -46,6 +47,7 @@ function PatientDetail({ patient }) {
   const [openVisit, setOpenVisit] = useState(null);
   const [openCase, setOpenCase] = useState(null);
   const [drawerComm, setDrawerComm] = useState(null);
+  const [startPrompt, setStartPrompt] = useState(null);
 
   const childId = patient.child_id;
   useEffect(() => {
@@ -73,8 +75,22 @@ function PatientDetail({ patient }) {
   const focusCase = (current ? casesOfVisit(current).find(isOpenCase) : null) || (isOpenCase(patient.latest_claim) ? patient.latest_claim : null) || cases.find(isOpenCase) || null;
   const from = `/registry?child_id=${childId}`;
 
-  const startCase = (visit) => {
+  const goStartCase = (visit) => {
     navigate(`/case/${childId}/payer`, { state: { admission_id: visit?.admission_id ?? visit?.admission_no ?? null, newCase: true, estimatedBillAmount: estimatedBill(visit), from } });
+  };
+  const startCase = (visit) => {
+    const ofVisit = casesOfVisit(visit).map((c) => String(c.cashless_case_id));
+    const stale = cases.filter(
+      (c) =>
+        c.cashless_case_id &&
+        isOpenCase(c) &&
+        !c.claim_decision &&
+        !c.payment_status &&
+        !/APPROVED|QUERIED/i.test(c.preauth_status || "") &&
+        !ofVisit.includes(String(c.cashless_case_id)),
+    );
+    if (stale.length && !readOnly) setStartPrompt({ visit, cases: stale });
+    else goStartCase(visit);
   };
   const resumeCase = (c) => {
     if (!c?.cashless_case_id) {
@@ -132,6 +148,7 @@ function PatientDetail({ patient }) {
         </div>
       </section>
 
+      <StartCasePrompt prompt={startPrompt} onCancel={() => setStartPrompt(null)} onStart={goStartCase} />
       <AdmissionDrawer visit={openVisit} onClose={() => setOpenVisit(null)} onStart={startCase} onResume={resumeCase} readOnly={readOnly} />
       <CaseDrawer summary={openCase} tasks={openCase ? tasksFor(openCase) : []} onClose={() => setOpenCase(null)} onOpenCase={resumeCase} onOpenTask={openTask} readOnly={readOnly} />
       <CommunicationDetailDrawer correlationId={drawerComm} open={!!drawerComm} onClose={() => setDrawerComm(null)} onRead={markRead} showOpenCase />

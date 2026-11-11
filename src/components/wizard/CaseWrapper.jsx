@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "../../api";
+import { api, markHandled } from "../../api";
 import { useReadOnly } from "../../readOnly";
 import { Button, EmptyState, LoadingBlock } from "../Common";
 import { saveWorkflow, loadWorkflow } from "../../workflowStorage";
@@ -11,6 +11,7 @@ import { NeedsYouPanel, NeedsYouChip } from "../case/NeedsYou";
 import { attentionItems } from "../case/attentionItems";
 import CaseNotesDrawer from "../case/CaseNotes";
 import AnswerPayerQuery from "../case/AnswerPayerQuery";
+import CloseCaseModal from "../case/CloseCaseModal";
 import TechnicalDetails from "../case/TechnicalDetails";
 import { useCaseNotes } from "../../hooks/useCaseNotes";
 import CommunicationDetailDrawer from "../CommunicationDetail";
@@ -151,6 +152,8 @@ function CaseWorkspace({ reportCase }) {
 
   const { notes, loaded: notesLoaded, error: notesError, refresh: refreshNotes } = useCaseNotes(ledgerCaseId);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [reopen, setReopen] = useState({ busy: false, error: null });
 
   const [communications, setCommunications] = useState([]);
   const [openCommId, setOpenCommId] = useState(null);
@@ -302,10 +305,27 @@ function CaseWorkspace({ reportCase }) {
     paymentSummary: effectiveCase.payment || null,
   });
   const activeStage = stages.find((s) => s.state === "active") || stageInfo(currentStepPath);
-  const caseClosed = stages.some((s) => s.id === "payment" && s.done);
+  const caseSettled = stages.some((s) => s.id === "payment" && s.done);
+  const caseShut = effectiveCase.status === "closed";
+  const caseClosed = caseSettled || caseShut;
+  const closure = caseShut ? effectiveCase.closure || {} : null;
+
+  const reopenCase = async () => {
+    setReopen({ busy: true, error: null });
+    try {
+      await api.reopenCase(ledgerCaseId);
+      setReopen({ busy: false, error: null });
+      caseRecord.reload();
+      refreshTimeline();
+    } catch (err) {
+      markHandled(err);
+      setReopen({ busy: false, error: err?.message || "The case could not be reopened." });
+    }
+  };
 
   const stageTools = [];
   if (ledgerCaseId) stageTools.push({ label: notes.length ? `Notes (${notes.length})` : "Notes", onClick: () => setNotesOpen(true) });
+  if (ledgerCaseId && cashlessCase && !readOnly && !caseClosed) stageTools.push({ label: "Close case", onClick: () => setCloseOpen(true) });
   stageTools.push(currentStepPath === "timeline" ? { label: "Back to case", onClick: () => navigate(-1) } : { label: "Audit trail", onClick: () => navigate(`/case/${id}/timeline`) });
 
   const from = location.state?.from;
@@ -362,7 +382,7 @@ function CaseWorkspace({ reportCase }) {
           moneyLedger={timeline?.money_ledger || null}
           statusPill={
             <>
-              {caseClosed ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
+              {caseShut ? <span className="cv-chip is-todo">Closed · read-only</span> : caseSettled ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
               {readmission && (
                 <span className="cv-chip is-info" title={`Discharged on ${formatDate(readmission.discharged_on)} under ${formatCaseRef(readmission.previous_case_id)}. Shown for the desk only; nothing about it goes to the payer.`}>
                   Readmission · {readmission.days_since_discharge === 0 ? "same day as" : `${readmission.days_since_discharge} ${readmission.days_since_discharge === 1 ? "day" : "days"} after`} {formatCaseRef(readmission.previous_case_id)}
@@ -390,6 +410,25 @@ function CaseWorkspace({ reportCase }) {
           </div>
         )}
 
+        {caseShut && (
+          <div className="cv-notice is-info">
+            <div className="cv-notice-body">
+              This case was closed{closure.closed_at ? ` on ${formatDate(closure.closed_at)}` : ""}
+              {closure.closed_by_name ? ` by ${closure.closed_by_name}` : ""}
+              {closure.reason_label ? `: ${closure.reason_label}` : ""}
+              {closure.note ? ` · ${closure.note}` : ""}. Nothing was sent to the payer about it.
+              {reopen.error && <div className="cv-notice-sub">{reopen.error}</div>}
+            </div>
+            {!readOnly && (
+              <div className="cv-notice-actions">
+                <button type="button" className="cv-btn" disabled={reopen.busy} onClick={reopenCase}>
+                  {reopen.busy ? "Reopening…" : "Reopen case"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="cv-stage-body">
           <AnimatePresence mode="wait">
             <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
@@ -412,6 +451,18 @@ function CaseWorkspace({ reportCase }) {
           </AnimatePresence>
         </div>
       </div>
+
+      <CloseCaseModal
+        open={closeOpen}
+        caseId={ledgerCaseId}
+        blocker={effectiveCase.close_blocker || null}
+        onClose={() => setCloseOpen(false)}
+        onClosed={() => {
+          setCloseOpen(false);
+          caseRecord.reload();
+          refreshTimeline();
+        }}
+      />
 
       <CaseNotesDrawer
         open={notesOpen}

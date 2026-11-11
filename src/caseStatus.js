@@ -52,6 +52,7 @@ const CLAIM_STATUS_CONFIG = {
 
 export const resolveCaseStatus = (claim) => {
   if (!claim) return { label: "Unknown", badgeClass: "badge-info" };
+  if (isClosedCase(claim)) return { label: "Closed", badgeClass: "badge-info" };
 
   const paid = claim.payment_status?.replace("PAYMENT_", "").toUpperCase();
   if (paid && PAYMENT_CONFIG[paid]) return PAYMENT_CONFIG[paid];
@@ -130,7 +131,10 @@ export function stageIndex(claim) {
 
 export const isSettled = (c) => caseStep(c) === "settled";
 
+export const isClosedCase = (c) => c?.status === "closed";
+
 export function needsAttention(claim) {
+  if (isClosedCase(claim)) return false;
   if (claim.pending_tasks?.length) return true;
   const terminalQuery = /QUERIED|REJECTED/i;
   return (

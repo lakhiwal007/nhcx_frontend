@@ -129,6 +129,12 @@ export const TASKS = {
     help: "The payer answered but the reply names no decision. Nothing can be sent until the payer says what it decided; call the payer desk or send a message.",
     byWorkflow: true,
   },
+  review_closed_case_answer: {
+    short: "Closed case",
+    label: "Answer on a closed case",
+    help: "The payer answered something on a case the desk closed. Open the case and read the audit trail; reopen it if the answer needs action, otherwise mark this done.",
+    step: "timeline",
+  },
   link_payment_to_claim: {
     short: "Unlinked payment",
     label: "Link an unlinked payment",
