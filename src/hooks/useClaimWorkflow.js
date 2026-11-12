@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, markHandled } from "../api";
 import { useSend } from "./useSend";
 import { useCaseDocuments } from "./useCaseDocuments";
@@ -117,7 +117,8 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
     onTerminal: () => refreshTimeline?.(),
   });
 
-  const documents = useCaseDocuments(ctx, { key: filesKey, seed: draft?.supporting_documents });
+  const fetchRecord = useCallback((recordId) => api.fetchHealthRecord("claim", draftParams(caseId, claimId), recordId), [caseId, claimId]);
+  const documents = useCaseDocuments(ctx, { key: filesKey, seed: draft?.supporting_documents, records: draft?.health_records, fetchRecord });
   const docs = documents.documents;
   const asks = liveAsks(draft?.payer_asks, docs, askForms);
   const askCodes = asks.filter((a) => a.kind === "document").map((a) => String(a.code));

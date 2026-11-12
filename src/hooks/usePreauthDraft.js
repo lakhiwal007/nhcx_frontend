@@ -97,7 +97,8 @@ export function usePreauthDraft(ctx, { submit, locked = false, biometric = null,
       });
   };
 
-  const documents = useCaseDocuments(ctx, { key: filesKey, seed: draft?.supporting_documents });
+  const fetchRecord = useCallback((recordId) => api.fetchHealthRecord("preauth", params(), recordId), [params]);
+  const documents = useCaseDocuments(ctx, { key: filesKey, seed: draft?.supporting_documents, records: draft?.health_records, fetchRecord });
 
   useEffect(() => {
     if (locked || !(editedDiagnoses || editedItems || editedCareTeam)) return undefined;

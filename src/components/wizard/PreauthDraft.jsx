@@ -360,6 +360,8 @@ export default function PreauthDraft({ ctx }) {
                 onAddDocument={d.documents.addCustom}
                 onRenameDocument={(i, name) => d.documents.rename(d.docs.indexOf(d.otherDocs[i]), name)}
                 onRemoveDocument={(i) => d.documents.remove(d.docs.indexOf(d.otherDocs[i]))}
+                onFetchRecord={(i) => d.documents.attachRecord(d.docs.indexOf(d.otherDocs[i]))}
+                onDetachRecord={(i) => d.documents.detachRecord(d.docs.indexOf(d.otherDocs[i]))}
                 readOnly={locked || preauthAlreadyLive}
                 hideSummary
               />

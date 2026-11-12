@@ -1,4 +1,4 @@
-import { SESSION_TOKEN_GLOBAL, SESSION_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "./api";
+import { SESSION_TOKEN_GLOBAL, SESSION_TOKEN_KEY, HIS_AUTH_TOKEN_KEY, ALL_FACILITIES_MODE_KEY } from "./api";
 
 const CONSUMED = ["auth_token", "token", "clinic_id"];
 
@@ -18,9 +18,12 @@ export function bootstrapSessionFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const authToken = params.get("token");
   const clinicId = params.get("clinic_id");
+  const hisAuthToken = params.get("auth_token");
 
   if (authToken) {
     sessionStorage.setItem(SESSION_TOKEN_KEY, authToken);
+    if (hisAuthToken) sessionStorage.setItem(HIS_AUTH_TOKEN_KEY, hisAuthToken);
+    else sessionStorage.removeItem(HIS_AUTH_TOKEN_KEY);
     window[SESSION_TOKEN_GLOBAL] = authToken;
     localStorage.removeItem("nhcx_default_provider_id");
     localStorage.removeItem("nhcx_default_facility_name");

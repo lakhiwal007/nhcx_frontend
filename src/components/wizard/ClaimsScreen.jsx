@@ -517,6 +517,8 @@ export default function ClaimsScreen({ ctx }) {
                 onAddDocument={c.documents.addCustom}
                 onRenameDocument={(i, name) => c.documents.rename(c.docs.indexOf(c.otherDocs[i]), name)}
                 onRemoveDocument={(i) => c.documents.remove(c.docs.indexOf(c.otherDocs[i]))}
+                onFetchRecord={(i) => c.documents.attachRecord(c.docs.indexOf(c.otherDocs[i]))}
+                onDetachRecord={(i) => c.documents.detachRecord(c.docs.indexOf(c.otherDocs[i]))}
                 readOnly={c.docsLocked}
                 hideSummary
               />

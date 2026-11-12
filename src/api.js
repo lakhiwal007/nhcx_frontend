@@ -69,7 +69,17 @@ const getAuthHeader = () => {
 export const clearSessionToken = () => {
   if (typeof window !== "undefined") delete window[SESSION_TOKEN_GLOBAL];
   sessionStorage.removeItem(SESSION_TOKEN_KEY);
+  sessionStorage.removeItem(HIS_AUTH_TOKEN_KEY);
 };
+
+export const HIS_AUTH_TOKEN_KEY = "nhcx_his_auth_token";
+
+const getHisAuthHeader = () => {
+  const token = sessionStorage.getItem(HIS_AUTH_TOKEN_KEY);
+  return token ? { "X-His-Auth-Token": token } : {};
+};
+
+const pickHealthRecord = (recordId) => (res) => (res?.health_records || []).find((row) => String(row.record_id) === String(recordId)) || null;
 
 // Only /health is exempt from auth. /facilities/* used to be exempt too, but
 // v1.4.0 made the bearer token required there as well (facility resolution is
@@ -213,7 +223,7 @@ const http = {
     const merged = { request_id: generateRequestId(), ...params };
     try {
       const res = await fetch(buildUrl(path, merged), {
-        headers: buildHeaders(path),
+        headers: { ...buildHeaders(path), ...opts.headers },
         signal: opts.signal,
       });
       if (res.status === 404 && opts.allowNotFound) {
@@ -914,6 +924,19 @@ const mockCeState = (status) => {
 
 // ?pa=ready|warn|missing|thin|blocked|empty|not_in_force|load_error on /case/:id/review forces a
 // pre-auth draft state.
+const MOCK_HEALTH_RECORDS = [
+  { kind: "health_record", record_id: 1530519, appointment_id: 88121, name: "OP consultation record", source_name: "Prescription", event_date: "2026-05-02", category: "CD", code: "ODN", content_type: "application/fhir+json" },
+  { kind: "health_record", record_id: 1530344, appointment_id: 87990, name: "OP consultation record", source_name: "Prescription", event_date: "2026-04-18", category: "CD", code: "ODN", content_type: "application/fhir+json" },
+];
+
+const mockHealthRecord = async (recordId) => {
+  await delay(900);
+  const row = MOCK_HEALTH_RECORDS.find((r) => String(r.record_id) === String(recordId));
+  if (!row) return null;
+  if (row.record_id === 1530344) return { ...row, error: "The patient has no ABHA address, so the hospital system cannot build this record." };
+  return { ...row, attachment: { data: btoa(JSON.stringify({ resourceType: "Bundle", type: "document", entry: [{ resource: { resourceType: "Composition", title: "Consultation Report" } }] })), contentType: "application/fhir+json", title: row.name } };
+};
+
 const mockPreauthState = (draft) => {
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("pa") : null;
   if (key === "load_error") throw new Error("The hospital records could not be read.");
@@ -2122,6 +2145,8 @@ const mock = {
     };
   },
 
+  fetchHealthRecord: (_stage, _params, recordId) => mockHealthRecord(recordId),
+
   // ─── Preauthorization ───────────────────────────────────────────────────────
   preparePreauth: async (params = {}) => {
     await delay(800);
@@ -2191,6 +2216,7 @@ const mock = {
           registration_no: "MCI-12345",
         },
       ],
+      health_records: MOCK_HEALTH_RECORDS,
       supporting_documents: [
         {
           category: "admission_note",
@@ -2582,6 +2608,7 @@ const mock = {
           role: "primary",
         },
       ],
+      health_records: MOCK_HEALTH_RECORDS,
       supporting_documents: [
         {
           category: "discharge_summary",
@@ -3778,6 +3805,11 @@ const real = {
 
   preparePreauth: (params = {}) =>
     http.get("/cashless/preauth/prepare", params),
+
+  fetchHealthRecord: (stage, params, recordId) =>
+    http
+      .get(stage === "claim" ? "/cashless/claims/prepare" : "/cashless/preauth/prepare", { ...params, "health_record_ids[]": recordId }, { headers: getHisAuthHeader() })
+      .then(pickHealthRecord(recordId)),
 
   submitPreauth: (data) => http.post("/cashless/preauth/submit", data),
 

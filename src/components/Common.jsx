@@ -177,7 +177,7 @@ export const NextStep = ({ tone = "info", title, children, steps = [], actions, 
   );
 };
 
-export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument, hideSummary = false, readOnly = false }) => {
+export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRenameDocument, onRemoveDocument, onFetchRecord, onDetachRecord, hideSummary = false, readOnly = false }) => {
   const fileInputRef = useRef(null);
   const pendingDocRef = useRef(null);
   const [uploadError, setUploadError] = useState(null);
@@ -221,6 +221,39 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
         const viewHref = safeHref(doc.url);
         const missing = !doc.optional && !attached;
         const StatusIcon = attached ? CheckCircle2 : missing ? AlertCircle : FileText;
+        if (doc.kind === "health_record") {
+          return (
+            <div key={i} className={`doc-row${attached ? " is-attached" : ""}`}>
+              <StatusIcon size={17} className="doc-icon" aria-hidden="true" />
+              <div className="doc-main">
+                <div className="doc-name">{doc.name}</div>
+                <div className="doc-meta">
+                  {doc.event_date && <span>Visit on {doc.event_date}</span>}
+                  <span>Health record from the hospital system</span>
+                </div>
+                {doc.error && <div className="doc-meta" role="alert">{doc.error}</div>}
+              </div>
+              <div className="doc-actions">
+                {attached ? (
+                  <>
+                    <span className="cv-chip is-ok doc-attached">
+                      <CheckCircle2 size={11} aria-hidden="true" /> Attached
+                    </span>
+                    {onDetachRecord && !readOnly && (
+                      <button type="button" className="cv-icon-btn doc-remove" aria-label={`Remove ${doc.name}`} onClick={() => onDetachRecord(i)}>
+                        <Trash2 size={13} aria-hidden="true" />
+                      </button>
+                    )}
+                  </>
+                ) : readOnly || !onFetchRecord ? null : (
+                  <Button variant="outline" size="small" disabled={!!doc.fetching} onClick={() => onFetchRecord(i)}>
+                    {doc.fetching ? "Fetching…" : doc.error ? "Try again" : "Attach"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        }
         return (
           <div key={i} className={`doc-row${attached ? " is-attached" : missing ? " is-missing" : ""}`}>
             <StatusIcon size={17} className="doc-icon" aria-hidden="true" />

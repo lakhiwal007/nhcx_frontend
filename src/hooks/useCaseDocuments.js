@@ -4,12 +4,15 @@ import { readFileAsAttachment } from "../files";
 const up = (v) => String(v || "").trim().toUpperCase();
 const isAttached = (d) => !!(d?.url || d?.attachment);
 
+const keyOf = (d) => (d.record_id ? `HR-${d.record_id}` : up(d.code));
+const NO_RECORD = "The hospital system did not return this record.";
+
 const merge = (seed, stored) => {
   const base = seed || [];
   if (!stored?.length) return base;
-  const byCode = new Map(stored.filter((d) => d.code).map((d) => [up(d.code), d]));
+  const byCode = new Map(stored.filter((d) => d.code).map((d) => [keyOf(d), d]));
   const merged = base.map((d) => {
-    const kept = d.code ? byCode.get(up(d.code)) : null;
+    const kept = d.code ? byCode.get(keyOf(d)) : null;
     return kept && isAttached(kept) ? { ...d, ...kept } : d;
   });
   const extra = stored.filter((d) => d.custom && !merged.some((m) => up(m.code) === up(d.code)));
@@ -18,8 +21,8 @@ const merge = (seed, stored) => {
 
 const EMPTY = [];
 
-export function useCaseDocuments(ctx, { key, seed, maxBytes } = {}) {
-  const base = seed || EMPTY;
+export function useCaseDocuments(ctx, { key, seed, records, fetchRecord, maxBytes } = {}) {
+  const base = useMemo(() => (records?.length ? [...(seed || EMPTY), ...records.map((r) => ({ ...r, optional: true }))] : seed || EMPTY), [seed, records]);
   const stored = ctx?.draftFiles?.[key];
   const [state, setState] = useState(() => ({ seed: base, documents: merge(base, stored) }));
   const [error, setError] = useState(null);
@@ -59,10 +62,34 @@ export function useCaseDocuments(ctx, { key, seed, maxBytes } = {}) {
     [setDocuments],
   );
 
+  const attachRecord = useCallback(
+    async (index) => {
+      const recordId = documents[index]?.record_id;
+      if (!recordId || !fetchRecord) return;
+      const patch = (changes) => setDocuments((docs) => docs.map((d) => (d.record_id === recordId ? { ...d, ...changes } : d)));
+      patch({ fetching: true, error: null });
+      try {
+        const row = await fetchRecord(recordId);
+        const data = row?.attachment?.data;
+        if (data) patch({ fetching: false, attachment: row.attachment, url: `data:${row.attachment.contentType};base64,${data}` });
+        else patch({ fetching: false, error: row?.error || NO_RECORD });
+      } catch (err) {
+        if (err) err.handled = true;
+        patch({ fetching: false, error: err?.message || NO_RECORD });
+      }
+    },
+    [documents, fetchRecord, setDocuments],
+  );
+
+  const detachRecord = useCallback(
+    (index) => setDocuments((docs) => docs.map((d, i) => (i === index ? { ...d, attachment: undefined, url: undefined, error: null } : d))),
+    [setDocuments],
+  );
+
   const attachAsk = useCallback(
     (row, uploaded) => {
       setDocuments((docs) => {
-        const idx = docs.findIndex((d) => up(d.code) === up(row.code));
+        const idx = docs.findIndex((d) => !d.record_id && up(d.code) === up(row.code));
         const entry = { code: row.code, category: row.category || null, name: row.display || row.name, optional: false, ...uploaded };
         return idx >= 0 ? docs.map((d, i) => (i === idx ? { ...d, ...entry } : d)) : [...docs, entry];
       });
@@ -101,6 +128,8 @@ export function useCaseDocuments(ctx, { key, seed, maxBytes } = {}) {
     attach,
     attachFile,
     attachAsk,
+    attachRecord,
+    detachRecord,
     addCustom,
     rename,
     remove,
