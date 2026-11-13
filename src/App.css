@@ -442,6 +442,23 @@ h3,
     flex-shrink: 0;
 }
 
+.command-brand-logo.is-mark,
+.brand-logo.is-mark {
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.brand-mark-ink {
+    fill: currentColor;
+    stroke: currentColor;
+}
+
+.brand-mark-accent {
+    fill: var(--brand-mark, #059669);
+    stroke: var(--brand-mark, #059669);
+}
+
 .command-brand-name {
     font-size: 14px;
     font-weight: 700;

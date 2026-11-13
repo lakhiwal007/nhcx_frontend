@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { ShieldCheck, Building2, Globe } from "lucide-react";
+import { Building2, Globe } from "lucide-react";
+import BrandMark from "./BrandMark";
 import CommandNav, { DisplayMenu } from "../CommandNav";
 import Breadcrumbs from "./Breadcrumbs";
 import { HOME } from "../../shell/shellNav";
@@ -10,8 +11,8 @@ export default function CommandBar({ items, urgent, reduceMotion, facility, them
       <header className="command-bar">
         <div className="command-bar-left">
           <Link to={HOME} className="command-brand" aria-label="NHCX Service home">
-            <span className="command-brand-logo">
-              <ShieldCheck color="white" size={16} aria-hidden="true" />
+            <span className="command-brand-logo is-mark">
+              <BrandMark size={24} />
             </span>
             <span className="command-brand-name">NHCX Service</span>
           </Link>

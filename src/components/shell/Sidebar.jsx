@@ -1,6 +1,7 @@
 import { NavLink, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShieldCheck, X, Building2, Globe, ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { X, Building2, Globe, ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import BrandMark from "./BrandMark";
 import { SETTINGS_ITEM } from "../../shell/shellNav";
 
 export default function Sidebar({ items, collapsed, onToggleCollapse, mobileOpen, onCloseMobile, facility, urgent, reduceMotion }) {
@@ -11,8 +12,8 @@ export default function Sidebar({ items, collapsed, onToggleCollapse, mobileOpen
   return (
     <aside className={`sidebar${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-show" : ""}`} aria-label="Main navigation">
       <div className="sidebar-brand">
-        <div className="brand-logo">
-          <ShieldCheck color="white" size={18} aria-hidden="true" />
+        <div className="brand-logo is-mark">
+          <BrandMark size={28} />
         </div>
         <div className="brand-text">
           <span className="brand-name">NHCX Service</span>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <style>
+    .ink { fill: #16181d; stroke: #16181d; }
+    .accent { fill: #059669; stroke: #059669; }
+    @media (prefers-color-scheme: dark) { .ink { fill: #f4f4f1; stroke: #f4f4f1; } }
+  </style>
+  <polygon class="ink" stroke-width="3" stroke-linejoin="round" transform="translate(-2.2 -2.2)" points="23,8 41,8 41,23 23,41 8,41 8,23 23,23"/>
+  <polygon class="accent" stroke-width="3" stroke-linejoin="round" transform="translate(2.2 2.2)" points="41,23 56,23 56,41 41,41 41,56 23,56 23,41"/>
+</svg>
