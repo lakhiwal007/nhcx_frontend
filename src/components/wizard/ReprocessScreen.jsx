@@ -246,7 +246,7 @@ export default function ReprocessScreen({ ctx }) {
           <div className="cv-pane-stack">
             <RejectionCard rejection={r.rejection} />
             <Card title="Reason for the appeal" meta="The payer sees this code with your explanation.">
-              <div className="cv-card-body">
+              <div className="cv-card-body rp-reason">
                 {locked ? <div className="cv-kv"><span>Reason</span><span>{reasonName(r.reasonCode)}</span></div> : <Dropdown compact ariaLabel="Appeal reason" value={r.reasonCode} options={REASON_CODES} onChange={r.setReasonCode} />}
               </div>
             </Card>

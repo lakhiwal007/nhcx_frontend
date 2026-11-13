@@ -3554,6 +3554,20 @@ tr.en-excluded td {
     overflow: hidden;
 }
 
+.wq-panel:has(> .wq-toolbar) {
+    overflow: visible;
+}
+
+.wq-panel:has(> .wq-toolbar) > :first-child {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+}
+
+.wq-panel:has(> .wq-toolbar) > :last-child {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+}
+
 .wq-toolbar {
     display: flex;
     flex-wrap: wrap;

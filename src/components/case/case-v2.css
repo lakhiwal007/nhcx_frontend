@@ -286,7 +286,8 @@
 .cc-close-form { display: flex; flex-direction: column; gap: 14px; }
 .cc-close-field { display: flex; flex-direction: column; gap: 6px; }
 .cc-close-label { font-size: 12.5px; color: var(--text-muted); }
-.cc-close-form .dd-menu { position: static; margin-top: 6px; box-shadow: none; }
+.cc-close-form .dd-menu,
+.rp-reason .dd-menu { position: static; margin-top: 6px; box-shadow: none; }
 .cc-close-note { width: 100%; box-sizing: border-box; height: auto; padding: 8px 10px; resize: vertical; font: 13.5px var(--font-sans); }
 .cc-close-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
 .cc-close-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 12px; border-bottom: 1px solid var(--border-color); font-size: 13px; }
