@@ -5,6 +5,7 @@ import { DocumentChecklist } from "../Common";
 import { formatDate, formatMoney } from "../../format.js";
 import PatientDetailsForm from "../case/PatientDetailsForm";
 import PayerAsks from "../case/PayerAsks";
+import SentFiles from "../case/SentFiles";
 import BiometricCard from "../case/BiometricCard";
 import FhirBundleModal from "../FhirBundleModal";
 import ConfirmModal from "../ConfirmModal";
@@ -348,6 +349,7 @@ export default function PreauthDraft({ ctx }) {
         </Pane>
 
         <Pane id="files">
+          {(locked || preauthAlreadyLive) && <SentFiles caseId={d.caseId} stage="preauth" />}
           <section className="cv-card" aria-label="Other files">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Other files</h2>

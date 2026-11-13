@@ -523,6 +523,11 @@ const MOCK_PLAN_FORMS = [
 ];
 
 // Mock answers to the payer's forms, keyed by case, form and question.
+const MOCK_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+const MOCK_SENT_FILES = [
+  { sequence: 1, code: "ADM_NOTE", category: "INV", title: "Admission Note.png", content_type: "image/png", data: MOCK_PNG },
+  { sequence: 2, code: "ODN", category: "INV", title: "Referral letter.txt", content_type: "text/plain", data: btoa("Referred for surgical opinion.") },
+];
 const MOCK_FORM_ANSWERS = {};
 const MOCK_BIOMETRIC = {};
 const mockAsksAfterBiometric = (asks, stage) =>
@@ -1273,6 +1278,15 @@ const mock = {
       else if (a.answer !== undefined) store[a.link_id] = { answer: String(a.answer).trim() };
     });
     return { ...mockPayerForm(cashless_case_id, form), status: "complete" };
+  },
+  getCaseFiles: async (cashless_case_id, stage = "preauth") => {
+    await delay(250);
+    return { status: "complete", cashless_case_id, stage, correlation_id: `mock-${stage}-sent`, files: MOCK_SENT_FILES.map((f) => ({ sequence: f.sequence, code: f.code, category: f.category, title: f.title, content_type: f.content_type })) };
+  },
+  getCaseFile: async (cashless_case_id, params = {}) => {
+    await delay(400);
+    if (params.form_url) return { title: "Signed declaration.png", content_type: "image/png", data: MOCK_PNG };
+    return MOCK_SENT_FILES.find((f) => String(f.sequence) === String(params.sequence)) || null;
   },
   listCaseNotes: async (cashless_case_id) => {
     await delay(250);
@@ -3761,6 +3775,8 @@ const real = {
   captureBiometric: (cashless_case_id, id) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/capture`, {}),
   verifyBiometric: (cashless_case_id, id, data) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/verify`, data),
   getPayerForms: (cashless_case_id, stage = "preauth") => http.get(`/cashless/${cashless_case_id}/forms`, { stage }),
+  getCaseFiles: (cashless_case_id, stage = "preauth") => http.get(`/cashless/${cashless_case_id}/files`, { stage }),
+  getCaseFile: (cashless_case_id, params) => http.get(`/cashless/${cashless_case_id}/files`, params).then((res) => res?.file || null),
   savePayerForm: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/forms`, data),
   listCaseNotes: (cashless_case_id) => http.get(`/cashless/${cashless_case_id}/notes`),
   createCaseNote: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/notes`, data),

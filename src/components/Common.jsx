@@ -1,12 +1,98 @@
-import { useState, useRef, useEffect, useId } from "react";
+import { useState, useRef, useEffect, useId, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useReadOnly, READ_ONLY_TITLE } from "../readOnly";
-import { AlertCircle, Info, FileText, CheckCircle2, Plus, Trash2, Paperclip, Lightbulb, AlertTriangle, XCircle } from "lucide-react";
+import { AlertCircle, Info, FileText, CheckCircle2, Plus, Trash2, Paperclip, Lightbulb, AlertTriangle, XCircle, Eye, Download, ExternalLink } from "lucide-react";
 import { glossary } from "../help/glossary.js";
 import { useTips } from "../help/tips.js";
-import { safeHref, humanize } from "../format.js";
-import { readFileAsAttachment, MAX_ATTACHMENT_BYTES, attachmentLimitText } from "../files";
+import { humanize } from "../format.js";
+import { readFileAsAttachment, MAX_ATTACHMENT_BYTES, attachmentLimitText, canViewAttachment, attachmentPreview, attachmentTitle, attachmentLink, openAttachment } from "../files";
+import { Drawer } from "./Overlay";
 
+function FilePreview({ file }) {
+  const preview = useMemo(() => attachmentPreview(file), [file]);
+  const frame = useRef(null);
+  useEffect(() => {
+    if (!preview.blob || !frame.current) return;
+    const url = URL.createObjectURL(preview.blob);
+    frame.current.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [preview]);
+  if (preview.kind === "pdf") return <iframe ref={frame} className="fv-frame" title={preview.title} />;
+  if (preview.kind === "image") return <img ref={frame} className="fv-image" alt={preview.title} />;
+  if (preview.kind === "text") return <pre className="fv-text">{preview.text}</pre>;
+  return <p className="fv-none">This kind of file cannot be shown here. Download it to open it on this computer.</p>;
+}
+
+export const ViewFile = ({ file, load, name, className = "" }) => {
+  const [open, setOpen] = useState(false);
+  const [fetched, setFetched] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      close();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [open, close]);
+
+  const held = canViewAttachment(file) ? file : fetched;
+  if (!held && !load) return null;
+  const title = name || attachmentTitle(held || file);
+  const remote = held && !load ? attachmentLink(held) : null;
+  const view = async () => {
+    if (remote) return openAttachment(held);
+    if (held) return setOpen(true);
+    setBusy(true);
+    setFailed(false);
+    try {
+      const got = await load();
+      if (!canViewAttachment(got)) throw new Error("No file");
+      setFetched(got);
+      setOpen(true);
+    } catch (err) {
+      if (err) err.handled = true;
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button type="button" className={`cv-link doc-view ${className}`} aria-label={`View ${title}`} title={failed ? "The file could not be fetched. Try again." : undefined} disabled={busy} onClick={view}>
+        <Eye size={13} aria-hidden="true" /> {busy ? "Opening…" : failed ? "Try again" : "View"}
+      </button>
+      {held && !remote &&
+        createPortal(
+          <div className="fv-layer" onClick={(e) => e.stopPropagation()}>
+            <Drawer
+              open={open}
+              onClose={close}
+              width={920}
+              title={title}
+              footer={
+                <>
+                  <Button variant="outline" size="small" icon={Download} onClick={() => openAttachment(held, { download: true })}>
+                    Download
+                  </Button>
+                  <Button variant="outline" size="small" icon={ExternalLink} onClick={() => openAttachment(held)}>
+                    Open in a new tab
+                  </Button>
+                </>
+              }
+            >
+              <FilePreview file={held} />
+            </Drawer>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+};
 
 /**
  * Primary interactive control. Variants:
@@ -218,7 +304,6 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
       )}
       {(documents || []).map((doc, i) => {
         const attached = !!doc.url;
-        const viewHref = safeHref(doc.url);
         const missing = !doc.optional && !attached;
         const StatusIcon = attached ? CheckCircle2 : missing ? AlertCircle : FileText;
         if (doc.kind === "health_record") {
@@ -239,6 +324,7 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
                     <span className="cv-chip is-ok doc-attached">
                       <CheckCircle2 size={11} aria-hidden="true" /> Attached
                     </span>
+                    <ViewFile file={doc} name={doc.name} />
                     {onDetachRecord && !readOnly && (
                       <button type="button" className="cv-icon-btn doc-remove" aria-label={`Remove ${doc.name}`} onClick={() => onDetachRecord(i)}>
                         <Trash2 size={13} aria-hidden="true" />
@@ -271,14 +357,13 @@ export const DocumentChecklist = ({ documents, onUpload, onAddDocument, onRename
             </div>
             <div className="doc-actions">
               {missing && <span className="doc-required">Required</span>}
-              {attached && viewHref ? (
-                <a href={viewHref} target="_blank" rel="noreferrer noopener" className="cv-chip is-ok doc-attached">
-                  <CheckCircle2 size={11} aria-hidden="true" /> Attached
-                </a>
-              ) : attached ? (
-                <span className="cv-chip is-ok doc-attached" title="This document's link could not be opened safely.">
-                  <CheckCircle2 size={11} aria-hidden="true" /> Attached
-                </span>
+              {attached ? (
+                <>
+                  <span className="cv-chip is-ok doc-attached">
+                    <CheckCircle2 size={11} aria-hidden="true" /> Attached
+                  </span>
+                  <ViewFile file={doc} name={doc.attachment?.title || doc.name} />
+                </>
               ) : readOnly ? null : (
                 <Button variant="outline" size="small" onClick={() => handlePick(doc)}>
                   {doc.optional ? "Attach" : "Upload"}
@@ -412,6 +497,7 @@ export const QueryResponseFields = ({ answer, onAnswerChange, documents = [], on
               <li key={`${d.title}-${i}`}>
                 <Paperclip size={12} aria-hidden="true" />
                 <span className="qr-file-name">{d.title}</span>
+                <ViewFile file={d} />
                 <button type="button" className="cv-icon-btn" onClick={() => removeAt(i)} aria-label={`Remove ${d.title}`}>
                   <Trash2 size={14} aria-hidden="true" />
                 </button>

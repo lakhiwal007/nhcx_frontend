@@ -6,7 +6,7 @@ export function liveAsks(asks, documents, forms) {
     if (row.kind === "document") {
       const file = attached.find((d) => same(d.code, row.code) && (!row.category || !d.category || same(d.category, row.category)));
       const ok = !!file;
-      return { ...row, status: ok ? "attached" : "missing", file_name: file ? file.attachment?.title || file.name || row.file_name : null, blocking: row.source === "ruling" && !ok };
+      return { ...row, status: ok ? "attached" : "missing", file_name: file ? file.attachment?.title || file.name || row.file_name : null, file: file || null, blocking: row.source === "ruling" && !ok };
     }
     const form = (forms || []).find((f) => f.url === row.form_url);
     if (!form) return row;

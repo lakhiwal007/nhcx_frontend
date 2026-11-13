@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { Button } from "../Common";
+import { Button, ViewFile } from "../Common";
 import { Drawer } from "../Overlay";
 
 const LEG_LABEL = { preauth: "pre-auth", claim: "claim" };
@@ -19,7 +19,7 @@ const readFile = (file) =>
     reader.readAsDataURL(file);
   });
 
-function Question({ item, value, file, disabled, onChange, onFile }) {
+function Question({ item, value, file, loadFile, disabled, onChange, onFile }) {
   const id = `pf-${item.linkId}`;
   if (NO_INPUT.includes(item.type)) {
     return <div className={item.type === "group" ? "ep-detail-title" : "ep-muted"}>{item.text}</div>;
@@ -34,7 +34,11 @@ function Question({ item, value, file, disabled, onChange, onFile }) {
   if (item.type === "attachment") {
     input = (
       <div>
-        {file && <div className="ep-muted">Attached: {file.title}</div>}
+        {file && (
+          <div className="ep-muted">
+            Attached: {file.title} <ViewFile key={file.data ? "picked" : "saved"} file={file} load={loadFile} />
+          </div>
+        )}
         <input id={id} className="pf-file" type="file" accept="application/pdf,image/jpeg,image/png" disabled={disabled} onChange={(e) => onFile(e.target.files?.[0])} />
       </div>
     );
@@ -145,6 +149,7 @@ export default function FormEditor({ caseId, stage, form, readOnly, lockedBy, on
           item={it}
           value={values[it.linkId] ?? ""}
           file={files[it.linkId] || it.file}
+          loadFile={it.file ? () => api.getCaseFile(caseId, { stage, form_url: form.url, link_id: it.linkId }) : undefined}
           disabled={readOnly}
           onChange={(v) => setValues((prev) => ({ ...prev, [it.linkId]: v }))}
           onFile={(f) => pickFile(it.linkId, f)}

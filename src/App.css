@@ -5717,6 +5717,14 @@ tr.en-excluded td {
     white-space: nowrap;
 }
 
+.fv-layer .ov-backdrop { z-index: 120; }
+.fv-layer .ov-drawer { z-index: 121; }
+.fv-layer .ov-body { display: flex; flex-direction: column; background: var(--bg-main); }
+.fv-frame { flex: 1; width: 100%; min-height: 0; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-card); }
+.fv-image { align-self: center; max-width: 100%; height: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-card); }
+.fv-text { margin: 0; padding: 14px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-main); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fv-none { margin: 0; color: var(--text-muted); font-size: 13.5px; }
+
 .doc-remove {
     color: var(--error);
 }

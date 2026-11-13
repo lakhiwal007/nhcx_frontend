@@ -4,6 +4,7 @@ import { api, markHandled } from "../api";
 import { useSend } from "../hooks/useSend";
 import { readFileAsAttachment, attachmentLimitText } from "../files";
 import { Drawer } from "./Overlay";
+import { ViewFile } from "./Common";
 import Dropdown from "./Dropdown";
 import { SEND_REASONS, PRIORITIES } from "../communications";
 
@@ -140,6 +141,7 @@ export default function SendMessageDrawer({ open, onClose, defaultPayerId = "", 
                 <li key={`${a.title}-${i}`}>
                   <Paperclip size={13} aria-hidden="true" />
                   <span className="cm-attachment-name">{a.title}</span>
+                  <ViewFile file={a} />
                   <button type="button" className="cv-icon-btn" aria-label={`Remove ${a.title}`} onClick={() => setAttachments((prev) => prev.filter((_, n) => n !== i))}>
                     <X size={14} aria-hidden="true" />
                   </button>

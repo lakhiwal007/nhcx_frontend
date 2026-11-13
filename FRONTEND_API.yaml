@@ -1583,6 +1583,52 @@ paths:
           description: Refused; a service refusal leaves the attempt `failed`
         "404":
           description: No such attempt on this case
+  /cashless/{cashless_case_id}/files:
+    get:
+      tags: [Cashless Preparation]
+      operationId: getCaseFiles
+      summary: The files a sent leg carried, or one stored file with its content
+      description: >
+        Read only. Without `sequence` or `form_url`, lists the documents the
+        latest sent pre-authorisation or claim of the case carried (name and
+        type, no content); `files` is empty when nothing was sent. With
+        `sequence`, returns that document with its base64 `data`. With
+        `form_url` and `link_id`, returns the file saved on that payer-form
+        question.
+      parameters:
+        - $ref: "#/components/parameters/RequestIdParam"
+        - $ref: "#/components/parameters/ProviderIdHeader"
+        - name: cashless_case_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: query
+          schema: { type: string, enum: [preauth, claim], default: preauth }
+        - name: sequence
+          in: query
+          description: A listed file's `sequence`.
+          schema: { type: integer }
+        - name: form_url
+          in: query
+          description: The payer form's `url`; needs `link_id`.
+          schema: { type: string, maxLength: 512 }
+        - name: link_id
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: >
+            The list (`{cashless_case_id, stage, correlation_id, files:
+            [{sequence, code, category, title, content_type}]}`), or one file
+            (`{cashless_case_id, stage, file: {title, content_type, data}}`,
+            with `url` in place of `data` for a file sent by address)
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: No such case visible to this provider, or no such file
   /cashless/{cashless_case_id}/forms:
     get:
       tags: [Cashless Preparation]

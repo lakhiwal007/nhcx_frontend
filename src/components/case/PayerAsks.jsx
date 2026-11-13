@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import FormEditor from "./PayerForms";
+import { ViewFile } from "../Common";
 import { liveAsks } from "./askStatus";
 import { readFileAsAttachment } from "../../files";
 
@@ -103,9 +104,12 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
               </div>
             </div>
             {row.kind === "document" ? (
-              <button type="button" className="cv-btn" disabled={locked} onClick={() => pick(row)}>
-                {done ? "Replace" : "Attach"}
-              </button>
+              <>
+                <ViewFile file={row.file} name={row.file_name || row.display} />
+                <button type="button" className="cv-btn" disabled={locked} onClick={() => pick(row)}>
+                  {done ? "Replace" : "Attach"}
+                </button>
+              </>
             ) : (
               <button type="button" className="cv-btn" disabled={!forms.rows.some((f) => f.url === row.form_url)} onClick={() => setOpen(row.form_url)}>
                 {locked ? "View" : done ? "Edit" : "Fill"}

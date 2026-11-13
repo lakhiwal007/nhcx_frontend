@@ -13,6 +13,7 @@ import PayerWords from "../case/PayerWords";
 import TechnicalDetails from "../case/TechnicalDetails";
 import AnswerPayerQuery from "../case/AnswerPayerQuery";
 import PayerAsks from "../case/PayerAsks";
+import SentFiles from "../case/SentFiles";
 import BiometricCard from "../case/BiometricCard";
 import PatientDetailsForm from "../case/PatientDetailsForm";
 import DischargeDetailsPane from "../case/DischargeDetailsPane";
@@ -508,6 +509,7 @@ export default function ClaimsScreen({ ctx }) {
         </Pane>
 
         <Pane id="files">
+          {c.docsLocked && <SentFiles caseId={c.caseId} stage="claim" />}
           <Card title="Other files" meta="Sent with the claim. Attached files stay while you move between steps; reloading the page drops them.">
             <div className="cv-card-body">
               {c.documents.error && (
