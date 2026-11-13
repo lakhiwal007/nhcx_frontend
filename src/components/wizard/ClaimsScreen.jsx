@@ -265,6 +265,10 @@ export default function ClaimsScreen({ ctx }) {
     c.dischargeFailed && { tone: "bad", text: `The discharge claim did not reach the payer. ${c.dischargeView.message || ""}`.trim() },
     c.finalFailed && { tone: "bad", text: `The final claim did not reach the payer. ${view.message || ""}`.trim() },
     view.phase === "not_found" && { tone: "warn", text: "The payer's system has no record of this claim yet. Check again in a while, and call its helpdesk if it stays like this." },
+    view.refusedSend && {
+      tone: "info",
+      text: `The payer did not take the final claim${view.refusedSend.message ? `: “${view.refusedSend.message}”` : "."} Its answer to the discharge claim stands.`,
+    },
     c.claimUnclear && { tone: "warn", text: "The payer answered without a clear decision. Read its response under Decision, and call its helpdesk if it is not clear." },
     c.ambiguous && { tone: "warn", text: "Verify this answer with the payer: its raw response does not corroborate the decision shown." },
     c.isPartial && {

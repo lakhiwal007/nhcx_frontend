@@ -147,7 +147,7 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
   const dischargeIntimation = cashlessCase?.discharge_intimation !== false;
 
   const claimView = verdictFor(final.data);
-  const decisionEvent = [...(timelineEvents || [])].reverse().find((e) => e.workflow === "claim" && e.decision);
+  const decisionEvent = [...(timelineEvents || [])].reverse().find((e) => e.workflow === "claim" && e.decision && !e.detail?.refused);
   const provenance = decisionEvent ? { ...decisionEvent.decision, nhcx_workflow_id: decisionEvent.nhcx_workflow_id } : null;
   const finalFailed = claimView.phase === "failed";
   const finalSent = !!finalId && !finalFailed;

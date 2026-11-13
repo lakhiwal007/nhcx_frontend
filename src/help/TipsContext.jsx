@@ -5,9 +5,9 @@ const KEY = "nhcx_show_tips";
 
 const readStored = () => {
   try {
-    return localStorage.getItem(KEY) !== "false";
+    return localStorage.getItem(KEY) === "true";
   } catch {
-    return true;
+    return false;
   }
 };
 

@@ -45,16 +45,20 @@ export function verdictFor(res) {
   if (res.status === "not_found") return base("not_found", "warn", "No record");
   const decision = res.decision ? String(res.decision).toUpperCase() : null;
   if (!decision || decision === "PENDING") return base("waiting", "wait", "Waiting for the payer");
-  const ambiguous = decision === "UNKNOWN" || res.outcome === "error" || !!res.ambiguous;
+  const ambiguous = decision === "UNKNOWN" || (res.outcome === "error" && decision !== "REJECTED") || !!res.ambiguous;
   const known = DECIDED[decision];
   const items = res.items || [];
+  const said = res.process_notes || [];
+  const disposition = String(res.disposition || "").trim();
+  const quoted = said.some((n) => String(typeof n === "string" ? n : n?.text || "").trim() === disposition);
   return base("decided", ambiguous ? "warn" : known?.tone || "warn", ambiguous ? "Unclear answer" : known?.word || humanize(decision), {
     decision,
     approved: res.approved_amount ?? approvedOf(res.totals),
     requested: res.totals?.submitted?.value ?? res.total_amount ?? null,
     cutLines: cutLines(items),
-    notes: res.process_notes || [],
+    notes: disposition && !quoted ? [{ text: disposition }, ...said] : said,
     errors: res.errors || [],
     ambiguous,
+    refusedSend: res.refused_send || null,
   });
 }

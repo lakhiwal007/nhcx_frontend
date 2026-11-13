@@ -162,7 +162,7 @@ export default function PreauthStatus({ ctx }) {
     p.recheck.error && { tone: "warn", text: p.recheck.error },
     p.cancel.error && !cancelOpen && { tone: "bad", text: p.cancel.error },
     p.pollError && { tone: "warn", text: `The last check failed, and this page keeps trying: ${p.pollError}` },
-    ...(location.state?.preauthWarnings || caseState.draftWarnings || []).map((w) => ({ tone: "warn", text: w })),
+    ...(isApproved || isPartial ? [] : location.state?.preauthWarnings || caseState.draftWarnings || []).map((w) => ({ tone: "warn", text: w })),
     !isFailed && (p.canAnswer || !(isQueried || isRejected)) && (guide.tone === "warn" || guide.tone === "bad") && { tone: guide.tone === "bad" ? "warn" : guide.tone, text: guide.steps?.join(" ") || [guide.title, guide.text].filter(Boolean).join(". ") },
   ];
   const tipText = guide.tone === "ok" || guide.tone === "info" ? guide.steps?.join(" ") || guide.text : null;
