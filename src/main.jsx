@@ -1,4 +1,4 @@
-import './safeStorage.js'
+import './lib/safeStorage.js'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
@@ -12,9 +12,9 @@ import '@fontsource/geist-mono/latin-600.css'
 import './styles/design-system.css'
 import './index.css'
 import App from './App.jsx'
-import ErrorBoundary from './components/ErrorBoundary.jsx'
-import { bootstrapSessionFromUrl } from './sessionBootstrap.js'
-import { migrateWorkflows } from './workflowStorage.js'
+import ErrorBoundary from './components/ui/ErrorBoundary.jsx'
+import { bootstrapSessionFromUrl } from './lib/sessionBootstrap.js'
+import { migrateWorkflows } from './lib/workflowStorage.js'
 
 bootstrapSessionFromUrl()
 migrateWorkflows()

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { api, markHandled } from "../../api";
-import ConfirmModal from "../ConfirmModal";
-import Dropdown from "../Dropdown";
-import { CaseStatusChip } from "../caseJourney";
-import { CLOSE_REASONS } from "../case/closeReasons.js";
-import { formatCaseRef, formatDate } from "../../format.js";
-import "../case/case-v2.css";
+import ConfirmModal from "../ui/ConfirmModal";
+import Dropdown from "../ui/Dropdown";
+import { CaseStatusChip } from "../ui/caseJourney";
+import { CLOSE_REASONS } from "../case/frame/closeReasons.js";
+import { formatCaseRef, formatDate } from "../../lib/format.js";
+import "../case/frame/case-v2.css";
 
 const QUICK_REASONS = CLOSE_REASONS.filter((r) => r.value !== "other");
 

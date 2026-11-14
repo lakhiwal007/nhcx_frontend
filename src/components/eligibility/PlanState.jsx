@@ -1,6 +1,6 @@
 import { describePayrError } from "../../api/payrErrors.js";
-import { formatDateTime } from "../../format.js";
-import TechnicalDetails from "../case/TechnicalDetails";
+import { formatDateTime } from "../../lib/format.js";
+import TechnicalDetails from "../case/step/TechnicalDetails";
 
 export default function PlanState({ plan, state, canFetch, sending, onFetch, result }) {
   const busy = sending ? "Asking the payer…" : null;

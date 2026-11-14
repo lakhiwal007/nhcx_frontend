@@ -1,13 +1,13 @@
 import { AlertCircle, FileText } from "lucide-react";
 import { api } from "../../api";
-import { taskHelp, taskLabel, taskScreen } from "../../tasks";
-import { Button, NextStep } from "../Common";
-import { Drawer } from "../Overlay";
-import ConfirmModal from "../ConfirmModal";
-import PayerName from "../PayerName";
-import TechnicalDetails from "../case/TechnicalDetails";
-import { useSend } from "../../hooks/useSend";
-import { formatCaseRef, formatDateTime, humanize, priorityLabel } from "../../format.js";
+import { taskHelp, taskLabel, taskScreen } from "../../domain/tasks";
+import { Button, NextStep } from "../ui/Common";
+import { Drawer } from "../ui/Overlay";
+import ConfirmModal from "../ui/ConfirmModal";
+import PayerName from "../ui/PayerName";
+import TechnicalDetails from "../case/step/TechnicalDetails";
+import { useSend } from "../../hooks/util/useSend";
+import { formatCaseRef, formatDateTime, humanize, priorityLabel } from "../../lib/format.js";
 import { describeDocRequirement, needsOwnAction, taskSubject } from "./taskUtil";
 
 const openLabel = (task) => {

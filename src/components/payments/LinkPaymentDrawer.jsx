@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, markHandled } from "../../api";
-import { useSend } from "../../hooks/useSend";
-import { Drawer } from "../Overlay";
-import Dropdown from "../Dropdown";
-import PayerName from "../PayerName";
-import { formatCaseRef, formatDate, formatMoney } from "../../format.js";
+import { useSend } from "../../hooks/util/useSend";
+import { Drawer } from "../ui/Overlay";
+import Dropdown from "../ui/Dropdown";
+import PayerName from "../ui/PayerName";
+import { formatCaseRef, formatDate, formatMoney } from "../../lib/format.js";
 
 const OTHER = "__other__";
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Drawer } from "../Overlay";
-import { LoadingBlock } from "../Common";
+import { Drawer } from "../ui/Overlay";
+import { LoadingBlock } from "../ui/Common";
 
 const STAGE_LABEL = { pre: "Pre-auth", post: "Claim" };
 

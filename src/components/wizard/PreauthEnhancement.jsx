@@ -1,16 +1,16 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
-import { DocumentChecklist, NextStep } from "../Common";
-import { formatDate, formatMoney } from "../../format.js";
-import PatientDetailsForm from "../case/PatientDetailsForm";
-import SendGateModal from "../case/SendGateModal";
-import CaseStep, { Pane, Verdict } from "../case/CaseStep";
-import { useCasePane } from "../case/useCasePane";
-import { useCaseLock } from "../../hooks/useCaseLock";
-import { useEnhancement } from "../../hooks/useEnhancement";
-import { useSendGate } from "../../hooks/useSendGate";
-import { fieldList } from "../case/fieldLabels";
-import { buildEnhancementChecklist, firstEnhancementItem } from "../case/enhancementChecklist";
+import { DocumentChecklist, NextStep } from "../ui/Common";
+import { formatDate, formatMoney } from "../../lib/format.js";
+import PatientDetailsForm from "../case/forms/PatientDetailsForm";
+import SendGateModal from "../case/step/SendGateModal";
+import CaseStep, { Pane, Verdict } from "../case/step/CaseStep";
+import { useCasePane } from "../case/step/useCasePane";
+import { useCaseLock } from "../../hooks/case/useCaseLock";
+import { useEnhancement } from "../../hooks/workflow/useEnhancement";
+import { useSendGate } from "../../hooks/util/useSendGate";
+import { fieldList } from "../case/forms/fieldLabels";
+import { buildEnhancementChecklist, firstEnhancementItem } from "../case/preauth/enhancementChecklist";
 
 export default function PreauthEnhancement({ ctx }) {
   const navigate = useNavigate();

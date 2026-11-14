@@ -1,5 +1,5 @@
-import { formatMoney, humanize } from "../../format.js";
-import { isSettled } from "../../caseStatus.js";
+import { formatMoney, humanize } from "../../lib/format.js";
+import { isSettled } from "../../domain/caseStatus.js";
 
 const BILLING_STATUS = { 0: "Unpaid", 1: "Paid", 2: "Refunded" };
 export const billingLabel = (v) => (v == null || v === "" ? "Draft" : BILLING_STATUS[v] ?? humanize(String(v)));

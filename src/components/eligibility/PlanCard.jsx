@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { formatDateTime, formatMoney } from "../../format.js";
-import { useCoverBenefits } from "../../hooks/usePlanForms";
+import { formatDateTime, formatMoney } from "../../lib/format.js";
+import { useCoverBenefits } from "../../hooks/workflow/usePlanForms";
 import { planFieldGroups, missingRequired, profileRows, PROFILE_URL } from "./planProfile";
 import PlanState from "./PlanState";
 import PackageBrowser from "./PackageBrowser";
-import TechnicalDetails from "../case/TechnicalDetails";
+import TechnicalDetails from "../case/step/TechnicalDetails";
 
 const TABS = [
   ["overview", "Overview"],

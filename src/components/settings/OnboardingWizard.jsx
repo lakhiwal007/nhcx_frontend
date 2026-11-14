@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, callbackBaseUrl } from "../../api";
-import { useSend } from "../../hooks/useSend";
-import { Drawer } from "../Overlay";
+import { useSend } from "../../hooks/util/useSend";
+import { Drawer } from "../ui/Overlay";
 import { Field, TextInput, TextArea, GenerateKeypairButton, Stepper } from "./fields";
 
 const STEPS = ["Hospital", "First passcode", "Certificate", "Second passcode"];

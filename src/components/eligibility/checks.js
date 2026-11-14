@@ -1,4 +1,4 @@
-import { formatDate } from "../../format.js";
+import { formatDate } from "../../lib/format.js";
 
 export const period = (start, end) => (start || end ? `${formatDate(start)} – ${formatDate(end)}` : null);
 

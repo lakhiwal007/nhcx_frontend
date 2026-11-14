@@ -51,7 +51,7 @@ Full details — env vars, backend URLs, auth model, deployment — live in **[t
 - `VITE_USE_MOCK` env var picks mock data (`src/api/mock.js`) or real HTTP calls (`src/api/real.js` via `VITE_BASE_URL`) — no code edit required.
 - Every call carries a generated `request_id`, an `Authorization: Bearer <session_token>` header (read from `window.__NHCX_TOKEN__`, set by the parent HIS page), and an optional `X-Provider-Id` header for the active facility.
 
-### Workflow State & Storage (`src/workflowStorage.js`)
+### Workflow State & Storage (`src/lib/workflowStorage.js`)
 - `nhcx_workflow_<child_id>` — current case route + case data, so a closed tab resumes where it left off.
 - `nhcx_claims_<claim_id>` — which steps of the claim wizard are complete.
 - This is a UX convenience only; the backend (PostgreSQL) is the source of truth via `correlation_id`.

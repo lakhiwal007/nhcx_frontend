@@ -1,4 +1,4 @@
-import { formatDate, formatMoney } from "../../format.js";
+import { formatDate, formatMoney } from "../../lib/format.js";
 import { extractPayrCode } from "../../api/payrErrors.js";
 
 const list = (v) => (Array.isArray(v) ? v.filter((x) => x != null && x !== "") : []);

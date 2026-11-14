@@ -1,12 +1,12 @@
 import { Link2 } from "lucide-react";
 import { api } from "../../api";
-import { useSend } from "../../hooks/useSend";
-import { useReadOnly } from "../../readOnly";
-import { Drawer } from "../Overlay";
-import PayerName from "../PayerName";
-import TechnicalDetails from "../case/TechnicalDetails";
-import { formatDate, formatDateTime, formatMoney, formatCaseRef } from "../../format.js";
-import { ackLabel, ackState, stageWord } from "../../paymentEvents.js";
+import { useSend } from "../../hooks/util/useSend";
+import { useReadOnly } from "../../lib/readOnly";
+import { Drawer } from "../ui/Overlay";
+import PayerName from "../ui/PayerName";
+import TechnicalDetails from "../case/step/TechnicalDetails";
+import { formatDate, formatDateTime, formatMoney, formatCaseRef } from "../../lib/format.js";
+import { ackLabel, ackState, stageWord } from "../../domain/paymentEvents.js";
 
 const money = (v) => (v == null ? "—" : formatMoney(v));
 

@@ -1,4 +1,4 @@
-import { formatDate } from "../../format.js";
+import { formatDate } from "../../lib/format.js";
 
 const NEWBORN_PROOFS = [
   { value: "BCF", label: "Birth certificate" },

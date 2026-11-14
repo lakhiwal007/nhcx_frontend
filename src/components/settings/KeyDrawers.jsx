@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { useSend } from "../../hooks/useSend";
-import { Drawer } from "../Overlay";
+import { useSend } from "../../hooks/util/useSend";
+import { Drawer } from "../ui/Overlay";
 import { Field, TextArea, GenerateKeypairButton, PEM_PLACEHOLDER } from "./fields";
 
 export function KeyUploadDrawer({ facility, onClose, onUploaded }) {

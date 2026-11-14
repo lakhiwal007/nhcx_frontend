@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Building2, Globe } from "lucide-react";
 import BrandMark from "./BrandMark";
-import CommandNav, { DisplayMenu } from "../CommandNav";
+import CommandNav, { DisplayMenu } from "./CommandNav";
 import Breadcrumbs from "./Breadcrumbs";
 import { HOME } from "../../shell/shellNav";
 

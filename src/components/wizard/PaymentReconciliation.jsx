@@ -1,15 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, RefreshCw, Wallet } from "lucide-react";
-import { NextStep, Tip } from "../Common";
-import { formatDate, formatDateTime, formatMoney, formatTime } from "../../format.js";
-import { stageWord } from "../../paymentEvents.js";
-import { useCaseLock } from "../../hooks/useCaseLock";
-import { usePayment } from "../../hooks/usePayment";
-import { useCasePane } from "../case/useCasePane";
-import CaseStep, { Pane, Verdict } from "../case/CaseStep";
-import PaymentsTable from "../case/PaymentsTable";
-import TechnicalDetails from "../case/TechnicalDetails";
-import { buildPaymentChecklist, firstPaymentItem } from "../case/paymentChecklist";
+import { NextStep, Tip } from "../ui/Common";
+import { formatDate, formatDateTime, formatMoney, formatTime } from "../../lib/format.js";
+import { stageWord } from "../../domain/paymentEvents.js";
+import { useCaseLock } from "../../hooks/case/useCaseLock";
+import { usePayment } from "../../hooks/workflow/usePayment";
+import { useCasePane } from "../case/step/useCasePane";
+import CaseStep, { Pane, Verdict } from "../case/step/CaseStep";
+import PaymentsTable from "../case/payment/PaymentsTable";
+import TechnicalDetails from "../case/step/TechnicalDetails";
+import { buildPaymentChecklist, firstPaymentItem } from "../case/payment/paymentChecklist";
 
 const money = (v) => (v == null ? "—" : formatMoney(v));
 const checkedAt = (at) => (at ? `Checked ${formatTime(new Date(at))}` : null);

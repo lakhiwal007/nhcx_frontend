@@ -2,18 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, ArrowRight, Radar, RefreshCw, Search } from "lucide-react";
 import { api, markHandled } from "../../api";
-import { InfoTip, NextStep } from "../Common";
-import Dropdown from "../Dropdown";
-import PayerName from "../PayerName";
+import { InfoTip, NextStep } from "../ui/Common";
+import Dropdown from "../ui/Dropdown";
+import PayerName from "../ui/PayerName";
 import { useTips } from "../../help/tips.js";
-import { useCaseLock } from "../../hooks/useCaseLock";
-import { useCasePane, asRecord } from "../case/useCasePane";
-import CaseStep, { Pane, Verdict } from "../case/CaseStep";
-import DiscoverCoverDrawer from "../case/DiscoverCoverDrawer";
+import { useCaseLock } from "../../hooks/case/useCaseLock";
+import { useCasePane, asRecord } from "../case/step/useCasePane";
+import CaseStep, { Pane, Verdict } from "../case/step/CaseStep";
+import DiscoverCoverDrawer from "../case/policy/DiscoverCoverDrawer";
 import ChangePolicyModal from "./ChangePolicyModal";
-import { POLICY_CHANGE_RESET } from "../case/caseStages";
-import { formatDate, formatDateTime, formatMoney, humanize } from "../../format.js";
-import "../case/policy.css";
+import { POLICY_CHANGE_RESET } from "../case/frame/caseStages";
+import { formatDate, formatDateTime, formatMoney, humanize } from "../../lib/format.js";
+import "../case/policy/policy.css";
 
 const IDENTIFIER_TYPE_LABELS = {
   AbhaNumber: "ABHA number",

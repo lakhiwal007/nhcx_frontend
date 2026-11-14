@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
-import { Button, InfoTip } from "../Common";
-import PayerName from "../PayerName";
-import { CaseStatusChip } from "../caseJourney";
-import { formatDate, formatPhone, formatCaseRef, formatAge, formatMoney, humanize, photoSrc } from "../../format.js";
-import { STAGES, stageIndex, isSettled } from "../../caseStatus.js";
+import { Button, InfoTip } from "../ui/Common";
+import PayerName from "../ui/PayerName";
+import { CaseStatusChip } from "../ui/caseJourney";
+import { formatDate, formatPhone, formatCaseRef, formatAge, formatMoney, humanize, photoSrc } from "../../lib/format.js";
+import { STAGES, stageIndex, isSettled } from "../../domain/caseStatus.js";
 
 export function Avatar({ patient, large = false }) {
   const [broken, setBroken] = useState(false);

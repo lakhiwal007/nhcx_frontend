@@ -4,7 +4,7 @@
 //  Set USE_MOCK = false →  makes real fetch calls to BASE_URL
 // ─────────────────────────────────────────────────────────────────────────────
 import { enrichPayrMessage, describePayrError } from "./api/payrErrors.js";
-import { toast } from "./toast";
+import { toast } from "./lib/toast";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 const mockDiscoveries = [];

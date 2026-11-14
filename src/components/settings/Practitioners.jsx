@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Edit2, Stethoscope } from "lucide-react";
 import { api, markHandled } from "../../api";
-import { useSend } from "../../hooks/useSend";
-import { useReadOnly } from "../../readOnly";
-import { EmptyState, LoadingBlock } from "../Common";
-import { Drawer } from "../Overlay";
-import ConfirmModal from "../ConfirmModal";
+import { useSend } from "../../hooks/util/useSend";
+import { useReadOnly } from "../../lib/readOnly";
+import { EmptyState, LoadingBlock } from "../ui/Common";
+import { Drawer } from "../ui/Overlay";
+import ConfirmModal from "../ui/ConfirmModal";
 import { Field, TextInput } from "./fields";
 
 const formFor = (doctor) => {

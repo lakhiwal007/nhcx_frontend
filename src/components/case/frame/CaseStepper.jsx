@@ -1,0 +1,65 @@
+import { Check, Lock } from "lucide-react";
+import { formatMoney } from "../../../lib/format.js";
+
+const ticked = (s) => s.state === "done" || s.done;
+const tooltip = (s, extra) => [s.note && `${s.note}.`, s.hint, extra].filter(Boolean).join(" ");
+
+export default function CaseStepper({ stages, amounts = {}, onNavigate, trailing = null }) {
+  const core = stages.filter((s) => !s.branch);
+  const branches = stages.filter((s) => s.branch);
+  const next = core.find((s) => !ticked(s)) || null;
+
+  return (
+    <nav className="cv-chain" aria-label="Case lifecycle">
+      <ol className="cv-chain-track">
+        {core.map((s, i) => {
+          const done = ticked(s);
+          const active = s.state === "active";
+          const isNext = s === next && !active;
+          const joined = i > 0 && (done || active || ticked(core[i - 1]));
+          const tone = s.tone === "urgent" && !done ? " is-urgent" : s.live && !done ? " is-live" : "";
+          const amount = amounts[s.id];
+          const money = amount ? `${formatMoney(amount.value)} ${amount.word}` : null;
+          const title = tooltip(s, !s.clickable && "Unlocks once the earlier stages are done.");
+          return (
+            <li key={s.id} className={`cv-step${done ? " is-done" : ""}${active ? " is-active" : ""}${isNext ? " is-next" : ""}${tone}`}>
+              {i > 0 && <span className={`cv-step-seg${joined ? " is-filled" : ""}`} aria-hidden="true" />}
+              <button
+                type="button"
+                className="cv-step-btn"
+                disabled={!s.clickable}
+                onClick={() => s.clickable && onNavigate(s.path)}
+                aria-current={active ? "step" : undefined}
+                aria-label={`Stage ${s.num}: ${s.label}${money ? `, ${money}` : ""}${s.note ? ` - ${s.note}` : ""}`}
+                title={money ? `${money}. ${title}` : title}
+              >
+                <span className="cv-step-dot" aria-hidden="true">
+                  {done ? <Check size={12} strokeWidth={3} /> : !s.clickable && !isNext ? <Lock size={10} /> : s.num}
+                </span>
+                <span className="cv-step-label">{s.label}</span>
+                {amount && <span className="cv-step-amt"><b>{formatMoney(amount.value)}</b> <span className="cv-step-word">{amount.word}</span></span>}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      {trailing}
+      {branches.length > 0 && (
+        <div className="cv-chain-branches">
+          {branches.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className={`cv-branch${b.state === "active" ? " is-active" : ""}${ticked(b) ? " is-done" : ""}`}
+              disabled={!b.clickable}
+              onClick={() => b.clickable && onNavigate(b.path)}
+              title={tooltip(b)}
+            >
+              {ticked(b) ? <Check size={12} strokeWidth={3} /> : "+"} {b.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </nav>
+  );
+}

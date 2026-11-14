@@ -1,6 +1,6 @@
-import { formatDate, formatMoney, humanize } from "../../format.js";
-import PayrErrorList from "../PayrErrorList";
-import TechnicalDetails from "../case/TechnicalDetails";
+import { formatDate, formatMoney, humanize } from "../../lib/format.js";
+import PayrErrorList from "../ui/PayrErrorList";
+import TechnicalDetails from "../case/step/TechnicalDetails";
 import { period } from "./checks";
 
 const STAGE = { pre: ["Pre-auth", "is-info"], post: ["Claim", "is-todo"] };

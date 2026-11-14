@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckCircle2, Sparkles } from "lucide-react";
-import { Button } from "../Common";
+import { Button } from "../ui/Common";
 
 export const PEM_PLACEHOLDER = "-----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n-----END RSA PRIVATE KEY-----";
 
@@ -36,7 +36,7 @@ export function GenerateKeypairButton({ facilityCode, facilityName, onGenerated 
   const generate = async () => {
     setState({ busy: true, done: false, error: null });
     try {
-      const { generateFacilityKeypair } = await import("../../certGeneration");
+      const { generateFacilityKeypair } = await import("../../lib/certGeneration");
       const { privateKeyPem, encryptionCertBase64 } = await generateFacilityKeypair({ facilityCode, facilityName });
       onGenerated({ private_key_pem: privateKeyPem, encryption_cert: encryptionCertBase64 });
       setState({ busy: false, done: true, error: null });

@@ -1,5 +1,5 @@
 import { ListTodo, LayoutDashboard, Users, MessageSquare, CreditCard, BarChart3, Settings } from "lucide-react";
-import { stageInfo } from "../components/case/caseStages";
+import { stageInfo } from "../components/case/frame/caseStages";
 
 export const SCREEN_LABELS = {
   "work-queue": "Work Queue",

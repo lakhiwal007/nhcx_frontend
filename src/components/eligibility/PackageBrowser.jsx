@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
-import { formatMoney } from "../../format.js";
+import { formatMoney } from "../../lib/format.js";
 
 const FLAGS = [
   ["needs_preauth", "Needs pre-auth"],

@@ -1,5 +1,5 @@
-import { Modal } from "../Overlay";
-import "../case/policy.css";
+import { Modal } from "../ui/Overlay";
+import "../case/policy/policy.css";
 
 export default function ChangePolicyModal({ open, from, to, onCancel, onConfirm }) {
   return (

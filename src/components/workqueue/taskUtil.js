@@ -1,4 +1,4 @@
-import { formatCaseRef } from "../../format.js";
+import { formatCaseRef } from "../../lib/format.js";
 
 export const OVERDUE_HOURS = 24;
 export const WARN_HOURS = 2;

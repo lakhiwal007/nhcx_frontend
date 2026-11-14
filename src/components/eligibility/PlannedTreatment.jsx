@@ -1,4 +1,4 @@
-import { formatMoney, humanize } from "../../format.js";
+import { formatMoney, humanize } from "../../lib/format.js";
 
 const yes = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
 

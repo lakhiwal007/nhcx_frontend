@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { RefreshCw, ArrowUpRight, ArrowDownLeft } from "lucide-react";
-import { NextStep } from "../Common";
-import { formatMoney, formatDateTime, humanize } from "../../format.js";
-import { useCaseTrail } from "../../hooks/useCaseTrail";
-import { useCasePane } from "../case/useCasePane";
-import CaseStep, { Pane, Verdict } from "../case/CaseStep";
-import TechnicalDetails from "../case/TechnicalDetails";
-import { buildTimelineChecklist, firstTimelineItem } from "../case/timelineChecklist";
+import { NextStep } from "../ui/Common";
+import { formatMoney, formatDateTime, humanize } from "../../lib/format.js";
+import { useCaseTrail } from "../../hooks/case/useCaseTrail";
+import { useCasePane } from "../case/step/useCasePane";
+import CaseStep, { Pane, Verdict } from "../case/step/CaseStep";
+import TechnicalDetails from "../case/step/TechnicalDetails";
+import { buildTimelineChecklist, firstTimelineItem } from "../case/frame/timelineChecklist";
 
 const BUNDLE_WORKFLOWS = new Set(["preauth", "preauth_cancellation", "preauth_release", "preauth_nullification", "eligibility", "insurance_plan", "claim", "claim_search", "reprocess", "communication", "payment"]);
 const BUNDLE_TRANSACTION_TYPE = { eligibility: "coverage_eligibility" };

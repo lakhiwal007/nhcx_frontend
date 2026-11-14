@@ -1,5 +1,5 @@
 import { missingRequired } from "./planProfile";
-import { asRecord } from "../case/useCasePane";
+import { asRecord } from "../case/step/useCasePane";
 
 const GROUPS = [
   ["you", "Needs you"],

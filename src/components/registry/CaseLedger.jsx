@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
 import { api, markHandled } from "../../api";
-import { Button, LoadingBlock } from "../Common";
-import { Drawer } from "../Overlay";
-import PayerName from "../PayerName";
-import TechnicalDetails from "../case/TechnicalDetails";
-import { CaseStatusChip, StageTrack } from "../caseJourney";
-import { formatDate, formatMoney, formatCaseRef, formatRelative, humanize, priorityLabel } from "../../format.js";
-import { taskLabel } from "../../tasks";
-import { commHeadline, commPreview } from "../../communications";
+import { Button, LoadingBlock } from "../ui/Common";
+import { Drawer } from "../ui/Overlay";
+import PayerName from "../ui/PayerName";
+import TechnicalDetails from "../case/step/TechnicalDetails";
+import { CaseStatusChip, StageTrack } from "../ui/caseJourney";
+import { formatDate, formatMoney, formatCaseRef, formatRelative, humanize, priorityLabel } from "../../lib/format.js";
+import { taskLabel } from "../../domain/tasks";
+import { commHeadline, commPreview } from "../../domain/communications";
 import { admissionMoney, amountOf, billingLabel, casesOfVisit, daysBetween, isOpenCase, money } from "./registryUtil";
 
 function Ledger({ columns, rows, label, empty }) {
