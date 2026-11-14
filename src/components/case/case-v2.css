@@ -534,7 +534,14 @@
 .cv-ctl-fill { width: 100%; box-sizing: border-box; }
 .cv-col-qty { width: 110px; }
 .cv-col-price { width: 150px; }
-.cv-col-code { width: 130px; }
+.cv-col-code { width: 176px; }
+.cv-code-cell { display: flex; gap: 6px; align-items: center; }
+.cv-code-finder { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; }
+.cv-code-finder-bar { display: flex; gap: 8px; align-items: center; }
+.cv-code-finder-list { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; border: 1px solid var(--cv-line); border-radius: var(--radius-md); }
+.cv-code-finder-list li + li { border-top: 1px solid var(--cv-line); }
+.cv-code-finder-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; width: 100%; padding: 8px 12px; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.cv-code-finder-row:hover, .cv-code-finder-row:focus-visible { background: var(--neutral-soft); }
 .cv-col-system { width: 140px; }
 .cv-col-principal { width: 110px; }
 .cv-col-remove { width: 56px; }

@@ -1698,6 +1698,26 @@ const mock = {
     return allPayers;
   },
 
+  searchTerminology: async (params = {}) => {
+    await delay(250);
+    const icd = "http://hl7.org/fhir/sid/icd-10";
+    const sct = "http://snomed.info/sct";
+    const all = [
+      { code: "A97", code_system: icd, display: "Dengue" },
+      { code: "A97.2", code_system: icd, display: "Severe Dengue" },
+      { code: "A01.0", code_system: icd, display: "Typhoid fever" },
+      { code: "K35.8", code_system: icd, display: "Acute appendicitis, other and unspecified" },
+      { code: "S72", code_system: icd, display: "Fracture of femur" },
+      { code: "38362002", code_system: sct, display: "Dengue (disorder)", icd10_code: "A97.9" },
+      { code: "85189001", code_system: sct, display: "Acute appendicitis (disorder)", icd10_code: "K35.8" },
+      { code: "21522001", code_system: sct, display: "Abdominal pain (finding)", icd10_code: "R10.4" },
+    ];
+    const system = params.system === "snomed" ? sct : icd;
+    const words = String(params.q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+    const results = all.filter((row) => row.code_system === system && words.every((word) => `${row.code} ${row.display}`.toLowerCase().includes(word.slice(0, 4))));
+    return { system: params.system ?? "icd10", results };
+  },
+
   getPayerById: async (id) => {
     await delay(300);
     const allPayers = [
@@ -3791,6 +3811,8 @@ const real = {
   searchChildren: (params = {}) => http.get("/cashless/child", params),
 
   searchPayers: (params = {}) => http.get("/cashless/payers/search", params),
+
+  searchTerminology: (params = {}) => http.get("/cashless/terminology/search", params),
 
   getPayerById: (id, params = {}) =>
     http.get(`/cashless/payers/${encodeURIComponent(id)}`, params),

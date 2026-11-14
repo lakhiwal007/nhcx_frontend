@@ -123,6 +123,7 @@ export default function ResubmitPreauthDrawer({ open, onClose, ctx, preauthRef, 
                 <DiagnosesEditor
                   diagnoses={d.displayDiagnoses}
                   onChange={d.updateDiagnosis}
+                  onPick={d.pickDiagnosis}
                   onPrimary={d.setPrimaryDiagnosis}
                   onAdd={d.addDiagnosis}
                   onRemove={d.removeDiagnosis}

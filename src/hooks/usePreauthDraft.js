@@ -134,7 +134,11 @@ export function usePreauthDraft(ctx, { submit, locked = false, biometric = null,
   };
   const updateDiagnosis = (idx, field, value) => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
-    setEditedDiagnoses(withPrimary(base.map((d, i) => (i !== idx ? d : field === "code" ? { ...d, code: value, code_system: "" } : { ...d, [field]: value }))));
+    setEditedDiagnoses(withPrimary(base.map((d, i) => (i !== idx ? d : field === "code" ? { ...d, code: value, code_system: "", snomed_code: undefined } : { ...d, [field]: value }))));
+  };
+  const pickDiagnosis = (idx, patch) => {
+    const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
+    setEditedDiagnoses(withPrimary(base.map((d, i) => (i === idx ? { ...d, ...patch } : d))));
   };
   const setPrimaryDiagnosis = (idx) => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
@@ -293,6 +297,7 @@ export function usePreauthDraft(ctx, { submit, locked = false, biometric = null,
     effectiveTotal,
     updateItem,
     updateDiagnosis,
+    pickDiagnosis,
     setPrimaryDiagnosis,
     addDiagnosis,
     removeDiagnosis,

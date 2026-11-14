@@ -226,6 +226,7 @@ export default function PreauthDraft({ ctx }) {
               diagnoses={d.displayDiagnoses}
               locked={locked || preauthAlreadyLive}
               onChange={d.updateDiagnosis}
+              onPick={d.pickDiagnosis}
               onPrimary={d.setPrimaryDiagnosis}
               onAdd={d.addDiagnosis}
               onRemove={d.removeDiagnosis}
