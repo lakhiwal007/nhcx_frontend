@@ -14,7 +14,7 @@ import Dashboard from "./components/dashboard/Dashboard";
 import PatientProfile from "./components/registry/PatientProfile";
 import Communications from "./components/communications/Communications";
 import Payments from "./components/payments/Payments";
-import Analytics from "./components/analytics/Analytics";
+import Analytics from "./components/insights/ClaimsInsights";
 import SettingsPage from "./components/settings/Settings";
 import CaseWrapper from "./components/wizard/CaseWrapper";
 import Sidebar from "./components/shell/Sidebar";

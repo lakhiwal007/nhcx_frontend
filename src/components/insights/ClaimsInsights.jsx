@@ -7,7 +7,7 @@ import PageActions from "../ui/PageActions";
 import Dropdown from "../ui/Dropdown";
 import PayerName from "../ui/PayerName";
 import { formatMoney, formatPercent, formatDuration, formatDate, humanize } from "../../lib/format.js";
-import "./analytics.css";
+import "./insights.css";
 
 const PERIODS = [
   { value: "30", label: "Last 30 days" },
