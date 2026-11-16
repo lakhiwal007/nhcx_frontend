@@ -2,7 +2,7 @@ import { formatMoney, humanize } from "../../lib/format.js";
 
 const yes = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
 
-export default function PlannedTreatment({ procedures, packages, checks, source, planReady }) {
+export default function PlannedTreatment({ procedures, packages, checks, source, planReady, choice }) {
   return (
     <section className="cv-card" aria-label="Planned treatment">
       <div className="cv-card-head">
@@ -10,6 +10,33 @@ export default function PlannedTreatment({ procedures, packages, checks, source,
         {procedures.length > 0 ? <span className="cv-chip is-todo">{procedures.length} planned</span> : <span className="cv-chip is-warn">None recorded</span>}
         {source && <span className="cv-card-meta">From the {humanize(source).toLowerCase()}</span>}
       </div>
+      {choice?.active && (
+        <div className="cv-card-body">
+          <div className="cv-sub">Package for this admission</div>
+          <p className="cv-card-meta">
+            This payer only accepts packages from its own plan. Pick the package that covers this admission; the eligibility checks go to the payer with it, and the pre-auth is raised for it.
+          </p>
+          {choice.chosen.map((pkg) => (
+            <div key={pkg.code} className="cv-kv">
+              <span>
+                <strong>{pkg.name}</strong> <span className="cv-mono cv-card-meta">{pkg.code}</span>
+              </span>
+              <button type="button" className="cv-pick" onClick={() => choice.onRemove(pkg.code)}>
+                Remove
+              </button>
+            </div>
+          ))}
+          {choice.chosen.length === 0 && <div className="cv-card-meta">No package chosen yet.</div>}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <button type="button" className="cv-btn" onClick={choice.onBrowse}>
+              {choice.chosen.length ? "Add another package" : "Choose from the plan"}
+            </button>
+            <button type="button" className="cv-btn is-primary" disabled={choice.chosen.length === 0 || choice.sending} onClick={choice.onSend}>
+              {choice.sending ? "Sending…" : "Send the checks"}
+            </button>
+          </div>
+        </div>
+      )}
       {procedures.length === 0 ? (
         <div className="cv-card-body">
           No planned procedure is recorded for this visit. Ask the doctor to add it in the hospital system, then send the checks again so the payer can rule on it.

@@ -9,7 +9,9 @@ const POLL_INTERVAL_MS = 7000;
 const TERMINAL_STATUSES = ["complete", "failed"];
 
 export const shouldStopPolling = (res) =>
-  TERMINAL_STATUSES.includes(res?.status) || (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
+  TERMINAL_STATUSES.includes(res?.status) ||
+  res?.coverage_eligibility?.waiting_on === "package" ||
+  (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
 
 const eligibilityCorrelationId = (res) => res?.coverage_eligibility?.validation?.correlation_id ?? res?.coverage_eligibility?.correlation_id;
 
@@ -57,7 +59,7 @@ export function useEligibility(ctx) {
     let cancelled = false;
     const run = async () => {
       try {
-        const res = await api.prepareCashless({
+        const res = await api.startCase({
           child_id: childId,
           payer_id: payer.code,
           policy_number: policy.policy_number,
@@ -134,6 +136,17 @@ export function useEligibility(ctx) {
     { success: "Checks sent to the payer again" },
   );
 
+  const sendChecks = useSend(
+    async (packages) => {
+      const res = await api.sendEligibility({ cashless_case_id: caseId, ...(packages?.length ? { procedures: packages } : {}) });
+      applyCase(res);
+      updateCaseState({ eligibility_correlation_id: eligibilityCorrelationId(res) });
+      setPollError(null);
+      return res;
+    },
+    { success: "Checks sent to the payer" },
+  );
+
   const chooseMember = useSend(
     async (member) => {
       const patient_context = Object.fromEntries(
@@ -203,6 +216,7 @@ export function useEligibility(ctx) {
     pollError,
     refresh,
     rerun,
+    sendChecks,
     chooseMember,
     setNewborn,
     fetchPlan,

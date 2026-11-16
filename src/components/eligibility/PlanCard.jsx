@@ -198,8 +198,8 @@ function ProfileCheck({ plan }) {
   );
 }
 
-export default function PlanCard({ plan, state, plannedCodes, forms = [], canFetch, sending, fetchResult, onFetch, onOpenForm }) {
-  const [tab, setTab] = useState("overview");
+export default function PlanCard({ plan, state, plannedCodes, forms = [], canFetch, sending, fetchResult, onFetch, onOpenForm, onChoose, chosenCodes, startTab = "overview" }) {
+  const [tab, setTab] = useState(startTab);
   const ready = state.key === "ready";
   const correlationId = ready ? plan.correlation_id : null;
   const cover = useCoverBenefits(tab === "cover" ? correlationId : null);
@@ -270,7 +270,7 @@ export default function PlanCard({ plan, state, plannedCodes, forms = [], canFet
             ))}
           </div>
           {tab === "overview" && <Overview plan={plan} />}
-          {tab === "packages" && <PackageBrowser correlationId={correlationId} plan={plan} plannedCodes={plannedCodes} onOpenForm={onOpenForm} />}
+          {tab === "packages" && <PackageBrowser correlationId={correlationId} plan={plan} plannedCodes={plannedCodes} onOpenForm={onOpenForm} onChoose={onChoose} chosenCodes={chosenCodes} />}
           {tab === "docs" && <DocsAndForms plan={plan} forms={forms} onOpenForm={onOpenForm} />}
           {tab === "rules" && <Exclusions plan={plan} />}
           {tab === "cover" && <Cover rows={cover} />}

@@ -884,8 +884,8 @@ const mockClaimStatus = (res) => {
   return res;
 };
 
-// ?ce=open|not_in_force|unknown|partial|failed|single on /case/:id/prep forces an
-// eligibility answer on a case still at that step.
+// ?ce=open|not_in_force|unknown|partial|failed|single|not_sent|package on /case/:id/prep
+// forces an eligibility answer on a case still at that step.
 const mockCeState = (status) => {
   const enKey = mockEnhancementKey();
   const legs = mockApprovalKey() === "read_only" || enKey === "claim_sent" ? { claim: "submitting" } : enKey === "queried" ? { preauth: "queried" } : null;
@@ -905,6 +905,16 @@ const mockCeState = (status) => {
       },
     },
   });
+  if (key === "not_sent" || key === "package") {
+    const choosing = key === "package";
+    return {
+      ...open,
+      status: choosing ? "partial" : "pending",
+      next_actions: ["refresh", choosing ? "choose_package" : "send_eligibility"],
+      eligibility_items: choosing ? "plan_packages" : "invoice_lines",
+      coverage_eligibility: { status: "pending", waiting_on: choosing ? "package" : "plan" },
+    };
+  }
   if (key === "not_in_force") return withInforce(false);
   if (key === "unknown") return withInforce(null);
   if (key === "partial") {
@@ -1842,6 +1852,18 @@ const mock = {
   },
 
   // ─── Cashless Preparation ───────────────────────────────────────────────────
+  startCase: (data) => mock.prepareCashless(data),
+  sendEligibility: async (data) => {
+    await delay(600);
+    const res = await mock.getCashlessStatus(data.cashless_case_id);
+    return {
+      ...res,
+      status: "pending",
+      next_actions: ["refresh"],
+      procedures: data.procedures?.length ? { source: "override", items: data.procedures } : res.procedures,
+      coverage_eligibility: { status: "pending" },
+    };
+  },
   prepareCashless: async (data) => {
     await delay(800);
     return {
@@ -3820,6 +3842,8 @@ const real = {
   fetchPolicies: (data) => http.post("/cashless/policies/fetch", data),
 
   prepareCashless: (data) => http.post("/cashless/prepare", data),
+  startCase: (data) => http.post("/cashless/insurance_plan/request", { ...data, start_case: true }),
+  sendEligibility: (data) => http.post("/cashless/coverage_eligibility/check", { ...data, purpose: "all" }),
 
   getCashlessStatus: (cashless_case_id, signal, forceRefresh = false) =>
     http.get(

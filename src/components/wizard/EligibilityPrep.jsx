@@ -28,6 +28,7 @@ export default function EligibilityPrep({ ctx }) {
   const full = e.full;
   const [openForm, setOpenForm] = useState(null);
   const [biometric, setBiometric] = useState(null);
+  const [chosen, setChosen] = useState([]);
   const pane = useCasePane();
 
   const noWayToPrepare = !caseId && (!payer || !policy);
@@ -52,13 +53,41 @@ export default function EligibilityPrep({ ctx }) {
   const plan = full?.insurance_plan;
   const state = planState(plan);
   const checks = deriveChecks(full?.coverage_eligibility, benefitsTimedOut);
+  const waitingOn = checks?.waitingOn || null;
+  const packageCoded = full?.eligibility_items === "plan_packages";
+  const choosing = packageCoded && state.key === "ready" && !!full?.next_actions?.includes("choose_package") && !locked;
+  const canSendNow = !!full?.next_actions?.includes("send_eligibility") && !locked;
+  const chosenCodes = new Set(chosen.map((p) => String(p.code)));
+  const choosePackage = (benefit) => {
+    setChosen((prev) => (prev.some((p) => String(p.code) === String(benefit.code)) ? prev : [...prev, { code: benefit.code, name: benefit.display || benefit.code, category: benefit.category_code || undefined }]));
+    pane.setPicked("treatment");
+  };
+  const choice = {
+    active: choosing,
+    chosen,
+    sending: e.sendChecks.busy,
+    onRemove: (code) => setChosen((prev) => prev.filter((p) => String(p.code) !== String(code))),
+    onBrowse: () => pane.setPicked("plan"),
+    onSend: () => e.sendChecks.run(chosen).then((res) => res && setChosen([])),
+  };
   const inforce = checks?.inforce;
   const notInForce = inforce === false;
   const canProceed = nextActionsAllow && !notInForce;
 
   const verdict = needsRetry
     ? { tone: "bad", label: "Check failed", text: full?.prepare_error?.message || "The eligibility request could not be sent.", next: "Send the checks again. If it fails again, go back to the Policy step and check the policy, or share this message with IT." }
-    : isStalePending
+    : choosing
+      ? { tone: "todo", label: "Choose the package", text: "The payer's plan is loaded. Pick the package for this admission; the checks go to the payer with it.", next: "Open Treatment, choose the package from the plan, then send the checks." }
+      : waitingOn === "plan" && isStalePending
+        ? {
+            tone: "warn",
+            label: "No plan from the payer",
+            text: "The payer has not sent its insurance plan, so the eligibility checks have not gone out.",
+            next: packageCoded ? "Fetch the plan again from the Insurance plan pane, or call the payer's helpdesk." : "Send the checks without the plan from the More menu, or fetch the plan again.",
+          }
+        : waitingOn === "plan"
+          ? { tone: "info", label: "Waiting for the plan", text: "The eligibility checks go to the payer once its insurance plan arrives." }
+          : isStalePending
       ? { tone: "warn", label: "No answer from the payer", text: "The request may have been lost.", next: "Send the checks again. If the payer still does not answer, call its helpdesk." }
       : notInForce
         ? { tone: "bad", label: "Not eligible", text: "The payer reports the policy as not in force.", next: "Ask the patient for a renewed or different policy and pick it on the Policy step, or treat the patient as cash." }
@@ -102,9 +131,10 @@ export default function EligibilityPrep({ ctx }) {
     plan,
     state,
     locked,
+    choice,
   });
   const blockers = groups.flatMap((g) => g.rows).filter((r) => r.blocks);
-  const open = pane.picked || firstOpen(groups);
+  const open = pane.picked || (choosing ? "treatment" : firstOpen(groups));
 
   const primary = movedOn
     ? { label: `Continue to ${movedOnLabel}`, icon: ArrowRight, write: false, onClick: () => navigate(`../${movedOn}`) }
@@ -127,6 +157,11 @@ export default function EligibilityPrep({ ctx }) {
     caseId && !e.polling && { label: e.refresh.busy ? "Checking…" : "Check again", busy: e.refresh.busy, write: false, onClick: e.refresh.run, reason: "Reads the latest answers already received. Nothing is sent to the payer." },
   ];
   const more = [
+    canSendNow && {
+      label: e.sendChecks.busy ? "Sending…" : "Send the checks now, without the plan",
+      busy: e.sendChecks.busy,
+      onClick: () => e.sendChecks.run(),
+    },
     canRerunNow && {
       label: e.rerun.busy ? "Sending…" : needsRetry ? "Retry the checks" : "Send the checks to the payer again",
       busy: e.rerun.busy,
@@ -140,6 +175,7 @@ export default function EligibilityPrep({ ctx }) {
     movedOn && { tone: "info", text: `This case has moved on to ${movedOnLabel}; what follows is as last checked.` },
     lock.viewOnly && { tone: "info", text: lock.reason },
     e.rerun.error && { tone: "warn", text: e.rerun.error },
+    e.sendChecks.error && { tone: "warn", text: e.sendChecks.error },
     e.refresh.error && { tone: "warn", text: e.refresh.error },
     e.pollError && { tone: "warn", text: `The last check failed${e.polling ? ", and this page keeps trying" : ""}: ${e.pollError}` },
   ];
@@ -228,7 +264,7 @@ export default function EligibilityPrep({ ctx }) {
         onOpen={pane.openItem}
         checklistLabel="Eligibility checklist"
         loading={e.loading}
-        loadingText="Starting the eligibility checks…"
+        loadingText="Starting the case and asking the payer for its plan…"
         paneRef={pane.paneRef}
       >
         <Pane id="verify">
@@ -264,7 +300,7 @@ export default function EligibilityPrep({ ctx }) {
           )}
         </Pane>
         <Pane id="treatment">
-          <PlannedTreatment procedures={procedures} packages={e.plannedPackages} checks={checks} source={full?.procedures?.source} planReady={state.key === "ready"} />
+          <PlannedTreatment procedures={procedures} packages={e.plannedPackages} checks={checks} source={full?.procedures?.source} planReady={state.key === "ready"} choice={choice} />
         </Pane>
         {["validation", "benefits", "auth"].map((id) => (
           <Pane key={id} id={id}>
@@ -273,6 +309,10 @@ export default function EligibilityPrep({ ctx }) {
         ))}
         <Pane id="plan">
           <PlanCard
+            key={choosing ? "choose" : "view"}
+            startTab={choosing ? "packages" : "overview"}
+            onChoose={choosing ? choosePackage : undefined}
+            chosenCodes={chosenCodes}
             plan={plan}
             state={state}
             plannedCodes={plannedCodes}

@@ -155,7 +155,14 @@ const TITLES = { validation: "Validation", benefits: "Benefits", auth: "Auth req
 
 export default function PayerAnswer({ id, checks, requirements, discovery, formTitle, onOpenForm }) {
   const check = checks?.[id];
-  const note = check ? waiting(check) : null;
+  const held = checks?.waitingOn && check?.state === "pending";
+  const note = held
+    ? checks.waitingOn === "package"
+      ? "Not sent yet. This check goes to the payer once a package from its plan is chosen."
+      : "Not sent yet. This check goes to the payer once its insurance plan arrives."
+    : check
+      ? waiting(check)
+      : null;
   const when = check?.sub?.received_at || check?.sub?.updated_at;
   return (
     <section className="cv-card" aria-label={TITLES[id]}>
@@ -164,7 +171,7 @@ export default function PayerAnswer({ id, checks, requirements, discovery, formT
         {when && <span className="cv-card-meta">Answered {formatDate(when)}</span>}
       </div>
       {!checks ? (
-        <div className="cv-card-intro">Eligibility has not been asked yet. It is sent when you continue from the Policy step.</div>
+        <div className="cv-card-intro">Eligibility has not been asked yet. It is sent once the payer's insurance plan arrives.</div>
       ) : (
         <>
           {note && <div className="cv-card-intro">{note}</div>}

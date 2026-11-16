@@ -14,7 +14,13 @@ export const TASKS = {
   fix_eligibility_error: {
     short: "Eligibility",
     label: "Fix the eligibility check",
-    help: "The eligibility check failed. Open the case's Eligibility step, read the reason and run it again.",
+    help: "The eligibility check failed. Open the case's Eligibility step and read the reason. If the payer refused an item code, choose a package from its plan and send the checks again.",
+    step: "prep",
+  },
+  choose_plan_package: {
+    short: "Package",
+    label: "Choose the plan package",
+    help: "The payer's plan is loaded but no planned procedure matches one of its packages. Open the Eligibility step, choose the package for this admission and send the checks.",
     step: "prep",
   },
   submit_preauth: {

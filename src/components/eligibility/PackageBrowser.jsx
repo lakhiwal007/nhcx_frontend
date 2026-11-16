@@ -52,7 +52,7 @@ const CONDITIONS = [
   ["Standalone", "Standalone"],
 ];
 
-function PackageDetail({ benefit, onOpenForm }) {
+function PackageDetail({ benefit, onOpenForm, onChoose, chosen }) {
   if (!benefit) return <div className="cv-pane cv-card-meta">Pick a package to see everything the payer published for it.</div>;
   const c = benefit.conditions || {};
   const known = new Set(CONDITIONS.map(([k]) => k));
@@ -70,6 +70,17 @@ function PackageDetail({ benefit, onOpenForm }) {
           <span style={{ fontSize: 22, fontWeight: 700 }}>{benefit.rate != null ? formatMoney(benefit.rate) : "No rate"}</span>{" "}
           <span className="cv-card-meta">package rate</span>
         </div>
+        {onChoose && (
+          <div style={{ marginTop: 12 }}>
+            {chosen ? (
+              <span className="cv-chip is-ok">Chosen for this case</span>
+            ) : (
+              <button type="button" className="cv-btn is-primary" onClick={() => onChoose(benefit)}>
+                Use this package
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="cv-pane">
         <div className="cv-sub">Claim conditions</div>
@@ -115,7 +126,7 @@ function PackageDetail({ benefit, onOpenForm }) {
   );
 }
 
-export default function PackageBrowser({ correlationId, plan, plannedCodes, onOpenForm }) {
+export default function PackageBrowser({ correlationId, plan, plannedCodes, onOpenForm, onChoose, chosenCodes }) {
   const categories = useMemo(() => (plan?.categories || []).filter((c) => c.code), [plan]);
   const [pickedCategory, setPickedCategory] = useState(() => {
     try { return localStorage.getItem("nhcx_pkg_category"); } catch { return null; }
@@ -257,6 +268,7 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
                       <td>
                         <button type="button" className="cv-pick" onClick={() => setSelected(b)}>{b.display || b.code}</button>
                         {planned && <span className="cv-chip is-info" style={{ marginLeft: 8 }}>This case</span>}
+                        {chosenCodes?.has(String(b.code)) && <span className="cv-chip is-ok" style={{ marginLeft: 8 }}>Chosen</span>}
                         {!category && b.category_display && <div className="cv-card-meta">{b.category_display}</div>}
                       </td>
                       <td className="is-num">{b.rate != null ? formatMoney(b.rate) : "—"}</td>
@@ -290,7 +302,7 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
         </div>
 
         <aside className="cv-browser-detail" aria-label="Package detail">
-          <PackageDetail benefit={shown} onOpenForm={onOpenForm} />
+          <PackageDetail benefit={shown} onOpenForm={onOpenForm} onChoose={onChoose} chosen={!!shown && !!chosenCodes?.has(String(shown.code))} />
         </aside>
       </div>
     </div>

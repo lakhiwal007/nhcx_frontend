@@ -24,8 +24,12 @@ function whoRow(members, chosenId, newborn) {
   return { ...row, tone: "ok", fact: newborn ? "Newborn" : chosen.name || "Chosen" };
 }
 
-function treatmentRow(procedures, checks, packages, planReady) {
+function treatmentRow(procedures, checks, packages, planReady, choice) {
   const row = { id: "treatment", group: "you", name: "Treatment" };
+  if (choice?.active) {
+    const n = choice.chosen.length;
+    return n ? { ...row, tone: "ok", fact: `${n} chosen` } : { ...row, tone: "warn", fact: "Choose a package" };
+  }
   if (procedures.length === 0) return { ...row, tone: "warn", fact: "None recorded" };
   const code = (p) => String(p.code);
   const excluded = procedures.filter((p) => checks?.benefits.items.some((it) => it.excluded && String(it.product_or_service?.code) === code(p))).length;
@@ -35,7 +39,8 @@ function treatmentRow(procedures, checks, packages, planReady) {
   return { ...row, tone: "ok", fact: `${procedures.length} planned` };
 }
 
-function checkStateRow(check, row) {
+function checkStateRow(check, row, waitingOn) {
+  if (waitingOn && (!check || check.state === "pending")) return { ...row, tone: "idle", fact: "Not sent yet" };
   if (!check || check.state === "pending") return { ...row, tone: "wait", fact: "Waiting" };
   if (check.state === "error") return { ...row, tone: "bad", fact: "Failed" };
   if (check.state === "unavailable") return { ...row, tone: "warn", fact: "No answer" };
@@ -44,7 +49,7 @@ function checkStateRow(check, row) {
 
 function validationRow(checks) {
   const row = { id: "validation", group: "payer", name: "Validation" };
-  const open = checkStateRow(checks?.validation, row);
+  const open = checkStateRow(checks?.validation, row, checks?.waitingOn);
   if (open) return open;
   if (checks.inforce === false) return { ...row, tone: "refused", fact: "Not in force", blocks: true };
   return checks.inforce ? { ...row, tone: "ok", fact: "In force" } : { ...row, tone: "idle", fact: "Answered" };
@@ -53,12 +58,12 @@ function validationRow(checks) {
 function benefitsRow(checks) {
   const row = { id: "benefits", group: "payer", name: "Benefits" };
   const count = checks?.benefits.items.length || 0;
-  return checkStateRow(checks?.benefits, row) || { ...row, tone: "ok", fact: count ? `${count} items` : "No item limits" };
+  return checkStateRow(checks?.benefits, row, checks?.waitingOn) || { ...row, tone: "ok", fact: count ? `${count} items` : "No item limits" };
 }
 
 function authRow(checks, requirements) {
   const row = { id: "auth", group: "payer", name: "Auth requirements" };
-  const open = checkStateRow(checks?.auth, row);
+  const open = checkStateRow(checks?.auth, row, checks?.waitingOn);
   if (open) return open;
   if (requirements.length) return { ...row, tone: "warn", fact: `${requirements.length} ${requirements.length === 1 ? "ask" : "asks"}` };
   return { ...row, tone: "ok", fact: checks.auth.required === false ? "No pre-auth" : "Nothing asked" };
@@ -89,8 +94,8 @@ function planRow(plan, state) {
   }
 }
 
-export function buildChecklist({ biometric, members, chosenId, newborn, procedures, packages, checks, requirements, plan, state, locked }) {
-  const yours = [verifyRow(biometric), whoRow(members, chosenId, newborn), treatmentRow(procedures, checks, packages, state.key === "ready")];
+export function buildChecklist({ biometric, members, chosenId, newborn, procedures, packages, checks, requirements, plan, state, locked, choice }) {
+  const yours = [verifyRow(biometric), whoRow(members, chosenId, newborn), treatmentRow(procedures, checks, packages, state.key === "ready", choice)];
   const rows = [...(locked ? yours.map((r) => r && { ...asRecord(r), blocks: false }) : yours), validationRow(checks), benefitsRow(checks), authRow(checks, requirements), planRow(plan, state)].filter(Boolean);
   return GROUPS.map(([id, title]) => ({ id, title: locked && id === "you" ? "Patient" : title, rows: rows.filter((r) => r.group === id) }));
 }

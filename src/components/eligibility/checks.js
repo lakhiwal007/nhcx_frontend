@@ -21,6 +21,7 @@ export function deriveChecks(ce, benefitsTimedOut) {
     validation?.insurance_items?.[0] ||
     null;
   return {
+    waitingOn: ce.waiting_on || null,
     coverage,
     inforce: validation?.inforce ?? coverage?.inforce ?? null,
     wallet: validation?.wallet || benefits?.wallet || auth?.wallet || null,
