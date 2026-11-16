@@ -299,7 +299,7 @@ export default function PatientProfile() {
           <ul className="pt-cards">
             {list.children.map((child) => {
               const claim = child.latest_claim;
-              const admission = currentAdmission(sortedVisits(child));
+              const admission = child.current_admission || currentAdmission(sortedVisits(child));
               return (
                 <li key={child.child_id}>
                   <button type="button" className="pt-cardrow" onClick={() => selectPatient(child)}>
@@ -338,7 +338,7 @@ export default function PatientProfile() {
                 {list.children.map((child) => {
                   const claim = child.latest_claim;
                   const open = isOpenCase(claim);
-                  const admission = currentAdmission(sortedVisits(child));
+                  const admission = child.current_admission || currentAdmission(sortedVisits(child));
                   return (
                     <tr
                       key={child.child_id}
