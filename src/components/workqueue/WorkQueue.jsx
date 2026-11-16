@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api, markHandled } from "../../api";
-import { TASK_FILTER_OPTIONS, taskHelp, taskNavState, taskScreen, taskShort } from "../../domain/tasks";
+import { TASK_FILTER_OPTIONS, taskHelp, taskNavState, taskOwnScreen, taskScreen, taskShort } from "../../domain/tasks";
 import { Button, EmptyState, SkeletonTable, TablePagination, InfoTip, Tip } from "../ui/Common";
 import PageActions from "../ui/PageActions";
 import Dropdown from "../ui/Dropdown";
@@ -87,13 +87,15 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         if (taskTypeFilter) params.task_type = taskTypeFilter;
         const response = await api.listTasks(params, signal);
         if (signal?.aborted) return;
-        setData({ key: `${statusFilter}|${taskTypeFilter}`, tasks: response?.tasks || [] });
+        const list = response?.tasks || [];
+        setData({ key: `${statusFilter}|${taskTypeFilter}`, tasks: list, total: response?.total_count ?? list.length });
         setLoadError(false);
       } catch (err) {
         if (err?.name === "AbortError") return;
         markHandled(err);
+        const key = `${statusFilter}|${taskTypeFilter}`;
         setLoadError(true);
-        setData((prev) => (prev.key ? prev : { key: `${statusFilter}|${taskTypeFilter}`, tasks: [] }));
+        setData((prev) => (prev.key === key ? prev : { key, tasks: [], total: 0 }));
       }
     },
     [statusFilter, taskTypeFilter],
@@ -151,6 +153,11 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const navigateToCase = async (task) => {
     let cid = task.child_id;
     setPageError(null);
+    const ownScreen = taskOwnScreen(task.task_type);
+    if (ownScreen) {
+      navigate(ownScreen, { state: taskNavState(task) });
+      return;
+    }
     if (!cid && task.cashless_case_id) {
       try {
         const cs = await api.getCashlessStatus(task.cashless_case_id);
@@ -180,7 +187,9 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const pageRows = visible.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   const selectable = statusFilter === "pending";
-  const selectedIds = Object.keys(selected);
+  const liveKeys = new Set(tasks.map(taskKey));
+  const selectedIds = Object.keys(selected).filter((id) => liveKeys.has(id));
+  const cutOff = !loading && data.total > tasks.length;
   const bulkRows = pageRows.filter((t) => !needsOwnAction(t));
   const allChecked = bulkRows.length > 0 && bulkRows.every((t) => selected[taskKey(t)]);
   const filtersActive = q || priorityFilter !== "all" || taskTypeFilter;
@@ -236,6 +245,12 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       )}
 
       <Tip className="wq-page-tip">Everything waiting on the hospital, most urgent first. Click a task to see what to do, then open its case.</Tip>
+
+      {cutOff && (
+        <Tip className="wq-page-tip">
+          Showing the newest {tasks.length} of {data.total} tasks. Narrow the list by task type to reach the older ones.
+        </Tip>
+      )}
 
       <div className="wq-panel">
         <div className="wq-toolbar">
@@ -332,6 +347,8 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
         {loading ? (
           <SkeletonTable rows={8} cols={5} />
+        ) : tasks.length === 0 && loadError ? (
+          <EmptyState icon={AlertCircle} title="The task list could not be loaded" description="Press Refresh to try again." />
         ) : tasks.length === 0 ? (
           <EmptyState
             icon={CheckCircle2}

@@ -164,7 +164,9 @@ export const taskScreen = (type, childId, workflow) => {
   return step ? `/case/${childId}/${step}` : null;
 };
 
-export const taskNavState = (task) => ({
+export const taskOwnScreen = (type) => entry(type)?.screen || null;
+
+export const taskNavState =(task) => ({
   claim_id: task.claim_id,
   cashless_case_id: task.cashless_case_id,
   preauthCorrelationId: task.workflow === "preauth" ? task.correlation_id : undefined,
