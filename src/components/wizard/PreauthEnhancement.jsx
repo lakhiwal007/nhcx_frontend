@@ -78,6 +78,7 @@ export default function PreauthEnhancement({ ctx }) {
     lock.viewOnly && { tone: "info", text: lock.reason },
     e.hisBlockers.length > 0 && { tone: "warn", text: `The hospital records are missing ${fieldList(e.hisBlockers)}. Complete them in the hospital system, then open this again.` },
     e.scopeChanged && !locked && { tone: "info", text: "The amount is recomputed from what is kept.", action: { label: "Reset to the hospital record", onClick: e.resetScope } },
+    ...(preview?.warnings || []).map((text) => ({ tone: "warn", text })),
   ];
 
   const summary =
