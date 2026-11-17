@@ -1,5 +1,6 @@
+import BackButton from "../ui/BackButton";
 import { useState, useEffect } from "react";
-import { User, ArrowLeft, Search } from "lucide-react";
+import { User, Search } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, markHandled } from "../../api";
 import { useReadOnly } from "../../lib/readOnly";
@@ -223,15 +224,11 @@ export default function PatientProfile() {
     return (
       <div className="cc-screen">
         <div>
-          <Button variant="outline" size="small" icon={ArrowLeft} onClick={clearSelection}>
-            All patients
-          </Button>
+          <BackButton onClick={clearSelection}>All patients</BackButton>
         </div>
         {bad || (ready && !detail.patient) ? (
           <EmptyState icon={User} title="Patient not found" description={detail.error ? detail.error : `No patient with id ${deepLinkChildId} is registered here. Check the link, or search by name or mobile.`}>
-            <Button variant="outline" size="small" onClick={clearSelection}>
-              Back to the registry
-            </Button>
+            <BackButton onClick={clearSelection}>All patients</BackButton>
           </EmptyState>
         ) : !ready ? (
           <LoadingBlock text="Loading the patient…" />

@@ -1,3 +1,4 @@
+import BackButton from "../ui/BackButton";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, RefreshCw, Wallet } from "lucide-react";
 import { NextStep, Tip } from "../ui/Common";
@@ -124,9 +125,7 @@ export default function PaymentReconciliation({ ctx }) {
             tone="info"
             title="No claim on this case yet"
             actions={
-              <button type="button" className="cv-btn" onClick={() => navigate("../claim")}>
-                Back to claim
-              </button>
+              <BackButton onClick={() => navigate("../claim")}>Back to claim</BackButton>
             }
           >
             Payment follows an approved final claim.

@@ -178,6 +178,7 @@ export const taskNavState =(task) => ({
   preauthCorrelationId: task.workflow === "preauth" ? task.correlation_id : undefined,
   openAction: entry(task.task_type)?.openAction ? task.task_type : undefined,
   tab: task.task_type?.includes("discharge") ? "discharge" : task.task_type?.includes("final") ? "final" : undefined,
+  from: "/work-queue",
 });
 
 export const TASK_FILTER_OPTIONS = [

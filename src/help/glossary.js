@@ -52,14 +52,14 @@ export const GLOSSARY = {
     short: "Ask one insurer directly whether it covers this patient, when the normal lookup finds nothing.",
     more: "Use it when the patient has an insurance card but the policy isn't linked to their ABHA or mobile. You need the policy number or the member ID from the card.",
   },
+  insurance_plan: {
+    term: "Insurance plan (package list)",
+    short: "The payer's list of packages, rates and forms for this policy. Preauth lines are priced from it.",
+  },
   eligibility: {
     term: "Eligibility check",
     short: "Asks the payer whether the policy is active today and what it covers.",
     more: "Three questions go together: is the policy in force, what are its limits, and which procedures need approval first.",
-  },
-  insurance_plan: {
-    term: "Insurance plan (package list)",
-    short: "The payer's list of packages, rates and forms for this policy. Preauth lines are priced from it.",
   },
   family_card: {
     term: "Family card",

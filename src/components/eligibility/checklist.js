@@ -3,8 +3,8 @@ import { asRecord } from "../case/step/useCasePane";
 
 const GROUPS = [
   ["you", "Needs you"],
-  ["payer", "Payer's answers"],
   ["plan", "Plan"],
+  ["payer", "Payer's answers"],
 ];
 
 const ATTENTION = new Set(["warn", "bad"]);
@@ -96,7 +96,8 @@ function planRow(plan, state) {
 
 export function buildChecklist({ biometric, members, chosenId, newborn, procedures, packages, checks, requirements, plan, state, locked, choice }) {
   const yours = [verifyRow(biometric), whoRow(members, chosenId, newborn), treatmentRow(procedures, checks, packages, state.key === "ready", choice)];
-  const rows = [...(locked ? yours.map((r) => r && { ...asRecord(r), blocks: false }) : yours), validationRow(checks), benefitsRow(checks), authRow(checks, requirements), planRow(plan, state)].filter(Boolean);
+  const planFirst = { ...planRow(plan, state), unsettled: state.key !== "ready" };
+  const rows = [...(locked ? yours.map((r) => r && { ...asRecord(r), blocks: false }) : yours), planFirst, validationRow(checks), benefitsRow(checks), authRow(checks, requirements)].filter(Boolean);
   return GROUPS.map(([id, title]) => ({ id, title: locked && id === "you" ? "Patient" : title, rows: rows.filter((r) => r.group === id) }));
 }
 
@@ -104,5 +105,5 @@ export function firstOpen(groups) {
   const rows = groups.flatMap((g) => g.rows);
   const blocker = rows.find((r) => (r.tone === "bad" || r.tone === "refused") && r.group !== "plan");
   const yours = rows.find((r) => r.group === "you" && ATTENTION.has(r.tone));
-  return (blocker || yours || rows.find((r) => r.tone === "bad") || { id: "validation" }).id;
+  return (blocker || yours || rows.find((r) => r.tone === "bad") || rows.find((r) => r.unsettled) || { id: "validation" }).id;
 }

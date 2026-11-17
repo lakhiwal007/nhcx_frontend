@@ -1,3 +1,4 @@
+import BackButton from "../ui/BackButton";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { DocumentChecklist, NextStep } from "../ui/Common";
@@ -107,9 +108,7 @@ export default function PreauthEnhancement({ ctx }) {
                   Open the pre-auth draft
                 </button>
               ) : (
-                <button type="button" className="cv-btn" onClick={back}>
-                  Back to approval
-                </button>
+                <BackButton onClick={back}>Back to approval</BackButton>
               )
             }
           >

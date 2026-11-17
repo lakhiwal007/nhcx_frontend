@@ -1,4 +1,4 @@
-import { ChevronLeft } from "lucide-react";
+import BackButton from "../../ui/BackButton";
 import PayerName from "../../ui/PayerName";
 import CopyButton from "../../ui/CopyButton";
 import { stageAmounts } from "./caseStages";
@@ -48,10 +48,9 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
         <div className="cv-panel">
           <div className="cv-head-line">
             {onBack && (
-              <button type="button" className="cv-link cv-head-back" onClick={onBack}>
-                <ChevronLeft size={14} aria-hidden="true" />
+              <BackButton className="cv-head-back" onClick={onBack}>
                 {backLabel}
-              </button>
+              </BackButton>
             )}
             <h2 className="cv-head-name">{patient.name}</h2>
             {statusPill}

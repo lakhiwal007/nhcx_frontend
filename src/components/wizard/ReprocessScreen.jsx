@@ -1,3 +1,4 @@
+import BackButton from "../ui/BackButton";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, RefreshCw, Send } from "lucide-react";
@@ -204,9 +205,7 @@ export default function ReprocessScreen({ ctx }) {
                   Answer on the Claim step
                 </button>
               ) : (
-                <button type="button" className="cv-btn" onClick={() => toClaim()}>
-                  Back to claim
-                </button>
+                <BackButton onClick={() => toClaim()}>Back to claim</BackButton>
               )
             }
           >

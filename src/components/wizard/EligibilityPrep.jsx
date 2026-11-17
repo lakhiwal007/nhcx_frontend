@@ -1,3 +1,4 @@
+import BackButton from "../ui/BackButton";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
@@ -230,9 +231,7 @@ export default function EligibilityPrep({ ctx }) {
                     Try again
                   </button>
                 )}
-                <button type="button" className="cv-btn" onClick={() => navigate(notAdmitted ? "/registry" : "../payer")}>
-                  {notAdmitted ? "Back to Patient Registry" : "Back to policy"}
-                </button>
+                <BackButton onClick={() => navigate(notAdmitted ? "/registry" : "../payer")}>{notAdmitted ? "Patient Registry" : "Back to policy"}</BackButton>
               </>
             }
           >
@@ -302,11 +301,6 @@ export default function EligibilityPrep({ ctx }) {
         <Pane id="treatment">
           <PlannedTreatment procedures={procedures} packages={e.plannedPackages} checks={checks} source={full?.procedures?.source} planReady={state.key === "ready"} choice={choice} />
         </Pane>
-        {["validation", "benefits", "auth"].map((id) => (
-          <Pane key={id} id={id}>
-            <PayerAnswer id={id} checks={checks} requirements={requirements} discovery={discovery} formTitle={formTitle} onOpenForm={e.planCorrelationId ? setOpenForm : null} />
-          </Pane>
-        ))}
         <Pane id="plan">
           <PlanCard
             key={choosing ? "choose" : "view"}
@@ -324,6 +318,11 @@ export default function EligibilityPrep({ ctx }) {
             onOpenForm={setOpenForm}
           />
         </Pane>
+        {["validation", "benefits", "auth"].map((id) => (
+          <Pane key={id} id={id}>
+            <PayerAnswer id={id} checks={checks} requirements={requirements} discovery={discovery} formTitle={formTitle} onOpenForm={e.planCorrelationId ? setOpenForm : null} />
+          </Pane>
+        ))}
       </CaseStep>
 
       <FormDrawer correlationId={e.planCorrelationId} url={openForm} onClose={() => setOpenForm(null)} />

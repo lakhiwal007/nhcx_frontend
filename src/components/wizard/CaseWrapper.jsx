@@ -6,6 +6,7 @@ import { useReadOnly } from "../../lib/readOnly";
 import { Button, EmptyState, LoadingBlock } from "../ui/Common";
 import { saveWorkflow, loadWorkflow } from "../../lib/workflowStorage";
 import CaseFileHeader from "../case/frame/CaseFileHeader";
+import BackButton from "../ui/BackButton";
 import CaseStepper from "../case/frame/CaseStepper";
 import { NeedsYouPanel, NeedsYouChip } from "../case/frame/NeedsYou";
 import { attentionItems } from "../case/frame/attentionItems";
@@ -264,9 +265,9 @@ function CaseWorkspace({ reportCase }) {
         <Button onClick={loadPatient} className="mt-4">
           Retry
         </Button>
-        <Button variant="outline" onClick={() => navigate("/registry")} className="mt-4">
-          Back to Patient Registry
-        </Button>
+        <BackButton onClick={() => navigate("/registry")} className="mt-4">
+          Patient Registry
+        </BackButton>
       </EmptyState>
     );
   }
@@ -274,9 +275,9 @@ function CaseWorkspace({ reportCase }) {
   if (!patient) {
     return (
       <EmptyState title="Patient not found" description="The patient record you are looking for does not exist.">
-        <Button onClick={() => navigate("/registry")} className="mt-4">
-          Back to Patient Registry
-        </Button>
+        <BackButton onClick={() => navigate("/registry")} className="mt-4">
+          Patient Registry
+        </BackButton>
       </EmptyState>
     );
   }
@@ -326,7 +327,9 @@ function CaseWorkspace({ reportCase }) {
   const stageTools = [];
   if (ledgerCaseId) stageTools.push({ label: notes.length ? `Notes (${notes.length})` : "Notes", onClick: () => setNotesOpen(true) });
   if (ledgerCaseId && cashlessCase && !readOnly && !caseClosed) stageTools.push({ label: "Close case", onClick: () => setCloseOpen(true) });
-  stageTools.push(currentStepPath === "timeline" ? { label: "Back to case", onClick: () => navigate(-1) } : { label: "Audit trail", onClick: () => navigate(`/case/${id}/timeline`) });
+  const onTimeline = currentStepPath === "timeline";
+  if (!onTimeline) stageTools.push({ label: "Audit trail", onClick: () => navigate(`/case/${id}/timeline${location.search}`, { state: location.state }) });
+  const stageBack = onTimeline ? { label: "Back to case", onClick: () => navigate(`/case/${id}/${location.search}`, { state: location.state }) } : null;
 
   const from = location.state?.from;
   const goBack = () => {
@@ -334,7 +337,8 @@ function CaseWorkspace({ reportCase }) {
     else if (location.key !== "default") navigate(-1);
     else navigate("/work-queue");
   };
-  const backLabel = from === "/work-queue" ? "Work queue" : from === "/dashboard" ? "Cases" : from?.startsWith("/registry") ? "Registry" : "Back";
+  const BACK_LABELS = { "/work-queue": "Work queue", "/dashboard": "Cases", "/communications": "Communications" };
+  const backLabel = BACK_LABELS[from] || (from?.startsWith("/registry") ? "Registry" : "Back");
 
   const contextValue = {
     patient,
@@ -350,7 +354,7 @@ function CaseWorkspace({ reportCase }) {
     caseClosed,
     draftFiles,
     setDraftFiles,
-    stageBar: { title: activeStage?.label || "Case", tools: stageTools },
+    stageBar: { title: activeStage?.label || "Case", tools: stageTools, back: stageBack },
     communications,
     refreshComms,
     caseRecord: caseRecord.full,
