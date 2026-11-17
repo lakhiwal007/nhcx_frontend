@@ -1,7 +1,7 @@
 import BackButton from "../ui/BackButton";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, RefreshCw, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Send } from "lucide-react";
 import { DocumentChecklist, NextStep, Tip } from "../ui/Common";
 import { formatDateTime, formatMoney } from "../../lib/format.js";
 import Dropdown from "../ui/Dropdown";
@@ -135,8 +135,6 @@ export default function ReprocessScreen({ ctx }) {
     };
   } else if (isFailed) {
     primary = { label: "Try again", icon: Send, onClick: r.startAnother };
-  } else if (isNotFound || isUnclear) {
-    primary = { label: "Check again", icon: RefreshCw, write: false, busy: r.status.checking, busyLabel: "Checking…", onClick: r.status.refresh };
   } else if (isAccepted || isPartial) {
     primary = { label: "Go to payment", icon: ArrowRight, write: false, onClick: () => navigate("../payment") };
   } else if (isQueried) {
@@ -148,7 +146,6 @@ export default function ReprocessScreen({ ctx }) {
 
   const secondary = [
     { label: "Back to claim", icon: ArrowLeft, write: false, onClick: () => toClaim() },
-    sent && !isComplete && !isFailed && !isNotFound && { label: "Check again", icon: RefreshCw, write: false, busy: r.status.checking, busyLabel: "Checking…", onClick: r.status.refresh },
     isPartial && !locked && { label: "Ask for the balance", write: false, onClick: () => toClaim("request_claim_release") },
   ];
 
@@ -157,7 +154,7 @@ export default function ReprocessScreen({ ctx }) {
     lock.viewOnly && { tone: "info", text: lock.reason },
     r.loadError && { tone: "warn", text: `The case could not be read, so an appeal already sent may not show here: ${r.loadError}`, action: { label: "Retry", onClick: r.reload } },
     isFailed && { tone: "bad", text: `The appeal did not reach the payer. ${view.message || ""}`.trim() },
-    isNotFound && { tone: "warn", text: "The payer has no record of this appeal yet. Check again in a while, or look at the audit trail." },
+    isNotFound && { tone: "warn", text: "The payer has no record of this appeal yet. Refresh in a while, or look at the audit trail." },
     isUnclear && { tone: "warn", text: "The payer answered without a clear decision. Read its notes and the audit trail, and call its helpdesk if it stays unclear." },
     isQueried && { tone: "warn", text: "The payer has a question about the appeal. It is answered on the Claim step, and the decision waits until you do." },
     isRejected && { tone: "warn", text: "The payer kept its decision. You can appeal again with new evidence or contact the payer directly; if the decision stands, the patient may have to pay." },

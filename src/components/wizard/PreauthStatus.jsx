@@ -106,11 +106,11 @@ export default function PreauthStatus({ ctx }) {
   const guide = isFailed
     ? { tone: "bad", title: "The payer never received this pre-auth", steps: ["Read the reason in the Delivery pane.", "Go back to the pre-auth draft, fix what it names, and send again."] }
     : isNotFound
-      ? { tone: "warn", title: "The payer's system has no record of this request yet", text: "Check again in a while. If it stays like this, ask NHCX where it stands or call the payer's helpdesk." }
+      ? { tone: "warn", title: "The payer's system has no record of this request yet", text: "Refresh in a while. If it stays like this, ask NHCX where it stands or call the payer's helpdesk." }
       : !isComplete
         ? { tone: "info", title: purposeCancel ? "The payer is processing the cancellation" : "The payer is deciding", text: "Private insurers must answer a pre-auth within 1 hour (IRDAI). You can leave this page; the decision appears here and in the Work Queue." }
         : isUnknown
-          ? { tone: "warn", title: "The payer's answer isn't clear", steps: ["Press Check again.", "If it stays unclear, ask NHCX where it stands or call the payer's helpdesk."] }
+          ? { tone: "warn", title: "The payer's answer isn't clear", steps: ["Press Refresh.", "If it stays unclear, ask NHCX where it stands or call the payer's helpdesk."] }
           : isApproved
             ? { tone: "ok", title: "Approved: go ahead with treatment", steps: ["Treat within the approved amount.", "If treatment will cost more, ask for an enhancement before discharge.", "When the patient is discharged, continue to Claim."] }
             : isPartial
@@ -136,12 +136,9 @@ export default function PreauthStatus({ ctx }) {
           ? { label: "Answer the query", icon: Send, onClick: () => setQueryOpen(true) }
           : isRejected && p.canAnswer
             ? { label: "Resubmit the pre-auth", icon: Send, onClick: () => setResubmitOpen(true) }
-            : isUnknown
-              ? { label: p.checking ? "Checking…" : "Check again", icon: RefreshCw, write: false, busy: p.checking, onClick: p.refresh }
-              : null;
+            : null;
 
   const secondary = [
-    !isComplete && !isFailed && { label: p.checking ? "Checking…" : "Check again", icon: RefreshCw, write: false, busy: p.checking, onClick: p.refresh },
     (isNotFound || showGatewayRecovery || isUnknown) && p.canEnquire && !p.enquiryId && { label: p.askGateway.busy ? "Asking…" : "Ask NHCX where it stands", icon: Wifi, busy: p.askGateway.busy, onClick: p.askGateway.run },
     isComplete && (isApproved || isPartial) && !caseClosed && !p.claimWithPayer && { label: "Ask for more", icon: PlusCircle, write: false, onClick: () => navigate("../enhancement") },
   ];
@@ -203,11 +200,6 @@ export default function PreauthStatus({ ctx }) {
                 <button type="button" className="cv-btn is-primary" onClick={() => navigate("../review")}>
                   Open the pre-auth draft
                 </button>
-                {cashless_case_id && (
-                  <button type="button" className="cv-btn" onClick={p.recover}>
-                    Check again
-                  </button>
-                )}
               </>
             }
           >

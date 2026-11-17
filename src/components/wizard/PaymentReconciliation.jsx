@@ -1,6 +1,6 @@
 import BackButton from "../ui/BackButton";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, RefreshCw, Wallet } from "lucide-react";
+import { ArrowRight, Wallet } from "lucide-react";
 import { NextStep, Tip } from "../ui/Common";
 import { formatDate, formatDateTime, formatMoney, formatTime } from "../../lib/format.js";
 import { stageWord } from "../../domain/paymentEvents.js";
@@ -38,7 +38,6 @@ export default function PaymentReconciliation({ ctx }) {
   const failed = p.failedPayments;
   const onlyFailed = failed.length === 1 ? failed[0] : null;
   const latestStage = p.data?.latest_stage;
-  const checkAgain = { label: "Check again", icon: RefreshCw, write: false, busy: p.status.checking, busyLabel: "Checking…", onClick: p.status.refresh };
   const waiting = !p.error && (p.isNotFound || !p.allSettled);
 
   const groups = p.isNotFound || !p.data
@@ -81,7 +80,7 @@ export default function PaymentReconciliation({ ctx }) {
           ? { label: p.noPayment.label, icon: ArrowRight, write: false, onClick: () => navigate(p.noPayment.to) }
           : null;
 
-  const secondary = [!p.noPayment && checkAgain];
+  const secondary = [];
   const ago = checkedAt(p.status.lastCheckedAt);
 
   const notes = [

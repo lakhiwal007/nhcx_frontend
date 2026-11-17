@@ -98,7 +98,7 @@ export default function EligibilityPrep({ ctx }) {
             ? { tone: "ok", label: "Eligible", text: "The policy is in force for this admission." }
             : isComplete
               ? { tone: "todo", label: "Checks complete", text: "The payer did not state whether the policy is in force." }
-              : { tone: "todo", label: "Not confirmed", text: "Check again to fetch the latest answer." };
+              : { tone: "todo", label: "Not confirmed", text: "Refresh to fetch the latest answer." };
 
   const ce = full?.coverage_eligibility;
   const members = eligibilityBeneficiaries(ce);
@@ -154,9 +154,7 @@ export default function EligibilityPrep({ ctx }) {
         onClick: () => navigate("../review"),
       };
 
-  const secondary = [
-    caseId && !e.polling && { label: e.refresh.busy ? "Checking…" : "Check again", busy: e.refresh.busy, write: false, onClick: e.refresh.run, reason: "Reads the latest answers already received. Nothing is sent to the payer." },
-  ];
+  const secondary = [];
   const more = [
     canSendNow && {
       label: e.sendChecks.busy ? "Sending…" : "Send the checks now, without the plan",

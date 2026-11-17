@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowRight, RefreshCw, Send, Wifi, MessageSquare, Wallet } from "lucide-react";
+import { ArrowRight, Send, Wifi, MessageSquare, Wallet } from "lucide-react";
 import { DocumentChecklist, NextStep, Tip } from "../ui/Common";
 import { formatCaseRef, formatDate, formatDateTime, formatMoney, humanize } from "../../lib/format.js";
 import { useCaseLock } from "../../hooks/case/useCaseLock";
@@ -210,7 +210,6 @@ export default function ClaimsScreen({ ctx }) {
     if (c.isApproved || c.isPartial) primary = { label: "View payment", icon: ArrowRight, write: false, onClick: () => navigate("../payment") };
     else if (c.isQueried) primary = { label: "Answer the query", icon: Send, onClick: () => setQueryOpen(true) };
     else if (c.isRejected) primary = { label: "Ask for a reprocess", icon: ArrowRight, write: false, onClick: () => navigate("../reprocess") };
-    else if (c.claimUnclear || view.phase === "not_found") primary = { label: "Check again", icon: RefreshCw, write: false, busy: c.final.checking, busyLabel: "Checking…", onClick: c.final.refresh };
   } else if (c.dischargeQueried) {
     primary = { label: "Answer the discharge query", icon: Send, onClick: () => setDischargeOpen(true) };
   } else if (c.dischargeRejected) {
@@ -239,9 +238,6 @@ export default function ClaimsScreen({ ctx }) {
   if (primary?.write !== false && locked) primary = null;
 
   const secondary = [
-    c.finalWaiting && { label: "Check again", icon: RefreshCw, write: false, busy: c.final.checking, busyLabel: "Checking…", onClick: c.final.refresh },
-    !c.finalId && c.dischargeWaiting && { label: "Check again", icon: RefreshCw, write: false, busy: c.discharge.checking, busyLabel: "Checking…", onClick: c.discharge.refresh },
-    !c.finalId && c.dischargeView.phase === "not_found" && { label: "Check again", icon: RefreshCw, write: false, busy: c.discharge.checking, busyLabel: "Checking…", onClick: c.discharge.refresh },
     c.claimDecided && (c.isApproved || c.isPartial) && c.releaseOwed > 0 && !c.releaseId && !lock.viewOnly && { label: "Ask for the balance", icon: Wallet, onClick: () => setReleaseOpen(true) },
   ];
   const more = [
@@ -265,7 +261,7 @@ export default function ClaimsScreen({ ctx }) {
     c.dischargeQueried && { tone: "warn", text: "The payer has a question about the discharge claim. The final claim cannot go until it is answered." },
     c.dischargeFailed && { tone: "bad", text: `The discharge claim did not reach the payer. ${c.dischargeView.message || ""}`.trim() },
     c.finalFailed && { tone: "bad", text: `The final claim did not reach the payer. ${view.message || ""}`.trim() },
-    view.phase === "not_found" && { tone: "warn", text: "The payer's system has no record of this claim yet. Check again in a while, and call its helpdesk if it stays like this." },
+    view.phase === "not_found" && { tone: "warn", text: "The payer's system has no record of this claim yet. Refresh in a while, and call its helpdesk if it stays like this." },
     view.refusedSend && {
       tone: "info",
       text: `The payer did not take the final claim${view.refusedSend.message ? `: “${view.refusedSend.message}”` : "."} Its answer to the discharge claim stands.`,
@@ -541,13 +537,6 @@ export default function ClaimsScreen({ ctx }) {
                 title="Discharge claim"
                 meta="Most payers need this, with the discharge papers, before the final claim."
                 chip={c.dischargeId ? <span className={`cv-chip is-${c.dischargeRejected || c.dischargeFailed ? "bad" : c.dischargeQueried ? "warn" : c.dischargeView.decision ? "ok" : "info"}`}>{dischargeWord}</span> : null}
-                tools={
-                  c.dischargeId && (
-                    <button type="button" className="cv-link" disabled={c.discharge.checking} onClick={c.discharge.refresh}>
-                      {c.discharge.checking ? "Checking…" : "Check again"}
-                    </button>
-                  )
-                }
               >
                 <div className="cv-card-body">
                   {!c.dischargeId && <div className="cv-card-meta">Not sent yet. It goes out with the files attached on this step.</div>}

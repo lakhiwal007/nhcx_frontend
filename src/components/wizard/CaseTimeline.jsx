@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { NextStep } from "../ui/Common";
 import { formatMoney, formatDateTime, humanize } from "../../lib/format.js";
 import { useCaseTrail } from "../../hooks/case/useCaseTrail";
@@ -166,8 +166,7 @@ export default function CaseTimeline({ ctx }) {
     partial && t.loadingMore && { tone: "info", text: `Loaded ${all.length} of ${t.total} events, reading the rest…` },
     partial && !t.loadingMore && { tone: "warn", text: `Only ${all.length} of ${t.total} events could be read. Refresh to try again.` },
   ];
-  const secondary = [t.caseId && { label: "Refresh", icon: RefreshCw, write: false, busy: t.refreshing, busyLabel: "Refreshing…", onClick: t.refresh }];
-  const verdict = <Verdict ctx={ctx} chip={chip[0]} chipTone={chip[1]} summary={summary} notes={notes} secondary={secondary} />;
+  const verdict = <Verdict ctx={ctx} chip={chip[0]} chipTone={chip[1]} summary={summary} notes={notes} />;
 
   if (!t.caseId) {
     return (
