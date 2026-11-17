@@ -7,6 +7,8 @@ import { api, ALL_FACILITIES_MODE_KEY, LAYOUT_DIRECTION_KEY, THEME_KEY, SIDEBAR_
 import { ReadOnlyContext } from "./lib/readOnly";
 import { getDeepLinkClinicId } from "./lib/sessionBootstrap";
 import { PageActionsSlot } from "./lib/pageActions";
+import { PulseContext } from "./lib/pulse";
+import { usePulsePoll } from "./hooks/util/usePulsePoll";
 import { navItemsFor, crumbsFor, pageTitleFor, badgeText } from "./shell/shellNav";
 
 import WorkQueue from "./components/workqueue/WorkQueue";
@@ -26,10 +28,6 @@ import Toasts from "./components/ui/Toasts";
 import { useMediaQuery } from "./hooks/util/useMediaQuery";
 import { TipsProvider } from "./help/TipsContext.jsx";
 import { loadPayerGuide } from "./api/payrErrors.js";
-
-const TASK_POLL_MS = 60_000;
-const TASK_LIMIT = 50;
-const COMMS_LIMIT = 100;
 
 function LegacyBasePath() {
   const location = useLocation();
@@ -67,7 +65,6 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || "light");
   const [layoutDirection, setLayoutDirection] = useState(() => localStorage.getItem(LAYOUT_DIRECTION_KEY) || "B");
-  const [counts, setCounts] = useState({ pending: 0, pendingTotal: null, urgent: 0, unread: 0, unreadTotal: null });
   const [provider, setProvider] = useState(readProvider);
   const [session, setSession] = useState({ ready: false, readOnly: false, manageableFacilityCodes: [], managesAnyFacility: false, nhcxEnvironment: "sandbox", facilities: null, userId: null });
   const [blocked, setBlocked] = useState(null);
@@ -151,39 +148,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!hasProvider) return undefined;
-    let live = true;
-    const fetchCounts = async () => {
-      const next = {};
-      try {
-        const res = await api.listTasks({ status: "pending", limit: TASK_LIMIT });
-        const tasks = res?.tasks ?? [];
-        next.pending = tasks.length;
-        next.pendingTotal = res?.total_count ?? null;
-        next.urgent = tasks.filter((t) => t.priority === "urgent" || t.priority === "high").length;
-      } catch {
-        next.pending = 0;
-      }
-      try {
-        const res = await api.listCommunications({ limit: COMMS_LIMIT });
-        const comms = res?.communications ?? [];
-        next.unread = comms.filter((c) => !c.provider_read).length;
-        next.unreadTotal = res?.unread_count ?? null;
-      } catch {
-        next.unread = 0;
-      }
-      if (live) setCounts((prev) => ({ ...prev, ...next }));
-    };
-    const first = setTimeout(fetchCounts, 0);
-    const timer = setInterval(fetchCounts, TASK_POLL_MS);
-    return () => {
-      live = false;
-      clearTimeout(first);
-      clearInterval(timer);
-    };
-  }, [hasProvider]);
-
-  useEffect(() => {
     const handleApiError = (e) => {
       const { kind } = e.detail || {};
       if (kind === "AUTH_EXPIRED") {
@@ -233,16 +197,19 @@ export default function App() {
     setLayoutDirection(next);
   };
 
+  const inCase = location.pathname.startsWith("/case/");
+  const pulseCaseId = inCase ? new URLSearchParams(location.search).get("case") : null;
+  const counts = usePulsePoll({ enabled: hasProvider, caseId: pulseCaseId });
+
   const shownPending = hasProvider ? counts.pending : 0;
   const shownUnread = hasProvider ? counts.unread : 0;
   const navItems = navItemsFor({ pendingTasks: shownPending, unreadMessages: shownUnread }).map((item) => ({
     ...item,
-    badgeLabel: item.to === "/work-queue" ? badgeText(shownPending, { total: counts.pendingTotal, limit: TASK_LIMIT }) : item.to === "/communications" ? badgeText(shownUnread, { total: counts.unreadTotal, limit: COMMS_LIMIT }) : null,
+    badgeLabel: item.to === "/work-queue" ? badgeText(shownPending, { total: counts.pendingTotal, limit: counts.taskLimit }) : item.to === "/communications" ? badgeText(shownUnread, { total: counts.unreadTotal, limit: counts.commsLimit }) : null,
   }));
   const urgent = hasProvider && counts.urgent > 0;
   const facility = { hasProvider, allMode: allFacilitiesMode, label: allFacilitiesMode ? "All facilities" : facilityName || providerId };
   const crumbs = crumbsFor(location.pathname);
-  const inCase = location.pathname.startsWith("/case/");
   const commandShell = layoutDirection === "B" && !narrow;
 
   if (blocked) {
@@ -284,6 +251,7 @@ export default function App() {
             <div className="main-view">
               <ReadOnlyContext.Provider value={session.readOnly}>
                 <PageActionsSlot.Provider value={pageActionsEl}>
+                 <PulseContext.Provider value={counts}>
                   <ErrorBoundary key={location.pathname.split("/").slice(0, inCase ? 3 : 2).join("/")}>
                     <Routes>
                       <Route path="/" element={<Navigate to="/work-queue" replace />} />
@@ -319,6 +287,7 @@ export default function App() {
                       <Route path="*" element={<Navigate to="/work-queue" replace />} />
                     </Routes>
                   </ErrorBoundary>
+                 </PulseContext.Provider>
                 </PageActionsSlot.Provider>
               </ReadOnlyContext.Provider>
             </div>

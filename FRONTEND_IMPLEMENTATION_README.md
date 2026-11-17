@@ -1815,6 +1815,30 @@ Use this as a recovery action, not routine polling.
 > Reprocess) — it's the verbatim gateway/payer text, not a generic wrapper
 > message, so it's safe to display as-is.
 
+### Pulse: one light call that says whether anything changed
+
+`GET /cashless/pulse` (optional `cashless_case_id`) is the only call a screen makes on a timer. It writes nothing and sends nothing.
+
+```json
+{
+  "status": "complete",
+  "pending_tasks": 4,
+  "urgent_tasks": 1,
+  "tasks_stamp": "2026-11-17T11:29:39.872846Z",
+  "unread_communications": 1,
+  "communications_stamp": "2026-11-17T11:29:39.903090Z",
+  "case": { "cashless_case_id": 53, "stamp": "2026-11-17T11:31:02.114201Z" }
+}
+```
+
+- `pending_tasks`, `urgent_tasks` and `unread_communications` feed the sidebar badges.
+- `tasks_stamp` and `communications_stamp` change when the work queue or the messages list would show something new. Reload the list only then.
+- `case.stamp` changes when anything is written on that case: a payer's answer, a task, a message, a payment, a note, a biometric attempt, a form answer or its plan. Load the case status, the timeline and the open leg's status only when it moves. It is `null` for a case with nothing on it yet, and `case.status` is `not_found` for a case the caller cannot see.
+- A plain `GET /cashless/{id}` does not move the stamp.
+- Pace: every 15 seconds on a case screen, every 60 seconds elsewhere. Pause while the tab is hidden or the user has been idle for five minutes, and check once on return.
+- Keep a slow safety check (two minutes) on a leg that is waiting for the payer.
+- Successful `GET` calls are no longer stored in `nhcx_audit_logs`. Writes, sends and every failed call still are.
+
 UX rules:
 
 - Poll every 5-10 seconds while visible.

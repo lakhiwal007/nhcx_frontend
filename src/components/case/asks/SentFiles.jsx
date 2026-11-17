@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { api } from "../../../api";
 import { ViewFile } from "../../ui/Common";
+import RefreshButton from "../../ui/RefreshButton";
 
 export default function SentFiles({ caseId, stage }) {
   const [state, setState] = useState({ key: null, files: [] });
+  const [reloads, setReloads] = useState(0);
   const key = `${caseId}|${stage}`;
 
   useEffect(() => {
@@ -20,7 +22,7 @@ export default function SentFiles({ caseId, stage }) {
     return () => {
       live = false;
     };
-  }, [caseId, stage, key]);
+  }, [caseId, stage, key, reloads]);
 
   const files = state.key === key ? state.files : [];
   if (files.length === 0) return null;
@@ -33,6 +35,7 @@ export default function SentFiles({ caseId, stage }) {
         <span className="cv-card-meta">
           {files.length} {files.length === 1 ? "file" : "files"} went with the latest {leg}
         </span>
+        <RefreshButton iconOnly label="Refresh the files" onClick={() => setReloads((n) => n + 1)} />
       </div>
       <div className="cv-card-body">
         <div className="doc-list">

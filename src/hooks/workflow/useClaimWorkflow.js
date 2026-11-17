@@ -3,6 +3,7 @@ import { api, markHandled } from "../../api";
 import { useSend } from "../util/useSend";
 import { useCaseDocuments } from "../case/useCaseDocuments";
 import { useWorkflowStatus } from "../case/useWorkflowStatus";
+import { useStageRefresh } from "../case/useStageRefresh";
 import { liveAsks } from "../../components/case/asks/askStatus";
 import { verdictFor } from "../../components/case/step/verdict";
 import { buildClaimChecklist } from "../../components/case/claim/claimChecklist";
@@ -115,6 +116,11 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
     intervalMs: POLL_INTERVAL_MS,
     isTerminal: (res) => res?.status === "complete" || res?.status === "failed",
     onTerminal: () => refreshTimeline?.(),
+  });
+
+  useStageRefresh(ctx, () => {
+    refreshAsks();
+    return Promise.all([discharge.refresh(), final.refresh(), release.refresh()]);
   });
 
   const fetchRecord = useCallback((recordId) => api.fetchHealthRecord("claim", draftParams(caseId, claimId), recordId), [caseId, claimId]);

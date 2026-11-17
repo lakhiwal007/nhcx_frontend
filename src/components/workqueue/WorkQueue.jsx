@@ -11,6 +11,7 @@ import PayerName from "../ui/PayerName";
 import TaskDrawer from "./TaskDrawer";
 import { ageLabel, needsOwnAction, priorityBucket, taskKey, taskRef } from "./taskUtil";
 import { usePoll } from "../../hooks/util/usePoll";
+import { usePulse, useOnChange } from "../../lib/pulse";
 import { useSend } from "../../hooks/util/useSend";
 import { formatCaseRef, formatDateTime, formatRelative } from "../../lib/format.js";
 
@@ -101,14 +102,17 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
     [statusFilter, taskTypeFilter],
   );
 
+  const pulse = usePulse();
+  const followsPulse = pulse.available === true;
   const { tick } = usePoll(fetchTasks, {
     active: filterKey,
-    intervalMs: statusFilter === "pending" ? POLL_INTERVAL_MS : IDLE_INTERVAL_MS,
+    intervalMs: statusFilter === "pending" && !followsPulse ? POLL_INTERVAL_MS : IDLE_INTERVAL_MS,
   });
+  useOnChange(followsPulse ? pulse.tasksStamp : undefined, () => tick());
 
   const refresh = async () => {
     setRefreshing(true);
-    await tick();
+    await Promise.all([tick(), pulse.refresh()]);
     setRefreshing(false);
   };
 

@@ -6,6 +6,7 @@ import { usePlanForms } from "./usePlanForms";
 import { STEP_FORWARD_ROUTE } from "../../components/case/frame/caseStages";
 
 const POLL_INTERVAL_MS = 7000;
+const SAFETY_INTERVAL_MS = 120_000;
 const TERMINAL_STATUSES = ["complete", "failed"];
 
 export const shouldStopPolling = (res) =>
@@ -107,7 +108,7 @@ export function useEligibility(ctx) {
         setPollError(err?.message || "The payer's answer could not be checked.");
       }
     },
-    { active: polling ? caseId : null, intervalMs: POLL_INTERVAL_MS, immediate: false },
+    { active: polling ? caseId : null, intervalMs: ctx.casePulse?.follows ? SAFETY_INTERVAL_MS : POLL_INTERVAL_MS, immediate: false },
   );
 
   const refresh = useSend(async () => {

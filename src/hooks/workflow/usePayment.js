@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { api, markHandled } from "../../api";
 import { toast } from "../../lib/toast";
 import { useWorkflowStatus } from "../case/useWorkflowStatus";
+import { useStageRefresh } from "../case/useStageRefresh";
 import { ackState, groupPaymentEvents } from "../../domain/paymentEvents.js";
 
 const POLL_INTERVAL_MS = 30000;
@@ -47,6 +48,8 @@ export function usePayment(ctx) {
       }
     },
   });
+
+  useStageRefresh(ctx, () => status.refresh());
 
   const data = status.data;
   const loading = !!claimId && !data && !status.error;

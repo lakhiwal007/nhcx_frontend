@@ -3,6 +3,7 @@ import { api } from "../../api";
 import { useSend } from "../util/useSend";
 import { useCaseDocuments } from "../case/useCaseDocuments";
 import { useWorkflowStatus } from "../case/useWorkflowStatus";
+import { useStageRefresh } from "../case/useStageRefresh";
 import { verdictFor } from "../../components/case/step/verdict";
 
 const POLL_INTERVAL_MS = 7000;
@@ -68,6 +69,7 @@ export function useReprocess(ctx, { locked = false } = {}) {
       refreshTimeline?.();
     },
   });
+  useStageRefresh(ctx, () => status.refresh());
 
   const seeded = !status.data && correlationId && correlationId === appeal?.correlation_id && appeal?.decision ? { status: "complete", decision: appeal.decision, reason_code: appeal.reason_code } : null;
   const data = normalize(status.data || seeded);

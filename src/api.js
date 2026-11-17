@@ -237,6 +237,7 @@ const http = {
     } catch (err) {
       // A cancelled poll (tab hidden / navigation) is not a real error.
       if (err.name === "AbortError") throw err;
+      if (opts.quiet) markHandled(err);
       dispatchError(err);
       throw err;
     }
@@ -249,6 +250,7 @@ const http = {
         method: "POST",
         headers: buildHeaders(path),
         body: JSON.stringify(merged),
+        signal: opts.signal,
       });
       if (!res.ok && opts.acceptStatuses?.includes(res.status)) {
         return await res.json();
@@ -259,6 +261,7 @@ const http = {
       }
       return await res.json();
     } catch (err) {
+      if (err.name === "AbortError") throw err;
       dispatchError(err);
       throw err;
     }
@@ -2968,6 +2971,22 @@ const mock = {
     return { id: payment_id, claim_id: 102, cashless_case_id: data.cashless_case_id, acknowledgement_status: "pending" };
   },
 
+  getPulse: async (params = {}) => {
+    const [tasks, comms] = await Promise.all([mock.listTasks({ status: "pending", limit: 500 }), mock.listCommunications({ limit: 500 })]);
+    const pending = tasks?.tasks || [];
+    const unread = (comms?.communications || []).filter((c) => !c.provider_read).length;
+    window.__mockPulses = (window.__mockPulses || 0) + 1;
+    return {
+      status: "complete",
+      pending_tasks: tasks?.total_count ?? pending.length,
+      urgent_tasks: pending.filter((t) => t.priority === "urgent" || t.priority === "high").length,
+      tasks_stamp: "mock",
+      unread_communications: unread,
+      communications_stamp: "mock",
+      ...(params.cashless_case_id ? { case: { cashless_case_id: params.cashless_case_id, stamp: String(window.__mockPulses) } } : {}),
+    };
+  },
+
   // ─── Tasks ──────────────────────────────────────────────────────────────────
   listTasks: async (params = {}) => {
     await delay(600);
@@ -3814,7 +3833,7 @@ const real = {
 
   getBiometric: (cashless_case_id, stage) => http.get(`/cashless/${cashless_case_id}/biometric`, { stage }),
   startBiometric: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/biometric`, data),
-  captureBiometric: (cashless_case_id, id) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/capture`, {}),
+  captureBiometric: (cashless_case_id, id, signal) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/capture`, {}, { signal }),
   verifyBiometric: (cashless_case_id, id, data) => http.post(`/cashless/${cashless_case_id}/biometric/${id}/verify`, data),
   getPayerForms: (cashless_case_id, stage = "preauth") => http.get(`/cashless/${cashless_case_id}/forms`, { stage }),
   getCaseFiles: (cashless_case_id, stage = "preauth") => http.get(`/cashless/${cashless_case_id}/files`, { stage }),
@@ -3950,8 +3969,8 @@ const real = {
   getReprocessStatus: (correlation_id, signal) =>
     http.get(`/cashless/reprocess/status/${correlation_id}`, {}, { signal }),
 
-  searchPaymentStatus: (params = {}) =>
-    http.get("/cashless/payment/status", params, { allowNotFound: true }),
+  searchPaymentStatus: (params = {}, signal) =>
+    http.get("/cashless/payment/status", params, { signal, allowNotFound: true }),
 
   getPaymentStatus: (correlation_id) =>
     http.get(`/cashless/payment/status/${correlation_id}`, {}, { allowNotFound: true }),
@@ -3962,7 +3981,9 @@ const real = {
   linkPayment: (payment_id, data) =>
     http.patch(`/cashless/payment/${payment_id}/link`, data),
 
-  listTasks: (params = {}) => http.get("/cashless/tasks", params),
+  getPulse: (params = {}, signal) => http.get("/cashless/pulse", params, { signal, allowNotFound: true, quiet: true }),
+
+  listTasks: (params = {}, signal) => http.get("/cashless/tasks", params, { signal }),
 
   getTask: (task_id) => http.get(`/cashless/tasks/${task_id}`),
 
@@ -3972,8 +3993,8 @@ const real = {
   reprocessCallback: (correlation_id) =>
     http.post(`/cashless/callbacks/${correlation_id}/reprocess`, {}),
 
-  listCommunications: (params = {}) =>
-    http.get("/cashless/communications", params),
+  listCommunications: (params = {}, signal) =>
+    http.get("/cashless/communications", params, { signal }),
 
   getCommunicationStatus: (correlation_id) =>
     http.get(`/cashless/communication/status/${correlation_id}`),

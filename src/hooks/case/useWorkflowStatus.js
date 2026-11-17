@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { markHandled } from "../../api";
 import { usePoll } from "../util/usePoll";
+import { usePulse, useOnChange } from "../../lib/pulse";
+
+const SAFETY_INTERVAL_MS = 120_000;
 
 export const WORKFLOW_TERMINAL = new Set(["complete", "not_found", "failed"]);
 
@@ -39,7 +42,10 @@ export function useWorkflowStatus(fetch, { key, intervalMs = 7000, immediate = t
   }, []);
 
   const active = key && !state.stopped ? key : null;
-  const { tick: pollNow } = usePoll(tick, { active, intervalMs, immediate });
+  const pulse = usePulse();
+  const followsPulse = pulse.available === true && pulse.caseStamp !== undefined;
+  const { tick: pollNow } = usePoll(tick, { active, intervalMs: followsPulse ? SAFETY_INTERVAL_MS : intervalMs, immediate });
+  useOnChange(active && followsPulse ? pulse.caseStamp : undefined, () => pollNow());
 
   const refresh = useCallback(() => {
     if (!key) return Promise.resolve();

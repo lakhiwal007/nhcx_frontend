@@ -1,6 +1,6 @@
 import BackButton from "../ui/BackButton";
 import { useState, useEffect } from "react";
-import { User, Search } from "lucide-react";
+import { User, Search, RefreshCw } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, markHandled } from "../../api";
 import { useReadOnly } from "../../lib/readOnly";
@@ -9,6 +9,7 @@ import { Button, EmptyState, LoadingBlock, SkeletonTable, TablePagination, Tip }
 import { formatPhone, formatCaseRef, formatRelative, formatAge, humanize, formatDate } from "../../lib/format.js";
 import { taskScreen, taskNavState } from "../../domain/tasks";
 import PayerName from "../ui/PayerName";
+import PageActions from "../ui/PageActions";
 import Dropdown from "../ui/Dropdown";
 import { StageTrack } from "../ui/caseJourney";
 import CommunicationDetailDrawer from "../communications/CommunicationDetail";
@@ -62,7 +63,7 @@ function PatientDetail({ patient }) {
     return () => {
       live = false;
     };
-  }, [childId]);
+  }, [childId, patient]);
   const extraLoaded = extra.key === childId;
   const tasks = extraLoaded ? extra.tasks : [];
   const communications = extraLoaded ? extra.communications : [];
@@ -167,6 +168,7 @@ export default function PatientProfile() {
   const [filters, setFilters] = useState({ query: "", caseState: "any", sort: "newest", page: 1, n: 0 });
   const [list, setList] = useState({ n: -1, children: [], total: 0, counts: {}, error: null });
   const [detail, setDetail] = useState({ id: null, patient: null, error: null });
+  const [detailReloads, setDetailReloads] = useState(0);
   const narrow = useMediaQuery("(max-width: 768px)");
 
   useEffect(() => {
@@ -200,7 +202,7 @@ export default function PatientProfile() {
     return () => {
       live = false;
     };
-  }, [deepLinkChildId]);
+  }, [deepLinkChildId, detailReloads]);
 
   const loading = list.n !== filters.n;
   const hasSearched = !!filters.query.trim();
@@ -223,6 +225,11 @@ export default function PatientProfile() {
     const ready = detail.id === deepLinkChildId;
     return (
       <div className="cc-screen">
+        <PageActions>
+          <Button variant="outline" size="small" icon={RefreshCw} onClick={() => setDetailReloads((n) => n + 1)} title="Reload this patient's admissions, cases and messages">
+            Refresh
+          </Button>
+        </PageActions>
         <div>
           <BackButton onClick={clearSelection}>All patients</BackButton>
         </div>
@@ -241,6 +248,11 @@ export default function PatientProfile() {
 
   return (
     <div className="cc-screen">
+      <PageActions>
+        <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={() => apply({})} title="Reload the patients">
+          {loading ? "Refreshing…" : "Refresh"}
+        </Button>
+      </PageActions>
       {list.error && (
         <div className="cv-notice is-warn" role="alert">
           <div className="cv-notice-body">The patients could not be loaded{list.children.length ? ", so the list may be out of date" : ""}: {list.error}</div>

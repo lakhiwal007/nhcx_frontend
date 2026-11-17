@@ -18,6 +18,8 @@ import { useCaseNotes } from "../../hooks/case/useCaseNotes";
 import CommunicationDetailDrawer from "../communications/CommunicationDetail";
 import { buildStages, landingStage, stageInfo } from "../case/frame/caseStages";
 import { useCaseRecord } from "../../hooks/case/useCaseRecord";
+import { usePoll } from "../../hooks/util/usePoll";
+import { useCasePulse, useOnChange } from "../../lib/pulse";
 import "../case/frame/case-v2.css";
 
 import PayerPolicy from "./PayerPolicy";
@@ -191,12 +193,31 @@ function CaseWorkspace({ reportCase }) {
 
   useEffect(() => {
     const first = setTimeout(refreshComms, 0);
-    const timer = ledgerCaseId ? setInterval(refreshComms, COMMS_POLL_MS) : null;
-    return () => {
-      clearTimeout(first);
-      if (timer) clearInterval(timer);
-    };
-  }, [refreshComms, ledgerCaseId]);
+    return () => clearTimeout(first);
+  }, [refreshComms]);
+
+  const casePulse = useCasePulse(ledgerCaseId);
+  usePoll(refreshComms, { active: ledgerCaseId && !casePulse.follows ? ledgerCaseId : null, intervalMs: COMMS_POLL_MS, immediate: false });
+
+  const reloadCaseRecord = caseRecord.reload;
+  useOnChange(casePulse.stamp, () => {
+    reloadCaseRecord();
+    refreshTimeline();
+    refreshComms();
+    refreshNotes();
+  });
+
+  const refreshers = useRef(new Set());
+  const onRefresh = useCallback((fn) => {
+    refreshers.current.add(fn);
+    return () => refreshers.current.delete(fn);
+  }, []);
+  const [refreshState, setRefreshState] = useState({ busy: false, at: null });
+  const refreshAll = async () => {
+    setRefreshState((prev) => ({ ...prev, busy: true }));
+    await Promise.allSettled([reloadCaseRecord(), refreshTimeline(), refreshComms(), refreshNotes(), ...[...refreshers.current].map((fn) => fn())]);
+    setRefreshState({ busy: false, at: Date.now() });
+  };
 
   const markCommRead = useCallback((correlationId) => {
     setCommunications((prev) => prev.map((c) => (c.correlation_id === correlationId ? { ...c, provider_read: true } : c)));
@@ -354,7 +375,9 @@ function CaseWorkspace({ reportCase }) {
     caseClosed,
     draftFiles,
     setDraftFiles,
-    stageBar: { title: activeStage?.label || "Case", tools: stageTools, back: stageBack },
+    stageBar: { title: activeStage?.label || "Case", tools: stageTools, back: stageBack, refresh: ledgerCaseId ? { onClick: refreshAll, busy: refreshState.busy, at: refreshState.at } : null },
+    onRefresh,
+    casePulse,
     communications,
     refreshComms,
     caseRecord: caseRecord.full,

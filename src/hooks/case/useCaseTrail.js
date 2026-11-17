@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, markHandled } from "../../api";
+import { useStageRefresh } from "./useStageRefresh";
 
 const MAX_PAGES = 20;
 
@@ -48,6 +49,7 @@ export function useCaseTrail(ctx) {
     refreshTimeline?.();
     setState((prev) => ({ ...prev, attempt: prev.attempt + 1, loading: true, error: null }));
   }, [refreshTimeline]);
+  useStageRefresh(ctx, () => setState((prev) => ({ ...prev, attempt: prev.attempt + 1, loading: true, error: null })));
 
   return {
     caseId,

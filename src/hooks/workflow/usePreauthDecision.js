@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import { useSend } from "../util/useSend";
 import { useWorkflowStatus } from "../case/useWorkflowStatus";
+import { useStageRefresh } from "../case/useStageRefresh";
 import { CLAIM_WITH_PAYER } from "../../components/case/frame/caseStages";
 import { verdictFor } from "../../components/case/step/verdict";
 
@@ -54,6 +55,8 @@ export function usePreauthDecision(ctx) {
       }
     },
   });
+
+  useStageRefresh(ctx, () => status.refresh());
 
   const data = status.data;
   const cachedDecision = !data && caseState.preauthDecision && caseState.preauthDecision !== "UNKNOWN" ? caseState.preauthDecision : null;

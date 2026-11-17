@@ -10,6 +10,7 @@ import PayerName from "../ui/PayerName";
 import CommunicationDetailDrawer from "./CommunicationDetail";
 import { commHeadline, commPreview, commHasAttachment, commTime, hasOpenTask, isUrgent, priorityRank, reasonLabel } from "../../domain/communications";
 import { taskLabel } from "../../domain/tasks";
+import { usePulse, useOnChange } from "../../lib/pulse";
 
 const PAGE_SIZE = 20;
 
@@ -57,7 +58,9 @@ export default function Communications({ allFacilitiesMode = false }) {
 
   const loading = data.key !== reloadKey;
   const communications = data.list || [];
+  const pulse = usePulse();
   const refresh = () => setReloadKey((k) => k + 1);
+  useOnChange(pulse.available === true ? pulse.commsStamp : undefined, refresh);
   const markRead = (id) => setData((prev) => ({ ...prev, list: (prev.list || []).map((c) => (c.correlation_id === id ? { ...c, provider_read: true } : c)) }));
 
   const payers = [...new Map(communications.filter((c) => c.payer_id).map((c) => [c.payer_id, c.payer_name || c.payer_id])).entries()];

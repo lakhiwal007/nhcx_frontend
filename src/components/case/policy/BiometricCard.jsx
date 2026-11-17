@@ -6,6 +6,7 @@ import { usePoll } from "../../../hooks/util/usePoll";
 import { toast } from "../../../lib/toast";
 import { captureFromDevice, sealAadhaar } from "../../../domain/biometric";
 import { formatDateTime } from "../../../lib/format";
+import RefreshButton from "../../ui/RefreshButton";
 
 const METHODS = [
   { value: "FACE_AUTH", label: "Face", icon: ScanFace, hint: "The patient scans a code with the ABHA app on their phone." },
@@ -254,6 +255,7 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
         <h2 className="cv-card-title">{TITLES[stage]}</h2>
         <span className={`cv-chip is-${state.tone}`}>{state.label}</span>
         <span className="cv-card-meta">{state.text}</span>
+        <RefreshButton iconOnly label="Refresh the verification" onClick={load} />
       </div>
 
       {error && (
