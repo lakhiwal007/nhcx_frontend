@@ -601,6 +601,11 @@ const mockPlanState = (plan) => {
 // a preview; queried and claim_sent set the case's legs.
 const mockEnhancementKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("en") : null);
 
+const MOCK_PMJAY_IMPLANTS = [
+  { id: 9001, category_code: "SG", category_display: "General Surgery", code: "IMP014", display: "Polypropylene mesh 15 x 15 cm", kind: "Implant", rate: 4500, conditions: {}, extras: [], supporting_info: [] },
+  { id: 9002, category_code: "SO", category_display: "Orthopaedics", code: "IMP031", display: "Titanium elastic nail", kind: "Implant", rate: null, conditions: {}, extras: [], supporting_info: [] },
+];
+
 const MOCK_TREATMENT = [
   { line_no: 1, code: "MG011A", display: "Dengue fever", category_code: "MG", category_display: "General Medicine", kind: "Procedure", quantity: 1, unit_price: 12000, amount: 12000, status: "approved", approved_amount: 12000, stage: "preauth" },
   { line_no: 2, code: "SG045A", display: "Open appendicectomy", category_code: "SG", category_display: "General Surgery", kind: "Procedure", quantity: 1, unit_price: 18500, amount: 18500, status: "planned", stage: "enhancement" },
@@ -2471,7 +2476,7 @@ const mock = {
     await delay(300);
     const term = String(q || "").trim().toLowerCase();
     const wanted = String(flags || "").split(",").filter(Boolean);
-    const source = kind === "Benefit" ? MOCK_COVER_BENEFITS : MOCK_PMJAY_BENEFITS;
+    const source = kind === "Benefit" ? MOCK_COVER_BENEFITS : kind === "Implant" ? MOCK_PMJAY_IMPLANTS : MOCK_PMJAY_BENEFITS;
     const rows = source.filter(
       (b) =>
         (!category || b.category_code === category) &&

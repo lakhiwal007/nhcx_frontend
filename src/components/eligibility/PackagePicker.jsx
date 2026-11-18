@@ -11,8 +11,10 @@ export default function PackagePicker({ correlationId, plan, startQuery = "", ch
   const [query, setQuery] = useState(startQuery);
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(0);
+  const [kind, setKind] = useState("Procedure");
+  const implants = kind === "Implant";
   const term = query.trim().length >= 2 ? query.trim() : "";
-  const { loading, rows, total, error } = usePlanPackages(correlationId, { category, q: term, limit: PAGE, offset: page * PAGE });
+  const { loading, rows, total, error } = usePlanPackages(correlationId, { category, q: term, kind, limit: PAGE, offset: page * PAGE });
   const pages = Math.max(1, Math.ceil(total / PAGE));
 
   return (
@@ -23,9 +25,16 @@ export default function PackagePicker({ correlationId, plan, startQuery = "", ch
       </div>
       <div className="cv-card-body cv-picker">
         <div className="cv-picker-filters">
+          {[["Procedure", "Packages"], ["Implant", "Implants"]].map(([value, label]) => (
+            <button key={value} type="button" className="cv-fchip" aria-pressed={kind === value} onClick={() => { setKind(value); setQuery(""); setPage(0); }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="cv-picker-filters">
           <input
             className="cv-ctl"
-            placeholder="Search by package name or code"
+            placeholder={implants ? "Search by implant name or code" : "Search by package name or code"}
             aria-label="Search packages"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(0); }}
@@ -43,7 +52,7 @@ export default function PackagePicker({ correlationId, plan, startQuery = "", ch
             <thead>
               <tr>
                 <th>Code</th>
-                <th>Package</th>
+                <th>{implants ? "Implant" : "Package"}</th>
                 <th className="is-num">Rate</th>
                 <th>Pre-auth</th>
                 <th aria-label="Use" />
@@ -78,7 +87,7 @@ export default function PackagePicker({ correlationId, plan, startQuery = "", ch
               {!loading && !error && rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="cv-card-meta">
-                    {term ? `No package name or code contains "${term}". Shorten or clear the search, or pick a speciality.` : "No package in this speciality."}
+                    {term ? `No ${implants ? "implant" : "package"} name or code contains "${term}". Shorten or clear the search, or pick a speciality.` : implants ? "The plan lists no implant here." : "No package in this speciality."}
                   </td>
                 </tr>
               )}
@@ -86,7 +95,7 @@ export default function PackagePicker({ correlationId, plan, startQuery = "", ch
           </table>
         </div>
         <div className="cv-pager">
-          <span>{total ? `Showing ${page * PAGE + 1}–${Math.min(total, (page + 1) * PAGE)} of ${count(total)}` : "No packages"}</span>
+          <span>{total ? `Showing ${page * PAGE + 1}–${Math.min(total, (page + 1) * PAGE)} of ${count(total)}` : implants ? "No implants" : "No packages"}</span>
           <button type="button" className="cv-btn" style={{ marginLeft: "auto" }} disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
           <button type="button" className="cv-btn" disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}>Next</button>
         </div>

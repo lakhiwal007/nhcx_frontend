@@ -35,17 +35,24 @@ function ChoosePackage({ choice, visit, plan, planCorrelationId, startQuery }) {
           <div className="cv-sub">Chosen packages</div>
           {choice.chosen.map((pkg) => {
             const tier = pkg.tiers?.find((t) => t.code === pkg.modifier_code);
-            const price = pkg.unspecified ? pkg.amount : (tier?.rate ?? pkg.rate);
+            const unit = pkg.typed ? pkg.amount : (tier?.rate ?? pkg.rate);
+            const quantity = Number(pkg.quantity) > 0 ? Number(pkg.quantity) : 1;
+            const price = unit != null && unit !== "" ? Number(unit) * quantity : null;
             return (
               <div key={pkg.code} className="cv-chosen">
                 <div className="cv-kv">
                   <span>
                     <strong>{pkg.name}</strong> <span className="cv-mono cv-card-meta">{pkg.code}</span>
+                    {pkg.kind === "Implant" && <span className="cv-chip is-info" style={{ marginLeft: 6 }}>Implant</span>}
                   </span>
                   <button type="button" className="cv-pick" onClick={() => choice.onRemove(pkg.code)}>
                     Remove
                   </button>
                 </div>
+                <label className="cv-chosen-qty">
+                  <span className="cv-card-meta">Quantity</span>
+                  <input className="cv-ctl cv-mono" type="number" min="1" step="1" aria-label={`Quantity for ${pkg.name}`} value={pkg.quantity ?? 1} onChange={(ev) => choice.onEdit(pkg.code, { quantity: ev.target.value })} />
+                </label>
                 {pkg.tiers?.length > 0 && (
                   <select className="cv-ctl" aria-label={`Ward tier for ${pkg.name}`} value={pkg.modifier_code || ""} onChange={(ev) => choice.onEdit(pkg.code, { modifier_code: ev.target.value })}>
                     <option value="">No ward tier</option>
@@ -54,13 +61,9 @@ function ChoosePackage({ choice, visit, plan, planCorrelationId, startQuery }) {
                     ))}
                   </select>
                 )}
-                {pkg.unspecified && (
-                  <>
-                    <input className="cv-ctl" aria-label={`Procedure name for ${pkg.code}`} placeholder="Procedure name" value={pkg.name} onChange={(ev) => choice.onEdit(pkg.code, { name: ev.target.value })} />
-                    <input className="cv-ctl cv-mono" type="number" min="0" aria-label={`Amount for ${pkg.code}`} placeholder="Amount" value={pkg.amount ?? ""} onChange={(ev) => choice.onEdit(pkg.code, { amount: ev.target.value })} />
-                  </>
-                )}
-                <div className="cv-card-meta">{price != null && price !== "" ? `${formatMoney(price)} at the plan's rate` : pkg.unspecified ? "Enter the amount; the plan has no price for an unspecified package." : "The plan lists no rate."}</div>
+                {pkg.unspecified && <input className="cv-ctl" aria-label={`Procedure name for ${pkg.code}`} placeholder="Procedure name" value={pkg.name} onChange={(ev) => choice.onEdit(pkg.code, { name: ev.target.value })} />}
+                {pkg.typed && <input className="cv-ctl cv-mono" type="number" min="0" aria-label={`Amount for ${pkg.code}`} placeholder="Amount for one" value={pkg.amount ?? ""} onChange={(ev) => choice.onEdit(pkg.code, { amount: ev.target.value })} />}
+                <div className="cv-card-meta">{price != null ? `${formatMoney(price)}${pkg.typed ? "" : " at the plan's rate"}` : pkg.typed ? "Enter the amount; the plan has no price for this." : "The plan lists no rate."}</div>
               </div>
             );
           })}

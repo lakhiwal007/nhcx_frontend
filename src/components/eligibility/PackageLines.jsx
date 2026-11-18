@@ -31,10 +31,13 @@ export default function PackageLines({ lines = [], onRemove, busy }) {
                 <td className="cv-mono">{line.line_no}</td>
                 <td>
                   <strong>{line.display || line.code}</strong> <span className="cv-mono cv-card-meta">{line.code}</span>
-                  <div className="cv-card-meta">{[line.category_display, line.modifier_display || line.modifier_code, line.stage === "enhancement" && "Enhancement"].filter(Boolean).join(" · ")}</div>
+                  <div className="cv-card-meta">{[line.kind === "Implant" && "Implant", line.category_display, line.modifier_display || line.modifier_code, line.stage === "enhancement" && "Enhancement"].filter(Boolean).join(" · ")}</div>
                 </td>
                 <td className="is-num">{line.quantity ?? 1}</td>
-                <td className="is-num">{line.unit_price != null ? formatMoney(line.unit_price) : "—"}</td>
+                <td className="is-num">
+                  {line.unit_price != null ? formatMoney(line.unit_price) : "—"}
+                  {line.repriced_from != null && <div className="cv-card-meta">was {formatMoney(line.repriced_from)}; the plan changed</div>}
+                </td>
                 <td className="is-num">{line.amount != null ? formatMoney(line.amount) : "—"}</td>
                 <td>
                   <span className={`cv-chip ${tone}`}>{label}</span>

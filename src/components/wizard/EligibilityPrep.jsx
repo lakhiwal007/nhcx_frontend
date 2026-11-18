@@ -29,6 +29,9 @@ const packageChoice = (benefit) => ({
   modifier_code: "",
   tiers: (benefit.extras || []).filter((x) => x.code && Number(x.rate) > 0 && /strat/i.test(`${x.type || ""} ${x.code}`)).map((x) => ({ code: x.code, label: x.label || x.code, rate: Number(x.rate) })),
   unspecified: yes(benefit.conditions?.Unspecified) || /^[A-Z]{2}(U100|215)$/i.test(String(benefit.code)),
+  kind: benefit.kind,
+  quantity: 1,
+  typed: yes(benefit.conditions?.Unspecified) || /^[A-Z]{2}(U100|215)$/i.test(String(benefit.code)) || (benefit.kind === "Implant" && !(Number(benefit.rate) > 0)),
   rate: benefit.rate,
 });
 
@@ -37,7 +40,8 @@ const packageRow = (p) => ({
   name: p.name,
   ...(p.category ? { category: p.category } : {}),
   ...(p.modifier_code ? { modifier_code: p.modifier_code } : {}),
-  ...(p.unspecified && Number(p.amount) > 0 ? { amount: Number(p.amount) } : {}),
+  ...(Number(p.quantity) > 1 ? { quantity: Number(p.quantity) } : {}),
+  ...(p.typed && Number(p.amount) > 0 ? { amount: Number(p.amount) } : {}),
 });
 
 export default function EligibilityPrep({ ctx }) {
@@ -87,6 +91,9 @@ export default function EligibilityPrep({ ctx }) {
     modifier_code: line.modifier_code || "",
     tiers: line.modifier_code ? [{ code: line.modifier_code, label: line.modifier_display || line.modifier_code, rate: line.unit_price }] : [],
     unspecified: !!line.unspecified,
+    kind: line.kind,
+    quantity: line.quantity ?? 1,
+    typed: !!line.unspecified,
     amount: line.unspecified ? line.unit_price : undefined,
     rate: line.unit_price,
   }));

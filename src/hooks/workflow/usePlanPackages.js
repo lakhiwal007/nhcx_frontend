@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 
-export function usePlanPackages(correlationId, { category = "", q = "", procedureType = "", flags = "", limit = 10, offset = 0 } = {}) {
+export function usePlanPackages(correlationId, { category = "", q = "", procedureType = "", flags = "", kind = "", limit = 10, offset = 0 } = {}) {
   const [result, setResult] = useState({ key: null, rows: [], total: 0, error: null });
-  const key = [correlationId, category, q, procedureType, flags, limit, offset].join("|");
+  const key = [correlationId, category, q, procedureType, flags, kind, limit, offset].join("|");
 
   useEffect(() => {
     if (!correlationId) return undefined;
@@ -18,6 +18,7 @@ export function usePlanPackages(correlationId, { category = "", q = "", procedur
               q: q || undefined,
               procedure_type: procedureType || undefined,
               flags: flags || undefined,
+              kind: kind || undefined,
               limit,
               offset,
             },
@@ -32,7 +33,7 @@ export function usePlanPackages(correlationId, { category = "", q = "", procedur
       clearTimeout(timer);
       controller.abort();
     };
-  }, [correlationId, category, q, procedureType, flags, limit, offset, key]);
+  }, [correlationId, category, q, procedureType, flags, kind, limit, offset, key]);
 
   const loading = result.key !== key;
   return { loading, rows: loading ? [] : result.rows, total: result.total, error: loading ? null : result.error };

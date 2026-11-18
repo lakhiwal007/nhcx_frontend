@@ -104,7 +104,8 @@ export function useEnhancement(ctx, { onSent } = {}) {
     name: line.display,
     ...(line.category_code ? { category: line.category_code } : {}),
     ...(line.modifier_code ? { modifier_code: line.modifier_code } : {}),
-    ...(line.unspecified && line.unit_price != null ? { amount: line.unit_price } : {}),
+    ...(Number(line.quantity) > 1 ? { quantity: line.quantity } : {}),
+    ...((line.unspecified || line.kind === "Implant") && line.unit_price != null ? { amount: line.unit_price } : {}),
   });
   const setPackages = useSend(
     async (rows) => {

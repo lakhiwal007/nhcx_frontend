@@ -327,6 +327,11 @@ export default function PreauthDraft({ ctx }) {
                     </>
                   )}
                 </div>
+                {draft.treatment_missing?.length > 0 && (
+                  <div className="cv-notice is-bad">
+                    The payer's plan no longer lists {draft.treatment_missing.join(", ")}. Choose the package again on the Eligibility step before sending.
+                  </div>
+                )}
                 <PackageLines lines={draft.treatment} />
               </>
             ) : (
