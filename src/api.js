@@ -601,8 +601,17 @@ const mockPlanState = (plan) => {
 // a preview; queried and claim_sent set the case's legs.
 const mockEnhancementKey = () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("en") : null);
 
+const MOCK_TREATMENT = [
+  { line_no: 1, code: "MG011A", display: "Dengue fever", category_code: "MG", category_display: "General Medicine", kind: "Procedure", quantity: 1, unit_price: 12000, amount: 12000, status: "approved", approved_amount: 12000, stage: "preauth" },
+  { line_no: 2, code: "SG045A", display: "Open appendicectomy", category_code: "SG", category_display: "General Surgery", kind: "Procedure", quantity: 1, unit_price: 18500, amount: 18500, status: "planned", stage: "enhancement" },
+];
+
+const mockTreatment = () => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tr") === "1" ? MOCK_TREATMENT : null);
+
 const mockEnhancementPreview = (preview) => {
   const key = mockEnhancementKey();
+  const treatment = mockTreatment();
+  if (treatment && !key) return { ...preview, treatment, plan_correlation_id: "plan-corr-101" };
   if (key === "load_error") throw new Error("The hospital records could not be read.");
   if (key === "not_found") return { status: "not_found", enhanceable: false, reason: "No pre-auth found for this case." };
   if (key === "none") return { ...preview, enhanceable: false, reason: "No new procedures or billing found since the last preauthorization.", new_items: [], new_procedures: [] };
@@ -915,7 +924,26 @@ const mockCeState = (status) => {
       status: choosing ? "partial" : "pending",
       next_actions: ["refresh", choosing ? "choose_package" : "send_eligibility"],
       eligibility_items: choosing ? "plan_packages" : "invoice_lines",
-      coverage_eligibility: { status: "pending", waiting_on: choosing ? "package" : "plan" },
+      coverage_eligibility: choosing
+        ? { status: "pending", waiting_on: "package", validation: ce.validation }
+        : { status: "pending", waiting_on: "plan" },
+      ...(choosing
+        ? {
+            procedures: { source: "none", items: [] },
+            visit: {
+              admission_no: "IPD-2026-0412",
+              admitted_on: "2026-11-17",
+              diagnosis: "Dengue fever with warning signs",
+              reason: "Fever for 5 days, low platelets",
+              diagnoses: ["Dengue fever"],
+              procedures: [],
+              doctor: "Dr. Meera Nair",
+              speciality: "Paediatrician",
+              ward: "Paediatric ward 2",
+              ward_speciality: "Paediatrics",
+            },
+          }
+        : {}),
     };
   }
   if (key === "not_in_force") return withInforce(false);
@@ -957,6 +985,8 @@ const mockHealthRecord = async (recordId) => {
 
 const mockPreauthState = (draft) => {
   const key = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("pa") : null;
+  const treatment = mockTreatment();
+  if (treatment && !key) return { ...draft, treatment: treatment.map((line) => ({ ...line, status: "planned", approved_amount: undefined, stage: "preauth" })), hospital_bill_amount: draft.total_amount };
   if (key === "load_error") throw new Error("The hospital records could not be read.");
   if (key === "not_in_force") return { ...draft, eligibility: { ...draft.eligibility, inforce: false } };
   if (key === "missing") return { ...draft, missing_fields: ["patient.dob", "patient.member_id"] };

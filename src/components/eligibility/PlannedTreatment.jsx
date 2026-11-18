@@ -1,43 +1,101 @@
-import { formatMoney, humanize } from "../../lib/format.js";
+import { formatDate, formatMoney, humanize } from "../../lib/format.js";
+import PackagePicker from "./PackagePicker";
+import PackageLines from "./PackageLines";
 
 const yes = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
 
-export default function PlannedTreatment({ procedures, packages, checks, source, planReady, choice }) {
+const VISIT_ROWS = [
+  ["Diagnosis", (v) => v.diagnosis || v.diagnoses?.join(", ")],
+  ["Reason for admission", (v) => v.reason],
+  ["Procedures recorded", (v) => v.procedures?.join(", ")],
+  ["Doctor", (v) => [v.doctor, v.speciality].filter(Boolean).join(" · ")],
+  ["Ward", (v) => [v.ward, v.ward_speciality].filter(Boolean).join(" · ")],
+  ["Admission", (v) => [v.admission_no, v.admitted_on && formatDate(v.admitted_on)].filter(Boolean).join(" · ")],
+];
+
+function ChoosePackage({ choice, visit, plan, planCorrelationId, startQuery }) {
+  const facts = visit ? VISIT_ROWS.map(([label, read]) => [label, read(visit)]).filter(([, value]) => value) : [];
+  return (
+    <div className="cv-split">
+      <section className="cv-card" aria-label="This visit">
+        <div className="cv-card-head">
+          <h2 className="cv-card-title">This visit</h2>
+        </div>
+        <div className="cv-card-body">
+          <div className="cv-sub">From the hospital system</div>
+          {facts.map(([label, value]) => (
+            <div key={label} className="cv-kv">
+              <span>{label}</span>
+              <span>{value}</span>
+            </div>
+          ))}
+          {facts.length === 0 && <div className="cv-card-meta">The hospital system has no diagnosis or procedure recorded for this admission yet.</div>}
+        </div>
+        <div className="cv-card-body cv-split-part">
+          <div className="cv-sub">Chosen packages</div>
+          {choice.chosen.map((pkg) => {
+            const tier = pkg.tiers?.find((t) => t.code === pkg.modifier_code);
+            const price = pkg.unspecified ? pkg.amount : (tier?.rate ?? pkg.rate);
+            return (
+              <div key={pkg.code} className="cv-chosen">
+                <div className="cv-kv">
+                  <span>
+                    <strong>{pkg.name}</strong> <span className="cv-mono cv-card-meta">{pkg.code}</span>
+                  </span>
+                  <button type="button" className="cv-pick" onClick={() => choice.onRemove(pkg.code)}>
+                    Remove
+                  </button>
+                </div>
+                {pkg.tiers?.length > 0 && (
+                  <select className="cv-ctl" aria-label={`Ward tier for ${pkg.name}`} value={pkg.modifier_code || ""} onChange={(ev) => choice.onEdit(pkg.code, { modifier_code: ev.target.value })}>
+                    <option value="">No ward tier</option>
+                    {pkg.tiers.map((t) => (
+                      <option key={t.code} value={t.code}>{`${t.label} · ${formatMoney(t.rate)}`}</option>
+                    ))}
+                  </select>
+                )}
+                {pkg.unspecified && (
+                  <>
+                    <input className="cv-ctl" aria-label={`Procedure name for ${pkg.code}`} placeholder="Procedure name" value={pkg.name} onChange={(ev) => choice.onEdit(pkg.code, { name: ev.target.value })} />
+                    <input className="cv-ctl cv-mono" type="number" min="0" aria-label={`Amount for ${pkg.code}`} placeholder="Amount" value={pkg.amount ?? ""} onChange={(ev) => choice.onEdit(pkg.code, { amount: ev.target.value })} />
+                  </>
+                )}
+                <div className="cv-card-meta">{price != null && price !== "" ? `${formatMoney(price)} at the plan's rate` : pkg.unspecified ? "Enter the amount; the plan has no price for an unspecified package." : "The plan lists no rate."}</div>
+              </div>
+            );
+          })}
+          {choice.chosen.length === 0 && <div className="cv-card-meta">None yet. Pick the package that covers this admission from the payer's plan; the pre-auth is raised for it.</div>}
+        </div>
+      </section>
+      <PackagePicker
+        correlationId={planCorrelationId}
+        plan={plan}
+        startQuery={startQuery}
+        chosenCodes={new Set(choice.chosen.map((p) => String(p.code)))}
+        onChoose={choice.onChoose}
+        onBrowse={choice.onBrowse}
+      />
+    </div>
+  );
+}
+
+export default function PlannedTreatment({ procedures, packages, checks, source, planReady, choice, visit, plan, planCorrelationId, startQuery, treatment, onChange }) {
+  if (choice?.active) return <ChoosePackage choice={choice} visit={visit} plan={plan} planCorrelationId={planCorrelationId} startQuery={startQuery} />;
+
   return (
     <section className="cv-card" aria-label="Planned treatment">
       <div className="cv-card-head">
         <h2 className="cv-card-title">Planned treatment</h2>
+        {onChange && (
+          <button type="button" className="cv-btn" style={{ marginLeft: "auto" }} onClick={onChange}>
+            Change packages
+          </button>
+        )}
         {procedures.length > 0 ? <span className="cv-chip is-todo">{procedures.length} planned</span> : <span className="cv-chip is-warn">None recorded</span>}
         {source && <span className="cv-card-meta">From the {humanize(source).toLowerCase()}</span>}
       </div>
-      {choice?.active && (
-        <div className="cv-card-body">
-          <div className="cv-sub">Package for this admission</div>
-          <p className="cv-card-meta">
-            This payer only accepts packages from its own plan. Pick the package that covers this admission; the eligibility checks go to the payer with it, and the pre-auth is raised for it.
-          </p>
-          {choice.chosen.map((pkg) => (
-            <div key={pkg.code} className="cv-kv">
-              <span>
-                <strong>{pkg.name}</strong> <span className="cv-mono cv-card-meta">{pkg.code}</span>
-              </span>
-              <button type="button" className="cv-pick" onClick={() => choice.onRemove(pkg.code)}>
-                Remove
-              </button>
-            </div>
-          ))}
-          {choice.chosen.length === 0 && <div className="cv-card-meta">No package chosen yet.</div>}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-            <button type="button" className="cv-btn" onClick={choice.onBrowse}>
-              {choice.chosen.length ? "Add another package" : "Choose from the plan"}
-            </button>
-            <button type="button" className="cv-btn is-primary" disabled={choice.chosen.length === 0 || choice.sending} onClick={choice.onSend}>
-              {choice.sending ? "Sending…" : "Send the checks"}
-            </button>
-          </div>
-        </div>
-      )}
-      {procedures.length === 0 ? (
+      {treatment?.length > 0 && <PackageLines lines={treatment} />}
+      {treatment?.length > 0 ? null : procedures.length === 0 ? (
         <div className="cv-card-body">
           No planned procedure is recorded for this visit. Ask the doctor to add it in the hospital system, then send the checks again so the payer can rule on it.
         </div>

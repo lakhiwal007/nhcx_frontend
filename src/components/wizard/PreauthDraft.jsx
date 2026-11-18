@@ -11,6 +11,7 @@ import FhirBundleModal from "../ui/FhirBundleModal";
 import ConfirmModal from "../ui/ConfirmModal";
 import SendGateModal from "../case/step/SendGateModal";
 import LinesEditor from "../case/forms/LinesEditor";
+import PackageLines from "../eligibility/PackageLines";
 import DiagnosesEditor from "../case/forms/DiagnosesEditor";
 import CaseStep, { Pane, Verdict } from "../case/step/CaseStep";
 import { useCasePane } from "../case/step/useCasePane";
@@ -314,7 +315,23 @@ export default function PreauthDraft({ ctx }) {
             {d.unbilledProcedures.length > 0 && (
               <div className="cv-card-intro">Procedures not billed as a line: {d.unbilledProcedures.map((p) => `${p.name}${p.code ? ` (${p.code})` : ""}`).join(", ")}</div>
             )}
-            <LinesEditor items={d.displayItems} total={d.effectiveTotal} unspecifiedCodes={d.unspecifiedCodes} locked={locked || preauthAlreadyLive} onChange={d.updateItem} />
+            {draft?.treatment?.length > 0 ? (
+              <>
+                <div className="cv-card-intro">
+                  This payer is billed by package at its own plan's rates, so these lines are not edited here.
+                  {draft?.hospital_bill_amount != null && ` The hospital bill so far is ${formatMoney(draft.hospital_bill_amount)}, for reference.`}
+                  {!locked && !preauthAlreadyLive && (
+                    <>
+                      {" "}
+                      <button type="button" className="cv-pick" onClick={() => navigate("../prep")}>Change packages</button>
+                    </>
+                  )}
+                </div>
+                <PackageLines lines={draft.treatment} />
+              </>
+            ) : (
+              <LinesEditor items={d.displayItems} total={d.effectiveTotal} unspecifiedCodes={d.unspecifiedCodes} locked={locked || preauthAlreadyLive} onChange={d.updateItem} />
+            )}
           </section>
         </Pane>
 

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { api } from "../../api";
+import { useMemo, useState } from "react";
+import { usePlanPackages } from "../../hooks/workflow/usePlanPackages";
 import { formatMoney } from "../../lib/format.js";
 
 const FLAGS = [
@@ -126,9 +126,10 @@ function PackageDetail({ benefit, onOpenForm, onChoose, chosen }) {
   );
 }
 
-export default function PackageBrowser({ correlationId, plan, plannedCodes, onOpenForm, onChoose, chosenCodes }) {
+export default function PackageBrowser({ correlationId, plan, plannedCodes, onOpenForm, onChoose, chosenCodes, startQuery = "" }) {
   const categories = useMemo(() => (plan?.categories || []).filter((c) => c.code), [plan]);
   const [pickedCategory, setPickedCategory] = useState(() => {
+    if (startQuery) return "";
     try { return localStorage.getItem("nhcx_pkg_category"); } catch { return null; }
   });
   const paediatricDefault = useMemo(
@@ -141,46 +142,22 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
     try { localStorage.setItem("nhcx_pkg_category", value); } catch { /* storage may be blocked */ }
   };
   const [catFilter, setCatFilter] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(startQuery);
   const [type, setType] = useState("");
   const [flags, setFlags] = useState([]);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   const [selected, setSelected] = useState(null);
-  const [result, setResult] = useState({ key: null, rows: [], total: 0, error: null });
-
   const term = query.trim().length >= 2 ? query.trim() : "";
-  const key = [correlationId, category, term, type, flags.join(","), page, size].join("|");
-
-  useEffect(() => {
-    if (!correlationId) return;
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      api
-        .getInsurancePlanBenefits(
-          correlationId,
-          {
-            category: category || undefined,
-            q: term || undefined,
-            procedure_type: type || undefined,
-            flags: flags.length ? flags.join(",") : undefined,
-            limit: size,
-            offset: page * size,
-          },
-          controller.signal,
-        )
-        .then((res) => setResult({ key, rows: res?.benefits || [], total: res?.total ?? 0, error: null }))
-        .catch((err) => err?.name !== "AbortError" && setResult({ key, rows: [], total: 0, error: err?.message || "Could not load the packages." }));
-    }, term ? 300 : 0);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [correlationId, category, term, type, flags, page, size, key]);
-
-  const loading = result.key !== key;
-  const rows = loading ? [] : result.rows;
-  const pages = Math.max(1, Math.ceil(result.total / size));
+  const { loading, rows, total, error } = usePlanPackages(correlationId, {
+    category,
+    q: term,
+    procedureType: type,
+    flags: flags.join(","),
+    limit: size,
+    offset: page * size,
+  });
+  const pages = Math.max(1, Math.ceil(total / size));
   const shown = selected || rows.find((b) => plannedCodes.has(String(b.code))) || null;
   const visibleCats = categories.filter((c) => !catFilter.trim() || `${c.code} ${c.display}`.toLowerCase().includes(catFilter.trim().toLowerCase()));
   const toggleFlag = (f) => {
@@ -246,7 +223,7 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
               </button>
             ))}
           </div>
-          {result.error && !loading && <div className="cv-notice is-bad">{result.error}</div>}
+          {error && <div className="cv-notice is-bad">{error}</div>}
           <div className="cv-tw">
             <table>
               <thead>
@@ -256,6 +233,7 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
                   <th className="is-num">Rate</th>
                   <th>Pre-auth</th>
                   <th>Rules</th>
+                  {onChoose && <th aria-label="Use" />}
                 </tr>
               </thead>
               <tbody>
@@ -274,21 +252,30 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
                       <td className="is-num">{b.rate != null ? formatMoney(b.rate) : "—"}</td>
                       <td><span className={`cv-chip ${needs ? "is-warn" : "is-todo"}`}>{needs ? "Needed" : "Not needed"}</span></td>
                       <td className="cv-card-meta">{rules(b) || "—"}</td>
+                      {onChoose && (
+                        <td>
+                          {!chosenCodes?.has(String(b.code)) && (
+                            <button type="button" className="cv-btn" onClick={() => onChoose(b)}>
+                              Use
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {loading && (
-                  <tr><td colSpan={5} className="cv-card-meta">Loading packages…</td></tr>
+                  <tr><td colSpan={onChoose ? 6 : 5} className="cv-card-meta">Loading packages…</td></tr>
                 )}
                 {!loading && rows.length === 0 && (
-                  <tr><td colSpan={5} className="cv-card-meta">No package matches these filters.</td></tr>
+                  <tr><td colSpan={onChoose ? 6 : 5} className="cv-card-meta">{term ? `No package name or code contains "${term}". Shorten or clear the search, or pick a speciality.` : "No package matches these filters."}</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           <div className="cv-pager">
             <span>
-              {result.total ? `Showing ${page * size + 1}–${Math.min(result.total, (page + 1) * size)} of ${count(result.total)}` : "No packages"}
+              {total ? `Showing ${page * size + 1}–${Math.min(total, (page + 1) * size)} of ${count(total)}` : "No packages"}
             </span>
             <select className="cv-ctl" style={{ marginLeft: "auto", height: 36 }} aria-label="Rows per page" value={size} onChange={(e) => { setSize(Number(e.target.value)); setPage(0); }}>
               {PAGE_SIZES.map((n) => (

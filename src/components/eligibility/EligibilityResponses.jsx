@@ -155,7 +155,7 @@ const TITLES = { validation: "Validation", benefits: "Benefits", auth: "Auth req
 
 export default function PayerAnswer({ id, checks, requirements, discovery, formTitle, onOpenForm }) {
   const check = checks?.[id];
-  const held = checks?.waitingOn && check?.state === "pending";
+  const held = checks?.waitingOn && check?.state === "pending" && !check.sub;
   const note = held
     ? checks.waitingOn === "package"
       ? "Not sent yet. This check goes to the payer once a package from its plan is chosen."

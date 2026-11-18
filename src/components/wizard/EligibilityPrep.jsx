@@ -20,6 +20,26 @@ import { deriveChecks } from "../eligibility/checks";
 import { planState } from "../eligibility/planProfile";
 import { buildChecklist, firstOpen } from "../eligibility/checklist";
 
+const yes = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
+
+const packageChoice = (benefit) => ({
+  code: benefit.code,
+  name: benefit.display || benefit.code,
+  category: benefit.category_code || undefined,
+  modifier_code: "",
+  tiers: (benefit.extras || []).filter((x) => x.code && Number(x.rate) > 0 && /strat/i.test(`${x.type || ""} ${x.code}`)).map((x) => ({ code: x.code, label: x.label || x.code, rate: Number(x.rate) })),
+  unspecified: yes(benefit.conditions?.Unspecified) || /^[A-Z]{2}(U100|215)$/i.test(String(benefit.code)),
+  rate: benefit.rate,
+});
+
+const packageRow = (p) => ({
+  code: p.code,
+  name: p.name,
+  ...(p.category ? { category: p.category } : {}),
+  ...(p.modifier_code ? { modifier_code: p.modifier_code } : {}),
+  ...(p.unspecified && Number(p.amount) > 0 ? { amount: Number(p.amount) } : {}),
+});
+
 export default function EligibilityPrep({ ctx }) {
   const navigate = useNavigate();
   const { patient, caseState } = ctx;
@@ -29,7 +49,8 @@ export default function EligibilityPrep({ ctx }) {
   const full = e.full;
   const [openForm, setOpenForm] = useState(null);
   const [biometric, setBiometric] = useState(null);
-  const [chosen, setChosen] = useState([]);
+  const [picked, setPicked] = useState(null);
+  const [editing, setEditing] = useState(false);
   const pane = useCasePane();
 
   const noWayToPrepare = !caseId && (!payer || !policy);
@@ -56,11 +77,25 @@ export default function EligibilityPrep({ ctx }) {
   const checks = deriveChecks(full?.coverage_eligibility, benefitsTimedOut);
   const waitingOn = checks?.waitingOn || null;
   const packageCoded = full?.eligibility_items === "plan_packages";
-  const choosing = packageCoded && state.key === "ready" && !!full?.next_actions?.includes("choose_package") && !locked;
+  const packagesOpen = packageCoded && state.key === "ready" && !locked;
+  const canChange = packagesOpen && !!full?.next_actions?.includes("change_package");
+  const choosing = packagesOpen && (!!full?.next_actions?.includes("choose_package") || (canChange && editing));
+  const held = (full?.treatment || []).filter((line) => line.status !== "rejected").map((line) => ({
+    code: line.code,
+    name: line.display || line.code,
+    category: line.category_code || undefined,
+    modifier_code: line.modifier_code || "",
+    tiers: line.modifier_code ? [{ code: line.modifier_code, label: line.modifier_display || line.modifier_code, rate: line.unit_price }] : [],
+    unspecified: !!line.unspecified,
+    amount: line.unspecified ? line.unit_price : undefined,
+    rate: line.unit_price,
+  }));
+  const chosen = picked ?? held;
+  const setChosen = (change) => setPicked((prev) => change(prev ?? held));
   const canSendNow = !!full?.next_actions?.includes("send_eligibility") && !locked;
   const chosenCodes = new Set(chosen.map((p) => String(p.code)));
   const choosePackage = (benefit) => {
-    setChosen((prev) => (prev.some((p) => String(p.code) === String(benefit.code)) ? prev : [...prev, { code: benefit.code, name: benefit.display || benefit.code, category: benefit.category_code || undefined }]));
+    setChosen((prev) => (prev.some((p) => String(p.code) === String(benefit.code)) ? prev : [...prev, packageChoice(benefit)]));
     pane.setPicked("treatment");
   };
   const choice = {
@@ -69,16 +104,26 @@ export default function EligibilityPrep({ ctx }) {
     sending: e.sendChecks.busy,
     onRemove: (code) => setChosen((prev) => prev.filter((p) => String(p.code) !== String(code))),
     onBrowse: () => pane.setPicked("plan"),
-    onSend: () => e.sendChecks.run(chosen).then((res) => res && setChosen([])),
+    onChoose: (benefit) => choosePackage(benefit),
+    onEdit: (code, patch) => setChosen((prev) => prev.map((p) => (String(p.code) === String(code) ? { ...p, ...patch } : p))),
+    onSend: () =>
+      e.sendChecks.run(chosen.map(packageRow)).then((res) => {
+        if (!res) return;
+        setPicked(null);
+        setEditing(false);
+      }),
   };
   const inforce = checks?.inforce;
+  const visit = full?.visit || null;
+  const startQuery = visit?.procedures?.[0] || visit?.diagnoses?.[0] || visit?.diagnosis || "";
   const notInForce = inforce === false;
   const canProceed = nextActionsAllow && !notInForce;
 
+  const coverText = inforce ? "The policy is in force." : checks?.validation.sub ? "The cover check is with the payer." : "The payer's plan is loaded.";
   const verdict = needsRetry
     ? { tone: "bad", label: "Check failed", text: full?.prepare_error?.message || "The eligibility request could not be sent.", next: "Send the checks again. If it fails again, go back to the Policy step and check the policy, or share this message with IT." }
-    : choosing
-      ? { tone: "todo", label: "Choose the package", text: "The payer's plan is loaded. Pick the package for this admission; the checks go to the payer with it.", next: "Open Treatment, choose the package from the plan, then send the checks." }
+    : choosing && !notInForce
+      ? { tone: "todo", label: "Choose the package", text: `${coverText} Pick the package for this admission; the benefit and authorisation checks go to the payer with it.`, next: chosen.length ? "Send the checks, or add another package first." : "On Treatment, press Use on the package from the payer's plan, then send the checks." }
       : waitingOn === "plan" && isStalePending
         ? {
             tone: "warn",
@@ -139,7 +184,11 @@ export default function EligibilityPrep({ ctx }) {
 
   const primary = movedOn
     ? { label: `Continue to ${movedOnLabel}`, icon: ArrowRight, write: false, onClick: () => navigate(`../${movedOn}`) }
-    : {
+    : choosing && !notInForce
+      ? chosen.length === 0
+        ? { label: "Choose the package", icon: ArrowRight, write: false, onClick: () => pane.setPicked("treatment") }
+        : { label: e.sendChecks.busy ? "Sending…" : "Send the checks", icon: ArrowRight, disabled: e.sendChecks.busy, onClick: choice.onSend }
+      : {
         label: "Continue to pre-auth",
         icon: ArrowRight,
         write: false,
@@ -297,13 +346,27 @@ export default function EligibilityPrep({ ctx }) {
           )}
         </Pane>
         <Pane id="treatment">
-          <PlannedTreatment procedures={procedures} packages={e.plannedPackages} checks={checks} source={full?.procedures?.source} planReady={state.key === "ready"} choice={choice} />
+          <PlannedTreatment
+            procedures={procedures}
+            packages={e.plannedPackages}
+            checks={checks}
+            source={full?.procedures?.source}
+            planReady={state.key === "ready"}
+            choice={choice}
+            treatment={full?.treatment}
+            onChange={canChange && !editing ? () => setEditing(true) : undefined}
+            visit={visit}
+            plan={plan}
+            planCorrelationId={state.key === "ready" ? plan?.correlation_id : null}
+            startQuery={startQuery}
+          />
         </Pane>
         <Pane id="plan">
           <PlanCard
             key={choosing ? "choose" : "view"}
             startTab={choosing ? "packages" : "overview"}
             onChoose={choosing ? choosePackage : undefined}
+            startQuery={startQuery}
             chosenCodes={chosenCodes}
             plan={plan}
             state={state}

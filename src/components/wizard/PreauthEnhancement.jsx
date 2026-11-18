@@ -9,6 +9,8 @@ import CaseStep, { Pane, Verdict } from "../case/step/CaseStep";
 import { useCasePane } from "../case/step/useCasePane";
 import { useCaseLock } from "../../hooks/case/useCaseLock";
 import { useEnhancement } from "../../hooks/workflow/useEnhancement";
+import PackageLines from "../eligibility/PackageLines";
+import PackagePicker from "../eligibility/PackagePicker";
 import { useSendGate } from "../../hooks/util/useSendGate";
 import { fieldList } from "../case/forms/fieldLabels";
 import { buildEnhancementChecklist, firstEnhancementItem } from "../case/preauth/enhancementChecklist";
@@ -157,9 +159,17 @@ export default function PreauthEnhancement({ ctx }) {
           <section className="cv-card" aria-label="New procedures">
             <div className="cv-card-head">
               <h2 className="cv-card-title">New procedures</h2>
-              <span className="cv-card-meta">Untick a procedure to leave it and its lines out.</span>
+              <span className="cv-card-meta">{e.treatment ? "Packages from the payer's plan, at its rates." : "Untick a procedure to leave it and its lines out."}</span>
             </div>
-            {e.newProcedures.length === 0 ? (
+            {e.treatment ? (
+              <>
+                <div className="cv-card-intro">
+                  Approved packages stay as they are. Add the new package from the payer's plan; it goes for approval at the plan's rate.
+                  {e.setPackages.error && ` ${e.setPackages.error}`}
+                </div>
+                <PackageLines lines={e.treatment} onRemove={locked ? undefined : e.removePackage} busy={e.setPackages.busy} />
+              </>
+            ) : e.newProcedures.length === 0 ? (
               <div className="cv-card-intro">No new procedure is recorded since the pre-auth.</div>
             ) : (
               <ul className="en-procs">
@@ -177,6 +187,17 @@ export default function PreauthEnhancement({ ctx }) {
               </ul>
             )}
           </section>
+          {e.treatment && !locked && (
+            <div className="cv-pane-action">
+              <PackagePicker
+                correlationId={e.planCorrelationId}
+                plan={ctx.caseRecord?.insurance_plan}
+                chosenCodes={new Set(e.treatment.filter((line) => line.status !== "rejected").map((line) => String(line.code)))}
+                onChoose={e.addPackage}
+                onBrowse={() => navigate("../prep")}
+              />
+            </div>
+          )}
         </Pane>
 
         <Pane id="lines">
@@ -209,17 +230,17 @@ export default function PreauthEnhancement({ ctx }) {
                       return (
                         <tr key={key} className={excluded ? "en-excluded" : undefined}>
                           <td>
-                            <input type="checkbox" aria-label={`Include ${item.service_name}`} checked={!e.leftOutLines[key]} disabled={locked} onChange={(ev) => e.toggleLine(item, ev.target.checked)} />
+                            <input type="checkbox" aria-label={`Include ${item.service_name}`} checked={!e.leftOutLines[key]} disabled={locked || !!e.treatment} onChange={(ev) => e.toggleLine(item, ev.target.checked)} />
                           </td>
                           <td>
                             <strong>{item.service_name}</strong>
                             <div className="cv-card-meta">{[item.service_code, item.category, excluded && "left out"].filter(Boolean).join(" · ")}</div>
                           </td>
                           <td>
-                            <input className="cv-ctl cv-ctl-fill cv-mono" type="number" min="1" aria-label="Quantity" value={line.quantity ?? ""} disabled={locked || excluded} onChange={(ev) => e.editLine(item, "quantity", ev.target.value)} />
+                            <input className="cv-ctl cv-ctl-fill cv-mono" type="number" min="1" aria-label="Quantity" value={line.quantity ?? ""} disabled={locked || excluded || !!e.treatment} onChange={(ev) => e.editLine(item, "quantity", ev.target.value)} />
                           </td>
                           <td>
-                            <input className="cv-ctl cv-ctl-fill cv-mono" type="number" min="0" aria-label="Unit price" value={line.unit_price ?? ""} disabled={locked || excluded} onChange={(ev) => e.editLine(item, "unit_price", ev.target.value)} />
+                            <input className="cv-ctl cv-ctl-fill cv-mono" type="number" min="0" aria-label="Unit price" value={line.unit_price ?? ""} disabled={locked || excluded || !!e.treatment} onChange={(ev) => e.editLine(item, "unit_price", ev.target.value)} />
                           </td>
                           <td className="is-num cv-strong">{formatMoney(line.net_amount)}</td>
                         </tr>

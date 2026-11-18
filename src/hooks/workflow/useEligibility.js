@@ -11,7 +11,7 @@ const TERMINAL_STATUSES = ["complete", "failed"];
 
 export const shouldStopPolling = (res) =>
   TERMINAL_STATUSES.includes(res?.status) ||
-  res?.coverage_eligibility?.waiting_on === "package" ||
+  (res?.coverage_eligibility?.waiting_on === "package" && res.coverage_eligibility.validation?.status !== "pending") ||
   (["partial", "pending"].includes(res?.status) && res?.next_actions?.includes("resubmit"));
 
 const eligibilityCorrelationId = (res) => res?.coverage_eligibility?.validation?.correlation_id ?? res?.coverage_eligibility?.correlation_id;

@@ -97,6 +97,26 @@ export function useEnhancement(ctx, { onSent } = {}) {
     setUncheckedProcedures({});
   };
 
+  const treatment = preview?.treatment?.length ? preview.treatment : null;
+  const liveLines = (treatment || []).filter((line) => line.status !== "rejected");
+  const lineRow = (line) => ({
+    code: line.code,
+    name: line.display,
+    ...(line.category_code ? { category: line.category_code } : {}),
+    ...(line.modifier_code ? { modifier_code: line.modifier_code } : {}),
+    ...(line.unspecified && line.unit_price != null ? { amount: line.unit_price } : {}),
+  });
+  const setPackages = useSend(
+    async (rows) => {
+      const res = await api.sendEligibility({ cashless_case_id, procedures: rows });
+      reload();
+      return res;
+    },
+    { success: "Packages updated and checked with the payer again" },
+  );
+  const addPackage = (benefit) => setPackages.run([...liveLines.map(lineRow), { code: benefit.code, name: benefit.display || benefit.code, ...(benefit.category_code ? { category: benefit.category_code } : {}) }]);
+  const removePackage = (line) => setPackages.run(liveLines.filter((held) => held.line_no !== line.line_no).map(lineRow));
+
   const send = useSend(
     async () => {
       const selectedProcs = newProcedures.filter(procedureKept);
@@ -144,5 +164,10 @@ export function useEnhancement(ctx, { onSent } = {}) {
     revisedDelta,
     send,
     itemKey,
+    treatment,
+    planCorrelationId: preview?.plan_correlation_id || null,
+    setPackages,
+    addPackage,
+    removePackage,
   };
 }
