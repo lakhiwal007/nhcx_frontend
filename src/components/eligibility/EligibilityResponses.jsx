@@ -54,6 +54,7 @@ function ValidationPanel({ check, checks, discovery }) {
 }
 
 function BenefitsPanel({ check }) {
+  if (check.state === "error") return null;
   if (!check.items.length) return <div className="cv-card-body cv-card-meta">The payer returned no item limits for this policy.</div>;
   return (
     <div className="cv-tw cv-in-card">

@@ -126,8 +126,12 @@ export default function EligibilityPrep({ ctx }) {
   const notInForce = inforce === false;
   const canProceed = nextActionsAllow && !notInForce;
 
+  const closed = !!ctx.caseClosed || full?.status === "closed";
+  const refusedChecks = checks ? [["benefits", checks.benefits], ["authorisation", checks.auth]].filter(([, check]) => check.state === "error").map(([name]) => name) : [];
   const coverText = inforce ? "The policy is in force." : checks?.validation.sub ? "The cover check is with the payer." : "The payer's plan is loaded.";
-  const verdict = needsRetry
+  const verdict = closed
+    ? { tone: "todo", label: "Closed", text: "This case is closed; what follows is as it stood when it was closed. Reopen the case to go on with it." }
+    : needsRetry
     ? { tone: "bad", label: "Check failed", text: full?.prepare_error?.message || "The eligibility request could not be sent.", next: "Send the checks again. If it fails again, go back to the Policy step and check the policy, or share this message with IT." }
     : choosing && !notInForce
       ? { tone: "todo", label: "Choose the package", text: `${coverText} Pick the package for this admission; the benefit and authorisation checks go to the payer with it.`, next: chosen.length ? "Send the checks, or add another package first." : "On Treatment, press Use on the package from the payer's plan, then send the checks." }
@@ -144,6 +148,13 @@ export default function EligibilityPrep({ ctx }) {
       ? { tone: "warn", label: "No answer from the payer", text: "The request may have been lost.", next: "Send the checks again. If the payer still does not answer, call its helpdesk." }
       : notInForce
         ? { tone: "bad", label: "Not eligible", text: "The payer reports the policy as not in force.", next: "Ask the patient for a renewed or different policy and pick it on the Policy step, or treat the patient as cash." }
+        : refusedChecks.length > 0
+          ? {
+              tone: "bad",
+              label: "Check refused",
+              text: `The payer refused the ${refusedChecks.join(" and ")} check${refusedChecks.length > 1 ? "s" : ""}.`,
+              next: "Open the check marked Failed to read the payer's reason, correct it, then send the checks again from the More menu.",
+            }
         : e.polling || isPending
           ? { tone: "info", label: "Waiting for the payer", text: "Answers fill in as each check returns. Private insurers usually answer within minutes; PMJAY can take up to an hour." }
           : inforce
@@ -167,7 +178,7 @@ export default function EligibilityPrep({ ctx }) {
     : planResult?.message
       ? { tone: planResult.kind === "refused" ? "is-warn" : "is-info", text: planResult.message, code: planResult.code, id: planResult.id || planResult.pending }
       : null;
-  const canRerunNow = !lock.settled && !lock.viewOnly && !e.polling && (isComplete || isFailed || needsResubmit);
+  const canRerunNow = !lock.settled && !lock.viewOnly && !e.polling && (isComplete || isFailed || needsResubmit || isPartial);
   const balance = checks?.wallet?.balance;
   const validTo = checks?.coverage?.benefit_period?.end;
   const facts = [balance != null && `${formatMoney(balance)} left`, validTo && `valid to ${formatDate(validTo)}`].filter(Boolean);
@@ -189,7 +200,9 @@ export default function EligibilityPrep({ ctx }) {
   const blockers = groups.flatMap((g) => g.rows).filter((r) => r.blocks);
   const open = pane.picked || (choosing ? "treatment" : firstOpen(groups));
 
-  const primary = movedOn
+  const primary = closed
+    ? undefined
+    : movedOn
     ? { label: `Continue to ${movedOnLabel}`, icon: ArrowRight, write: false, onClick: () => navigate(`../${movedOn}`) }
     : choosing && !notInForce
       ? chosen.length === 0

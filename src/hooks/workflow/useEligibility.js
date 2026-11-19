@@ -7,7 +7,7 @@ import { STEP_FORWARD_ROUTE } from "../../components/case/frame/caseStages";
 
 const POLL_INTERVAL_MS = 7000;
 const SAFETY_INTERVAL_MS = 120_000;
-const TERMINAL_STATUSES = ["complete", "failed"];
+const TERMINAL_STATUSES = ["complete", "failed", "closed", "superseded"];
 
 export const shouldStopPolling = (res) =>
   TERMINAL_STATUSES.includes(res?.status) ||

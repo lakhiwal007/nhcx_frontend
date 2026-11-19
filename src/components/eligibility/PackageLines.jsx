@@ -8,7 +8,9 @@ const STATUS = {
 };
 
 export default function PackageLines({ lines = [], onRemove, busy }) {
-  const total = lines.filter((l) => l.status !== "rejected").reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+  const live = lines.filter((l) => l.status !== "rejected");
+  const total = live.reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+  const unpriced = live.some((l) => l.amount == null);
   return (
     <div className="cv-tw cv-in-card">
       <table>
@@ -35,10 +37,10 @@ export default function PackageLines({ lines = [], onRemove, busy }) {
                 </td>
                 <td className="is-num">{line.quantity ?? 1}</td>
                 <td className="is-num">
-                  {line.unit_price != null ? formatMoney(line.unit_price) : "—"}
+                  {line.unit_price != null ? formatMoney(line.unit_price) : line.unspecified ? "No fixed rate" : "—"}
                   {line.repriced_from != null && <div className="cv-card-meta">was {formatMoney(line.repriced_from)}; the plan changed</div>}
                 </td>
-                <td className="is-num">{line.amount != null ? formatMoney(line.amount) : "—"}</td>
+                <td className="is-num">{line.amount != null ? formatMoney(line.amount) : line.unspecified ? "Enter on pre-auth" : "—"}</td>
                 <td>
                   <span className={`cv-chip ${tone}`}>{label}</span>
                   {line.status === "approved" && line.approved_amount != null && <div className="cv-card-meta">{formatMoney(line.approved_amount)}</div>}
@@ -57,7 +59,7 @@ export default function PackageLines({ lines = [], onRemove, busy }) {
           })}
           <tr className="is-total">
             <td colSpan={4}>Total at plan rates</td>
-            <td className="is-num">{formatMoney(total)}</td>
+            <td className="is-num">{unpriced && total === 0 ? "—" : formatMoney(total)}</td>
             <td colSpan={onRemove ? 2 : 1} />
           </tr>
         </tbody>

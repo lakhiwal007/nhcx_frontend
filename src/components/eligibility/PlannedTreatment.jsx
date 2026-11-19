@@ -95,7 +95,7 @@ export default function PlannedTreatment({ procedures, packages, checks, source,
           </button>
         )}
         {procedures.length > 0 ? <span className="cv-chip is-todo">{procedures.length} planned</span> : <span className="cv-chip is-warn">None recorded</span>}
-        {source && <span className="cv-card-meta">From the {humanize(source).toLowerCase()}</span>}
+        {source && <span className="cv-card-meta">{source === "override" ? "Chosen at the desk" : `From the ${humanize(source).toLowerCase()}`}</span>}
       </div>
       {treatment?.length > 0 && <PackageLines lines={treatment} />}
       {treatment?.length > 0 ? null : procedures.length === 0 ? (
