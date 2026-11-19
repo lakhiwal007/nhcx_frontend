@@ -58,7 +58,7 @@ function EventFacts({ event, bundle }) {
           {snapshot.length > 0 && <span className="cv-card-meta"> · {snapshot.join(" · ")}</span>}
         </div>
       )}
-      {d && (
+      {d && (d.derived_decision || d.ambiguous) && (
         <div className="tl-line">
           <strong>{DECISION_WORDS[String(d.derived_decision || "UNKNOWN").toUpperCase()] || humanize(d.derived_decision)}</strong>
           {reasons.length > 0 && <span> · {reasons.join("; ")}</span>}
