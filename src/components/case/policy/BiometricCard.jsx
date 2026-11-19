@@ -7,6 +7,7 @@ import { toast } from "../../../lib/toast";
 import { captureFromDevice, sealAadhaar } from "../../../domain/biometric";
 import { formatDateTime } from "../../../lib/format";
 import RefreshButton from "../../ui/RefreshButton";
+import CopyButton from "../../ui/CopyButton";
 
 const METHODS = [
   { value: "FACE_AUTH", label: "Face", icon: ScanFace, hint: "The patient scans a code with the ABHA app on their phone." },
@@ -97,6 +98,7 @@ function DevicePanel({ ids, method, pid, setPid, capturing, captured, onDevice }
             <CheckCircle2 size={14} aria-hidden="true" /> Captured from the device.
           </span>
         )}
+        {!capturing && <CopyButton value={pid} label="Copy raw PID" />}
       </div>
       <details className="bio-paste" open={!!pid && !captured}>
         <summary className="cv-link">Paste a PID block from another machine instead</summary>
