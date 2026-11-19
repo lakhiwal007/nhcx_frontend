@@ -12,7 +12,7 @@ const formFor = (doctor) => {
   const master = doctor.master || {};
   return {
     hpr_id: master.hpr_id || "",
-    qualification_display: master.qualification_display || (doctor.qualifications || []).join(", "),
+    qualification_display: master.qualification_display || [].concat(doctor.qualifications || []).join(", "),
     specialty_code: master.specialty_code || "",
     specialty_display: master.specialty_display || doctor.specialization || "",
   };
