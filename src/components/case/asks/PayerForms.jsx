@@ -75,12 +75,13 @@ function Question({ item, value, file, loadFile, disabled, onChange, onFile }) {
       {label}
       {input}
       {item.initial && !value && item.type !== "attachment" && <div className="ep-muted">The payer's default: {item.initial}</div>}
+      {item.suggested && value === item.suggested && <div className="ep-muted">Filled from {item.suggested_source}. Check it before saving.</div>}
     </div>
   );
 }
 
 export default function FormEditor({ caseId, stage, form, readOnly, lockedBy, onClose, onSaved }) {
-  const [values, setValues] = useState(() => Object.fromEntries(form.items.map((it) => [it.linkId, it.answer ?? ""])));
+  const [values, setValues] = useState(() => Object.fromEntries(form.items.map((it) => [it.linkId, it.answer ?? it.suggested ?? ""])));
   const [files, setFiles] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -117,6 +118,8 @@ export default function FormEditor({ caseId, stage, form, readOnly, lockedBy, on
     }
   };
 
+  const suggestedCount = form.items.filter((it) => it.suggested && values[it.linkId] === it.suggested).length;
+
   return (
     <Drawer
       open
@@ -140,6 +143,11 @@ export default function FormEditor({ caseId, stage, form, readOnly, lockedBy, on
       {form.consent && (
         <div className="ep-notice">
           Upload the signed declaration. The other questions take the payer's default answer when left blank.
+        </div>
+      )}
+      {!readOnly && suggestedCount > 0 && (
+        <div className="ep-notice">
+          {suggestedCount === 1 ? "1 answer is" : `${suggestedCount} answers are`} filled from the HIS. Check {suggestedCount === 1 ? "it" : "them"}, then save; nothing is kept until you do.
         </div>
       )}
       {error && <div className="ep-notice is-bad">{error}</div>}
