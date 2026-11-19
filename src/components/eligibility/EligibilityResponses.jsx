@@ -53,7 +53,7 @@ function ValidationPanel({ check, checks, discovery }) {
   );
 }
 
-function BenefitsPanel({ check }) {
+function BenefitsPanel({ check, authItems = [] }) {
   if (check.state === "error") return null;
   if (!check.items.length) return <div className="cv-card-body cv-card-meta">The payer returned no item limits for this policy.</div>;
   return (
@@ -73,8 +73,11 @@ function BenefitsPanel({ check }) {
         <tbody>
           {check.items.map((it, i) => {
             const b = it.benefit?.[0];
-            const allowed = b?.allowed?.value;
-            const used = b?.used?.value || 0;
+            const allowed = Number(b?.allowed?.value) > 0 ? Number(b.allowed.value) : null;
+            const used = b?.used?.value;
+            const code = it.product_or_service?.code;
+            const ruled = authItems.find((other) => code && other.product_or_service?.code === code);
+            const sendWith = it.authorization_supporting?.length ? it.authorization_supporting : ruled?.authorization_supporting || [];
             return (
               <tr key={i}>
                 <td>
@@ -87,11 +90,11 @@ function BenefitsPanel({ check }) {
                   ))}
                 </td>
                 <td>{it.category?.display || it.category?.code || "—"}</td>
-                <td className="is-num">{money(allowed)}</td>
+                <td className="is-num">{allowed != null ? money(allowed) : b ? "No fixed limit" : "—"}</td>
                 <td className="is-num">{money(used)}</td>
-                <td className="is-num cv-strong">{allowed != null ? money(allowed - used) : "—"}</td>
+                <td className="is-num cv-strong">{allowed != null ? money(allowed - (Number(used) || 0)) : "—"}</td>
                 <td>{it.authorization_required == null ? "—" : <span className={`cv-chip ${it.authorization_required ? "is-warn" : "is-todo"}`}>{it.authorization_required ? "Needed" : "Not needed"}</span>}</td>
-                <td>{(it.authorization_supporting || []).map((d) => d.display || d.code).join(", ") || "—"}</td>
+                <td>{sendWith.map((d) => d.display || d.code).join(", ") || "—"}</td>
               </tr>
             );
           })}
@@ -177,7 +180,7 @@ export default function PayerAnswer({ id, checks, requirements, discovery, formT
         <>
           {note && <div className="cv-card-intro">{note}</div>}
           {!note && id === "validation" && <ValidationPanel check={check} checks={checks} discovery={discovery} />}
-          {!note && id === "benefits" && <BenefitsPanel check={check} />}
+          {!note && id === "benefits" && <BenefitsPanel check={check} authItems={checks.auth?.sub ? checks.auth.items : []} />}
           {!note && id === "auth" && <AuthPanel check={check} requirements={requirements} formTitle={formTitle} onOpenForm={onOpenForm} />}
           {check?.sub?.errors?.length > 0 && (
             <div className="cv-card-body">
