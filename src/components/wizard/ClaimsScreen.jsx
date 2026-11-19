@@ -711,7 +711,16 @@ export default function ClaimsScreen({ ctx }) {
           dismissAuto();
         }}
         title="Answer the payer's query on the claim"
-        question={{ notes: view.notes, description: queryTask?.description, requestedDocuments: queryTask?.required_documents, communications: relatedComms }}
+        question={{
+          notes: view.notes,
+          description: queryTask?.description,
+          requestedDocuments: queryTask?.required_documents,
+          communications: relatedComms,
+          lines: adjItems.map((item, i) => {
+            const line = named.find((l) => l.sequence === item.sequence) || named[i] || draft?.items?.[(item.sequence ?? i + 1) - 1] || null;
+            return { code: line?.service_code || line?.code, name: names[item.sequence ?? i + 1], asked: item.adjudication?.reason?.text || item.adjudication?.reason?.raw };
+          }),
+        }}
         send={c.answerQuery}
         onSent={() => pane.setPicked("decision")}
         successMessage="Answer sent to the payer"

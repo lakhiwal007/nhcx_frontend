@@ -237,8 +237,8 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
     { success: "Final claim sent to the payer", onDone: onFinalSent },
   );
 
-  const answerQuery = async ({ answer, docs: files }) => {
-    const res = await api.respondClaimQuery({ claim_id: draft?.claim_id || claimId, ...(files?.length > 0 && { supporting_documents: files }), ...answerBody(answer) });
+  const answerQuery = async ({ answer, docs: files, lines }) => {
+    const res = await api.respondClaimQuery({ claim_id: draft?.claim_id || claimId, ...(files?.length > 0 && { supporting_documents: files }), ...(lines?.length > 0 && { query_answers: lines }), ...answerBody(answer) });
     updateCaseState({ claimCorrelationId: res.correlation_id });
     return res;
   };

@@ -400,7 +400,13 @@ export default function PreauthStatus({ ctx }) {
           setAutoActionDismissed(true);
         }}
         title="Answer the payer's query"
-        question={{ notes: data?.process_notes, description: queryTask?.description, requestedDocuments: queryTask?.required_documents, communications: relatedComms }}
+        question={{
+          notes: data?.process_notes,
+          description: queryTask?.description,
+          requestedDocuments: queryTask?.required_documents,
+          communications: relatedComms,
+          lines: lines.map((line) => ({ code: line.service_code, name: line.service_name, asked: line.adjudication?.reason?.text || line.adjudication?.reason?.raw })),
+        }}
         send={p.answerQuery}
         successMessage="Answer sent to the payer"
       />

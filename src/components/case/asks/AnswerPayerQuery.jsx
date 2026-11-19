@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Drawer } from "../../ui/Overlay";
 import { QueryResponseFields } from "../../ui/Common";
 import { documentFromFile } from "../../../domain/queryResponse";
@@ -23,13 +23,18 @@ export default function AnswerPayerQuery({
   intro,
   answerLabel = "Your answer",
 }) {
+  const ids = useId();
   const [answer, setAnswer] = useState("");
   const [files, setFiles] = useState([]);
-  const { run, busy, error, reset } = useSend(() => send({ answer: answer.trim(), docs: files.map(documentFromFile) }), {
+  const [lineAnswers, setLineAnswers] = useState({});
+  const lines = (question.lines || []).filter((line) => line.code);
+  const answeredLines = lines.map((line) => ({ code: line.code, remarks: (lineAnswers[line.code] || "").trim() })).filter((line) => line.remarks);
+  const { run, busy, error, reset } = useSend(() => send({ answer: answer.trim(), docs: files.map(documentFromFile), lines: answeredLines }), {
     success: successMessage,
     onDone: (res) => {
       setAnswer("");
       setFiles([]);
+      setLineAnswers({});
       onSent?.(res);
       onClose?.();
     },
@@ -83,6 +88,27 @@ export default function AnswerPayerQuery({
         )}
       </section>
       <QueryResponseFields label={answerLabel} answer={answer} onAnswerChange={setAnswer} documents={files} onDocumentsChange={setFiles} />
+      {lines.length > 0 && (
+        <section className="cv-ask">
+          <h4 className="cv-sub">Answer by line, where the payer asked about one</h4>
+          {lines.map((line) => (
+            <div key={line.code} className="cv-field-stack">
+              <label className="cv-field-key" htmlFor={`${ids}-${line.code}`}>
+                {line.name || line.code}
+              </label>
+              {line.asked && <span className="cv-card-meta">The payer said: {line.asked}</span>}
+              <textarea
+                id={`${ids}-${line.code}`}
+                className="cv-ctl cv-textarea cv-ctl-fill"
+                rows={2}
+                placeholder="Leave blank if there is nothing to say about this line"
+                value={lineAnswers[line.code] || ""}
+                onChange={(e) => setLineAnswers((prev) => ({ ...prev, [line.code]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </section>
+      )}
       {error && (
         <div className="cv-notice is-bad cv-drawer-note" role="alert">
           <div className="cv-notice-body">{error}</div>

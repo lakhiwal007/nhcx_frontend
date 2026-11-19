@@ -85,11 +85,12 @@ export function usePreauthDecision(ctx) {
 
   const resolvedCaseId = cashless_case_id || data?.cashless_case_id || cashlessCase?.cashless_case_id || null;
 
-  const answerQuery = async ({ answer, docs }) => {
+  const answerQuery = async ({ answer, docs, lines }) => {
     const res = await api.respondPreauthQuery({
       ...(resolvedCaseId ? { cashless_case_id: resolvedCaseId } : {}),
       ...(claim_id ? { claim_id } : {}),
       supporting_documents: docs ?? [],
+      ...(lines?.length > 0 ? { query_answers: lines } : {}),
       ...(answer ? { questionnaire_response: { status: "completed", item: [{ linkId: "query-1", answer: [{ valueString: answer }] }] } } : {}),
     });
     restart(res.correlation_id);
