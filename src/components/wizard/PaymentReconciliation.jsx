@@ -61,7 +61,7 @@ export default function PaymentReconciliation({ ctx }) {
       : p.isNotFound
         ? ["Awaiting payment", "info"]
         : failed.length
-          ? ["Acknowledgement failed", "bad"]
+          ? ["Confirmation failed", "bad"]
           : p.allSettled
             ? p.shortBy
               ? ["Settled short", "warn"]
@@ -71,9 +71,9 @@ export default function PaymentReconciliation({ ctx }) {
               : [`Payment ${(stageWord(latestStage) || "in progress").toLowerCase()}`, "info"];
 
   const primary = !lock.viewOnly && failed.length > 1
-    ? { label: "Open acknowledgements", onClick: () => pane.openItem("acks") }
+    ? { label: "Open confirmations", onClick: () => pane.openItem("acks") }
     : onlyFailed && canRetry(onlyFailed)
-      ? { label: "Retry acknowledgement", busy: !!p.acking[onlyFailed.group_key], busyLabel: "Retrying…", onClick: () => p.acknowledge(onlyFailed) }
+      ? { label: "Confirm the payment again", busy: !!p.acking[onlyFailed.group_key], busyLabel: "Confirming…", onClick: () => p.acknowledge(onlyFailed) }
       : p.shortBy && !lock.viewOnly
         ? { label: "Ask for the balance", icon: Wallet, write: false, onClick: () => navigate("../claim", { state: { openAction: "request_claim_release", releaseAmount: p.shortBy, claim_id: p.claimId, cashless_case_id: p.caseId } }) }
         : p.noPayment
@@ -86,7 +86,7 @@ export default function PaymentReconciliation({ ctx }) {
   const notes = [
     p.error && { tone: "warn", text: `The last check failed, and this page keeps trying: ${p.error}` },
     lock.viewOnly && { tone: "info", text: lock.reason },
-    failed.length > 0 && { tone: "bad", text: "The payer has not been told this payment arrived. Retry the acknowledgement; until it goes through the payer may chase the hospital." },
+    failed.length > 0 && { tone: "bad", text: "The payer has not been told this payment arrived. Confirm the payment again; until that goes through the payer may chase the hospital." },
     p.shortBy && { tone: "warn", text: `Paid ${formatMoney(p.shortBy)} less than approved. If TDS or a deduction you agree with does not explain it, ask for the balance.` },
     p.missingUtr && !failed.length && { tone: "warn", text: "The payer has not sent a UTR, so this payment cannot be matched to the bank statement yet." },
     p.isNotFound && !p.noPayment && { tone: "info", text: "A payment that arrived without a claim reference waits on the Payments list until it is linked to this case.", action: { label: "See unlinked payments", onClick: () => navigate("/payments?view=unlinked") } },
@@ -96,7 +96,7 @@ export default function PaymentReconciliation({ ctx }) {
     : p.allSettled && !p.shortBy && !failed.length && !p.missingUtr
       ? "Match the UTR with the hospital's bank statement. Nothing else is needed for this case."
       : waiting && p.data && !p.isNotFound
-        ? "More notices may follow. Each is acknowledged automatically and this page updates by itself."
+        ? "More notices may follow. Each is confirmed to the payer automatically and this page updates by itself."
         : null;
 
   const summary = p.isNotFound || !p.data ? (
@@ -222,7 +222,7 @@ export default function PaymentReconciliation({ ctx }) {
       </Pane>
 
       <Pane id="acks">
-        <Card title="Acknowledgements" meta="Each notice is acknowledged to the payer automatically. Retry only when one fails.">
+        <Card title="Confirmations" meta="Each notice is confirmed to the payer automatically. Confirm a payment again only when one fails.">
           <PaymentsTable payments={p.payments} ackOf={p.ackOf} acking={p.acking} results={p.results} onRetry={p.acknowledge} canRetry={canRetry} expandFailed />
         </Card>
       </Pane>

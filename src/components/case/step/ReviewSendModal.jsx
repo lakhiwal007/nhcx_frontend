@@ -1,7 +1,12 @@
 import { Check } from "lucide-react";
 import ConfirmModal from "../../ui/ConfirmModal";
+import PayerName from "../../ui/PayerName";
 
-export default function ReviewSendModal({ open, facts = [], done = [], stillOpen = 0, sendLabel = "Send", busy = false, onCancel, onConfirm }) {
+export default function ReviewSendModal({ ctx, open, facts, rows, sendLabel, onCancel, onConfirm }) {
+  const payerId = ctx.cashlessCase?.payer_id;
+  const payerName = ctx.caseState.payer?.name;
+  const done = rows.filter((r) => r.tone === "ok");
+  const stillOpen = rows.filter((r) => r.tone === "warn" && !r.his).length;
   return (
     <ConfirmModal
       open={open}
@@ -9,12 +14,11 @@ export default function ReviewSendModal({ open, facts = [], done = [], stillOpen
       subtitle="This is what the payer will get. You cannot change it after you send."
       confirmLabel={sendLabel}
       cancelLabel="Go back"
-      busy={busy}
       onCancel={onCancel}
       onConfirm={onConfirm}
     >
       <div className="cv-review-facts">
-        {facts
+        {[["Patient", ctx.patient?.name], ["Payer", (payerId || payerName) && <PayerName id={payerId} name={payerName} />], ...facts]
           .filter((f) => f && f[1] != null && f[1] !== "")
           .map(([label, value]) => (
             <div key={label} className="cv-rkv">

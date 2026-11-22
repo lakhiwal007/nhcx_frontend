@@ -43,7 +43,7 @@ export function useWorkflowStatus(fetch, { key, intervalMs = 7000, immediate = t
 
   const active = key && !state.stopped ? key : null;
   const pulse = usePulse();
-  const followsPulse = pulse.available === true && pulse.caseStamp !== undefined;
+  const followsPulse = pulse.caseStamp !== undefined;
   const { tick: pollNow } = usePoll(tick, { active, intervalMs: followsPulse ? SAFETY_INTERVAL_MS : intervalMs, immediate });
   useOnChange(active && followsPulse ? pulse.caseStamp : undefined, () => pollNow());
 

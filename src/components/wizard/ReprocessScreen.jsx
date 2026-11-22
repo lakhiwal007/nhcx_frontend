@@ -5,7 +5,6 @@ import { ArrowLeft, ArrowRight, Send } from "lucide-react";
 import { DocumentChecklist, NextStep, Tip } from "../ui/Common";
 import { formatDateTime, formatMoney } from "../../lib/format.js";
 import Dropdown from "../ui/Dropdown";
-import ConfirmModal from "../ui/ConfirmModal";
 import { useCaseLock } from "../../hooks/case/useCaseLock";
 import { useReprocess, REASON_CODES, reasonName } from "../../hooks/workflow/useReprocess";
 import { useCasePane } from "../case/step/useCasePane";
@@ -13,6 +12,9 @@ import CaseStep, { Pane, Verdict } from "../case/step/CaseStep";
 import AdjudicationTable from "../case/step/AdjudicationTable";
 import PayerWords from "../case/step/PayerWords";
 import TechnicalDetails from "../case/step/TechnicalDetails";
+import ReviewSendModal from "../case/step/ReviewSendModal";
+import DropToAttach from "../case/step/DropToAttach";
+import { burst } from "../../lib/confetti";
 import { buildReprocessChecklist, firstReprocessItem } from "../case/claim/reprocessChecklist";
 
 const SOFT_WARNING_MS = 300_000;
@@ -59,7 +61,7 @@ export default function ReprocessScreen({ ctx }) {
   const navigate = useNavigate();
   const lock = useCaseLock(ctx, "reprocess");
   const locked = lock.viewOnly || lock.settled;
-  const r = useReprocess(ctx, { locked });
+  const r = useReprocess(ctx, { locked, onSent: burst });
   const pane = useCasePane();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -382,24 +384,23 @@ export default function ReprocessScreen({ ctx }) {
         </Pane>
       </CaseStep>
 
-      <ConfirmModal
+      <ReviewSendModal
+        ctx={ctx}
         open={confirmOpen}
-        title="Send the appeal?"
-        subtitle="The payer looks at the rejected claim again with your explanation and evidence. Its answer can take days."
-        confirmLabel="Send appeal"
-        busy={r.send.busy}
-        disabled={!canSend}
+        sendLabel="Send appeal"
+        facts={[
+          ["Reason", reasonName(r.reasonCode)],
+          ["Explanation", r.explanation.length > 120 ? `${r.explanation.slice(0, 120)}…` : r.explanation],
+        ]}
+        rows={groups.flatMap((g) => g.rows)}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={() => {
           setConfirmOpen(false);
           r.send.run();
         }}
-      >
-        <div className="cv-kv"><span>Reason</span><span>{reasonName(r.reasonCode)}</span></div>
-        <div className="cv-kv"><span>Explanation</span><span>{r.explanation.length > 120 ? `${r.explanation.slice(0, 120)}…` : r.explanation}</span></div>
-        <div className="cv-kv"><span>Documents</span><span>{r.attached.length ? `${r.attached.length} attached` : "None"}</span></div>
-        {!r.attached.length && <p className="cv-card-meta cv-sub-note-top">An appeal without new evidence is usually rejected again.</p>}
-      </ConfirmModal>
+      />
+
+      <DropToAttach enabled={!sent && !locked && !r.loading} target="Documents" documents={r.documents} />
     </>
   );
 }

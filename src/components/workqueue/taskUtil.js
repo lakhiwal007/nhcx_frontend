@@ -7,7 +7,7 @@ export const taskKey = (task) => String(task.id ?? task.task_id);
 
 export const priorityBucket = (task) => (task.priority === "urgent" || task.priority === "high" ? task.priority : "normal");
 
-export const needsOwnAction = (task) => /^(respond_|submit_|resubmit_|acknowledge_payment$|link_payment_to_claim$)/.test(task.task_type || "");
+export const needsOwnAction = (task) => /^(respond_|submit_|resubmit_|acknowledge_payment$|link_payment_to_claim$)/.test(task.task_type || "") && task.task_type !== "submit_reprocess";
 
 export const taskRef = (task) =>
   task.cashless_case_id ? formatCaseRef(task.cashless_case_id) : task.claim_id ? `Claim ${task.claim_id}` : null;

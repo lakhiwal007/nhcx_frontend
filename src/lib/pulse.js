@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 
-export const PULSE_OFF = { available: null, caseId: null, caseStamp: undefined, tasksStamp: undefined, commsStamp: undefined, refresh: () => Promise.resolve() };
+export const PULSE_OFF = { caseId: null, caseStamp: undefined, tasksStamp: undefined, commsStamp: undefined, refresh: () => Promise.resolve() };
 
 export const PulseContext = createContext(PULSE_OFF);
 
@@ -27,6 +27,6 @@ export function useOnChange(value, fn) {
 
 export function useCasePulse(caseId) {
   const pulse = usePulse();
-  const follows = pulse.available === true && caseId != null && String(pulse.caseId) === String(caseId);
+  const follows = caseId != null && String(pulse.caseId) === String(caseId);
   return { follows, stamp: follows ? pulse.caseStamp : undefined };
 }

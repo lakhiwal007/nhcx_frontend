@@ -126,7 +126,7 @@ function TodoRow({ row, index, next, onOpen }) {
         {next && <em className="cv-todo-tag">Next step</em>}
       </span>
       <span className="cv-todo-fact">{row.fact}</span>
-      <button type="button" className={`cv-btn${next ? " is-primary" : ""}`} onClick={() => onOpen(row)}>
+      <button type="button" className={`cv-btn${next ? " is-primary" : ""}`} onClick={() => onOpen(row.id)}>
         {row.act || "Open"}
       </button>
     </div>
@@ -192,7 +192,7 @@ function TodoList({ need, good, waiting, done, needLabel, onOpen }) {
           </div>
           <div className="cv-todo-done">
             {done.map((row) => (
-              <button key={row.id} type="button" onClick={() => onOpen(row)}>
+              <button key={row.id} type="button" onClick={() => onOpen(row.id)}>
                 <Check size={13} aria-hidden="true" /> {row.name} · {row.fact}
               </button>
             ))}
@@ -224,7 +224,7 @@ export default function CaseStep({
   sendStep = false,
   children,
 }) {
-  const [tab, setTab] = useState(null);
+  const [mode, setMode] = useState(null);
   const rootRef = useRef(null);
   const barRef = useRef(null);
 
@@ -251,14 +251,16 @@ export default function CaseStep({
   const done = allRows.filter((r) => r.tone === "ok");
   const hasTodoTab = todo.length + waiting.length + done.length > 0;
   const firstTab = (waiting[0] || allRows.find((r) => paneIds.includes(r.id)))?.tab ?? checklist[0]?.id;
-  const picked = tab === "todo" && !hasTodoTab ? null : tab;
-  const activeTab = picked ?? (todo.length ? "todo" : firstTab);
+  const openTab = allRows.find((r) => r.id === shown)?.tab ?? firstTab;
+  const onTodo = hasTodoTab && (mode === "todo" || (mode === null && todo.length > 0));
+  const activeTab = onTodo ? "todo" : mode === null && !paneIds.includes(open) ? firstTab : openTab;
   const tabRows = allRows.filter((r) => r.tab === activeTab);
   const tabShown = activeTab === "todo" ? null : tabRows.some((r) => r.id === shown) ? shown : tabRows.find((r) => paneIds.includes(r.id))?.id ?? null;
-  const openRow = (row) => {
-    setTab(row.tab);
-    onOpen(row.id);
+  const openRow = (id) => {
+    setMode("group");
+    onOpen(id);
   };
+  const openGroup = (group) => openRow((group.rows.find((r) => paneIds.includes(r.id)) || group.rows[0]).id);
 
   return (
     <div className="cv-elig" ref={rootRef}>
@@ -283,12 +285,12 @@ export default function CaseStep({
           <div className="cv-tabbed">
             <div className="cv-tabsbar" role="tablist" aria-label={checklistLabel}>
               {hasTodoTab && (
-                <button type="button" role="tab" className="cv-tab" aria-selected={activeTab === "todo"} onClick={() => setTab("todo")}>
+                <button type="button" role="tab" className="cv-tab" aria-selected={activeTab === "todo"} onClick={() => setMode("todo")}>
                   To do {todo.length > 0 && <span className="cv-tab-count">{todo.length}</span>}
                 </button>
               )}
               {checklist.map((g) => (
-                <button key={g.id} type="button" role="tab" className="cv-tab" aria-selected={activeTab === g.id} onClick={() => setTab(g.id)}>
+                <button key={g.id} type="button" role="tab" className="cv-tab" aria-selected={activeTab === g.id} onClick={() => openGroup(g)}>
                   {g.title}
                   {g.rows.some((r) => r.tone === "bad" || r.tone === "warn" || r.tone === "refused") && <span className="cv-tab-dot" aria-label="has open items" />}
                 </button>
@@ -311,7 +313,7 @@ export default function CaseStep({
                   {tabRows.map((row) => {
                     const Mark = MARKS[row.tone] || Minus;
                     return (
-                      <button key={row.id} type="button" className={`cv-sub is-${row.tone}`} aria-current={tabShown === row.id ? "true" : undefined} onClick={() => onOpen(row.id)}>
+                      <button key={row.id} type="button" className={`cv-sub is-${row.tone}`} aria-current={tabShown === row.id ? "true" : undefined} onClick={() => openRow(row.id)}>
                         <Mark size={14} aria-hidden="true" />
                         {row.name}
                         <small>{row.fact}</small>

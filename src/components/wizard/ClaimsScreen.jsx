@@ -17,10 +17,13 @@ import SentFiles from "../case/asks/SentFiles";
 import BiometricCard from "../case/policy/BiometricCard";
 import PatientDetailsForm from "../case/forms/PatientDetailsForm";
 import DischargeDetailsPane from "../case/claim/DischargeDetailsPane";
+import SessionsPane from "../case/claim/SessionsPane";
 import DischargeResubmitDrawer from "../case/claim/DischargeResubmitDrawer";
 import ReleaseDrawer from "../case/claim/ReleaseDrawer";
 import SendGateModal from "../case/step/SendGateModal";
-import ConfirmModal from "../ui/ConfirmModal";
+import ReviewSendModal from "../case/step/ReviewSendModal";
+import DropToAttach from "../case/step/DropToAttach";
+import { burst } from "../../lib/confetti";
 import SendMessageDrawer, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../communications/SendMessageDrawer";
 import { fieldList } from "../case/forms/fieldLabels";
 import { firstClaimItem } from "../case/claim/claimChecklist";
@@ -130,13 +133,20 @@ export default function ClaimsScreen({ ctx }) {
   const lock = useCaseLock(ctx, "claim");
   const locked = lock.viewOnly || lock.settled;
   const [biometric, setBiometric] = useState(null);
+  const cycle = biometric?.sessions || null;
   const pane = useCasePane();
   const c = useClaimWorkflow(ctx, {
     navState: location.state || {},
     biometric,
     locked,
-    onDischargeSent: () => pane.setPicked("discharge"),
-    onFinalSent: () => pane.setPicked("decision"),
+    onDischargeSent: () => {
+      burst();
+      pane.setPicked("discharge");
+    },
+    onFinalSent: () => {
+      burst();
+      pane.setPicked("decision");
+    },
   });
   const finalGate = useSendGate({ caseId: c.caseId, waived: c.warnAsks, label: "Final claim", onSend: c.sendFinal.run });
   const dischargeGate = useSendGate({ caseId: c.caseId, waived: c.warnAsks, label: "Discharge claim", onSend: c.sendDischarge.run });
@@ -382,17 +392,20 @@ export default function ClaimsScreen({ ctx }) {
         onRetry={c.reload}
         paneRef={pane.paneRef}
       >
-        <Pane id="verify">
-          <BiometricCard
-            caseId={c.caseId}
-            stage="Discharge"
-            readOnly={c.docsLocked}
-            onCard={setBiometric}
-            onVerified={() => {
-              pane.setPicked("verify");
-              c.refreshAsks();
-            }}
-          />
+        <Pane id={cycle ? "sessions" : "verify"}>
+          <div className="cv-pane-stack">
+            {cycle && <SessionsPane cycle={cycle} docs={c.docs} documents={c.documents} readOnly={c.docsLocked} />}
+            <BiometricCard
+              caseId={c.caseId}
+              stage="Discharge"
+              readOnly={c.docsLocked}
+              onCard={setBiometric}
+              onVerified={() => {
+                pane.setPicked(cycle ? "sessions" : "verify");
+                c.refreshAsks();
+              }}
+            />
+          </div>
         </Pane>
 
         {c.patientContextMissing.length > 0 && (
@@ -672,38 +685,33 @@ export default function ClaimsScreen({ ctx }) {
       <SendGateModal gate={finalGate} busy={c.sendFinal.busy} title="Send the final claim without these?" sendLabel="Send anyway" />
       <SendGateModal gate={dischargeGate} busy={c.sendDischarge.busy} title="Send the discharge claim without these?" sendLabel="Send anyway" />
 
-      <ConfirmModal
-        open={confirm === "discharge"}
-        title="Send the discharge claim?"
-        subtitle="The payer receives the discharge papers and the bill so far. The final claim follows once it answers."
-        confirmLabel="Send discharge claim"
+      <ReviewSendModal
+        ctx={ctx}
+        open={!!confirm}
+        sendLabel={confirm === "discharge" ? "Send discharge claim" : "Send final claim"}
+        facts={
+          confirm === "discharge"
+            ? [
+                ["Bill so far", money(draft?.total_amount)],
+                ["How the patient left", draft?.discharge?.type && humanize(draft.discharge.type)],
+                ["Files going with it", c.attached.length],
+              ]
+            : [
+                ["Final bill", money(draft?.total_amount)],
+                ["Authorised", money(c.authorizedCeiling)],
+                ["To collect from the patient", c.overCeiling ? formatMoney(c.ceilingExcess) : null],
+                ["Files going with it", c.attached.length],
+              ]
+        }
+        rows={c.groups.flatMap((g) => g.rows).filter((row) => row.group !== "send")}
         onCancel={() => setConfirm(null)}
         onConfirm={() => {
           setConfirm(null);
-          dischargeGate.request();
+          (confirm === "discharge" ? dischargeGate : finalGate).request();
         }}
-      >
-        <div className="cv-kv"><span>Bill so far</span><span>{money(draft?.total_amount)}</span></div>
-        <div className="cv-kv"><span>Files going with it</span><span>{c.attached.length}</span></div>
-        {draft?.discharge?.type && <div className="cv-kv"><span>How the patient left</span><span>{humanize(draft.discharge.type)}</span></div>}
-      </ConfirmModal>
+      />
 
-      <ConfirmModal
-        open={confirm === "final"}
-        title="Send the final claim?"
-        subtitle="The payer decides what it pays on this bill. A sent claim cannot be edited; a cut is contested through a balance request or a reprocess."
-        confirmLabel={`Send ${money(draft?.total_amount)} claim`}
-        onCancel={() => setConfirm(null)}
-        onConfirm={() => {
-          setConfirm(null);
-          finalGate.request();
-        }}
-      >
-        <div className="cv-kv"><span>Final bill</span><span>{money(draft?.total_amount)}</span></div>
-        <div className="cv-kv"><span>Authorised</span><span>{money(c.authorizedCeiling)}</span></div>
-        <div className="cv-kv"><span>Files going with it</span><span>{c.attached.length}</span></div>
-        {c.overCeiling && <p className="cv-card-meta cv-sub-note-top">{formatMoney(c.ceilingExcess)} above the authorised amount is collected from the patient.</p>}
-      </ConfirmModal>
+      <DropToAttach enabled={!c.docsLocked && !!draft && !c.error} documents={c.documents} />
 
       <AnswerPayerQuery
         open={queryOpen || autoQuery}

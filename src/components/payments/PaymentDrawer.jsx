@@ -23,7 +23,7 @@ export default function PaymentDrawer({ payment, onClose, onOpenCase, onLink, on
       onChanged?.();
       return res;
     },
-    { success: "Acknowledgement sent to the payer" },
+    { success: "Payment confirmed to the payer" },
   );
   const unlinked = payment && p.claim_id == null;
   const canRetry = ack === "failed" && !readOnly && !!(p.payment_reference || p.notice_identifier);
@@ -44,7 +44,7 @@ export default function PaymentDrawer({ payment, onClose, onOpenCase, onLink, on
               </button>
             ) : canRetry ? (
               <button type="button" className="cv-btn is-primary" disabled={retry.busy} onClick={retry.run}>
-                {retry.busy ? "Retrying…" : "Retry acknowledgement"}
+                {retry.busy ? "Confirming…" : "Confirm the payment again"}
               </button>
             ) : p.cashless_case_id || p.claim_reference ? (
               <button type="button" className="cv-btn is-primary" onClick={() => onOpenCase(payment)}>
@@ -60,7 +60,7 @@ export default function PaymentDrawer({ payment, onClose, onOpenCase, onLink, on
           {ack === "failed" && (
             <div className="cv-notice is-bad" role="alert">
               <div className="cv-notice-body">
-                <strong>The payer has not been told this payment arrived.</strong> {p.acknowledgement_error || notices.find((n) => n.acknowledgement_error)?.acknowledgement_error || ""} Retry the acknowledgement.
+                <strong>The payer has not been told this payment arrived.</strong> {p.acknowledgement_error || notices.find((n) => n.acknowledgement_error)?.acknowledgement_error || ""} Confirm the payment again.
               </div>
             </div>
           )}
@@ -91,7 +91,7 @@ export default function PaymentDrawer({ payment, onClose, onOpenCase, onLink, on
             <div className="cv-kv"><span>Case</span><span className="cv-mono">{p.cashless_case_id ? formatCaseRef(p.cashless_case_id) : "Not linked"}</span></div>
             <div className="cv-kv"><span>Claim named by the payer</span><span className="cv-mono">{p.claim_reference || "—"}</span></div>
             {p.patient_name && <div className="cv-kv"><span>Patient</span><span>{p.patient_name}</span></div>}
-            <div className="cv-kv"><span>Acknowledged</span><span>{ackLabel(payment)}{p.acknowledged_at && ack !== "failed" ? ` · ${formatDateTime(p.acknowledged_at)}` : ""}</span></div>
+            <div className="cv-kv"><span>Confirmation</span><span>{ackLabel(payment)}{p.acknowledged_at && ack !== "failed" ? ` · ${formatDateTime(p.acknowledged_at)}` : ""}</span></div>
           </div>
 
           <section className="cm-section">
@@ -103,7 +103,7 @@ export default function PaymentDrawer({ payment, onClose, onOpenCase, onLink, on
                     <th>Notice</th>
                     <th>Received</th>
                     <th className="is-num">Net</th>
-                    <th>Acknowledged</th>
+                    <th>Confirmation</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -139,7 +139,7 @@ export default function PaymentDrawer({ payment, onClose, onOpenCase, onLink, on
               { label: "Event key", value: p.event_key },
               { label: "NHCX workflow", value: p.workflow_id != null ? String(p.workflow_id) : null },
               { label: "Provider", value: p.provider_id },
-              { label: "Acknowledgement attempts", value: p.acknowledgement_attempts != null ? String(p.acknowledgement_attempts) : null },
+              { label: "Confirmation attempts", value: p.acknowledgement_attempts != null ? String(p.acknowledgement_attempts) : null },
             ]}
           />
         </div>

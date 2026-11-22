@@ -15,7 +15,6 @@ import { usePulse, useOnChange } from "../../lib/pulse";
 import { useSend } from "../../hooks/util/useSend";
 import { formatCaseRef, formatDateTime, formatRelative } from "../../lib/format.js";
 
-const POLL_INTERVAL_MS = 45_000;
 const IDLE_INTERVAL_MS = 24 * 3_600_000;
 const PAGE_SIZE = 25;
 const FETCH_LIMIT = 500;
@@ -103,12 +102,11 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   );
 
   const pulse = usePulse();
-  const followsPulse = pulse.available === true;
   const { tick } = usePoll(fetchTasks, {
     active: filterKey,
-    intervalMs: statusFilter === "pending" && !followsPulse ? POLL_INTERVAL_MS : IDLE_INTERVAL_MS,
+    intervalMs: IDLE_INTERVAL_MS,
   });
-  useOnChange(followsPulse ? pulse.tasksStamp : undefined, () => tick());
+  useOnChange(pulse.tasksStamp, () => tick());
 
   const refresh = async () => {
     setRefreshing(true);

@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
+import { toast } from "../../../lib/toast";
 
 const hasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
 
-export default function DropToAttach({ enabled = true, target = "Other files", onFiles }) {
+export default function DropToAttach({ enabled = true, target = "Other files", documents }) {
   const [over, setOver] = useState(false);
   const depth = useRef(0);
-  const latest = useRef(onFiles);
+  const latest = useRef(null);
 
   useEffect(() => {
-    latest.current = onFiles;
+    latest.current = async (files) => {
+      for (const file of files) {
+        const undo = await documents.attachDropped(file);
+        if (undo) toast.success(`${file.name} attached to ${target}`, { duration: 7000, action: { label: "Undo", onClick: undo } });
+        else toast.error(`${file.name} could not be attached. Check that it is a PDF or a photo and not too large, then try again.`);
+      }
+    };
   });
 
   useEffect(() => {
@@ -36,7 +43,7 @@ export default function DropToAttach({ enabled = true, target = "Other files", o
       depth.current = 0;
       setOver(false);
       const files = Array.from(e.dataTransfer.files || []);
-      if (files.length) latest.current?.(files);
+      if (files.length) latest.current(files);
     };
     window.addEventListener("dragenter", enter);
     window.addEventListener("dragleave", leave);

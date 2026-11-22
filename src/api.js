@@ -548,6 +548,35 @@ const mockAttempt = (row) => ({
   refreshable: row.status === "verified",
   verified_at: row.verified_at || null,
 });
+const mockCyclic = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("cy") === "1";
+const MOCK_SESSION_RATE = 1500;
+const MOCK_SESSION_SCANS = [
+  { auth_method: "FINGERPRINT", started_at: "2026-05-04T10:02:00+05:30", ended_at: "2026-05-04T10:03:10+05:30" },
+  { auth_method: "FACE_AUTH", started_at: "2026-05-05T10:20:00+05:30", ended_at: "2026-05-05T10:22:40+05:30" },
+  { auth_method: "FINGERPRINT", started_at: "2026-05-06T11:05:00+05:30", ended_at: "2026-05-06T11:05:50+05:30" },
+];
+const mockSessions = (rows) => {
+  const fresh = rows.filter((row) => row.status === "verified").map((row) => ({ auth_method: row.auth_method, started_at: row.started_at, ended_at: row.verified_at }));
+  const scans = [...MOCK_SESSION_SCANS, ...fresh];
+  const max = 6;
+  return {
+    code: "MG072C",
+    name: "Acute Haemodialysis",
+    max_sessions: max,
+    next_allowed_at: scans.length < max ? new Date(new Date(scans.at(-1).ended_at).getTime() + 86400000).toISOString() : null,
+    sessions: scans.map((scan, i) => ({ number: i + 1, ...scan })),
+  };
+};
+const mockCyclicDraft = (draft) => {
+  if (!mockCyclic()) return draft;
+  const count = mockSessions(mockBiometricRows(draft.cashless_case_id, "Discharge")).sessions.length;
+  return {
+    ...draft,
+    total_amount: count * MOCK_SESSION_RATE,
+    procedures: [{ code: "MG072C", name: "Acute Haemodialysis" }],
+    items: [{ service_code: "MG072C", service_name: "Acute Haemodialysis", category: "MG", quantity: count, unit_price: MOCK_SESSION_RATE, net_amount: count * MOCK_SESSION_RATE }],
+  };
+};
 const mockAbhaKey = async () => {
   const pair = await crypto.subtle.generateKey({ name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-1" }, true, ["encrypt", "decrypt"]);
   return btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("spki", pair.publicKey))));
@@ -1276,11 +1305,12 @@ const mock = {
       required: true,
       current: held ? mockAttempt(held) : null,
       latest: rows.length ? mockAttempt(rows.at(-1)) : null,
+      sessions: stage === "Discharge" && mockCyclic() ? mockSessions(rows) : null,
     };
   },
   startBiometric: async (cashless_case_id, { stage, auth_method }) => {
     await delay(300);
-    const row = { id: Date.now(), stage, auth_method, status: "initiated", polls: 0 };
+    const row = { id: Date.now(), stage, auth_method, status: "initiated", polls: 0, started_at: new Date().toISOString() };
     MOCK_BIOMETRIC[cashless_case_id] = [...(MOCK_BIOMETRIC[cashless_case_id] || []), row];
     if (auth_method !== "FACE_AUTH") return { status: "complete", attempt: mockAttempt(row) };
     return { status: "complete", attempt: mockAttempt(row), qr_url: `https://phrsbx.abdm.gov.in/face-auth?txnId=mock-${row.id}`, abha_public_key: await mockAbhaKey() };
@@ -2647,7 +2677,7 @@ const mock = {
   // ─── Claims ─────────────────────────────────────────────────────────────────
   prepareClaimDraft: async (params = {}) => {
     await delay(800);
-    return mockClaimDraft({
+    const draft = mockClaimDraft({
       discharge: { discharged_at: "2026-05-04T14:15:00+05:30" },
       discharge_rules: {
         required: true,
@@ -2721,6 +2751,7 @@ const mock = {
       ],
       missing_fields: [],
     });
+    return mockCyclicDraft(draft);
   },
 
   patchPatientContext: async (claim_id, data) => {
@@ -4016,7 +4047,7 @@ const real = {
   linkPayment: (payment_id, data) =>
     http.patch(`/cashless/payment/${payment_id}/link`, data),
 
-  getPulse: (params = {}, signal) => http.get("/cashless/pulse", params, { signal, allowNotFound: true, quiet: true }),
+  getPulse: (params = {}, signal) => http.get("/cashless/pulse", params, { signal, quiet: true }),
 
   listTasks: (params = {}, signal) => http.get("/cashless/tasks", params, { signal }),
 

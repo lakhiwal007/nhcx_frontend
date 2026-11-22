@@ -79,7 +79,7 @@ export const TASKS = {
   resubmit_claim: {
     short: "Resend claim",
     label: "Resend the claim",
-    help: "The claim needs attention. Open the Claim step and follow the payer's notes.",
+    help: "The payer sent the claim back. Open the Claim step, read the payer's notes, fix what it asks for and send the claim again.",
     step: "claim",
   },
   submit_reprocess: {
@@ -104,7 +104,7 @@ export const TASKS = {
   review_payment_ack_failure: {
     short: "Payment",
     label: "Resend the payment confirmation",
-    help: "Our confirmation of a payment didn't reach the payer. Press Retry to send it again.",
+    help: "Our confirmation of a payment didn't reach the payer. Press “Send it again”.",
     step: "payment",
   },
   review_communication: {
@@ -126,7 +126,7 @@ export const TASKS = {
   chase_payer_answer: {
     short: "No answer",
     label: "No answer from the payer",
-    help: "The payer has had this for hours and not answered. Call the payer desk, or ask NHCX where it stands if that payer answers status enquiries.",
+    help: "The payer has not answered for several hours. Call the payer's desk, or check the status from the case if that payer answers status checks.",
     byWorkflow: true,
   },
   review_payer_decision: {

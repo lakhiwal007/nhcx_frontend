@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { usePlanPackages } from "../../hooks/workflow/usePlanPackages";
 import { formatMoney } from "../../lib/format.js";
+import Dropdown from "../ui/Dropdown";
 
 const FLAGS = [
   ["needs_preauth", "Needs pre-auth"],
@@ -18,7 +19,8 @@ const STATS = [
   ["tiers", "With ward tiers"],
   ["has_form", "With a form"],
 ];
-const PAGE_SIZES = [10, 25, 50];
+const PAGE_SIZES = [10, 25, 50].map((n) => ({ value: n, label: `${n} a page` }));
+const TYPES = [{ value: "", label: "Any type" }, ...["Surgical", "Medical", "Conservative"].map((t) => ({ value: t, label: t }))];
 const yes = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
 const yn = (v) => (v == null || v === "" ? null : /^y(es)?$/i.test(String(v).trim()) ? "Yes" : /^no?$/i.test(String(v).trim()) ? "No" : String(v));
 const count = (n) => (n == null ? "—" : Number(n).toLocaleString("en-IN"));
@@ -209,12 +211,9 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
               value={query}
               onChange={(e) => { setQuery(e.target.value); setPage(0); }}
             />
-            <select className="cv-ctl" style={{ flex: "0 0 180px" }} aria-label="Procedure type" value={type} onChange={(e) => { setType(e.target.value); setPage(0); }}>
-              <option value="">Any type</option>
-              <option value="Surgical">Surgical</option>
-              <option value="Medical">Medical</option>
-              <option value="Conservative">Conservative</option>
-            </select>
+            <div className="cv-browser-type">
+              <Dropdown compact ariaLabel="Procedure type" value={type} options={TYPES} onChange={(v) => { setType(v); setPage(0); }} />
+            </div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {FLAGS.map(([f, label]) => (
@@ -277,11 +276,9 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
             <span>
               {total ? `Showing ${page * size + 1}–${Math.min(total, (page + 1) * size)} of ${count(total)}` : "No packages"}
             </span>
-            <select className="cv-ctl" style={{ marginLeft: "auto", height: 36 }} aria-label="Rows per page" value={size} onChange={(e) => { setSize(Number(e.target.value)); setPage(0); }}>
-              {PAGE_SIZES.map((n) => (
-                <option key={n} value={n}>{n} a page</option>
-              ))}
-            </select>
+            <div className="cv-pager-size">
+              <Dropdown compact ariaLabel="Rows per page" value={size} options={PAGE_SIZES} onChange={(v) => { setSize(v); setPage(0); }} />
+            </div>
             <button type="button" className="cv-btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
             <span>Page {page + 1} of {pages}</span>
             <button type="button" className="cv-btn" disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}>Next</button>

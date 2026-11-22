@@ -140,7 +140,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
           : answered
             ? { tone: "ok", title: "Answered", text: "Your reply has been sent. The payer's next answer appears in the case." }
             : detail.kind === "notification"
-              ? { tone: "info", title: "For your information", text: "An update from the payer, acknowledged automatically. No reply is needed." }
+              ? { tone: "info", title: "For your information", text: "An update from the payer. No reply is needed." }
               : { tone: "info", title: "For your information", text: "A note from the payer. No reply is needed." };
 
   const primary = !detail || readOnly

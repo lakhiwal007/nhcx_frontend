@@ -288,7 +288,10 @@
 .cc-close-field { display: flex; flex-direction: column; gap: 6px; }
 .cc-close-label { font-size: 12.5px; color: var(--text-muted); }
 .cc-close-form .dd-menu,
-.rp-reason .dd-menu { position: static; margin-top: 6px; box-shadow: none; }
+.rp-reason .dd-menu,
+.cv-picker .dd-menu,
+.cv-chosen .dd-menu,
+.cv-browser-type .dd-menu { position: static; margin-top: 6px; box-shadow: none; }
 .cc-close-note { width: 100%; box-sizing: border-box; height: auto; padding: 8px 10px; resize: vertical; font: 13.5px var(--font-sans); }
 .cc-close-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
 .cc-close-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 12px; border-bottom: 1px solid var(--border-color); font-size: 13px; }
@@ -328,7 +331,10 @@
 .cv-chosen-qty > input { width: 88px; }
 .cv-picker-filters { display: flex; gap: 8px; flex-wrap: wrap; }
 .cv-picker-filters > input { flex: 1 1 220px; min-width: 0; }
-.cv-picker-filters > select { flex: 0 1 220px; min-width: 0; }
+.cv-picker-filters > .dd-root { flex: 0 1 220px; }
+.cv-browser-type { flex: 0 0 180px; }
+.cv-pager-size { width: 130px; margin-left: auto; }
+.cv-pager-size .dd-menu { top: auto; bottom: calc(100% + 6px); }
 .cv-picker .cv-tw td { vertical-align: middle; }
 @media (max-width: 900px) { .cv-split { grid-template-columns: minmax(0, 1fr); } }
 .cv-browser-nav { flex: 0 1 230px; min-width: 200px; border: 1px solid var(--cv-line); border-radius: var(--radius-md); overflow: hidden; }
@@ -742,3 +748,6 @@
 .bio-paste-body { margin-top: 8px; }
 .bio-pid { height: auto; min-height: 110px; font-size: 12px; }
 .bio-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.cyc-session { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-top: 1px solid var(--cv-line); }
+.cyc-session:first-child { padding-top: 0; border-top: 0; }
+.cyc-record { max-width: 340px; }

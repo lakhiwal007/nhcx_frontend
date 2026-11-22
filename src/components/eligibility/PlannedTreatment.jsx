@@ -1,4 +1,5 @@
 import { formatDate, formatMoney, humanize } from "../../lib/format.js";
+import Dropdown from "../ui/Dropdown";
 import PackagePicker from "./PackagePicker";
 import PackageLines from "./PackageLines";
 
@@ -54,12 +55,13 @@ function ChoosePackage({ choice, visit, plan, planCorrelationId, startQuery }) {
                   <input className="cv-ctl cv-mono" type="number" min="1" step="1" aria-label={`Quantity for ${pkg.name}`} value={pkg.quantity ?? 1} onChange={(ev) => choice.onEdit(pkg.code, { quantity: ev.target.value })} />
                 </label>
                 {pkg.tiers?.length > 0 && (
-                  <select className="cv-ctl" aria-label={`Ward tier for ${pkg.name}`} value={pkg.modifier_code || ""} onChange={(ev) => choice.onEdit(pkg.code, { modifier_code: ev.target.value })}>
-                    <option value="">No ward tier</option>
-                    {pkg.tiers.map((t) => (
-                      <option key={t.code} value={t.code}>{`${t.label} · ${formatMoney(t.rate)}`}</option>
-                    ))}
-                  </select>
+                  <Dropdown
+                    compact
+                    ariaLabel={`Ward tier for ${pkg.name}`}
+                    value={pkg.modifier_code || ""}
+                    options={[{ value: "", label: "No ward tier" }, ...pkg.tiers.map((t) => ({ value: t.code, label: `${t.label} · ${formatMoney(t.rate)}` }))]}
+                    onChange={(v) => choice.onEdit(pkg.code, { modifier_code: v })}
+                  />
                 )}
                 {pkg.unspecified && <input className="cv-ctl" aria-label={`Procedure name for ${pkg.code}`} placeholder="Procedure name" value={pkg.name} onChange={(ev) => choice.onEdit(pkg.code, { name: ev.target.value })} />}
                 {pkg.typed && <input className="cv-ctl cv-mono" type="number" min="0" aria-label={`Amount for ${pkg.code}`} placeholder="Amount for one" value={pkg.amount ?? ""} onChange={(ev) => choice.onEdit(pkg.code, { amount: ev.target.value })} />}

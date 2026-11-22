@@ -84,12 +84,12 @@ export function usePayment(ctx) {
       const body = { payment_id: pay.id, payment_reference: pay.payment_reference || pay.notice_identifier, ...(claimNumber?.trim() ? { claim_number: claimNumber.trim() } : {}) };
       const res = await api.acknowledgePayment(body);
       setResults((prev) => ({ ...prev, [key]: { sent: true, correlation_id: res?.correlation_id } }));
-      toast.success("Acknowledgement sent to the payer");
+      toast.success("Payment confirmed to the payer");
       status.refresh();
       return res;
     } catch (err) {
       markHandled(err);
-      setResults((prev) => ({ ...prev, [key]: { sent: false, error: err?.message || "The acknowledgement could not be sent." } }));
+      setResults((prev) => ({ ...prev, [key]: { sent: false, error: err?.message || "The payment confirmation could not be sent." } }));
       return undefined;
     } finally {
       setAcking((prev) => ({ ...prev, [key]: false }));

@@ -205,7 +205,7 @@ export default function App() {
   const shownUnread = hasProvider ? counts.unread : 0;
   const navItems = navItemsFor({ pendingTasks: shownPending, unreadMessages: shownUnread }).map((item) => ({
     ...item,
-    badgeLabel: item.to === "/work-queue" ? badgeText(shownPending, { total: counts.pendingTotal, limit: counts.taskLimit }) : item.to === "/communications" ? badgeText(shownUnread, { total: counts.unreadTotal, limit: counts.commsLimit }) : null,
+    badgeLabel: item.to === "/work-queue" ? badgeText(shownPending) : item.to === "/communications" ? badgeText(shownUnread) : null,
   }));
   const urgent = hasProvider && counts.urgent > 0;
   const facility = { hasProvider, allMode: allFacilitiesMode, label: allFacilitiesMode ? "All facilities" : facilityName || providerId };

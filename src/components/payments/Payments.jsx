@@ -54,7 +54,7 @@ const CSV_COLUMNS = [
   ["Gross", (p) => p.gross_amount],
   ["TDS", (p) => p.tds_amount],
   ["Net credited", (p) => p.net_payment_amount],
-  ["Acknowledgement", (p) => ackLabel(p)],
+  ["Confirmation", (p) => ackLabel(p)],
 ];
 
 const csvCell = (v) => {
@@ -195,7 +195,7 @@ export default function Payments() {
               setPage(0);
             }}
           />
-          <div className="wq-chips" role="group" aria-label="Acknowledgement">
+          <div className="wq-chips" role="group" aria-label="Confirmation">
             <button
               type="button"
               className={`wq-chip${ackOnly ? " is-on" : ""}`}
@@ -206,7 +206,7 @@ export default function Payments() {
               }}
             >
               <span className="wq-chip-dot is-urgent" aria-hidden="true" />
-              Acknowledgement due
+              Confirmation due
               <span className="wq-chip-count">{loading && !data.payments ? "–" : ackCount}</span>
             </button>
           </div>
@@ -286,7 +286,7 @@ export default function Payments() {
                     <th className="cc-num">Gross</th>
                     <th className="cc-num">TDS</th>
                     <th className="cc-num">Net credited</th>
-                    <th>Acknowledged</th>
+                    <th>Confirmation</th>
                   </tr>
                 </thead>
                 <tbody>

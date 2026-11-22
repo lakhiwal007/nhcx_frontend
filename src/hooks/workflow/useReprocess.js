@@ -28,7 +28,7 @@ export function unavailableReason(claimLeg, settled) {
 
 const normalize = (res) => (res?.decision ? { ...res, decision: String(res.decision).replace(/^REPROCESS_/, "") } : res);
 
-export function useReprocess(ctx, { locked = false } = {}) {
+export function useReprocess(ctx, { locked = false, onSent } = {}) {
   const { caseState, caseRecord, cashlessCase, caseClosed, reloadCase, refreshTimeline, draftFiles, setDraftFiles, timelineEvents } = ctx;
   const caseId = caseState.cashless_case_id || null;
   const anchor = caseId || caseState.claim_id || null;
@@ -103,7 +103,7 @@ export function useReprocess(ctx, { locked = false } = {}) {
       reloadCase?.();
       return res;
     },
-    { success: "Appeal sent to the payer" },
+    { success: "Appeal sent to the payer", onDone: onSent },
   );
 
   const startAnother = () => {

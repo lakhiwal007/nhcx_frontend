@@ -12,8 +12,6 @@ import ConfirmModal from "../ui/ConfirmModal";
 import SendGateModal from "../case/step/SendGateModal";
 import ReviewSendModal from "../case/step/ReviewSendModal";
 import DropToAttach from "../case/step/DropToAttach";
-import PayerName from "../ui/PayerName";
-import { toast } from "../../lib/toast";
 import { burst } from "../../lib/confetti";
 import LinesEditor from "../case/forms/LinesEditor";
 import PackageLines from "../eligibility/PackageLines";
@@ -117,22 +115,6 @@ export default function PreauthDraft({ ctx }) {
     d.eligibility && d.eligibility.status !== "complete" && !preauthAlreadyLive && { tone: "warn", text: "The eligibility check is not finished, so the payer's answer may still change." },
     d.memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `This policy has ${d.cardMembers.length} people on it. Choose the one who is the patient.`, action: { label: "Choose the patient", onClick: () => navigate("../prep") } },
   ];
-
-  const dropFiles = async (files) => {
-    const base = d.docs.length;
-    for (let i = 0; i < files.length; i += 1) {
-      const file = files[i];
-      const code = d.documents.addCustom();
-      d.documents.rename(base + i, file.name);
-      const uploaded = await d.documents.attachFile(base + i, file);
-      const undo = () => d.documents.setDocuments((docs) => docs.filter((doc) => doc.code !== code));
-      if (uploaded) toast.success(`${file.name} attached to Other files`, { duration: 7000, action: { label: "Undo", onClick: undo } });
-      else {
-        undo();
-        toast.error(`${file.name} could not be attached. Check that it is a PDF or a photo and not too large, then try again.`);
-      }
-    }
-  };
 
   const draft = d.draft;
   const accommodation = draft?.accommodation || {};
@@ -426,15 +408,13 @@ export default function PreauthDraft({ ctx }) {
       <ReviewSendModal
         open={review}
         sendLabel="Send pre-auth"
+        ctx={ctx}
         facts={[
-          ["Patient", ctx.patient?.name],
-          ["Payer", (cashlessCase?.payer_id || caseState.payer?.name) && <PayerName id={cashlessCase?.payer_id} name={caseState.payer?.name} />],
           ["Policy", draft?.policy_number],
           ["Treatments", d.displayItems.length],
           ["Asking for", formatMoney(d.effectiveTotal)],
         ]}
-        done={rows.filter((r) => r.tone === "ok")}
-        stillOpen={toLookAt}
+        rows={rows}
         onCancel={() => setReview(false)}
         onConfirm={() => {
           setReview(false);
@@ -442,7 +422,7 @@ export default function PreauthDraft({ ctx }) {
         }}
       />
 
-      <DropToAttach enabled={!locked && !preauthAlreadyLive && !d.loading && !d.error} onFiles={dropFiles} />
+      <DropToAttach enabled={!locked && !preauthAlreadyLive && !d.loading && !d.error} documents={d.documents} />
 
       <ConfirmModal
         open={confirmResend}

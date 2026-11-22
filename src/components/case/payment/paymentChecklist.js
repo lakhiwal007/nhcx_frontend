@@ -4,7 +4,7 @@ import { groupRows } from "../step/checklistShared";
 const GROUPS = [
   ["settlement", "Settlement"],
   ["payments", "Payments"],
-  ["ack", "Acknowledgement"],
+  ["ack", "Confirmation"],
 ];
 
 function amountRow(f) {
@@ -21,7 +21,7 @@ function utrRow(f) {
 }
 
 function ackRow(f) {
-  const row = { id: "acks", group: "ack", name: "Acknowledgements" };
+  const row = { id: "acks", group: "ack", name: "Confirmations" };
   if (f.ackFailed) return { ...row, tone: "refused", fact: `${f.ackFailed} failed` };
   return f.ackPending ? { ...row, tone: "wait", fact: `${f.ackPending} in progress` } : { ...row, tone: "ok", fact: "All sent" };
 }

@@ -1,10 +1,14 @@
 import BackButton from "../ui/BackButton";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { DocumentChecklist, NextStep } from "../ui/Common";
 import { formatDate, formatMoney } from "../../lib/format.js";
 import PatientDetailsForm from "../case/forms/PatientDetailsForm";
 import SendGateModal from "../case/step/SendGateModal";
+import ReviewSendModal from "../case/step/ReviewSendModal";
+import DropToAttach from "../case/step/DropToAttach";
+import { burst } from "../../lib/confetti";
 import CaseStep, { Pane, Verdict } from "../case/step/CaseStep";
 import { useCasePane } from "../case/step/useCasePane";
 import { useCaseLock } from "../../hooks/case/useCaseLock";
@@ -22,9 +26,15 @@ export default function PreauthEnhancement({ ctx }) {
   const lock = useCaseLock(ctx, "enhancement");
   const locked = lock.viewOnly || lock.settled;
   const back = () => navigate("../status");
-  const e = useEnhancement(ctx, { onSent: back });
+  const e = useEnhancement(ctx, {
+    onSent: () => {
+      burst();
+      back();
+    },
+  });
   const gate = useSendGate({ caseId: cashless_case_id, waived: e.waivedDocs, label: "Enhancement", onSend: e.send.run });
   const pane = useCasePane();
+  const [review, setReview] = useState(false);
 
   const preview = e.preview;
   const notEnhanceable = preview && (preview.status === "not_found" || !preview.enhanceable);
@@ -71,7 +81,7 @@ export default function PreauthEnhancement({ ctx }) {
         busyLabel: "Sending…",
         disabled: !canSubmit,
         reason: blockers.length ? `First: ${blockers.map((r) => r.name.toLowerCase()).join(", ")}.` : lock.reason || "Nothing new to send.",
-        onClick: gate.request,
+        onClick: () => setReview(true),
       };
   const secondary = [{ label: "Back to approval", icon: ArrowLeft, write: false, onClick: back }];
 
@@ -328,6 +338,25 @@ export default function PreauthEnhancement({ ctx }) {
           </section>
         </Pane>
       </CaseStep>
+
+      <ReviewSendModal
+        ctx={ctx}
+        open={review}
+        sendLabel="Send enhancement"
+        facts={[
+          ["Pre-auth", preview?.preauth_ref],
+          ["Previously requested", formatMoney(authorizedTotal)],
+          ["Revised request", formatMoney(e.revisedTotal)],
+        ]}
+        rows={groups.flatMap((g) => g.rows)}
+        onCancel={() => setReview(false)}
+        onConfirm={() => {
+          setReview(false);
+          gate.request();
+        }}
+      />
+
+      <DropToAttach enabled={!locked && !e.loading && !e.error} target="Documents sent with it" documents={e.documents} />
 
       <SendGateModal gate={gate} busy={e.send.busy} title="Send without a revised estimate?" subtitle="The payer may ask for it before deciding." sendLabel="Send anyway" />
     </>

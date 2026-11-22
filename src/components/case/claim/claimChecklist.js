@@ -10,7 +10,14 @@ const GROUPS = [
 
 const LEFT_LABELS = { DTH: "Home", DTM: "Death", LAMA: "LAMA", DAMA: "DAMA" };
 
+function sessionsRow(cycle) {
+  const count = cycle.sessions.length;
+  const fact = cycle.max_sessions ? `${count} of ${cycle.max_sessions} recorded` : `${count} recorded`;
+  return { id: "sessions", group: "patient", name: "Sessions", fact, ...(count ? { tone: "ok" } : { tone: "bad", blocks: true }) };
+}
+
 function verifyRow(biometric) {
+  if (biometric?.sessions) return sessionsRow(biometric.sessions);
   if (!biometric?.required) return null;
   const row = { id: "verify", group: "patient", name: "Verify the patient" };
   if (biometric.current) return { ...row, tone: "ok", fact: "Verified" };

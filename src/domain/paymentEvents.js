@@ -27,7 +27,7 @@ export const stageWord = (stage) => {
   return word ? word.charAt(0).toUpperCase() + word.slice(1) : "";
 };
 
-const ACK_WORDS = { submitted: "Acknowledged", failed: "Failed", done: "Acknowledged", pending: "In progress", sent: "Sent" };
+const ACK_WORDS = { submitted: "Confirmed", failed: "Failed", done: "Confirmed", pending: "In progress", sent: "Sent" };
 
 export const ackLabel = (value) => {
   const state = typeof value === "string" ? value : value?.history ? ackState(value) : value?.acknowledgement_status;

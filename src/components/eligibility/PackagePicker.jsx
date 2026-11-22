@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatMoney } from "../../lib/format.js";
 import { usePlanPackages } from "../../hooks/workflow/usePlanPackages";
+import Dropdown from "../ui/Dropdown";
 
 const PAGE = 8;
 const yes = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
@@ -39,12 +40,13 @@ export default function PackagePicker({ correlationId, plan, startQuery = "", ch
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(0); }}
           />
-          <select className="cv-ctl" aria-label="Speciality" value={category} onChange={(e) => { setCategory(e.target.value); setPage(0); }}>
-            <option value="">All specialities</option>
-            {categories.map((c) => (
-              <option key={c.code} value={c.code}>{c.display || c.code}</option>
-            ))}
-          </select>
+          <Dropdown
+            compact
+            ariaLabel="Speciality"
+            value={category}
+            options={[{ value: "", label: "All specialities" }, ...categories.map((c) => ({ value: c.code, label: c.display || c.code }))]}
+            onChange={(v) => { setCategory(v); setPage(0); }}
+          />
         </div>
         {error && <div className="cv-notice is-bad">{error}</div>}
         <div className="cv-tw">

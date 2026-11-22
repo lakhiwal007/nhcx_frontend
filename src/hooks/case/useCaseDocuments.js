@@ -40,21 +40,6 @@ export function useCaseDocuments(ctx, { key, seed, records, fetchRecord, maxByte
     if (key && setDraftFiles) setDraftFiles(key, documents);
   }, [key, documents, setDraftFiles]);
 
-  const attachFile = useCallback(
-    async (index, file) => {
-      setError(null);
-      try {
-        const uploaded = await readFileAsAttachment(file, maxBytes ? { maxBytes } : {});
-        setDocuments((docs) => docs.map((d, i) => (i === index ? { ...d, ...uploaded } : d)));
-        return uploaded;
-      } catch (err) {
-        setError(err?.message || "The file could not be read.");
-        return null;
-      }
-    },
-    [maxBytes, setDocuments],
-  );
-
   const attach = useCallback(
     (index, uploaded) => {
       setDocuments((docs) => docs.map((d, i) => (i === index ? { ...d, ...uploaded } : d)));
@@ -97,12 +82,30 @@ export function useCaseDocuments(ctx, { key, seed, records, fetchRecord, maxByte
     [setDocuments],
   );
 
-  const addCustom = useCallback(() => {
-    counter.current += 1;
-    const code = `CUSTOM-${Date.now()}-${counter.current}`;
-    setDocuments((docs) => [...docs, { code, name: "", category: "attachment", optional: true, custom: true }]);
-    return code;
-  }, [setDocuments]);
+  const addRow = useCallback(
+    (fields) => {
+      counter.current += 1;
+      const code = `CUSTOM-${Date.now()}-${counter.current}`;
+      setDocuments((docs) => [...docs, { code, name: "", category: "attachment", optional: true, custom: true, ...fields }]);
+      return code;
+    },
+    [setDocuments],
+  );
+
+  const addCustom = useCallback(() => addRow(), [addRow]);
+
+  const attachDropped = useCallback(
+    async (file) => {
+      try {
+        const uploaded = await readFileAsAttachment(file, maxBytes ? { maxBytes } : {});
+        const code = addRow({ name: file.name, ...uploaded });
+        return () => setDocuments((docs) => docs.filter((d) => d.code !== code));
+      } catch {
+        return null;
+      }
+    },
+    [maxBytes, addRow, setDocuments],
+  );
 
   const rename = useCallback((index, name) => setDocuments((docs) => docs.map((d, i) => (i === index ? { ...d, name } : d))), [setDocuments]);
 
@@ -124,9 +127,8 @@ export function useCaseDocuments(ctx, { key, seed, records, fetchRecord, maxByte
 
   return {
     documents,
-    setDocuments,
     attach,
-    attachFile,
+    attachDropped,
     attachAsk,
     attachRecord,
     detachRecord,

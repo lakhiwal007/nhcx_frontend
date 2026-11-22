@@ -44,9 +44,7 @@ export function pageTitleFor(pathname) {
     .join(" · ");
 }
 
-export const badgeText = (count, { total = null, limit = null } = {}) => {
+export const badgeText = (count) => {
   if (!(count > 0)) return null;
-  if (total != null) return total > 99 ? "99+" : String(total);
-  if (limit != null && count >= limit) return `${limit}+`;
   return count > 99 ? "99+" : String(count);
 };

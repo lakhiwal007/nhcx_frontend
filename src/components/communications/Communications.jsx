@@ -60,7 +60,7 @@ export default function Communications({ allFacilitiesMode = false }) {
   const communications = data.list || [];
   const pulse = usePulse();
   const refresh = () => setReloadKey((k) => k + 1);
-  useOnChange(pulse.available === true ? pulse.commsStamp : undefined, refresh);
+  useOnChange(pulse.commsStamp, refresh);
   const markRead = (id) => setData((prev) => ({ ...prev, list: (prev.list || []).map((c) => (c.correlation_id === id ? { ...c, provider_read: true } : c)) }));
 
   const payers = [...new Map(communications.filter((c) => c.payer_id).map((c) => [c.payer_id, c.payer_name || c.payer_id])).entries()];

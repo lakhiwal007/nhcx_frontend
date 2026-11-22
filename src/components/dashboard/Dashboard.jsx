@@ -35,7 +35,7 @@ const hasTask = (claim, type) => claim.pending_tasks?.some((t) => t.task_type ==
 
 function rowActions(claim) {
   const actions = [];
-  if (hasTask(claim, "review_payment_ack_failure")) actions.push({ label: "Retry the acknowledgement", route: "payment" });
+  if (hasTask(claim, "review_payment_ack_failure")) actions.push({ label: "Confirm the payment again", route: "payment" });
   if (claim.claim_decision === "QUERIED") actions.push({ label: "Answer the claim query", route: "claim", openAction: "respond_claim_query" });
   if (claim.claim_decision === "REJECTED") {
     if (hasTask(claim, "resubmit_discharge_claim")) actions.push({ label: "Resend the discharge claim", route: "claim" });

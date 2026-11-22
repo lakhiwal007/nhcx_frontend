@@ -31,7 +31,7 @@ function NoticeRows({ pay }) {
               <th>Notice</th>
               <th>Received</th>
               <th className="is-num">Net</th>
-              <th>Acknowledged</th>
+              <th>Confirmation</th>
             </tr>
           </thead>
           <tbody>
@@ -74,7 +74,7 @@ function RetryRow({ pay, busy, result, onRetry }) {
       )}
       <div className="pay-retry-row">
         <button type="button" className="cv-btn" disabled={busy} onClick={() => onRetry(pay, claimNumber)}>
-          {busy ? "Retrying…" : "Retry acknowledgement"}
+          {busy ? "Confirming…" : "Confirm the payment again"}
         </button>
         <button type="button" className="cv-link" onClick={() => setEditing((v) => !v)}>
           {editing ? "Keep the payer's claim number" : "Send a different claim number"}
@@ -113,7 +113,7 @@ export default function PaymentsTable({ payments, ackOf, acking = {}, results = 
             <th className="is-num">TDS</th>
             <th className="is-num">Net</th>
             <th>UTR</th>
-            <th>Acknowledged</th>
+            <th>Confirmation</th>
           </tr>
         </thead>
         <tbody>

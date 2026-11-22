@@ -78,7 +78,7 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
     setAsksError(null);
     api
       .prepareClaimDraft(params)
-      .then((res) => setState((prev) => (prev.draft ? { ...prev, draft: { ...prev.draft, payer_asks: res.payer_asks } } : prev)))
+      .then((res) => setState((prev) => (prev.draft ? { ...prev, draft: { ...prev.draft, payer_asks: res.payer_asks, items: res.items, total_amount: res.total_amount } } : prev)))
       .catch((err) => {
         markHandled(err);
         setAsksError(err?.message || "The payer's asks could not be reloaded.");
@@ -128,7 +128,7 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
   const docs = documents.documents;
   const asks = liveAsks(draft?.payer_asks, docs, askForms);
   const askCodes = asks.filter((a) => a.kind === "document").map((a) => String(a.code));
-  const { otherDocs } = documents.partition(askCodes);
+  const otherDocs = documents.partition(askCodes).otherDocs.filter((d) => !d.session);
   const blockingAsks = asks.filter((a) => a.blocking);
   const warnAsks = asks.filter((a) => !a.blocking && a.status !== "attached" && a.status !== "answered");
   const hasMissingDocs = otherDocs.some((d) => !d.optional && !d.url && !d.attachment);

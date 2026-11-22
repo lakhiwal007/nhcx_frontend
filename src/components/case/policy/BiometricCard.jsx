@@ -19,7 +19,20 @@ const DEVICE_PROMPT = { FINGERPRINT: "Ask the patient to place a finger on the d
 const TITLES = { Preauth: "Beneficiary verification", Discharge: "Discharge verification" };
 const POLL_MS = 4000;
 
+function sessionState(cycle) {
+  const count = cycle.sessions.length;
+  const full = cycle.max_sessions != null && count >= cycle.max_sessions;
+  const wait = !full && !!cycle.next_allowed_at && new Date(cycle.next_allowed_at) > new Date();
+  const text = full
+    ? `All ${cycle.max_sessions} sessions the plan allows are recorded.`
+    : wait
+      ? `Sessions are at least 24 hours apart. The next one can be recorded from ${formatDateTime(cycle.next_allowed_at)}.`
+      : "Scan the patient at every session, on the day it is given. The consent form cannot stand in for a scan.";
+  return { label: `${count} recorded`, tone: count ? "ok" : "warn", text, closed: full || wait };
+}
+
 function cardState(card) {
+  if (card?.sessions) return sessionState(card.sessions);
   const held = card?.current;
   if (held) return { label: "Verified", tone: "ok", text: `Verified by ${METHOD_WORD[held.auth_method] || "biometrics"} at ${formatDateTime(held.verified_at)}.` };
   if (card?.latest?.status === "verified") return { label: "Lapsed", tone: "warn", text: "The earlier verification has lapsed. Verify the patient again, or let the signed consent form stand in." };
@@ -214,7 +227,7 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
       await api.verifyBiometric(caseId, panel.attempt.id, body);
       reset();
       await load();
-      toast.success("Patient verified");
+      toast.success(card?.sessions ? "Session recorded" : "Patient verified");
       onVerified?.();
     } catch (err) {
       markHandled(err);
@@ -247,14 +260,15 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
   if (!card?.required) return null;
 
   const state = cardState(card);
+  const title = card.sessions ? "Record a session" : TITLES[stage];
   const picked = METHODS.find((m) => m.value === method) || METHODS[0];
   const ready = panel ? (face ? captured && /^\d{12}$/.test(aadhaar) && /^\d{10}$/.test(mobile) : pid.trim().length > 0) : false;
   const working = !!busy;
 
   return (
-    <section className="cv-card" aria-label={TITLES[stage]}>
+    <section className="cv-card" aria-label={title}>
       <div className="cv-card-head">
-        <h2 className="cv-card-title">{TITLES[stage]}</h2>
+        <h2 className="cv-card-title">{title}</h2>
         <span className={`cv-chip is-${state.tone}`}>{state.label}</span>
         <span className="cv-card-meta">{state.text}</span>
         <RefreshButton iconOnly label="Refresh the verification" onClick={load} />
@@ -268,7 +282,7 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
         </div>
       )}
 
-      {!readOnly && !panel && (
+      {!readOnly && !panel && !state.closed && (
         <div className="cv-card-body bio-start">
           <div className="cv-field-stack">
             <span className="cv-field-key">How to verify</span>
@@ -283,7 +297,7 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
           </div>
           <div className="cv-pane-action">
             <button type="button" className="cv-btn" disabled={working} onClick={start}>
-              {busy === "start" ? "Starting…" : card.current ? "Verify again" : "Verify the patient"}
+              {busy === "start" ? "Starting…" : card.sessions ? "Record a session" : card.current ? "Verify again" : "Verify the patient"}
             </button>
           </div>
         </div>
