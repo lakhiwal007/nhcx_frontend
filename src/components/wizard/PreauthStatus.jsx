@@ -124,7 +124,7 @@ export default function PreauthStatus({ ctx }) {
                     : { tone: "warn", title: "Cancellation refused", text: "The payer refused the cancellation, so this pre-auth still stands." };
 
   const chipTone = isFailed ? "bad" : isNotFound ? "warn" : !isComplete ? "info" : isUnknown || ambiguous ? "warn" : view.tone === "wait" ? "info" : view.tone;
-  const chipLabel = isFailed ? "Not delivered" : isNotFound ? "No record" : !isComplete ? (purposeCancel ? "Awaiting cancellation" : "Awaiting payer") : isUnknown ? "Unclear answer" : ambiguous ? `${view.word}, verify` : view.word;
+  const chipLabel = isFailed ? "Not delivered" : isNotFound ? "No record" : !isComplete ? (purposeCancel ? "Awaiting cancellation" : "Waiting for the payer") : isUnknown ? "Unclear answer" : ambiguous ? `${view.word}, verify` : view.word;
 
   const primary = isFailed
     ? { label: "Back to pre-auth draft", write: false, onClick: () => navigate("../review") }
@@ -299,7 +299,7 @@ export default function PreauthStatus({ ctx }) {
         <Pane id="notes">
           <section className="cv-card">
             <div className="cv-card-head">
-              <h2 className="cv-card-title">Payer notes</h2>
+              <h2 className="cv-card-title">Payer's notes</h2>
               <span className="cv-card-meta">The payer's own words. Read these first when a pre-auth is queried, cut or rejected.</span>
             </div>
             <div className="cv-card-body">
@@ -361,7 +361,7 @@ export default function PreauthStatus({ ctx }) {
         <Pane id="errors">
           <section className="cv-card">
             <div className="cv-card-head">
-              <h2 className="cv-card-title">Payer errors</h2>
+              <h2 className="cv-card-title">Errors from the payer</h2>
             </div>
             <div className="cv-card-body">
               <PayrErrorList errors={data?.errors || []} />

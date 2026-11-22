@@ -6,7 +6,7 @@ import { liveAsks } from "./askStatus";
 import { readFileAsAttachment } from "../../../lib/files";
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
-const SOURCE = { ruling: "payer's ruling", plan: "plan, every case", package: "plan, for the package", consent: "PMJAY, in place of biometrics" };
+const SOURCE = { ruling: "payer's rule", plan: "plan, every case", package: "plan, for the package", consent: "PMJAY, in place of biometrics" };
 
 function badge(row) {
   if (row.kind === "document") return row.status === "attached" ? ["Attached", "is-todo"] : [row.blocking ? "Missing" : "Not attached", "is-warn"];
@@ -25,7 +25,7 @@ function detail(row) {
   return parts.join(" · ");
 }
 
-export default function PayerAsks({ caseId, stage, asks, documents, readOnly, onAttach, onFormsChange, reloadKey, title = "What the payer asks for" }) {
+export default function PayerAsks({ caseId, stage, asks, documents, readOnly, onAttach, onFormsChange, reloadKey, title = "What the payer needs" }) {
   const [forms, setForms] = useState({ key: null, rows: [], readOnly: false, error: null });
   const [open, setOpen] = useState(null);
   const [error, setError] = useState(null);
@@ -81,11 +81,11 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
       <input type="file" ref={fileRef} accept="application/pdf,image/jpeg,image/png" style={{ display: "none" }} onChange={onFile} />
       <div className="cv-card-head">
         <h2 className="cv-card-title">{title}</h2>
-        {rows.length > 0 && <span className="cv-card-meta">{blocking ? `${blocking} must be done` : open_ ? `${open_} open` : "All in"}</span>}
+        {rows.length > 0 && <span className="cv-card-meta">{blocking ? `${blocking} needed before you can send` : open_ ? `${open_} open` : "All in"}</span>}
       </div>
       <details className="cv-howto">
         <summary>How this works</summary>
-        <div className="cv-card-intro">From the payer's ruling first, then the plan. A row is ticked only by a file or answer filed against it; a row that says it stops the send must be done before sending.</div>
+        <div className="cv-card-intro">From the payer's rule first, then the plan. A row is ticked only by a file or answer filed against it; a row that says it stops the send needed before you can send before sending.</div>
       </details>
       {error && <div className="cv-card-body"><div className="cv-notice is-bad"><div className="cv-notice-body">{error}</div></div></div>}
       {forms.error && <div className="cv-card-body"><div className="cv-notice is-warn"><div className="cv-notice-body">{forms.error} Reload the page to try again.</div></div></div>}
@@ -100,7 +100,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
               <div className="cv-row-title">{row.display}</div>
               <div className="cv-row-sub">
                 {detail(row)}
-                {row.blocking && row.reason ? <span style={{ color: "var(--cv-warn)" }}> · stops the send: {row.reason}</span> : null}
+                {row.blocking && row.reason ? <span style={{ color: "var(--cv-warn)" }}> · needed before you can send: {row.reason}</span> : null}
               </div>
             </div>
             {row.kind === "document" ? (

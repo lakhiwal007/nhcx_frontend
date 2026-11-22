@@ -39,7 +39,7 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
     async () => {
       const res = await api.reprocessCallback(task.correlation_id);
       if (res?.status !== "reprocessed" && res?.status !== "already_complete") {
-        throw new Error(res?.message || "The payer response still could not be read.");
+        throw new Error(res?.message || "The payer's answer still could not be read. Tell your IT team.");
       }
     },
     { success: "The payer's answer was read", onDone },
@@ -52,10 +52,10 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
         reason: "payer-changed",
         description: "Case moved to a different payer.",
       });
-      if (!(res?.correlation_id || res?.status === "submitted")) throw new Error(res?.message || "Could not withdraw the pre-auth.");
+      if (!(res?.correlation_id || res?.status === "submitted")) throw new Error(res?.message || "The pre-auth could not be withdrawn. Try again.");
       await api.completeTask(taskId, { note: "Withdrawn with the previous payer" });
     },
-    { success: "Pre-auth withdrawn with the previous payer", onDone },
+    { success: "Pre-auth withdrawn from the previous payer", onDone },
   );
 
   const complete = useSend(() => api.completeTask(taskId, { note: "Actioned from Work Queue" }), {
@@ -82,19 +82,19 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
       disabled={busy || allFacilitiesMode || task.metadata?.retryable === false}
       disabledReason={
         task.metadata?.retryable === false
-          ? "This failure predates payload capture, so it cannot be replayed. Confirm the outcome with the payer."
+          ? "This answer is too old to be read again. Call the payer to confirm what it decided."
           : undefined
       }
       onClick={retry.run}
     >
-      {retry.busy ? "Retrying…" : "Retry the payer's answer"}
+      {retry.busy ? "Reading…" : "Read the payer's answer again"}
     </Button>
   ) : isSupersededCancel ? (
     <Button write variant="primary" disabled={busy || allFacilitiesMode} onClick={withdraw.run}>
-      {withdraw.busy ? "Withdrawing…" : "Withdraw with the previous payer"}
+      {withdraw.busy ? "Withdrawing…" : "Withdraw from the previous payer"}
     </Button>
   ) : (
-    <Button variant="primary" disabled={allFacilitiesMode} disabledReason={allFacilitiesMode ? "This account can view only" : undefined} onClick={openCase}>
+    <Button variant="primary" disabled={allFacilitiesMode} disabledReason={allFacilitiesMode ? "This account can view but cannot change anything" : undefined} onClick={openCase}>
       {openLabel(task || {})}
     </Button>
   );
@@ -149,7 +149,7 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
             {isAckFailure && paymentRef && (
               <NextStep
                 tone="bad"
-                title="Our confirmation didn't reach the payer"
+                title="The payment confirmation did not reach the payer"
                 actions={
                   <Button write variant="outline" size="small" disabled={busy || allFacilitiesMode} onClick={() => retryAck.run(task)}>
                     {retryAck.busy ? "Sending…" : "Send it again"}
@@ -211,7 +211,7 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
       <ConfirmModal
         open={complete.confirming}
         title="Mark this task done?"
-        subtitle="It leaves the queue. Nothing is sent to the payer."
+        subtitle="It is removed from the Work Queue. Nothing is sent to the payer."
         confirmLabel="Mark done"
         busy={complete.busy}
         onCancel={complete.cancel}

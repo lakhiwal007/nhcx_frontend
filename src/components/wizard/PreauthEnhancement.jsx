@@ -59,7 +59,7 @@ export default function PreauthEnhancement({ ctx }) {
       : locked
         ? ["Not sent", "todo"]
         : blockers.length > 0
-          ? [`${blockers.length} must be done`, "warn"]
+          ? [`${blockers.length} needed before you can send`, "warn"]
           : ["Ready to send", "ok"];
 
   const primary = blockedReason || e.error
@@ -133,6 +133,7 @@ export default function PreauthEnhancement({ ctx }) {
         open={open}
         onOpen={pane.openItem}
         checklistLabel="Enhancement checklist"
+        sendStep
         loading={e.loading}
         loadingText="Working out what is new since the pre-auth…"
         error={e.error}

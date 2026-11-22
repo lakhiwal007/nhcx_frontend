@@ -14,6 +14,18 @@ function Toast({ item }) {
         {item.message}
         {item.count > 1 && <span className="toast-count"> (×{item.count})</span>}
       </div>
+      {item.action && (
+        <button
+          type="button"
+          className="toast-action"
+          onClick={() => {
+            item.action.onClick?.();
+            toast.dismiss(item.id);
+          }}
+        >
+          {item.action.label}
+        </button>
+      )}
       <button type="button" className="toast-close" onClick={() => toast.dismiss(item.id)} aria-label="Dismiss">
         <X size={14} />
       </button>

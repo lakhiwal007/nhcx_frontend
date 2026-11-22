@@ -89,7 +89,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
         ? { ...hint, ...buildActionBody(taskAction.code, { claim_id: hint.claim_id ?? detail?.claim_id, cashless_case_id: hint.cashless_case_id ?? detail?.cashless_case_id, answer, docs: docs.map(documentFromFile) }) }
         : hint;
       const res = method === "GET" ? await api.rawGet(url, hint) : await api.rawPost(url, body);
-      if (res?.status === "failed") throw new Error(res?.message || "The payer did not accept it.");
+      if (res?.status === "failed") throw new Error(res?.message || "The payer did not accept this. Check what it asks for and send again.");
       setReplied(res);
       setAnswer("");
       setDocs([]);
@@ -106,14 +106,14 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       onClose();
       return res;
     },
-    { success: "Marked as reviewed" },
+    { success: "Message marked done" },
   );
 
   const ack = useSend(
     async () => {
       const res = await api.acknowledgeCommunication(correlationId);
       setState((prev) => ({ ...prev, detail: prev.detail ? { ...prev.detail, acknowledged: !!res?.acknowledged, acknowledged_at: res?.acknowledged_at ?? prev.detail.acknowledged_at, ack_error: res?.acknowledged ? null : res?.ack_error || res?.message || prev.detail.ack_error } : prev.detail }));
-      if (!res?.acknowledged) throw new Error(res?.ack_error || res?.message || "The payer did not accept the acknowledgement.");
+      if (!res?.acknowledged) throw new Error(res?.ack_error || res?.message || "The payer did not accept the acknowledgement. Try again.");
       return res;
     },
     { success: "Receipt acknowledged to the payer" },
@@ -150,7 +150,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       : actionable && !replied
         ? { label: act.busy ? "Sending…" : taskAction.label || "Send the documents", disabled: act.busy || (carriesDocuments(taskAction.code) && docs.length === 0 && !answer.trim()), onClick: act.run }
         : taskId
-          ? { label: complete.busy ? "Marking…" : "Mark reviewed", disabled: complete.busy, onClick: markReviewed }
+          ? { label: complete.busy ? "Marking…" : "Mark done", disabled: complete.busy, onClick: markReviewed }
           : null;
 
   return (
@@ -174,7 +174,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
             <div className="cv-drawer-actions">
               {showOpenCase && detail?.cashless_case_id && detail?.child_id && (
                 <button type="button" className="cv-btn" onClick={openCase}>
-                  <ExternalLink size={14} aria-hidden="true" /> Open case
+                  <ExternalLink size={14} aria-hidden="true" /> Open the case
                 </button>
               )}
               {primary && (
@@ -284,7 +284,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
               <div className="cv-notice is-ok">
                 <div className="cv-notice-body">
                   Sent to the payer.{replied.message ? ` ${replied.message}` : ""}
-                  {taskId ? " Mark this message reviewed to close it from your queue." : ""}
+                  {taskId ? " Mark it done to remove it from your Work Queue." : ""}
                 </div>
               </div>
             )}
@@ -296,7 +296,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
             {detail.completed_tasks?.length > 0 && (
               <section className="cm-section">
-                <h4 className="cv-sub">Done on this message</h4>
+                <h4 className="cv-sub">Already done for this message</h4>
                 <ul className="cm-done">
                   {detail.completed_tasks.map((t, i) => (
                     <li key={i}>{t.title || humanize(t.task_type)}</li>
@@ -312,9 +312,9 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
       <ConfirmModal
         open={confirmReviewed}
-        title="Mark reviewed without replying?"
-        subtitle="The payer asked a question on this message and has not been answered. Marking it reviewed closes the task on your side only."
-        confirmLabel="Mark reviewed anyway"
+        title="Mark done without replying?"
+        subtitle="The payer asked a question in this message and has no answer yet. Marking it done only removes the task from your Work Queue. The payer is still waiting."
+        confirmLabel="Mark done anyway"
         cancelLabel="Go back"
         busy={complete.busy}
         onCancel={() => setConfirmReviewed(false)}

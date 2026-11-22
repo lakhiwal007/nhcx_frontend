@@ -96,7 +96,7 @@ export default function ResubmitPreauthDrawer({ open, onClose, ctx, preauthRef, 
             {tab === "lines" && (
               <section className="cv-card">
                 <div className="cv-card-head">
-                  <h3 className="cv-card-title">Treatment &amp; cost</h3>
+                  <h3 className="cv-card-title">Treatment and cost</h3>
                   {d.edited.items && (
                     <span className="cv-card-tools">
                       <button type="button" className="cv-link" onClick={d.resetItems}>

@@ -8,7 +8,8 @@ import { saveWorkflow, loadWorkflow } from "../../lib/workflowStorage";
 import CaseFileHeader from "../case/frame/CaseFileHeader";
 import BackButton from "../ui/BackButton";
 import CaseStepper from "../case/frame/CaseStepper";
-import { NeedsYouPanel, NeedsYouChip } from "../case/frame/NeedsYou";
+import { NeedsYouChip } from "../case/frame/NeedsYou";
+import CaseRail from "../case/frame/CaseRail";
 import { attentionItems } from "../case/frame/attentionItems";
 import CaseNotesDrawer from "../case/frame/CaseNotes";
 import AnswerPayerQuery from "../case/asks/AnswerPayerQuery";
@@ -21,6 +22,7 @@ import { useCaseRecord } from "../../hooks/case/useCaseRecord";
 import { usePoll } from "../../hooks/util/usePoll";
 import { useCasePulse, useOnChange } from "../../lib/pulse";
 import "../case/frame/case-v2.css";
+import "../case/frame/case-record.css";
 
 import PayerPolicy from "./PayerPolicy";
 import EligibilityPrep from "./EligibilityPrep";
@@ -346,10 +348,9 @@ function CaseWorkspace({ reportCase }) {
   };
 
   const stageTools = [];
-  if (ledgerCaseId) stageTools.push({ label: notes.length ? `Notes (${notes.length})` : "Notes", onClick: () => setNotesOpen(true) });
   if (ledgerCaseId && cashlessCase && !readOnly && !caseClosed) stageTools.push({ label: "Close case", onClick: () => setCloseOpen(true) });
   const onTimeline = currentStepPath === "timeline";
-  if (!onTimeline) stageTools.push({ label: "Audit trail", onClick: () => navigate(`/case/${id}/timeline${location.search}`, { state: location.state }) });
+  const openHistory = () => navigate(`/case/${id}/timeline${location.search}`, { state: location.state });
   const stageBack = onTimeline ? { label: "Back to case", onClick: () => navigate(`/case/${id}/${location.search}`, { state: location.state }) } : null;
 
   const from = location.state?.from;
@@ -406,7 +407,6 @@ function CaseWorkspace({ reportCase }) {
           caseState={caseState}
           effectiveCase={effectiveCase}
           preauthRef={preauthRef}
-          moneyLedger={timeline?.money_ledger || null}
           statusPill={
             <>
               {caseShut ? <span className="cv-chip is-todo">Closed · read-only</span> : caseSettled ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
@@ -417,7 +417,6 @@ function CaseWorkspace({ reportCase }) {
               )}
             </>
           }
-          aside={asks.length > 0 ? <NeedsYouPanel {...askHandlers} /> : null}
         />
         <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} trailing={asks.length > 0 ? <NeedsYouChip {...askHandlers} /> : null} />
       </div>
@@ -456,6 +455,7 @@ function CaseWorkspace({ reportCase }) {
           </div>
         )}
 
+        <div className={`cv-desk${onTimeline ? " is-solo" : ""}`}>
         <div className="cv-stage-body">
           <AnimatePresence mode="wait">
             <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
@@ -476,6 +476,18 @@ function CaseWorkspace({ reportCase }) {
               </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
+        </div>
+        {!onTimeline && (
+          <CaseRail
+            moneyLedger={timeline?.money_ledger || null}
+            effectiveCase={effectiveCase}
+            asks={askHandlers}
+            events={timeline?.events || []}
+            notes={notes}
+            onOpenNotes={ledgerCaseId ? () => setNotesOpen(true) : null}
+            onOpenHistory={openHistory}
+          />
+        )}
         </div>
       </div>
 

@@ -11,7 +11,7 @@ import { formatDateTime, formatRelative } from "../../../lib/format.js";
 
 const NOTE_CATEGORIES = [
   { value: "general", label: "General" },
-  { value: "payer_call", label: "Payer call" },
+  { value: "payer_call", label: "Call with the payer" },
   { value: "follow_up", label: "Follow-up" },
   { value: "billing", label: "Billing" },
   { value: "clinical", label: "Clinical" },

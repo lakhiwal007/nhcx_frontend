@@ -185,7 +185,7 @@ export default function CaseTimeline({ ctx }) {
   }
 
   return (
-    <CaseStep ctx={ctx} verdict={verdict} checklist={groups} open={open} onOpen={pane.openItem} checklistLabel="Audit trail filters" loading={t.loading} loadingText="Reading the audit trail…" paneRef={pane.paneRef}>
+    <CaseStep ctx={ctx} verdict={verdict} checklist={groups} open={open} onOpen={pane.openItem} checklistLabel="Audit trail filters" tabs={false} loading={t.loading} loadingText="Reading the audit trail…" paneRef={pane.paneRef}>
       <Pane id="money">
         <section className="cv-card" aria-label="Reconciliation">
           <div className="cv-card-head">

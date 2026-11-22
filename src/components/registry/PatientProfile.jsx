@@ -302,7 +302,7 @@ export default function PatientProfile() {
           <EmptyState
             icon={User}
             title={hasSearched || filters.caseState !== "any" ? "No patients found" : "No patients registered yet"}
-            description={filters.caseState !== "any" ? "No patient in this group matches. Try another chip or clear the search." : hasSearched ? "Try a different name, patient id or mobile number." : "Patients registered in the hospital system show up here."}
+            description={filters.caseState !== "any" ? "No patient in this group matches. Try another filter above, or clear the search." : hasSearched ? "Try a different name, patient id or mobile number." : "Patients registered in the hospital system appear here."}
           />
         ) : narrow ? (
           <ul className="pt-cards">

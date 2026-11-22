@@ -28,7 +28,7 @@ function decisionRows(f) {
     { id: "decision", group, name: "Payer's answer", tone, fact: word },
     f.approved != null && { id: "amounts", group, name: "Amounts", tone: cut ? "warn" : "ok", fact: formatMoney(f.approved) },
     f.lines.length > 0 && { id: "lines", group, name: "Line by line", ...(cut ? { tone: "warn", fact: `${cut} cut` } : { tone: "ok", fact: `${f.lines.length} ${f.lines.length === 1 ? "line" : "lines"}` }) },
-    f.notes > 0 && { id: "notes", group, name: "Payer notes", tone: f.readNotes ? "warn" : "idle", fact: String(f.notes) },
+    f.notes > 0 && { id: "notes", group, name: "Payer's notes", tone: f.readNotes ? "warn" : "idle", fact: String(f.notes) },
   ];
 }
 

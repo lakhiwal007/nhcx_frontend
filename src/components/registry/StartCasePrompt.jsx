@@ -31,7 +31,7 @@ export default function StartCasePrompt({ prompt, onCancel, onStart }) {
     <ConfirmModal
       open={!!prompt}
       title={cases.length === 1 ? "An older case is still open" : `${cases.length} older cases are still open`}
-      subtitle="Close the ones this new case replaces so they leave the work queue. Nothing is sent to the payer, and a closed case can be reopened."
+      subtitle="If the new case replaces any of these, close them so their tasks are removed from the Work Queue. Nothing is sent to the payer, and a closed case can be reopened."
       confirmLabel="Start the new case"
       busy={busy}
       onCancel={onCancel}

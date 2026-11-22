@@ -227,7 +227,7 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
       if (decision === "PARTIALLY_APPROVED") return { done: true, note: approvedAmount ? `Partial ${approvedAmount}` : "Partially approved", tone: "approve" };
       if (decision === "REJECTED") return { done: true, note: "Rejected", tone: "urgent" };
       if (decision === "CANCELLED") return { done: true, note: "Cancelled", tone: "urgent" };
-      if (preauthStarted) return { done: false, note: "Waiting on payer", tone: "wait", live: true };
+      if (preauthStarted) return { done: false, note: "Waiting for the payer", tone: "wait", live: true };
       return { done: false, note: "" };
     })(),
     claim: (() => {

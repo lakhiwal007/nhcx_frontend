@@ -67,7 +67,7 @@ export default function PaymentDrawer({ payment, onClose, onOpenCase, onLink, on
           {unlinked && (
             <div className="cv-notice is-warn">
               <div className="cv-notice-body">
-                <strong>Not linked to a case.</strong> The payer named {p.claim_reference ? <span className="cv-mono">{p.claim_reference}</span> : "no claim"}, which matches no case here. Link it so the case's Payment step and the acknowledgement can follow.
+                <strong>Not linked to a case.</strong> The payer named {p.claim_reference ? <span className="cv-mono">{p.claim_reference}</span> : "no claim"}, which matches no case here. Link it to the right case so the payment shows on that case and the payer can be told it arrived.
               </div>
             </div>
           )}

@@ -11,7 +11,7 @@ const ATTENTION = new Set(["warn", "bad"]);
 
 function verifyRow(biometric) {
   if (!biometric?.required) return null;
-  const row = { id: "verify", group: "you", name: "Verify patient" };
+  const row = { id: "verify", group: "you", name: "Verify the patient" };
   if (biometric.current) return { ...row, tone: "ok", fact: "Verified" };
   return { ...row, tone: "warn", fact: biometric.latest?.status === "verified" ? "Lapsed" : "Not verified" };
 }
@@ -62,7 +62,7 @@ function benefitsRow(checks) {
 }
 
 function authRow(checks, requirements) {
-  const row = { id: "auth", group: "payer", name: "Auth requirements" };
+  const row = { id: "auth", group: "payer", name: "What must be approved first" };
   const open = checkStateRow(checks?.auth, row, checks?.waitingOn);
   if (open) return open;
   if (requirements.length) return { ...row, tone: "warn", fact: `${requirements.length} ${requirements.length === 1 ? "ask" : "asks"}` };

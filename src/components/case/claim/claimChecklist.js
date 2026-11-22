@@ -12,7 +12,7 @@ const LEFT_LABELS = { DTH: "Home", DTM: "Death", LAMA: "LAMA", DAMA: "DAMA" };
 
 function verifyRow(biometric) {
   if (!biometric?.required) return null;
-  const row = { id: "verify", group: "patient", name: "Verify patient" };
+  const row = { id: "verify", group: "patient", name: "Verify the patient" };
   if (biometric.current) return { ...row, tone: "ok", fact: "Verified" };
   return { ...row, tone: "warn", fact: biometric.latest?.status === "verified" ? "Lapsed" : "Not verified" };
 }
@@ -43,16 +43,16 @@ function billRow(f) {
 }
 
 function asksRow(f) {
-  const row = { id: "asks", group: "documents", name: "Payer asks" };
+  const row = { id: "asks", group: "documents", name: "What the payer needs" };
   const open = f.asks.filter((a) => a.status !== "attached" && a.status !== "answered").length;
-  if (f.blockingAsks) return { ...row, tone: "bad", fact: f.locked ? `${open} open` : `${f.blockingAsks} must be done`, blocks: true };
+  if (f.blockingAsks) return { ...row, tone: "bad", fact: f.locked ? `${open} open` : `${f.blockingAsks} needed before you can send`, blocks: true };
   if (open) return { ...row, tone: "warn", fact: `${open} open` };
   return { ...row, tone: "ok", fact: f.asks.length ? "All in" : "Nothing extra" };
 }
 
 function filesRow(f) {
   const row = { id: "files", group: "documents", name: "Other files" };
-  if (f.hasMissingDocs) return { ...row, tone: "bad", fact: "File missing", blocks: true };
+  if (f.hasMissingDocs) return { ...row, tone: "bad", fact: "A file is missing", blocks: true };
   return { ...row, tone: "ok", fact: `${f.attachedFiles} attached` };
 }
 
@@ -88,7 +88,7 @@ export function buildClaimChecklist(f) {
   const yours = [
     ...patientRows(f),
     stayRow(f),
-    { id: "justification", group: "claim", name: "Justification", ...(f.justified ? { tone: "ok", fact: `${f.justified} coded` } : { tone: "warn", fact: "Thin", his: true }) },
+    { id: "justification", group: "claim", name: "Reason for treatment", ...(f.justified ? { tone: "ok", fact: `${f.justified} coded` } : { tone: "warn", fact: "Thin", his: true }) },
     billRow(f),
     asksRow(f),
     filesRow(f),

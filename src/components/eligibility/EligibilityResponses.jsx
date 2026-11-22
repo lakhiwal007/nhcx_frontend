@@ -155,7 +155,7 @@ function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
   );
 }
 
-const TITLES = { validation: "Validation", benefits: "Benefits", auth: "Auth requirements" };
+const TITLES = { validation: "Validation", benefits: "Benefits", auth: "What must be approved first" };
 
 export default function PayerAnswer({ id, checks, requirements, discovery, formTitle, onOpenForm }) {
   const check = checks?.[id];

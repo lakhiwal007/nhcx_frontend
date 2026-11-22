@@ -104,7 +104,7 @@ export function AdmissionsLedger({ visits, onOpen }) {
         bill: (
           <>
             <span className="mono">{m.invoices.length ? formatMoney(m.finalBill) : "—"}</span>
-            <div className={`pt-sub mono${m.outstanding > 0 ? " pt-warn" : ""}`}>{m.invoices.length ? `${formatMoney(m.outstanding)} to collect` : "No billing yet"}</div>
+            <div className={`pt-sub mono${m.outstanding > 0 ? " pt-warn" : ""}`}>{m.invoices.length ? `${formatMoney(m.outstanding)} to collect` : "No bill yet"}</div>
           </>
         ),
       },
@@ -236,7 +236,7 @@ export function AdmissionDrawer({ visit, onClose, onStart, onResume, readOnly })
         {cases.length > 0 && <div className="cv-kv"><span>Cases</span><span className="mono">{cases.map((c) => formatCaseRef(c.cashless_case_id)).join(", ")}</span></div>}
       </div>
       {invoices.length === 0 ? (
-        <p className="pt-empty">No billing on this admission yet.</p>
+        <p className="pt-empty">No bill for this admission yet.</p>
       ) : (
         <>
           <section className="cv-card">
@@ -334,7 +334,7 @@ export function CaseDrawer({ summary, tasks = [], onClose, onOpenCase, onOpenTas
       footer={
         <div className="cv-drawer-actions">
           <Button variant="primary" icon={ArrowRight} onClick={() => onOpenCase(s)}>
-            Open case
+            Open the case
           </Button>
         </div>
       }
@@ -345,7 +345,7 @@ export function CaseDrawer({ summary, tasks = [], onClose, onOpenCase, onOpenTas
         <>
           {state.key === caseId && state.error && (
             <div className="cv-notice is-warn cv-drawer-note">
-              <div className="cv-notice-body">The case could not be read, so what is shown is the summary only: {state.error}</div>
+              <div className="cv-notice-body">The full case could not be loaded, so only a summary is shown: {state.error}</div>
             </div>
           )}
           <div className="cv-card-body pt-drawer-facts">
@@ -385,10 +385,10 @@ export function CaseDrawer({ summary, tasks = [], onClose, onOpenCase, onOpenTas
           </section>
           <section className="cv-card">
             <div className="cv-card-head">
-              <h3 className="cv-card-title">Waiting on this case</h3>
+              <h3 className="cv-card-title">To do on this case</h3>
             </div>
             {caseTasks.length === 0 ? (
-              <p className="cv-card-intro">Nothing is waiting on this case.</p>
+              <p className="cv-card-intro">Nothing to do on this case right now.</p>
             ) : (
               <div className="cv-card-body">
                 {caseTasks.map((t, ti) => (

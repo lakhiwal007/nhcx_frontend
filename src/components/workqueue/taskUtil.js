@@ -35,5 +35,5 @@ export const describeDocRequirement = (d) => {
   if (category || code) {
     return { label: [category?.display, code?.display].filter(Boolean).join(" — "), code: category?.code };
   }
-  return { label: "Document requirement" };
+  return { label: "A document (the payer did not name it)" };
 };

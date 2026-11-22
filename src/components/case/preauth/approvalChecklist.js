@@ -19,7 +19,7 @@ export function buildApprovalChecklist(f) {
     ...decisionRows(f),
     f.clinical > 0 && { id: "clinical", group: "case", name: "Clinical basis", tone: "idle", fact: `${f.clinical} ${f.clinical === 1 ? "item" : "items"}` },
     enquiryRow(f),
-    f.errors > 0 && { id: "errors", group: "followup", name: "Payer errors", tone: "bad", fact: String(f.errors) },
+    f.errors > 0 && { id: "errors", group: "followup", name: "Errors from the payer", tone: "bad", fact: String(f.errors) },
     f.complete && { id: "response", group: "technical", name: "Payer response", tone: "idle", fact: "As received" },
   ];
   return groupRows(GROUPS, rows);

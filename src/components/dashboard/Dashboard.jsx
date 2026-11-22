@@ -55,7 +55,7 @@ function StatusDetail({ claim }) {
   if (task && needsAttention(claim)) {
     return (
       <div className="wq-sub cc-task" title={task.title}>
-        <AlertCircle size={12} aria-hidden="true" /> {taskLabel(task.task_type) || task.title || "Action required"}
+        <AlertCircle size={12} aria-hidden="true" /> {taskLabel(task.task_type) || task.title || "Needs action"}
       </div>
     );
   }
@@ -88,7 +88,7 @@ function RowActions({ claim, busy, onOpen }) {
       <button type="button" className="cc-act" disabled={busy} onClick={() => onOpen(claim)}>
         {busy ? "Opening…" : "Open"}
       </button>
-      <RowMenu label={`More for ${formatCaseRef(claim.id)}`} disabled={busy} items={actions.map((a) => ({ label: a.label, onClick: () => onOpen(claim, a) }))} />
+      <RowMenu label={`More actions for ${formatCaseRef(claim.id)}`} disabled={busy} items={actions.map((a) => ({ label: a.label, onClick: () => onOpen(claim, a) }))} />
     </div>
   );
 }
@@ -206,12 +206,12 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         cid = cs.child_id;
       } catch (err) {
         markHandled(err);
-        setNavError(err?.message || "The case could not be opened.");
+        setNavError(err?.message || "The case could not be opened. Try again.");
       }
       setNavigating((p) => ({ ...p, [claim.id]: false }));
     }
     if (!cid) {
-      setNavError((prev) => prev || "This case has no patient on record, so it cannot be opened.");
+      setNavError((prev) => prev || "This case is not linked to a patient, so it cannot be opened. Tell your IT team.");
       return;
     }
     const state = { claim_id: claim.claim_id ?? null, cashless_case_id: claim.cashless_case_id ?? claim.id ?? null, from: "/dashboard", ...(action?.openAction ? { openAction: action.openAction } : {}) };
@@ -267,14 +267,14 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         </Button>
         {!allFacilitiesMode && (
           <Button variant="primary" size="small" icon={Plus} write onClick={() => navigate("/registry")} title="Start a case from the patient registry">
-            New case
+            Start a case
           </Button>
         )}
       </PageActions>
 
       {allFacilitiesMode && (
         <div className="cv-notice is-info">
-          <div className="cv-notice-body">Viewing all facilities. This account can see every case but not start or act on one.</div>
+          <div className="cv-notice-body">You are viewing all facilities. This account can see every case but cannot start or change one.</div>
         </div>
       )}
 
@@ -399,7 +399,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         {loading && !claims ? (
           <SkeletonTable rows={6} cols={columns.length} />
         ) : list.length === 0 ? (
-          <EmptyState icon={Inbox} title="No cashless cases yet" description="To start one, open the Patient Registry, find the admitted patient and press Start case. It shows up here." />
+          <EmptyState icon={Inbox} title="No cashless cases yet" description="To start one, open the Patient Registry, find the admitted patient and press Start case. The new case will appear here." />
         ) : filtered.length === 0 ? (
           <div className="wq-empty">
             <div className="wq-empty-title">{caseFilter ? `${formatCaseRef(caseFilter)} is not in this list` : "No cases match these filters"}</div>

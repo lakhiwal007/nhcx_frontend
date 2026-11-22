@@ -104,14 +104,14 @@ export default function ReprocessScreen({ ctx }) {
         ? locked
           ? ["Not sent", "todo"]
           : blockers.length > 0
-            ? [`${blockers.length} must be done`, "warn"]
+            ? [`${blockers.length} needed before you can send`, "warn"]
             : ["Ready to send", "ok"]
         : isFailed
           ? ["Not delivered", "bad"]
           : isNotFound
             ? ["No record", "warn"]
             : !isComplete
-              ? ["Awaiting payer", "info"]
+              ? ["Waiting for the payer", "info"]
               : isUnclear
                 ? ["Unclear answer", "warn"]
                 : isAccepted
@@ -234,6 +234,7 @@ export default function ReprocessScreen({ ctx }) {
         open={open}
         onOpen={pane.openItem}
         checklistLabel="Appeal checklist"
+        sendStep
         loading={r.loading}
         loadingText="Reading the case…"
         paneRef={pane.paneRef}
@@ -361,7 +362,7 @@ export default function ReprocessScreen({ ctx }) {
         </Pane>
 
         <Pane id="notes">
-          <Card title="Payer notes" meta="The payer's own words. Read these first when an appeal is queried or rejected.">
+          <Card title="Payer's notes" meta="The payer's own words. Read these first when an appeal is queried or rejected.">
             <div className="cv-card-body">
               <PayerWords notes={view.notes} errors={r.payerErrors} />
             </div>

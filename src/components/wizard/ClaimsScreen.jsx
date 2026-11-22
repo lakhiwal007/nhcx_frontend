@@ -177,7 +177,7 @@ export default function ClaimsScreen({ ctx }) {
           : c.finalFailed
             ? ["Not delivered", "bad"]
             : c.finalSent
-              ? ["Awaiting payer", "info"]
+              ? ["Waiting for the payer", "info"]
               : c.dischargeFailed
                 ? ["Not delivered", "bad"]
                 : c.dischargeRejected
@@ -189,7 +189,7 @@ export default function ClaimsScreen({ ctx }) {
                       : locked
                         ? ["Not sent", "todo"]
                         : activeBlockers.length > 0
-                          ? [`${activeBlockers.length} must be done`, "warn"]
+                          ? [`${activeBlockers.length} needed before you can send`, "warn"]
                           : sending
                             ? ["Sending", "info"]
                             : ["Ready to send", "ok"];
@@ -276,7 +276,7 @@ export default function ClaimsScreen({ ctx }) {
     },
     c.isQueried && { tone: "warn", text: "The payer has a question. The payment waits until you answer." },
     c.isRejected && { tone: "warn", text: "Read the payer's reason under Decision. If you disagree, ask for a reprocess with your evidence." },
-    c.asksError && { tone: "warn", text: `The payer's asks could not be reloaded, so the list may be out of date: ${c.asksError}` },
+    c.asksError && { tone: "warn", text: `What the payer needs could not be reloaded, so the list may be out of date: ${c.asksError}` },
     c.final.error && { tone: "warn", text: `The last check failed, and this page keeps trying: ${c.final.error}` },
     !c.finalId && c.discharge.error && { tone: "warn", text: `The last check failed, and this page keeps trying: ${c.discharge.error}` },
     c.releaseId && c.release.phase === "waiting" && { tone: "info", text: "The balance request is with the payer. Its answer appears under Decision and in the audit trail." },
@@ -375,6 +375,7 @@ export default function ClaimsScreen({ ctx }) {
         open={open}
         onOpen={pane.openItem}
         checklistLabel="Claim checklist"
+        sendStep
         loading={c.loading && !draft}
         loadingText="Building the claim draft…"
         error={c.error}
@@ -451,7 +452,7 @@ export default function ClaimsScreen({ ctx }) {
         </Pane>
 
         <Pane id="justification">
-          <Card title="Clinical justification" meta="Coded on the clinical note. The payer reads this to judge the bill.">
+          <Card title="Reason for treatment" meta="Coded on the clinical note. The payer reads this to judge the bill.">
             <div className="cv-card-body">
               {c.justification.length ? (
                 c.justification.map(([label, codes]) => (
@@ -494,7 +495,7 @@ export default function ClaimsScreen({ ctx }) {
           <PayerAsks
             caseId={c.caseId}
             stage="claim"
-            title="What the payer asks for at claim"
+            title="What the payer needs at claim"
             asks={draft?.payer_asks}
             documents={c.docs}
             readOnly={c.docsLocked}
@@ -552,7 +553,7 @@ export default function ClaimsScreen({ ctx }) {
                     <TechnicalDetails
                       ids={[
                         { label: "Request id", value: c.dischargeId },
-                        { label: "Payer reference", value: dischargeData?.claim_response_ref },
+                        { label: "Payer's reference", value: dischargeData?.claim_response_ref },
                         { label: "Raw outcome", value: dischargeData?.outcome },
                         { label: "Error code", value: dischargeData?.error_code },
                       ]}
@@ -628,7 +629,7 @@ export default function ClaimsScreen({ ctx }) {
                 </Card>
               )}
               {(view.notes.length > 0 || view.errors.length > 0) && (
-                <Card title="Payer notes" meta="The payer's own words. Read these first when a claim is queried, cut or rejected.">
+                <Card title="Payer's notes" meta="The payer's own words. Read these first when a claim is queried, cut or rejected.">
                   <div className="cv-card-body">
                     <PayerWords notes={view.notes} errors={view.errors} />
                   </div>
@@ -657,7 +658,7 @@ export default function ClaimsScreen({ ctx }) {
                   { label: "Reason codes", value: c.provenance?.reason_codes?.join(", ") },
                   { label: "Classified by", value: c.provenance?.classified_by },
                   { label: "NHCX workflow", value: c.provenance?.nhcx_workflow_id != null ? String(c.provenance.nhcx_workflow_id) : null },
-                  { label: "Payer reference", value: data?.claim_response_ref },
+                  { label: "Payer's reference", value: data?.claim_response_ref },
                   { label: "Sent", value: data?.submitted_at ? formatDateTime(data.submitted_at) : null },
                   { label: "Request id", value: c.finalId },
                 ]}

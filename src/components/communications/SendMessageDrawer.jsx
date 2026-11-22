@@ -57,7 +57,7 @@ export default function SendMessageDrawer({ open, onClose, defaultPayerId = "", 
         ...(cashlessCaseId && { cashless_case_id: cashlessCaseId }),
       }),
     {
-      success: "Message sent to the payer. Its reply lands in Communications.",
+      success: "Message sent to the payer. The reply will appear in Communications.",
       onDone: (res) => {
         setMessage("");
         setAttachments([]);
@@ -76,7 +76,7 @@ export default function SendMessageDrawer({ open, onClose, defaultPayerId = "", 
       const uploaded = await readFileAsAttachment(file);
       setAttachments((prev) => [...prev, uploaded]);
     } catch (err) {
-      setFileError(err?.message || `${file.name} could not be read.`);
+      setFileError(err?.message || `${file.name} could not be read. Try another file.`);
     }
   };
 
@@ -91,7 +91,7 @@ export default function SendMessageDrawer({ open, onClose, defaultPayerId = "", 
       open={open}
       onClose={send.busy ? undefined : close}
       title="Message the payer"
-      subtitle="Goes to the payer over NHCX. Its reply arrives in Communications, not here."
+      subtitle="This goes to the payer. The reply will appear in Communications, not here."
       width={560}
       footer={
         <div className="cv-drawer-actions">
@@ -99,7 +99,7 @@ export default function SendMessageDrawer({ open, onClose, defaultPayerId = "", 
             Cancel
           </button>
           <button type="button" className="cv-btn is-primary" disabled={!canSend} onClick={send.run}>
-            {send.busy ? "Sending…" : "Send to payer"}
+            {send.busy ? "Sending…" : "Send to the payer"}
           </button>
         </div>
       }

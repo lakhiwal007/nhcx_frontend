@@ -16,18 +16,18 @@ const dismiss = (id) => {
   notify();
 };
 
-const push = (tone, message, { duration } = {}) => {
+const push = (tone, message, { duration, action } = {}) => {
   const text = String(message || "").trim();
   if (!text) return null;
   const ms = duration ?? DURATION[tone] ?? 5000;
-  const existing = toasts.find((t) => t.tone === tone && t.message === text);
+  const existing = action ? null : toasts.find((t) => t.tone === tone && t.message === text && !t.action);
   let id;
   if (existing) {
     id = existing.id;
     toasts = toasts.map((t) => (t.id === id ? { ...t, count: t.count + 1 } : t));
   } else {
     id = ++seq;
-    toasts = [...toasts, { id, tone, message: text, count: 1 }].slice(-MAX_TOASTS);
+    toasts = [...toasts, { id, tone, message: text, count: 1, action: action || null }].slice(-MAX_TOASTS);
   }
   clearTimeout(timers.get(id));
   timers.set(id, setTimeout(() => dismiss(id), ms));

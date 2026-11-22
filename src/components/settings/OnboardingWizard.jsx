@@ -113,7 +113,7 @@ export default function OnboardingWizard({ start, onClose, onDone }) {
       open
       onClose={busy ? undefined : onClose}
       title="Register on NHCX production"
-      subtitle="NHCX takes a hospital in two passcode-confirmed halves. Both passcodes go to the mobile on the HFR record."
+      subtitle="NHCX registers a hospital in two steps, and each step is confirmed with a passcode. Both passcodes go to the mobile on the HFR record."
       footer={
         <div className="cv-drawer-actions">
           <button type="button" className="cv-btn" onClick={onClose} disabled={busy}>

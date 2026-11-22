@@ -93,7 +93,7 @@ export default function Communications({ allFacilitiesMode = false }) {
         </Button>
         {OUTBOUND_COMMUNICATIONS_ENABLED && !allFacilitiesMode && (
           <Button variant="primary" size="small" icon={Send} write onClick={() => setSendOpen(true)}>
-            Message payer
+            Message the payer
           </Button>
         )}
       </PageActions>
@@ -109,7 +109,7 @@ export default function Communications({ allFacilitiesMode = false }) {
         </div>
       )}
 
-      <Tip className="wq-page-tip">Messages from payers about your cases. A query needs a reply with what the payer asks for; a notification only needs reading.</Tip>
+      <Tip className="wq-page-tip">Messages from payers about your cases. A query is a question from the payer: reply with what it asks for. A notification only needs to be read.</Tip>
 
       <div className="wq-panel">
         <div className="wq-toolbar">
@@ -165,7 +165,7 @@ export default function Communications({ allFacilitiesMode = false }) {
           <SkeletonTable rows={5} cols={4} />
         ) : filtered.length === 0 ? (
           <div className="wq-empty">
-            <div className="wq-empty-title">{current.key === "unread" && communications.length > 0 && !q && !payerFilter ? "You're all caught up" : communications.length === 0 ? "No payer messages yet" : "No messages match these filters"}</div>
+            <div className="wq-empty-title">{current.key === "unread" && communications.length > 0 && !q && !payerFilter ? "No unread messages" : communications.length === 0 ? "No payer messages yet" : "No messages match these filters"}</div>
             {communications.length > 0 && <div className="cc-empty-hint">{current.key === "unread" && !q && !payerFilter ? `All ${communications.length} payer message${communications.length === 1 ? " has" : "s have"} been read.` : "Try a different search, payer or view."}</div>}
             {communications.length > 0 && current.key !== "all" && (
               <Button variant="outline" size="small" onClick={() => pickView("all")}>
@@ -189,7 +189,7 @@ export default function Communications({ allFacilitiesMode = false }) {
                           {commHeadline(comm)}
                           {commHasAttachment(comm) && <Paperclip size={13} className="cm-item-icon" aria-label="Has attachment" />}
                         </span>
-                        <span className="cm-item-preview">{preview || "No message text came with this notification."}</span>
+                        <span className="cm-item-preview">{preview || "The payer sent no text with this message."}</span>
                         <span className="cm-item-tags">
                           {comm.priority && <span className={isUrgent(comm) ? "is-bad" : undefined}>{priorityLabel(comm.priority)}</span>}
                           {reasonLabel(comm) && reasonLabel(comm) !== commHeadline(comm) && <span>{reasonLabel(comm)}</span>}

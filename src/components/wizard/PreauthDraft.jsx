@@ -10,6 +10,11 @@ import BiometricCard from "../case/policy/BiometricCard";
 import FhirBundleModal from "../ui/FhirBundleModal";
 import ConfirmModal from "../ui/ConfirmModal";
 import SendGateModal from "../case/step/SendGateModal";
+import ReviewSendModal from "../case/step/ReviewSendModal";
+import DropToAttach from "../case/step/DropToAttach";
+import PayerName from "../ui/PayerName";
+import { toast } from "../../lib/toast";
+import { burst } from "../../lib/confetti";
 import LinesEditor from "../case/forms/LinesEditor";
 import PackageLines from "../eligibility/PackageLines";
 import DiagnosesEditor from "../case/forms/DiagnosesEditor";
@@ -34,12 +39,16 @@ export default function PreauthDraft({ ctx }) {
   const d = usePreauthDraft(ctx, {
     locked: locked || preauthAlreadyLive,
     biometric,
-    onSent: (res) => navigate("../status", { state: { preauthWarnings: res?.warnings || [] } }),
+    onSent: (res) => {
+      burst();
+      navigate("../status", { state: { preauthWarnings: res?.warnings || [] } });
+    },
   });
   const gate = useSendGate({ caseId: d.caseId, waived: d.warnAsks, label: "Pre-auth", onSend: d.send.run });
   const pane = useCasePane();
   const [confirmResend, setConfirmResend] = useState(false);
   const [showSent, setShowSent] = useState(false);
+  const [review, setReview] = useState(false);
 
   useEffect(() => {
     if (!cashless_case_id && !claim_id) navigate("../payer", { replace: true });
@@ -54,14 +63,14 @@ export default function PreauthDraft({ ctx }) {
   const mustDo = blockers.length + (d.notInForce ? 1 : 0) + (d.hisBlockers.length + d.newbornMissing.length > 0 ? 1 : 0);
 
   const chip = d.error
-    ? ["Draft not built", "warn"]
+    ? ["Could not build the draft", "warn"]
     : preauthAlreadyLive
     ? ["Sent", "info"]
     : locked
       ? ["Not sent", "todo"]
       : canSubmit || d.send.busy
-        ? [toLookAt ? `Ready, ${toLookAt} to look at` : "Ready to send", toLookAt ? "warn" : "ok"]
-        : [`${mustDo} must be done`, "warn"];
+        ? [toLookAt ? `Ready to send · ${toLookAt} good to check` : "Ready to send", toLookAt ? "warn" : "ok"]
+        : [`${mustDo} ${mustDo === 1 ? "thing" : "things"} left before you can send`, "warn"];
 
   const primary = d.error
     ? { label: "Send pre-auth", icon: Send, disabled: true, reason: "The draft could not be built." }
@@ -76,13 +85,13 @@ export default function PreauthDraft({ ctx }) {
           busyLabel: "Sending…",
           disabled: !canSubmit,
           reason: d.notInForce
-            ? "The payer reports this policy as not in force."
+            ? "The payer says this policy is not active."
             : blockers.length
               ? `First: ${blockers.map((r) => r.name.toLowerCase()).join(", ")}.`
               : d.hisBlockers.length
                 ? `The hospital records are missing ${fieldList(d.hisBlockers)}.`
                 : "Finish the marked items first.",
-          onClick: gate.request,
+          onClick: () => setReview(true),
         };
 
   const secondary = [
@@ -95,8 +104,8 @@ export default function PreauthDraft({ ctx }) {
   const notes = [
     d.send.error && { tone: "bad", text: `Not sent: ${d.send.error} Fix what the message names and send again; your draft is kept.` },
     gate.error && { tone: "bad", text: gate.error },
-    d.asksError && { tone: "warn", text: `The payer's asks could not be reloaded, so the list may be out of date: ${d.asksError}` },
-    d.notInForce && !preauthAlreadyLive && { tone: "bad", text: "The payer reports this policy as not in force, so a pre-auth cannot be sent. Pick a renewed or different policy, or treat the patient as cash.", action: { label: "Go to Policy", onClick: () => navigate("../payer") } },
+    d.asksError && { tone: "warn", text: `We could not reload what the payer needs, so the list may be out of date: ${d.asksError}` },
+    d.notInForce && !preauthAlreadyLive && { tone: "bad", text: "The payer says this policy is not active, so a pre-auth cannot be sent. Choose a renewed or different policy, or treat the patient as cash.", action: { label: "Go to Policy", onClick: () => navigate("../payer") } },
     preauthAlreadyLive && {
       tone: "info",
       text: `A pre-auth has already been sent${lock.movedOnLabel ? ` and the case has moved on to ${lock.movedOnLabel}` : ""}. This form is rebuilt from current records, not what was sent.`,
@@ -105,9 +114,25 @@ export default function PreauthDraft({ ctx }) {
     lock.viewOnly && { tone: "info", text: lock.reason },
     d.hisBlockers.length > 0 && { tone: "warn", text: `The hospital records are missing ${fieldList(d.hisBlockers)}. Ask the doctor or billing desk to add it, then reload this page.` },
     d.newbornMissing.length > 0 && !preauthAlreadyLive && { tone: "warn", text: `Newborn case: ${d.newbornMissing.map((f) => NEWBORN_MISSING[f] || fieldList([f])).join("; ")}.` },
-    d.eligibility && d.eligibility.status !== "complete" && !preauthAlreadyLive && { tone: "warn", text: "Eligibility is incomplete, so the payer's answer may still change." },
-    d.memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `The payer's card has ${d.cardMembers.length} members and none is chosen as the patient yet.`, action: { label: "Choose on Eligibility", onClick: () => navigate("../prep") } },
+    d.eligibility && d.eligibility.status !== "complete" && !preauthAlreadyLive && { tone: "warn", text: "The eligibility check is not finished, so the payer's answer may still change." },
+    d.memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `This policy has ${d.cardMembers.length} people on it. Choose the one who is the patient.`, action: { label: "Choose the patient", onClick: () => navigate("../prep") } },
   ];
+
+  const dropFiles = async (files) => {
+    const base = d.docs.length;
+    for (let i = 0; i < files.length; i += 1) {
+      const file = files[i];
+      const code = d.documents.addCustom();
+      d.documents.rename(base + i, file.name);
+      const uploaded = await d.documents.attachFile(base + i, file);
+      const undo = () => d.documents.setDocuments((docs) => docs.filter((doc) => doc.code !== code));
+      if (uploaded) toast.success(`${file.name} attached to Other files`, { duration: 7000, action: { label: "Undo", onClick: undo } });
+      else {
+        undo();
+        toast.error(`${file.name} could not be attached. Check that it is a PDF or a photo and not too large, then try again.`);
+      }
+    }
+  };
 
   const draft = d.draft;
   const accommodation = draft?.accommodation || {};
@@ -140,7 +165,7 @@ export default function PreauthDraft({ ctx }) {
             summary={
               draft && (
                 <>
-                  <strong>{formatMoney(d.effectiveTotal)}</strong> requested · {d.displayItems.length} {d.displayItems.length === 1 ? "line" : "lines"}
+                  <strong>{formatMoney(d.effectiveTotal)}</strong> asked for · {d.displayItems.length} {d.displayItems.length === 1 ? "treatment" : "treatments"}
                   {d.edited.items ? " · edited" : ""}
                   {d.editsSaved ? " · edits saved on this browser" : ""}
                 </>
@@ -161,6 +186,7 @@ export default function PreauthDraft({ ctx }) {
         error={d.error}
         onRetry={d.reload}
         paneRef={pane.paneRef}
+        sendStep
       >
         <Pane id="verify">
           <BiometricCard
@@ -236,9 +262,9 @@ export default function PreauthDraft({ ctx }) {
         </Pane>
 
         <Pane id="justification">
-          <section className="cv-card" aria-label="Clinical justification">
+          <section className="cv-card" aria-label="Reason for treatment">
             <div className="cv-card-head">
-              <h2 className="cv-card-title">Clinical justification</h2>
+              <h2 className="cv-card-title">Reason for treatment</h2>
               <span className="cv-card-meta">Fuller notes mean fewer payer queries.</span>
             </div>
             <div className="cv-card-body">
@@ -308,7 +334,7 @@ export default function PreauthDraft({ ctx }) {
         <Pane id="lines">
           <section className="cv-card" aria-label="Treatment and cost">
             <div className="cv-card-head">
-              <h2 className="cv-card-title">Treatment &amp; cost</h2>
+              <h2 className="cv-card-title">Treatment and cost</h2>
               {d.edited.items && <span className="cv-card-meta">Edited; the amount is recomputed from the lines</span>}
               {resetLink(d.edited.items, d.resetItems)}
             </div>
@@ -341,9 +367,9 @@ export default function PreauthDraft({ ctx }) {
         </Pane>
 
         <Pane id="plan">
-          <section className="cv-card" aria-label="Against the plan">
+          <section className="cv-card" aria-label="What the plan covers">
             <div className="cv-card-head">
-              <h2 className="cv-card-title">Against the plan</h2>
+              <h2 className="cv-card-title">What the plan covers</h2>
               <span className="cv-card-meta">Warnings; only a package priced at zero or less stops the send.</span>
             </div>
             <div className="cv-card-body">
@@ -396,6 +422,27 @@ export default function PreauthDraft({ ctx }) {
       </CaseStep>
 
       <SendGateModal gate={gate} busy={d.send.busy} />
+
+      <ReviewSendModal
+        open={review}
+        sendLabel="Send pre-auth"
+        facts={[
+          ["Patient", ctx.patient?.name],
+          ["Payer", (cashlessCase?.payer_id || caseState.payer?.name) && <PayerName id={cashlessCase?.payer_id} name={caseState.payer?.name} />],
+          ["Policy", draft?.policy_number],
+          ["Treatments", d.displayItems.length],
+          ["Asking for", formatMoney(d.effectiveTotal)],
+        ]}
+        done={rows.filter((r) => r.tone === "ok")}
+        stillOpen={toLookAt}
+        onCancel={() => setReview(false)}
+        onConfirm={() => {
+          setReview(false);
+          gate.request();
+        }}
+      />
+
+      <DropToAttach enabled={!locked && !preauthAlreadyLive && !d.loading && !d.error} onFiles={dropFiles} />
 
       <ConfirmModal
         open={confirmResend}

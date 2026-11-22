@@ -87,8 +87,8 @@ export function validateFacility(form, isEdit) {
   if (form.primary_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.primary_email.trim())) errors.primary_email = "That does not look like an email address.";
   if (!/^\d{10}$/.test(form.primary_mobile || "")) errors.primary_mobile = "Enter the 10-digit mobile, with no country code or spaces.";
   need("encryption_cert", "Paste or generate the encryption certificate.");
-  if (!(form.roles || []).length) errors.roles = "Pick at least one role.";
-  if (!(form.linked_registry_codes || []).length) errors.linked_registry_codes = "Pick at least one registry; ABDM refuses an empty list.";
+  if (!(form.roles || []).length) errors.roles = "Choose at least one role.";
+  if (!(form.linked_registry_codes || []).length) errors.linked_registry_codes = "Choose at least one registry. ABDM needs at least one.";
   return errors;
 }
 

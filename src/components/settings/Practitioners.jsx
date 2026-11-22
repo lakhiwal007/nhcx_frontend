@@ -59,7 +59,7 @@ function PractitionerDrawer({ facilityCode, doctor, onClose, onSaved }) {
           <Field label="Degrees" wide htmlFor="hpr-deg" hint="As written, e.g. MBBS, MS (Ortho). The highest degree named is sent.">
             <TextInput id="hpr-deg" value={form.qualification_display} onChange={set("qualification_display")} placeholder="MBBS, MD (General Medicine)" />
           </Field>
-          <Field label="Specialty SNOMED code" htmlFor="hpr-code" hint="Optional. Sent as the care-team specialty.">
+          <Field label="Specialty SNOMED code" htmlFor="hpr-code" hint="Optional. Sent to the payer as the doctor's specialty.">
             <TextInput id="hpr-code" value={form.specialty_code} onChange={set("specialty_code")} placeholder="394537008" monospace />
           </Field>
           <Field label="Specialty name" htmlFor="hpr-spec">
@@ -121,7 +121,7 @@ export default function Practitioners({ facility, canEdit, embedded = false }) {
       <div className="st-pad">
         <div className={`cv-notice ${missing ? "is-warn" : "is-info"}`}>
           <div className="cv-notice-body">
-            The hospital system holds no HPR ids, so a doctor without one here goes to the payer under the registration number, which PMJAY refuses.
+            The hospital system does not store HPR ids, so add each doctor's HPR id here. PMJAY refuses a pre-auth or claim that names a doctor without one.
             {!editable && " Only this facility's clinic admin can change them."}
           </div>
         </div>
@@ -205,7 +205,7 @@ export default function Practitioners({ facility, canEdit, embedded = false }) {
       <ConfirmModal
         open={!!retiring}
         title={`Retire ${retiring?.name || "this doctor"}?`}
-        subtitle="The HPR id stays on record but is no longer sent. Pre-auths and claims naming this doctor go to the payer under the registration number, which PMJAY refuses."
+        subtitle="The HPR id is kept but no longer sent. PMJAY will refuse pre-auths and claims that name this doctor."
         confirmLabel="Retire"
         danger
         busy={toggle.busy}

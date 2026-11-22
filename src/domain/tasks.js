@@ -2,13 +2,13 @@ export const TASKS = {
   review_insurance_plan_documents: {
     short: "Insurance plan",
     label: "Review the insurance plan",
-    help: "The payer sent its plan with documents to prepare. Open the case's Eligibility step and check the list.",
+    help: "The payer sent its plan, with a list of documents to prepare. Open the case's Eligibility step and check the list.",
     step: "prep",
   },
   attach_eligibility_documents: {
     short: "Eligibility docs",
     label: "Attach eligibility documents",
-    help: "The payer wants documents before it confirms cover. Open the case and upload them on the Pre-auth step.",
+    help: "The payer wants documents before it confirms cover. Open the case and attach them on the Pre-auth step.",
     step: "prep",
   },
   fix_eligibility_error: {
@@ -20,7 +20,7 @@ export const TASKS = {
   choose_plan_package: {
     short: "Package",
     label: "Choose the plan package",
-    help: "The payer's plan is loaded but no planned procedure matches one of its packages. Open the Eligibility step, choose the package for this admission and send the checks.",
+    help: "The payer's plan has arrived, but none of its packages matches the planned procedure. Open the Eligibility step, choose the package for this admission and send the checks.",
     step: "prep",
   },
   submit_preauth: {
@@ -85,7 +85,7 @@ export const TASKS = {
   submit_reprocess: {
     short: "Reprocess",
     label: "Ask for a reprocess",
-    help: "The claim was rejected. If you disagree, open the case and ask for a reprocess with your evidence.",
+    help: "The claim was rejected. If you disagree, open the case and ask the payer to look at it again (a reprocess). Attach the documents that support your case.",
     step: "reprocess",
   },
   request_claim_release: {
@@ -114,14 +114,14 @@ export const TASKS = {
     screen: "/communications",
   },
   review_callback_failure: {
-    short: "Payer response",
-    label: "Retry the payer's answer",
-    help: "A payer answer arrived but couldn't be read. Press Retry; if it fails again, tell your IT team.",
+    short: "Payer answer",
+    label: "Read the payer's answer again",
+    help: "A payer answer arrived but couldn't be read. Open the task and press Read the payer's answer again. If it fails again, tell your IT team.",
   },
   cancel_superseded_preauth: {
     short: "Withdraw",
     label: "Withdraw the older pre-auth",
-    help: "An older pre-auth for this case is no longer needed. Withdraw it so the payer doesn't hold two.",
+    help: "An older pre-auth for this case is no longer needed. Withdraw it so the payer does not have two for the same case.",
   },
   chase_payer_answer: {
     short: "No answer",
@@ -132,19 +132,19 @@ export const TASKS = {
   review_payer_decision: {
     short: "Unclear answer",
     label: "Unclear payer answer",
-    help: "The payer answered but the reply names no decision. Nothing can be sent until the payer says what it decided; call the payer desk or send a message.",
+    help: "The payer answered but did not say what it decided. Nothing more can be sent until it does. Call the payer's desk or send it a message.",
     byWorkflow: true,
   },
   review_closed_case_answer: {
     short: "Closed case",
     label: "Answer on a closed case",
-    help: "The payer answered something on a case the desk closed. Open the case and read the audit trail; reopen it if the answer needs action, otherwise mark this done.",
+    help: "The payer answered on a case that was closed here. Open the case and read the audit trail. Reopen the case if the answer needs action; otherwise mark this task done.",
     step: "timeline",
   },
   link_payment_to_claim: {
     short: "Unlinked payment",
     label: "Link an unlinked payment",
-    help: "Money arrived that matches no case here. Open Payments, find it under Unlinked and link it to the right case so the payer can be acknowledged.",
+    help: "Money arrived that matches no case here. Open Payments, find it under Unlinked and link it to the right case so the payer can be told it arrived.",
     screen: "/payments?view=unlinked",
   },
 };

@@ -143,7 +143,7 @@ export default function Payments() {
   return (
     <div className="cc-screen payments-screen">
       <PageActions>
-        <Button variant="outline" size="small" icon={Download} disabled={loading || filtered.length === 0} onClick={() => downloadCsv(filtered)} title="Download the payments shown as a CSV for the bank reconciliation">
+        <Button variant="outline" size="small" icon={Download} disabled={loading || filtered.length === 0} onClick={() => downloadCsv(filtered)} title="Download the payments shown as a CSV file, to match with the bank statement">
           Download CSV
         </Button>
         <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={refresh} title="Reload the payments">
@@ -181,7 +181,7 @@ export default function Payments() {
         ))}
       </div>
 
-      <Tip className="wq-page-tip">Money the payers have sent. Settled payments carry a UTR to match with the bank statement; an unlinked payment names a claim this hospital does not know and needs a case picked for it.</Tip>
+      <Tip className="wq-page-tip">Money the payers have sent. A settled payment has a UTR to match with the bank statement. An unlinked payment names a claim this hospital does not know; open it and choose the case it pays for.</Tip>
 
       <div className="wq-panel">
         <div className="wq-toolbar">
@@ -272,7 +272,7 @@ export default function Payments() {
         ) : filtered.length === 0 ? (
           <div className="wq-empty">
             <div className="wq-empty-title">{payments.length ? "No payments match these filters" : "No payments yet"}</div>
-            <div className="cc-empty-hint">{payments.length ? "Try a different search, tile or payer." : "Payments appear here once a payer settles a claim, usually days after the claim is approved."}</div>
+            <div className="cc-empty-hint">{payments.length ? "Try a different search, stage or payer." : "Payments appear here once a payer pays a claim, usually a few days after the claim is approved."}</div>
           </div>
         ) : (
           <>
