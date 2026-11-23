@@ -18,7 +18,7 @@ const formRows = (f) => [
 
 function decisionRows(f) {
   const group = "decision";
-  if (f.failed) return [{ id: "decision", group, name: "Delivery", tone: "refused", fact: "Not delivered" }];
+  if (f.failed) return [{ id: "decision", group, name: "Delivery", tone: "refused", fact: f.refused ? "Refused by the payer" : "Not delivered" }];
   if (f.notFound) return [{ id: "decision", group, name: "Payer's record", tone: "warn", fact: "No record" }];
   if (!f.complete) return [{ id: "decision", group, name: "Payer's answer", tone: "wait", fact: "Waiting" }];
   const cut = cutLines(f.lines).length;
@@ -34,7 +34,7 @@ function decisionRows(f) {
 
 export function buildReprocessChecklist(f) {
   const rows = f.sent
-    ? [...decisionRows(f), { id: "details", group: "appeal", name: "What was sent", tone: "idle", fact: f.failed ? "Not sent" : "Sent" }]
+    ? [...decisionRows(f), { id: "details", group: "appeal", name: "What was sent", tone: "idle", fact: f.failed && !f.refused ? "Not sent" : "Sent" }]
     : f.locked
       ? formRows(f).map((r) => ({ ...asRecord(r), blocks: false }))
       : formRows(f);
