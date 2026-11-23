@@ -70,7 +70,9 @@ export default function ReprocessScreen({ ctx }) {
   const view = r.view;
   const decision = view.decision;
   const isFailed = view.phase === "failed";
-  const isRefused = isFailed && (extractPayrCode([view.message, ...view.errors.map((e) => `${e.code || ""} ${e.message || ""}`)].join(" ")) || "").startsWith("PAYR");
+  const failureErrors = view.errors.length > 0 ? view.errors : r.payerErrors || [];
+  const failureMessage = view.message || failureErrors[0]?.message || "";
+  const isRefused = isFailed && (extractPayrCode([failureMessage, ...failureErrors.map((e) => `${e.code || ""} ${e.message || ""}`)].join(" ")) || "").startsWith("PAYR");
   const isNotFound = view.phase === "not_found";
   const isComplete = view.phase === "decided";
   const isAccepted = decision === "APPROVED";
@@ -158,7 +160,7 @@ export default function ReprocessScreen({ ctx }) {
     r.send.error && { tone: "bad", text: `Not sent: ${r.send.error} Fix what the message names and send again; your draft is kept.` },
     lock.viewOnly && { tone: "info", text: lock.reason },
     r.loadError && { tone: "warn", text: `The case could not be read, so an appeal already sent may not show here: ${r.loadError}`, action: { label: "Retry", onClick: r.reload } },
-    isFailed && { tone: "bad", text: `${isRefused ? "The payer refused the appeal." : "The appeal did not reach the payer."} ${view.message || ""}`.trim() },
+    isFailed && { tone: "bad", text: `${isRefused ? "The payer refused the appeal." : "The appeal did not reach the payer."} ${failureMessage}`.trim() },
     isNotFound && { tone: "warn", text: "The payer has no record of this appeal yet. Refresh in a while, or look at the audit trail." },
     isUnclear && { tone: "warn", text: "The payer answered without a clear decision. Read its notes and the audit trail, and call its helpdesk if it stays unclear." },
     isQueried && { tone: "warn", text: "The payer has a question about the appeal. It is answered on the Claim step, and the decision waits until you do." },
@@ -298,10 +300,10 @@ export default function ReprocessScreen({ ctx }) {
           {isFailed ? (
             <Card title={isRefused ? "Refused by the payer" : "Not delivered"}>
               <div className="cv-card-body">
-                <div className="cv-kv"><span>Reason</span><span>{view.message || (isRefused ? "The payer gave no reason." : "The request did not reach the payer.")}</span></div>
-                {view.errors.length > 0 && (
+                <div className="cv-kv"><span>Reason</span><span>{failureMessage || (isRefused ? "The payer gave no reason." : "The request did not reach the payer.")}</span></div>
+                {failureErrors.length > 0 && (
                   <div className="cv-sub-note-top">
-                    <PayerWords notes={[]} errors={view.errors} empty="" />
+                    <PayerWords notes={[]} errors={failureErrors} empty="" />
                   </div>
                 )}
                 <TechnicalDetails ids={[{ label: "Request id", value: r.correlationId }]} bundle={bundle} />
