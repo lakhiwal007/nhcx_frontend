@@ -38,7 +38,7 @@ const money = (v) => (v == null ? null : formatMoney(v));
 const isFailed = (e) => e.status === "failed" || !!e.error;
 const needsVerify = (e) => !!e.decision?.ambiguous;
 const actorOf = (e) => e.actor?.kind || "system";
-const failureWord = (e) => (e.direction === "outbound" && e.error?.phase !== "payer" ? "never reached the payer" : e.error?.phase === "payer" ? "refused by the payer" : "failed");
+const failureWord = (e) => (e.error?.phase === "check" ? "stopped by a check before sending" : e.direction === "outbound" && e.error?.phase !== "payer" ? "never reached the payer" : e.error?.phase === "payer" ? "refused by the payer" : "failed");
 
 function EventFacts({ event, bundle }) {
   const d = event.decision;

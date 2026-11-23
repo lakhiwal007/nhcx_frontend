@@ -15,7 +15,7 @@ export function firstItem(groups, prefer = []) {
 }
 
 export function decisionRows(f, group = "decision") {
-  if (f.failed) return [{ id: "delivery", group, name: "Delivery", tone: "refused", fact: "Not delivered" }];
+  if (f.failed) return [{ id: "delivery", group, name: "Delivery", tone: "refused", fact: f.failedFact || "Not delivered" }];
   if (f.notFound) return [{ id: "record", group, name: "Payer's record", tone: "warn", fact: "No record" }];
   if (!f.complete) return [{ id: "waiting", group, name: "Payer's answer", tone: "wait", fact: "Waiting" }];
   const lines = f.lines || [];

@@ -15,6 +15,7 @@ import ResubmitPreauthDrawer from "../case/preauth/ResubmitPreauthDrawer";
 import CancelPreauthModal from "../case/preauth/CancelPreauthModal";
 import GiveUpPreauth from "../case/preauth/GiveUpPreauth";
 import PayrErrorList from "../ui/PayrErrorList";
+import { extractPayrCode } from "../../api/payrErrors";
 import SendMessageDrawer, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../communications/SendMessageDrawer";
 import { buildApprovalChecklist, firstApprovalItem } from "../case/preauth/approvalChecklist";
 
@@ -101,11 +102,21 @@ export default function PreauthStatus({ ctx }) {
   const pendingTasks = data?.pending_tasks ?? [];
   const queryTask = pendingTasks.find((t) => t.task_type === "respond_preauth_query") || null;
   const relatedComms = (communications || []).filter((c) => !c.provider_read || c.pending_tasks?.length);
+  const failureErrors = data?.errors || [];
+  const failureText = [view.message, ...failureErrors.map((e) => `${e.code || ""} ${e.message || ""}`)].join(" ");
+  const givenUp = isFailed && failureErrors.some((e) => e.code === "NO_ANSWER");
+  const refusedByPayer = isFailed && !givenUp && (extractPayrCode(failureText) || "").startsWith("PAYR");
+  const failedLabel = givenUp ? "Given up" : refusedByPayer ? "Refused by the payer" : "Not delivered";
+
   const showSoftWarning = p.waiting && p.elapsedMs > SOFT_WARNING_MS;
   const showGatewayRecovery = p.waiting && p.elapsedMs > GATEWAY_RECOVERY_MS;
 
   const guide = isFailed
-    ? { tone: "bad", title: "The payer never received this pre-auth", steps: ["Read the reason in the Delivery pane.", "Go back to the pre-auth draft, fix what it names, and send again."] }
+    ? givenUp
+      ? { tone: "bad", title: "This pre-auth was given up", steps: ["The payer never answered it.", "Go back to the pre-auth draft and send it again when you are ready."] }
+      : refusedByPayer
+        ? { tone: "bad", title: "The payer refused this pre-auth", steps: ["Read the payer's reason in the Delivery pane.", "Go back to the pre-auth draft, fix what it names, and send again."] }
+        : { tone: "bad", title: "The payer never received this pre-auth", steps: ["Read the reason in the Delivery pane.", "Go back to the pre-auth draft, fix what it names, and send again."] }
     : isNotFound
       ? { tone: "warn", title: "The payer's system has no record of this request yet", text: "Refresh in a while. If it stays like this, ask NHCX where it stands or call the payer's helpdesk." }
       : !isComplete
@@ -125,7 +136,7 @@ export default function PreauthStatus({ ctx }) {
                     : { tone: "warn", title: "Cancellation refused", text: "The payer refused the cancellation, so this pre-auth still stands." };
 
   const chipTone = isFailed ? "bad" : isNotFound ? "warn" : !isComplete ? "info" : isUnknown || ambiguous ? "warn" : view.tone === "wait" ? "info" : view.tone;
-  const chipLabel = isFailed ? "Not delivered" : isNotFound ? "No record" : !isComplete ? (purposeCancel ? "Awaiting cancellation" : "Waiting for the payer") : isUnknown ? "Unclear answer" : ambiguous ? `${view.word}, verify` : view.word;
+  const chipLabel = isFailed ? failedLabel : isNotFound ? "No record" : !isComplete ? (purposeCancel ? "Awaiting cancellation" : "Waiting for the payer") : isUnknown ? "Unclear answer" : ambiguous ? `${view.word}, verify` : view.word;
 
   const primary = isFailed
     ? { label: "Back to pre-auth draft", write: false, onClick: () => navigate("../review") }
@@ -151,7 +162,7 @@ export default function PreauthStatus({ ctx }) {
   ];
 
   const notes = [
-    isFailed && { tone: "bad", text: `The pre-auth could not be delivered to the payer. ${view.message || ""}` },
+    isFailed && { tone: givenUp ? "warn" : "bad", text: givenUp ? "No answer came from the payer, so this request was given up. Nothing was cancelled with the payer. Send the pre-auth again when you are ready." : `${refusedByPayer ? "The payer refused the pre-auth." : "The pre-auth could not be delivered to the payer."} ${view.message || ""}`.trim() },
     p.cancelRefused && { tone: "warn", text: "The payer refused the cancellation, so this pre-auth still stands." },
     p.claimWithPayer && { tone: "info", text: READ_ONLY_NOTICE },
     lock.viewOnly && { tone: "info", text: lock.reason },
@@ -168,6 +179,7 @@ export default function PreauthStatus({ ctx }) {
   const clinicalCount = (data?.diagnoses?.length || 0) + (data?.procedures?.length || 0);
   const groups = buildApprovalChecklist({
     failed: isFailed,
+    failedFact: failedLabel,
     notFound: isNotFound,
     complete: isComplete,
     approved: approvedValue,
@@ -176,7 +188,7 @@ export default function PreauthStatus({ ctx }) {
     readNotes: isQueried || isRejected,
     clinical: clinicalCount,
     enquiry: p.enquiryId ? (p.enquiry?.status === "failed" ? "failed" : p.enquiry?.status === "complete" ? "answered" : "waiting") : null,
-    errors: data?.errors?.length || 0,
+    errors: givenUp ? 0 : data?.errors?.length || 0,
   });
   const open = pane.picked && groups.some((g) => g.rows.some((r) => r.id === pane.picked)) ? pane.picked : firstApprovalItem(groups, isQueried || isRejected);
 
@@ -240,11 +252,11 @@ export default function PreauthStatus({ ctx }) {
         <Pane id="delivery">
           <section className="cv-card">
             <div className="cv-card-head">
-              <h2 className="cv-card-title">Not delivered</h2>
+              <h2 className="cv-card-title">{failedLabel}</h2>
             </div>
             <div className="cv-card-body">
               <div className="cv-kv"><span>Reason</span><span>{view.message || "No reason given"}</span></div>
-              {data?.errors?.length > 0 && <div className="cv-sub-note-top"><PayrErrorList errors={data.errors} /></div>}
+              {!givenUp && data?.errors?.length > 0 && <div className="cv-sub-note-top"><PayrErrorList errors={data.errors} /></div>}
               <TechnicalDetails ids={[{ label: "Request id", value: p.correlationId }]} bundle={p.resolvedCaseId ? { cashlessCaseId: p.resolvedCaseId, transactionType: "preauth", correlationId: p.correlationId } : null} />
             </div>
           </section>
