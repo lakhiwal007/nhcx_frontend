@@ -28,6 +28,7 @@ import Toasts from "./components/ui/Toasts";
 import { useMediaQuery } from "./hooks/util/useMediaQuery";
 import { TipsProvider } from "./help/TipsContext.jsx";
 import { loadPayerGuide } from "./api/payrErrors.js";
+import "./styles/emerald.css";
 
 function LegacyBasePath() {
   const location = useLocation();

@@ -127,6 +127,7 @@ export const caseRules = (full) => ({
   coverage_eligibility: full?.coverage_eligibility ?? null,
   held_tasks: full?.held_tasks ?? [],
   next_actions: full?.next_actions ?? [],
+  stay: full?.stay ?? null,
 });
 
 export function projectCaseStatus(full) {

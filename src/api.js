@@ -2020,6 +2020,7 @@ const mock = {
       status: "complete",
       current_step: journey.current_step,
       next_actions: journey.next_actions,
+      stay: { admission_no: "IPD-2026-0412", admitted_at: "2026-05-04T10:40:00+05:30", admission_type: "emergency", ...(journey.claim_id ? { discharged_at: "2026-05-08T11:30:00+05:30", discharge_how: "Home, after surgery" } : {}) },
       procedures: {
         source: "claim_db",
         items: [
