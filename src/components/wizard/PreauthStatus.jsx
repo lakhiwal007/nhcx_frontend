@@ -13,6 +13,7 @@ import TechnicalDetails from "../case/step/TechnicalDetails";
 import AnswerPayerQuery from "../case/asks/AnswerPayerQuery";
 import ResubmitPreauthDrawer from "../case/preauth/ResubmitPreauthDrawer";
 import CancelPreauthModal from "../case/preauth/CancelPreauthModal";
+import GiveUpPreauth from "../case/preauth/GiveUpPreauth";
 import PayrErrorList from "../ui/PayrErrorList";
 import SendMessageDrawer, { OUTBOUND_COMMUNICATIONS_ENABLED } from "../communications/SendMessageDrawer";
 import { buildApprovalChecklist, firstApprovalItem } from "../case/preauth/approvalChecklist";
@@ -261,6 +262,9 @@ export default function PreauthStatus({ ctx }) {
                 <div className="cv-notice is-info cv-sub-note-top">
                   <div className="cv-notice-body">Payer decisions can take minutes to hours. You can leave this page; the answer appears in the Work Queue when it arrives.</div>
                 </div>
+              )}
+              {!caseClosed && p.resolvedCaseId && cashlessCase?.next_actions?.includes("give_up_preauth") && (
+                <GiveUpPreauth caseId={p.resolvedCaseId} onDone={async () => { await p.recover?.(); p.refresh?.(); }} />
               )}
               <TechnicalDetails ids={[{ label: "Request id", value: p.correlationId }]} bundle={p.resolvedCaseId ? { cashlessCaseId: p.resolvedCaseId, transactionType: "preauth", correlationId: p.correlationId } : null} />
             </div>

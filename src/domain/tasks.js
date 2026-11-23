@@ -126,7 +126,7 @@ export const TASKS = {
   chase_payer_answer: {
     short: "No answer",
     label: "No answer from the payer",
-    help: "The payer has not answered for several hours. Call the payer's desk, or check the status from the case if that payer answers status checks.",
+    help: "The payer has not answered for several hours. Call the payer's desk, or check the status from the case if that payer answers status checks. If no answer is expected for a pre-auth, you can give up on the request from the case.",
     byWorkflow: true,
   },
   review_payer_decision: {

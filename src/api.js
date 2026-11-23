@@ -1995,6 +1995,11 @@ const mock = {
     return { cashless_case_id, status: "closed", closure };
   },
 
+  giveUpPreauth: async (cashless_case_id) => {
+    await delay(500);
+    return { cashless_case_id, status: "given_up", correlation_ids: [] };
+  },
+
   reopenCase: async (cashless_case_id) => {
     await delay(500);
     const all = mockClosures();
@@ -4016,6 +4021,8 @@ const real = {
   closeCase: (cashless_case_id, data) => http.post(`/cashless/${cashless_case_id}/close`, data),
 
   reopenCase: (cashless_case_id) => http.post(`/cashless/${cashless_case_id}/reopen`),
+
+  giveUpPreauth: (cashless_case_id) => http.post(`/cashless/${cashless_case_id}/preauth/give-up`, {}),
 
   submitDischargeClaim: (data) => http.post("/cashless/claims/discharge", data),
 
