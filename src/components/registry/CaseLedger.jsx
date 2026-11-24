@@ -104,7 +104,7 @@ export function AdmissionsLedger({ visits, onOpen }) {
         bill: (
           <>
             <span className="mono">{m.invoices.length ? formatMoney(m.finalBill) : "—"}</span>
-            <div className={`pt-sub mono${m.outstanding > 0 ? " pt-warn" : ""}`}>{m.invoices.length ? `${formatMoney(m.outstanding)} to collect` : "No bill yet"}</div>
+            <div className={`pt-sub mono${m.outstanding > 0 ? " pt-warn" : ""}`}>{m.invoices.length ? (m.outstanding < 0 ? `${formatMoney(-m.outstanding)} to refund` : `${formatMoney(m.outstanding)} to collect`) : "No bill yet"}</div>
           </>
         ),
       },
@@ -286,7 +286,7 @@ export function AdmissionDrawer({ visit, onClose, onStart, onResume, readOnly })
                   { label: "Billed", value: billed },
                   discount > 0 && { label: "Discount", value: -discount },
                   ...paid.map((p) => ({ label: p.kind, sub: [p.mode, p.ref, p.date && formatDate(p.date)].filter(Boolean).join(" · ") || null, value: -(Number(p.amount) || 0) })),
-                  { label: "To collect", value: outstanding, total: true, tone: outstanding > 0 ? "warn" : null },
+                  outstanding < 0 ? { label: "To refund", value: -outstanding, total: true, tone: "warn" } : { label: "To collect", value: outstanding, total: true, tone: outstanding > 0 ? "warn" : null },
                 ]}
               />
             </div>
@@ -298,6 +298,17 @@ export function AdmissionDrawer({ visit, onClose, onStart, onResume, readOnly })
 }
 
 const decisionLabel = (v) => (v ? humanize(String(v).toLowerCase()) : null);
+
+const CLAIM_LEG_LABELS = {
+  draft: "Not sent",
+  error: "Not sent, the last send failed",
+  submitting: "With the payer",
+  approved: "Approved",
+  partial: "Partly approved",
+  rejected: "Rejected",
+  queried: "Queried by the payer",
+  unclear: "The payer's answer is unclear",
+};
 
 export function CaseDrawer({ summary, tasks = [], onClose, onOpenCase, onOpenTask, readOnly }) {
   const open = !!summary;
@@ -359,7 +370,7 @@ export function CaseDrawer({ summary, tasks = [], onClose, onOpenCase, onOpenTas
                 {preauth?.preauth_ref && <span className="mono cv-card-meta"> · {preauth.preauth_ref}</span>}
               </span>
             </div>
-            <div className="cv-kv"><span>Claim</span><span>{decisionLabel(claim?.decision) || (claim ? "With the payer" : "Not sent")}</span></div>
+            <div className="cv-kv"><span>Claim</span><span>{CLAIM_LEG_LABELS[full?.legs?.claim] || decisionLabel(claim?.decision) || (claim ? "With the payer" : "Not sent")}</span></div>
             <div className="cv-kv">
               <span>Payment</span>
               <span>

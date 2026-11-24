@@ -36,7 +36,8 @@ const SORT_OPTIONS = [
 const searchParamsFor = (query) => {
   const q = query.trim();
   if (!q) return {};
-  if (/^\d{10}$/.test(q)) return { mobile: q };
+  const phone = q.replace(/[\s-]/g, "").replace(/^(\+91|0)(?=\d{10}$)/, "");
+  if (/^\d{10}$/.test(phone)) return { mobile: phone };
   if (/^\d+$/.test(q)) return { child_id: Number(q) };
   return { name: q };
 };
@@ -54,7 +55,7 @@ function PatientDetail({ patient }) {
   const childId = patient.child_id;
   useEffect(() => {
     let live = true;
-    Promise.all([api.listTasks({ child_id: childId, status: "pending" }), api.listCommunications({ child_id: childId })])
+    Promise.all([api.listTasks({ child_id: childId, status: "pending", limit: 500 }), api.listCommunications({ child_id: childId })])
       .then(([tasksRes, commsRes]) => live && setExtra({ key: childId, tasks: tasksRes?.tasks || [], communications: commsRes?.communications || [], error: null }))
       .catch((err) => {
         markHandled(err);
