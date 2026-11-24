@@ -43,6 +43,12 @@ export const TASKS = {
     step: "status",
     openAction: true,
   },
+  request_enhancement: {
+    short: "Enhancement",
+    label: "Ask for an enhancement",
+    help: "The hospital bill is over the amount the payer approved. Open the Enhancement step and ask the payer for more while the patient is still admitted.",
+    step: "enhancement",
+  },
   resubmit_enhancement: {
     short: "Enhancement",
     label: "Resend the enhancement",

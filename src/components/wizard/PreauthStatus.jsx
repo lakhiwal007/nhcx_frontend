@@ -161,7 +161,15 @@ export default function PreauthStatus({ ctx }) {
     p.canCancel && { label: "Cancel the pre-auth", icon: X, danger: true, onClick: () => setCancelOpen(true) },
   ];
 
+  const bill = cashlessCase?.running_bill || null;
+  const billOver = bill?.over_approved_by > 0 && (isApproved || isPartial) && !caseClosed && !p.claimWithPayer;
   const notes = [
+    billOver && {
+      tone: "warn",
+      text: `The hospital bill is ${formatMoney(bill.value)} and the payer approved ${formatMoney(bill.approved)}, ${formatMoney(bill.over_approved_by)} over. Ask for an enhancement while the patient is still admitted.`,
+      action: lock.viewOnly ? undefined : { label: "Ask for an enhancement", onClick: () => navigate("../enhancement") },
+    },
+    !billOver && bill?.approved > 0 && (isApproved || isPartial) && { tone: "info", text: `Bill so far ${formatMoney(bill.value)} of ${formatMoney(bill.approved)} approved.` },
     isFailed && { tone: givenUp ? "warn" : "bad", text: givenUp ? "No answer came from the payer, so this request was given up. Nothing was cancelled with the payer. Send the pre-auth again when you are ready." : `${refusedByPayer ? "The payer refused the pre-auth." : "The pre-auth could not be delivered to the payer."} ${view.message || ""}`.trim() },
     p.cancelRefused && { tone: "warn", text: "The payer refused the cancellation, so this pre-auth still stands." },
     p.claimWithPayer && { tone: "info", text: READ_ONLY_NOTICE },

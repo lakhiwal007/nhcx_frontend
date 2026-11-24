@@ -34,7 +34,9 @@ import ReprocessScreen from "./ReprocessScreen";
 import PaymentReconciliation from "./PaymentReconciliation";
 import CaseTimeline from "./CaseTimeline";
 import ErrorBoundary from "../ui/ErrorBoundary";
-import { formatCaseRef, formatDate } from "../../lib/format.js";
+import { formatCaseRef, formatDate, formatTime } from "../../lib/format.js";
+import { buildClaimPack } from "../../lib/claimPack.js";
+import { toast } from "../../lib/toast";
 
 const COMMS_POLL_MS = 60_000;
 const ISSUE_LABELS = { timeline: "the money summary", comms: "payer messages", case: "the case status" };
@@ -76,6 +78,7 @@ function CaseWorkspace({ reportCase }) {
   const caseParam = new URLSearchParams(location.search).get("case");
 
   const [patient, setPatient] = useState(null);
+  const [packBusy, setPackBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const childSaved = loadWorkflow(id);
@@ -347,7 +350,22 @@ function CaseWorkspace({ reportCase }) {
     }
   };
 
+  const downloadPack = async () => {
+    if (packBusy) return;
+    setPackBusy(true);
+    try {
+      const res = await buildClaimPack({ caseId: ledgerCaseId, record: effectiveCase, patient, facilityName: effectiveCase?.facility_name });
+      toast.success(res.skipped ? `Claim pack downloaded. ${res.skipped} file${res.skipped === 1 ? "" : "s"} could not be added as pages.` : "Claim pack downloaded");
+    } catch (err) {
+      markHandled(err);
+      toast.error(err?.message || "The claim pack could not be built.");
+    } finally {
+      setPackBusy(false);
+    }
+  };
+
   const stageTools = [];
+  if (ledgerCaseId && cashlessCase) stageTools.push({ label: packBusy ? "Building claim pack…" : "Download claim pack", onClick: downloadPack });
   if (ledgerCaseId && cashlessCase && !readOnly && !caseClosed) stageTools.push({ label: "Close case", onClick: () => setCloseOpen(true) });
   const onTimeline = currentStepPath === "timeline";
   const openHistory = () => navigate(`/case/${id}/timeline${location.search}`, { state: location.state });
@@ -397,6 +415,11 @@ function CaseWorkspace({ reportCase }) {
     });
 
   const readmission = effectiveCase?.readmission || null;
+  const clock = !caseClosed ? effectiveCase?.turnaround || null : null;
+  const expiry = effectiveCase?.policy_expiry || null;
+  const clockLate = !!clock?.overdue;
+  const stageWord = clock ? { preauth: "Pre-auth", discharge: "Discharge", claim: "Claim" }[clock.stage] || "Answer" : null;
+  const EXPIRY_WORDS = { expired_before_admission: "Policy ended before admission", ends_during_stay: "Policy ends during the stay", ends_soon: "Policy ends soon" };
 
   return (
     <div className="cv-root">
@@ -411,8 +434,18 @@ function CaseWorkspace({ reportCase }) {
           statusPill={
             <>
               {caseShut ? <span className="cv-chip is-todo">Closed · read-only</span> : caseSettled ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
+              {clock && (
+                <span className={`cv-chip ${clockLate ? "is-bad" : "is-info"}`} title={`Sent ${formatDate(clock.sent_at)} ${formatTime(clock.sent_at)}. The payer's time limit is ${clock.limit_minutes >= 60 ? `${clock.limit_minutes / 60} h` : `${clock.limit_minutes} min`}.`}>
+                  {clockLate ? `${stageWord} answer late since ${formatTime(clock.due_at)}` : `${stageWord} answer due by ${formatTime(clock.due_at)}`}
+                </span>
+              )}
+              {expiry && (
+                <span className={`cv-chip ${expiry.state === "expired_before_admission" ? "is-bad" : "is-warn"}`} title={`The policy ends on ${formatDate(expiry.ends_on)}.`}>
+                  {EXPIRY_WORDS[expiry.state] || "Policy ending"} · {formatDate(expiry.ends_on)}
+                </span>
+              )}
               {readmission && (
-                <span className="cv-chip is-info" title={`Discharged on ${formatDate(readmission.discharged_on)} under ${formatCaseRef(readmission.previous_case_id)}. Shown for the desk only; nothing about it goes to the payer.`}>
+                <span className="cv-chip is-info" title={`Discharged on ${formatDate(readmission.discharged_on)} under ${formatCaseRef(readmission.previous_case_id)}${readmission.previous_admission_no ? ` (${readmission.previous_admission_no})` : ""}${readmission.previous_claim ? `, claim ${readmission.previous_claim}` : ""}. Shown for the desk only; nothing about it goes to the payer.`}>
                   Readmission · {readmission.days_since_discharge === 0 ? "same day as" : `${readmission.days_since_discharge} ${readmission.days_since_discharge === 1 ? "day" : "days"} after`} {formatCaseRef(readmission.previous_case_id)}
                 </span>
               )}
