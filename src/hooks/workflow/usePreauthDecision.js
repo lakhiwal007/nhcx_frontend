@@ -61,7 +61,7 @@ export function usePreauthDecision(ctx) {
   const data = status.data;
   const cachedDecision = !data && caseState.preauthDecision && caseState.preauthDecision !== "UNKNOWN" ? caseState.preauthDecision : null;
   const view = data ? verdictFor(data) : cachedDecision ? verdictFor({ status: "complete", decision: cachedDecision }) : verdictFor({ status: "pending" });
-  const decisionEvent = [...(timelineEvents || [])].reverse().find((e) => e.workflow === "preauth" && e.decision);
+  const decisionEvent = [...(timelineEvents || [])].reverse().find((e) => e.workflow === "preauth" && e.decision && e.correlation_id === correlationId);
   const provenance = decisionEvent ? { ...decisionEvent.decision, nhcx_workflow_id: decisionEvent.nhcx_workflow_id } : null;
   const ambiguous = provenance?.ambiguous ?? view.ambiguous;
   const elapsedMs = status.elapsedMs ?? 0;

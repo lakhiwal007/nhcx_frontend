@@ -48,6 +48,7 @@ export function usePreauthDraft(ctx, { submit, locked = false, biometric = null,
   const [asksReload, setAsksReload] = useState(0);
   const [asksError, setAsksError] = useState(null);
   const uidRef = useRef(1);
+  const savedEdits = useRef(!!draftData);
 
   const params = useCallback(() => {
     const p = {};
@@ -101,8 +102,17 @@ export function usePreauthDraft(ctx, { submit, locked = false, biometric = null,
   const documents = useCaseDocuments(ctx, { key: filesKey, seed: draft?.supporting_documents, records: draft?.health_records, fetchRecord });
 
   useEffect(() => {
-    if (locked || !(editedDiagnoses || editedItems || editedCareTeam)) return undefined;
+    if (locked) return undefined;
+    if (!(editedDiagnoses || editedItems || editedCareTeam)) {
+      if (savedEdits.current) {
+        savedEdits.current = false;
+        updateCaseState({ draftData: null });
+        setEditsSaved(false);
+      }
+      return undefined;
+    }
     const timer = setTimeout(() => {
+      savedEdits.current = true;
       updateCaseState({ draftData: { editedDiagnoses, editedItems, editedCareTeam } });
       setEditsSaved(true);
     }, 600);
