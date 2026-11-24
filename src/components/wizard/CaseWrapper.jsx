@@ -374,6 +374,7 @@ function CaseWorkspace({ reportCase }) {
     timelineTotal: timeline?.total_count ?? null,
     refreshTimeline,
     caseClosed,
+    caseShut,
     draftFiles,
     setDraftFiles,
     stageBar: { title: activeStage?.label || "Case", tools: stageTools, back: stageBack, refresh: ledgerCaseId ? { onClick: refreshAll, busy: refreshState.busy, at: refreshState.at } : null },

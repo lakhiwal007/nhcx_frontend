@@ -8,8 +8,11 @@ const HIS_BLOCKERS = new Set(["diagnoses", "items", "preauth_ref"]);
 export const REVISED_ESTIMATE = { category: "revised_estimate", name: "Revised estimate", code: "REVISED_ESTIMATE", optional: true };
 
 const itemKey = (item) => item.service_code ?? item.service_name;
+const procKey = (proc) => proc.code ?? proc.name;
 
-export function unavailableReason(legs) {
+export function unavailableReason(legs, closed = false, shut = closed) {
+  if (shut) return "This case is closed. Reopen the case to enhance the pre-auth.";
+  if (closed) return "This claim is settled, so the pre-auth can no longer be enhanced.";
   if (CLAIM_WITH_PAYER.includes(legs?.claim)) return "The claim has gone to the payer, so the pre-auth can no longer be enhanced.";
   if (legs?.preauth === "queried") return "The payer has an open query on this pre-auth. Answer it on Approval first.";
   if (legs?.preauth === "submitting" || legs?.preauth === "cancelling") return "The payer is still working on this pre-auth. Wait for its answer on Approval.";
@@ -18,7 +21,7 @@ export function unavailableReason(legs) {
 }
 
 export function useEnhancement(ctx, { onSent } = {}) {
-  const { caseState, updateCaseState, cashlessCase, setDraftFiles } = ctx;
+  const { caseState, updateCaseState, cashlessCase, setDraftFiles, caseClosed, caseShut } = ctx;
   const { cashless_case_id, claim_id } = caseState;
   const anchor = cashless_case_id || claim_id || null;
   const filesKey = anchor ? `${anchor}:enhancement` : null;
@@ -65,13 +68,14 @@ export function useEnhancement(ctx, { onSent } = {}) {
 
   const newProcedures = preview?.new_procedures || [];
   const newItems = preview?.new_items || [];
-  const procedureKept = (proc, i) => !uncheckedProcedures[i] && !leftOutLines[proc.code ?? proc.name];
-  const uncheckedProcKeys = new Set(newProcedures.map((p, i) => (procedureKept(p, i) ? null : (p.code ?? p.name))).filter((k) => k != null));
+  const procedureKept = (proc) => !uncheckedProcedures[procKey(proc)] && !leftOutLines[procKey(proc)];
+  const uncheckedProcKeys = new Set(newProcedures.filter((p) => !procedureKept(p)).map(procKey).filter((k) => k != null));
   const lineOf = (item) => {
     const edit = lineEdits[itemKey(item)];
     if (!edit) return item;
     const next = { ...item, ...edit };
-    return { ...next, net_amount: (Number(next.quantity) || 0) * (Number(next.unit_price) || 0) };
+    const unit = next.unit_price != null && next.unit_price !== "" ? Number(next.unit_price) || 0 : Number(item.quantity) ? (Number(item.net_amount) || 0) / Number(item.quantity) : 0;
+    return { ...next, net_amount: (Number(next.quantity) || 0) * unit };
   };
   const excludedItem = (it) => uncheckedProcKeys.has(it.service_code) || uncheckedProcKeys.has(it.service_name) || !!leftOutLines[itemKey(it)];
   const submittedItems = (preview?.suggested_request?.items || []).filter((it) => !excludedItem(it)).map(lineOf);
@@ -83,11 +87,11 @@ export function useEnhancement(ctx, { onSent } = {}) {
   const docs = documents.documents;
   const missingDocs = docs.filter((d) => !d.optional && !d.url && !d.attachment);
   const waivedDocs = docs.filter((d) => d.optional && d.code === REVISED_ESTIMATE.code && !d.url && !d.attachment);
-  const unavailable = unavailableReason(cashlessCase?.legs);
+  const unavailable = unavailableReason(cashlessCase?.legs, caseClosed, caseShut);
 
   const toggleProcedure = (proc, i, checked) => {
-    setUncheckedProcedures((p) => ({ ...p, [i]: !checked }));
-    setLeftOutLines((p) => ({ ...p, [proc.code ?? proc.name]: false }));
+    setUncheckedProcedures((p) => ({ ...p, [procKey(proc)]: !checked }));
+    setLeftOutLines((p) => ({ ...p, [procKey(proc)]: false }));
   };
   const toggleLine = (item, included) => setLeftOutLines((p) => ({ ...p, [itemKey(item)]: !included }));
   const editLine = (item, field, value) => setLineEdits((p) => ({ ...p, [itemKey(item)]: { ...p[itemKey(item)], [field]: Number(value) } }));
@@ -110,6 +114,7 @@ export function useEnhancement(ctx, { onSent } = {}) {
   const setPackages = useSend(
     async (rows) => {
       const res = await api.sendEligibility({ cashless_case_id, procedures: rows });
+      resetScope();
       reload();
       return res;
     },

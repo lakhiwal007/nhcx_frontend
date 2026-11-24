@@ -17,8 +17,9 @@ const EVIDENCE = [{ category: "attachment", name: "Justification / Supporting Do
 
 export const reasonName = (code) => REASON_CODES.find((r) => r.value === code)?.label || code;
 
-export function unavailableReason(claimLeg, closed) {
-  if (closed) return "This case is closed. Reopen the case to send an appeal.";
+export function unavailableReason(claimLeg, closed, shut = closed) {
+  if (shut) return "This case is closed. Reopen the case to send an appeal.";
+  if (closed) return "This claim is settled, so there is nothing left to appeal.";
   if (!claimLeg || claimLeg === "rejected") return null;
   if (claimLeg === "approved" || claimLeg === "partial") return "The payer did not reject this claim. To recover an unpaid balance, ask for the balance on the Claim step.";
   if (claimLeg === "queried") return "The payer has an open query on this claim. Answer it on the Claim step.";
@@ -29,7 +30,7 @@ export function unavailableReason(claimLeg, closed) {
 const normalize = (res) => (res?.decision ? { ...res, decision: String(res.decision).replace(/^REPROCESS_/, "") } : res);
 
 export function useReprocess(ctx, { locked = false, onSent } = {}) {
-  const { caseState, caseRecord, cashlessCase, caseClosed, reloadCase, refreshTimeline, draftFiles, setDraftFiles, timelineEvents } = ctx;
+  const { caseState, caseRecord, cashlessCase, caseClosed, caseShut, reloadCase, refreshTimeline, draftFiles, setDraftFiles, timelineEvents } = ctx;
   const caseId = caseState.cashless_case_id || null;
   const anchor = caseId || caseState.claim_id || null;
   const filesKey = anchor ? `${anchor}:reprocess` : null;
@@ -58,7 +59,7 @@ export function useReprocess(ctx, { locked = false, onSent } = {}) {
   const correlationId = sentId || recoveredId;
   const claimId = caseRecord?.claim?.claim_id ?? caseRecord?.claim_id ?? cashlessCase?.claim_id ?? caseState.claim_id ?? null;
   const claimLeg = (caseRecord?.legs ?? cashlessCase?.legs)?.claim;
-  const unavailable = unavailableReason(claimLeg, caseClosed);
+  const unavailable = unavailableReason(claimLeg, caseClosed, caseShut);
 
   const status = useWorkflowStatus((signal) => api.getReprocessStatus(correlationId, signal), {
     key: correlationId,
