@@ -36,10 +36,20 @@ export default function Communications({ allFacilitiesMode = false }) {
   const [sendOpen, setSendOpen] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(0);
-  const [view, setView] = useState(() => localStorage.getItem("communications_readFilter") || "unread");
+  const [view, setView] = useState(() => {
+    try {
+      return localStorage.getItem("communications_readFilter") || "unread";
+    } catch {
+      return "unread";
+    }
+  });
 
   useEffect(() => {
-    localStorage.setItem("communications_readFilter", view);
+    try {
+      localStorage.setItem("communications_readFilter", view);
+    } catch {
+      return;
+    }
   }, [view]);
 
   useEffect(() => {

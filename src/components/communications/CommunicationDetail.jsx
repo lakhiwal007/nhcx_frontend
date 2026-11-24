@@ -60,8 +60,8 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
   const taskAction = reviewTask?.action;
   const actionable = !!taskAction && taskAction.code !== "review_communication";
   const inbound = detail?.direction !== "outbound";
-  const answered = !!replied || (!reviewTask && !!detail?.completed_tasks?.some((t) => t.task_type === "review_communication"));
   const isQuery = !detail?.kind || detail.kind === "query";
+  const answered = !!replied || (isQuery && inbound && !!detail?.acknowledged);
   const canReply = inbound && isQuery && !answered && !actionable && !readOnly;
   const requiredDocs = reviewTask?.required_documents?.length ? reviewTask.required_documents : parseDocumentsFromTaskInputs(detail?.task_inputs);
   const reason = REASONS[detail?.reason_code];
