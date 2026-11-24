@@ -16,6 +16,8 @@ export const shouldStopPolling = (res) =>
 
 const eligibilityCorrelationId = (res) => res?.coverage_eligibility?.validation?.correlation_id ?? res?.coverage_eligibility?.correlation_id;
 
+const present = (values) => Object.fromEntries(Object.entries(values).filter(([, v]) => v != null && v !== ""));
+
 const sumInsuredMessage = (message) => {
   const text = message || "";
   return text.includes("sum_insured_exceeded") || text.toLowerCase().includes("exceeds policy sum insured") ? text : null;
@@ -57,6 +59,7 @@ export function useEligibility(ctx) {
     const key = `${childId}|${payer.code}|${policy.policy_number}|${admissionId || ""}|${prep.attempt}`;
     if (prepKey.current === key) return undefined;
     prepKey.current = key;
+    setPrep((p) => (p.status === "idle" ? p : { ...p, status: "idle", error: null, sumInsured: null }));
     let cancelled = false;
     const run = async () => {
       try {
@@ -130,7 +133,7 @@ export function useEligibility(ctx) {
             force_refresh: true,
           });
       applyCase(res);
-      updateCaseState({ cashless_case_id: res.cashless_case_id, claim_id: res.claim_id, eligibility_correlation_id: eligibilityCorrelationId(res) });
+      updateCaseState(present({ cashless_case_id: res.cashless_case_id, claim_id: res.claim_id, eligibility_correlation_id: eligibilityCorrelationId(res) }));
       setPollError(null);
       return res;
     },
@@ -141,7 +144,7 @@ export function useEligibility(ctx) {
     async (packages) => {
       const res = await api.sendEligibility({ cashless_case_id: caseId, ...(packages?.length ? { procedures: packages } : {}) });
       applyCase(res);
-      updateCaseState({ eligibility_correlation_id: eligibilityCorrelationId(res) });
+      updateCaseState(present({ eligibility_correlation_id: eligibilityCorrelationId(res) }));
       setPollError(null);
       return res;
     },
