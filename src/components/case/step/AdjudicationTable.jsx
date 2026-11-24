@@ -16,6 +16,11 @@ export default function AdjudicationTable({ items = [], totals, names = {}, requ
   const requestedTotal = totals?.submitted?.value ?? sum((l) => l.adjudication?.submitted?.value);
   const approvedTotal = approvedOf(totals) ?? sum((l) => approvedOf(l.adjudication));
   const anyReason = showReason && lines.some((l) => reasonOf(l));
+  const extras = [
+    ["Tax", totals?.tax?.value],
+    ["Incentive", totals?.incentive?.value],
+    ["Patient share", totals?.patient_liable?.value],
+  ].filter(([, value]) => Number(value) > 0);
   return (
     <div className="cv-tw">
       <table>
@@ -53,6 +58,14 @@ export default function AdjudicationTable({ items = [], totals, names = {}, requ
             <td className="is-num">{formatMoney(approvedTotal)}</td>
             {anyReason && <td />}
           </tr>
+          {extras.map(([label, value]) => (
+            <tr key={label}>
+              <td>{label}</td>
+              <td />
+              <td className="is-num">{formatMoney(value)}</td>
+              {anyReason && <td />}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
