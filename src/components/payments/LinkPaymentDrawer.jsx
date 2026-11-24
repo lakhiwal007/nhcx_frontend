@@ -14,6 +14,14 @@ export default function LinkPaymentDrawer({ payment, onClose, onLinked }) {
   const [choice, setChoice] = useState("");
   const [typed, setTyped] = useState("");
 
+  const [openedFor, setOpenedFor] = useState(null);
+  if ((payment?.id ?? null) !== openedFor) {
+    setOpenedFor(payment?.id ?? null);
+    setChoice("");
+    setTyped("");
+    if (payment) setCases({ loaded: false, list: [] });
+  }
+
   useEffect(() => {
     if (!open || cases.loaded) return undefined;
     let live = true;

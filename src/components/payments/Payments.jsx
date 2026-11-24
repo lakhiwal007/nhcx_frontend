@@ -75,7 +75,7 @@ function downloadCsv(rows) {
 }
 
 const caseLink = (p) => (p.cashless_case_id ? `/dashboard?case=${encodeURIComponent(p.cashless_case_id)}` : `/dashboard?q=${encodeURIComponent(p.claim_reference || "")}`);
-const net = (list) => list.reduce((s, p) => s + (Number(p.net_payment_amount) || 0), 0);
+const net = (list) => list.reduce((s, p) => s + Math.abs(Number(p.net_payment_amount) || 0), 0);
 const ackTone = (state) => (state === "failed" ? "is-bad" : state === "pending" ? "is-info" : "is-ok");
 
 export default function Payments() {
@@ -127,7 +127,7 @@ export default function Payments() {
     const dB = Date.parse(b.payment_date) || 0;
     if (sortBy === "oldest") return dA - dB;
     if (sortBy === "highest_amount") return (b.net_payment_amount || 0) - (a.net_payment_amount || 0);
-    if (sortBy === "highest_tds") return (b.tds_amount || 0) - (a.tds_amount || 0);
+    if (sortBy === "highest_tds") return Math.abs(b.tds_amount || 0) - Math.abs(a.tds_amount || 0);
     return dB - dA;
   });
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
