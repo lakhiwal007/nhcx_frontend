@@ -26,6 +26,7 @@ function PractitionerDrawer({ facilityCode, doctor, onClose, onSaved }) {
   const save = useSend(
     async () => {
       const saved = await api.savePractitioner(facilityCode, doctor.doctor_id, { ...form, hpr_id: digits, active: true });
+      if (saved?.status === "not_found") throw new Error("This doctor is no longer in the hospital system, so the HPR id was not saved.");
       onSaved(saved);
       onClose();
       return saved;
@@ -100,6 +101,7 @@ export default function Practitioners({ facility, canEdit, embedded = false }) {
   const toggle = useSend(
     async (doctor) => {
       const saved = await api.savePractitioner(facilityCode, doctor.doctor_id, { hpr_id: doctor.master.hpr_id, active: !doctor.master.active });
+      if (saved?.status === "not_found") throw new Error("This doctor could not be found, so nothing was changed.");
       replace(saved);
       return saved;
     },

@@ -82,7 +82,7 @@ export function validateFacility(form, isEdit) {
   need("state", "Enter the state.");
   need("district", "Enter the district.");
   need("endpoint_url", "Enter the callback URL.");
-  if (form.endpoint_url && !/^https?:\/\//i.test(form.endpoint_url.trim())) errors.endpoint_url = "The callback URL must start with https://.";
+  if (form.endpoint_url && !/^https:\/\//i.test(form.endpoint_url.trim())) errors.endpoint_url = "The callback URL must start with https://.";
   need("primary_email", "Enter the contact email.");
   if (form.primary_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.primary_email.trim())) errors.primary_email = "That does not look like an email address.";
   if (!/^\d{10}$/.test(form.primary_mobile || "")) errors.primary_mobile = "Enter the 10-digit mobile, with no country code or spaces.";

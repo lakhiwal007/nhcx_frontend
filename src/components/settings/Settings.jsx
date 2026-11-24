@@ -39,6 +39,23 @@ function Segmented({ value, options, onPick }) {
   );
 }
 
+const readStored = (key) => {
+  try {
+    return localStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+};
+
+const writeStored = (key, value) => {
+  try {
+    if (value == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    return;
+  }
+};
+
 const keyWord = (f) => (f.private_key_set ? "Uploaded" : "Missing");
 const abdmWord = (f) => (f.abdm_registration?.success === undefined ? "—" : f.abdm_registration.success ? "Registered" : "Sync failed");
 
@@ -60,7 +77,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
   const [doctorsFor, setDoctorsFor] = useState(null);
   const [opening, setOpening] = useState(null);
   const [openError, setOpenError] = useState(null);
-  const [activeCode, setActiveCode] = useState(() => localStorage.getItem("nhcx_default_provider_id") || "");
+  const [activeCode, setActiveCode] = useState(() => readStored("nhcx_default_provider_id"));
 
   const needsFallbackPicker = Array.isArray(sessionFacilities) && sessionFacilities.length === 0 && !sessionUserId;
   const canManage = (code) => managesAnyFacility || manageableFacilityCodes.includes(String(code));
@@ -137,14 +154,14 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
       await afterChange();
       return res;
     },
-    { success: isEdit ? "Facility saved" : "Facility registered" },
+    { success: (res) => (res ? (isEdit ? "Facility saved" : "Facility registered") : null) },
   );
   const errorCount = Object.keys(errors).length;
 
   const pickFacility = (facility) => {
-    localStorage.setItem("nhcx_default_provider_id", facility.hcx_participant_code);
-    localStorage.setItem("nhcx_default_facility_name", facility.name || "");
-    localStorage.removeItem(ALL_FACILITIES_MODE_KEY);
+    writeStored("nhcx_default_provider_id", facility.hcx_participant_code);
+    writeStored("nhcx_default_facility_name", facility.name || "");
+    writeStored(ALL_FACILITIES_MODE_KEY, null);
     window.dispatchEvent(new CustomEvent("provider-changed"));
     setActiveCode(facility.hcx_participant_code);
   };
