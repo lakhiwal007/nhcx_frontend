@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AlertCircle, FileText } from "lucide-react";
 import { api } from "../../api";
 import { taskHelp, taskLabel, taskScreen } from "../../domain/tasks";
@@ -34,6 +35,9 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
   const isSupersededCancel = type === "cancel_superseded_preauth";
   const isAckFailure = type === "review_payment_ack_failure";
   const paymentRef = task?.action?.payload_hint?.payment_reference;
+  const isOpen = !!task && task.status !== "completed";
+  const [withdrawnFor, setWithdrawnFor] = useState(null);
+  const withdrawn = withdrawnFor != null && withdrawnFor === taskId;
 
   const retry = useSend(
     async () => {
@@ -47,12 +51,15 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
 
   const withdraw = useSend(
     async () => {
-      const res = await api.cancelPreauth({
-        cashless_case_id: task.cashless_case_id,
-        reason: "payer-changed",
-        description: "Case moved to a different payer.",
-      });
-      if (!(res?.correlation_id || res?.status === "submitted")) throw new Error(res?.message || "The pre-auth could not be withdrawn. Try again.");
+      if (!withdrawn) {
+        const res = await api.cancelPreauth({
+          cashless_case_id: task.cashless_case_id,
+          reason: "payer-changed",
+          description: "Case moved to a different payer.",
+        });
+        if (!(res?.correlation_id || res?.status === "submitted")) throw new Error(res?.message || "The pre-auth could not be withdrawn. Try again.");
+        setWithdrawnFor(taskId);
+      }
       await api.completeTask(taskId, { note: "Withdrawn with the previous payer" });
     },
     { success: "Pre-auth withdrawn from the previous payer", onDone },
@@ -68,14 +75,14 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
   const error = retry.error || withdraw.error || complete.error || retryAck?.error;
   const help = taskHelp(type);
   const label = taskLabel(type);
-  const canClose = task && !needsOwnAction(task);
+  const canClose = isOpen && !needsOwnAction(task);
 
   const openCase = () => {
     onClose();
     onNavigate(task);
   };
 
-  const primary = isCallbackFailure ? (
+  const primary = isOpen && isCallbackFailure ? (
     <Button
       write
       variant="primary"
@@ -89,12 +96,12 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
     >
       {retry.busy ? "Reading…" : "Read the payer's answer again"}
     </Button>
-  ) : isSupersededCancel ? (
+  ) : isOpen && isSupersededCancel ? (
     <Button write variant="primary" disabled={busy || allFacilitiesMode} onClick={withdraw.run}>
-      {withdraw.busy ? "Withdrawing…" : "Withdraw from the previous payer"}
+      {withdraw.busy ? "Withdrawing…" : withdrawn ? "Mark the withdrawal done" : "Withdraw from the previous payer"}
     </Button>
   ) : (
-    <Button variant="primary" disabled={allFacilitiesMode} disabledReason={allFacilitiesMode ? "This account can view but cannot change anything" : undefined} onClick={openCase}>
+    <Button variant="primary" onClick={openCase}>
       {openLabel(task || {})}
     </Button>
   );
@@ -114,8 +121,8 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
         footer={
           task && (
             <>
-              {(isCallbackFailure || isSupersededCancel) && (
-                <Button variant="outline" disabled={allFacilitiesMode} onClick={openCase}>
+              {isOpen && (isCallbackFailure || isSupersededCancel) && (
+                <Button variant="outline" onClick={openCase}>
                   {openLabel(task)}
                 </Button>
               )}
@@ -146,7 +153,7 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
               </div>
             )}
 
-            {isAckFailure && paymentRef && (
+            {isOpen && isAckFailure && paymentRef && (
               <NextStep
                 tone="bad"
                 title="The payment confirmation did not reach the payer"

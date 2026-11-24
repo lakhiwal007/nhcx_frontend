@@ -444,7 +444,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
 
 function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
   const bucket = priorityBucket(task);
-  const age = ageLabel(task.created_at);
+  const age = task.status === "completed" ? null : ageLabel(task.created_at);
   const title = task.title || task.description;
   const detail = task.title && task.description ? task.description : null;
   const canBulk = selectable && !needsOwnAction(task);
