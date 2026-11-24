@@ -17,8 +17,8 @@ const EVIDENCE = [{ category: "attachment", name: "Justification / Supporting Do
 
 export const reasonName = (code) => REASON_CODES.find((r) => r.value === code)?.label || code;
 
-export function unavailableReason(claimLeg, settled) {
-  if (settled) return "This claim is settled, so there is nothing left to appeal.";
+export function unavailableReason(claimLeg, closed) {
+  if (closed) return "This case is closed. Reopen the case to send an appeal.";
   if (!claimLeg || claimLeg === "rejected") return null;
   if (claimLeg === "approved" || claimLeg === "partial") return "The payer did not reject this claim. To recover an unpaid balance, ask for the balance on the Claim step.";
   if (claimLeg === "queried") return "The payer has an open query on this claim. Answer it on the Claim step.";
@@ -82,7 +82,7 @@ export function useReprocess(ctx, { locked = false, onSent } = {}) {
   const payerErrors = [...(data?.errors || []), ...(claimResponse?.errors || []).map((e) => ({ ...e, message: e.message || e.detail }))];
   const sentReason = data?.reason_code ?? appeal?.reason_code ?? (sentId ? reasonCode : null);
 
-  const claimDecisionEvent = [...(timelineEvents || [])].reverse().find((e) => e.workflow === "claim" && e.decision);
+  const claimDecisionEvent = [...(timelineEvents || [])].reverse().find((e) => e.workflow === "claim" && e.decision && !String(e.detail?.workflow_type || "").startsWith("discharge"));
   const rejection = {
     notes: caseRecord?.claim?.process_notes || [],
     errors: caseRecord?.claim?.errors || [],
