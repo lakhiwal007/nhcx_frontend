@@ -4,35 +4,35 @@
   --content-max: none;
 }
 
-/* Top bar: light in the light theme, the two-part mark keeps its ink and emerald. */
 .command-bar {
-  background: var(--bg-sidebar);
-  color: var(--text-main);
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 1px 0 rgba(16, 32, 27, 0.02);
+  --nav-bg: #000;
+  background: var(--nav-bg);
+  color: #fff;
+  border-bottom: 1px solid #000;
+  box-shadow: none;
 }
-.command-brand-name { color: var(--text-main); }
+.command-brand-name { color: #fff; }
 .command-brand-logo { animation: em-pop 0.5s var(--ease-out) both; }
-.command-nav-pill { color: var(--text-muted); }
+.command-nav-pill { color: rgba(255, 255, 255, 0.65); }
 .command-nav-pill:hover,
 .command-nav-pill.active,
-.command-more > .command-nav-pill.is-open { color: var(--primary); }
-.command-more > .command-nav-pill.is-open { background: var(--primary-light); }
+.command-more > .command-nav-pill.is-open { color: #fff; }
+.command-more > .command-nav-pill.is-open { background: rgba(255, 255, 255, 0.14); }
 .command-nav-active {
-  background: var(--primary-light);
-  box-shadow: inset 0 -2px 0 var(--primary);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 -2px 0 #fff;
   transition: left 0.35s var(--ease-out), width 0.35s var(--ease-out);
 }
 .command-facility-btn {
-  background: var(--bg-card);
-  color: var(--text-main);
-  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: none;
 }
-.command-facility-btn:hover { border-color: var(--border-strong); }
-.command-icon-btn { color: var(--text-muted); }
-.command-icon-btn:hover { background: var(--primary-light); color: var(--primary); }
-.command-bar .notif-badge { border-color: var(--bg-sidebar); }
+.command-facility-btn:hover { border-color: rgba(255, 255, 255, 0.4); }
+.command-icon-btn { color: rgba(255, 255, 255, 0.75); }
+.command-icon-btn:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.command-bar .notif-badge { border-color: var(--nav-bg); }
 
 /* Page edges: the content runs to the window edge with a thin gutter. */
 .main-view { padding: 8px 8px 12px; }
