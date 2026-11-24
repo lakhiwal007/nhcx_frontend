@@ -153,7 +153,7 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
   const dischargeIntimation = cashlessCase?.discharge_intimation !== false;
 
   const claimView = verdictFor(final.data);
-  const decisionEvent = [...(timelineEvents || [])].reverse().find((e) => e.workflow === "claim" && e.decision && !e.detail?.refused);
+  const decisionEvent = [...(timelineEvents || [])].reverse().find((e) => e.workflow === "claim" && e.decision && !e.detail?.refused && !String(e.detail?.workflow_type || "").startsWith("discharge"));
   const provenance = decisionEvent ? { ...decisionEvent.decision, nhcx_workflow_id: decisionEvent.nhcx_workflow_id } : null;
   const finalFailed = claimView.phase === "failed";
   const finalSent = !!finalId && !finalFailed;
@@ -170,6 +170,8 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
   const isRejected = claimView.decision === "REJECTED";
   const balanceOwed = claimRequested != null && claimApproved != null ? claimRequested - claimApproved : 0;
   const settledGross = moneyLedger?.settlement?.gross;
+  const releaseAnswer = release.data?.answer || caseRecord?.release?.answer || null;
+  const releaseCanRepeat = !releaseId || release.data?.status === "failed" || caseRecord?.release?.status === "failed" || releaseAnswer === "refused";
   const releaseOwed = caseClosed ? (claimApproved != null && settledGross != null ? Math.max(0, claimApproved - settledGross) : 0) : balanceOwed;
 
   const justification = [
@@ -334,6 +336,7 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
     releaseOwed,
     releaseId,
     release,
+    releaseCanRepeat,
     docsLocked,
     groups,
     blockers,

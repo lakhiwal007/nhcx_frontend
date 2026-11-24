@@ -253,7 +253,7 @@ export default function ClaimsScreen({ ctx }) {
   const more = [
     canEnquire && (view.phase === "not_found" || c.claimUnclear || (c.finalWaiting && c.final.elapsedMs > GATEWAY_RECOVERY_MS)) && { label: "Ask NHCX where it stands", icon: Wifi, busy: c.askGateway.busy, busyLabel: "Asking…", onClick: c.askGateway.run },
     c.claimDecided && (c.isQueried || c.isRejected || c.isPartial) && OUTBOUND_COMMUNICATIONS_ENABLED && { label: "Message the payer", icon: MessageSquare, onClick: () => setMessageOpen(true) },
-    c.claimDecided && (c.isApproved || c.isPartial) && c.releaseOwed > 0 && c.releaseId && !lock.viewOnly && { label: "Ask for the balance again", icon: Wallet, onClick: () => setReleaseOpen(true) },
+    c.claimDecided && (c.isApproved || c.isPartial) && c.releaseOwed > 0 && c.releaseId && c.releaseCanRepeat && !lock.viewOnly && { label: "Ask for the balance again", icon: Wallet, onClick: () => setReleaseOpen(true) },
   ];
 
   const releaseData = c.release.data;
