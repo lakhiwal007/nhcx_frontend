@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Building2, Plus, Key, Edit2, RefreshCw, Sun, Moon, PanelLeft, PanelTop, SearchX, Stethoscope, ArrowRight } from "lucide-react";
+import { Building2, Plus, Edit2, RefreshCw, Sun, Moon, PanelLeft, PanelTop, ArrowRight } from "lucide-react";
 import { api, markHandled, ALL_FACILITIES_MODE_KEY } from "../../api";
 import { getDeepLinkClinicId } from "../../lib/sessionBootstrap";
 import { useSend } from "../../hooks/util/useSend";
@@ -13,6 +13,9 @@ import { EMPTY_FORM, formFromFacility, validateFacility, facilityPayload } from 
 import { KeyUploadDrawer, CertificateRotationDrawer } from "./KeyDrawers";
 import OnboardingWizard from "./OnboardingWizard";
 import Practitioners from "./Practitioners";
+import FacilityAdmin from "./FacilityAdmin";
+import AllFacilities from "./AllFacilities";
+import { facilityIssues, facilityStatus } from "./facilityHealth";
 
 function Section({ id, title, meta, tools, children }) {
   return (
@@ -56,8 +59,6 @@ const writeStored = (key, value) => {
   }
 };
 
-const keyWord = (f) => (f.private_key_set ? "Uploaded" : "Missing");
-const abdmWord = (f) => (f.abdm_registration?.success === undefined ? "—" : f.abdm_registration.success ? "Registered" : "Sync failed");
 
 export default function Settings({ readOnly = false, manageableFacilityCodes = [], managesAnyFacility = false, nhcxEnvironment = "sandbox", sessionFacilities = null, sessionUserId = null, sessionUserName = null, onSessionRefresh, allFacilitiesMode = false, theme = "light", onToggleTheme, layoutDirection = "B", onToggleLayoutDirection }) {
   const navigate = useNavigate();
@@ -74,15 +75,16 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
   const [onboarding, setOnboarding] = useState(null);
   const [keyUpload, setKeyUpload] = useState(null);
   const [rotate, setRotate] = useState(null);
-  const [doctorsFor, setDoctorsFor] = useState(null);
   const [opening, setOpening] = useState(null);
   const [openError, setOpenError] = useState(null);
   const [activeCode, setActiveCode] = useState(() => readStored("nhcx_default_provider_id"));
+  const [adminCode, setAdminCode] = useState(null);
 
   const needsFallbackPicker = Array.isArray(sessionFacilities) && sessionFacilities.length === 0 && !sessionUserId;
   const canManage = (code) => managesAnyFacility || manageableFacilityCodes.includes(String(code));
   const showManagement = readOnly || managesAnyFacility || manageableFacilityCodes.length > 0;
   const isDesk = !showManagement && sessionFacilities?.length > 0;
+  const globalView = readOnly || managesAnyFacility;
 
   useEffect(() => {
     if (!showManagement && !needsFallbackPicker && !isDesk) return undefined;
@@ -104,8 +106,13 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
   const statusOf = (code) => {
     const f = facilities.find((row) => String(row.facility_code) === String(code));
     if (!f) return null;
-    return f.abdm_registered && f.private_key_set ? ["Ready for claims", "is-ok"] : ["Setup incomplete", "is-warn"];
+    const status = facilityStatus(facilityIssues(f));
+    return [status.label, status.tone];
   };
+  const ownPick = activeCode && facilities.find((f) => f.hcx_participant_code === activeCode && canManage(f.facility_code));
+  const adminFacility = globalView
+    ? facilities.find((f) => String(f.facility_code) === String(adminCode)) || null
+    : facilities.find((f) => String(f.facility_code) === String(adminCode)) || ownPick || facilities.find((f) => canManage(f.facility_code)) || null;
   const detailOf = (code) => facilities.find((row) => String(row.facility_code) === String(code)) || null;
   const reload = () => setReloadKey((k) => k + 1);
   const afterChange = async () => {
@@ -179,8 +186,6 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
   const activeFacility = readOnly ? null : pickerFacilities.find(isActive) || null;
   const firstRun = !readOnly && sessionFacilities && !activeFacility;
 
-  const q = search.trim().toLowerCase();
-  const filtered = q ? facilities.filter((f) => [f.name, f.facility_code, f.hcx_participant_code, f.state, f.district, f.registry_id, f.environment].filter(Boolean).some((v) => v.toLowerCase().includes(q))) : facilities;
 
   return (
     <div className="st-screen">
@@ -333,15 +338,10 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
           </dl>
         </Section>
       )}
-      {activeFacility && <Practitioners key={activeFacility.facility_code} facility={activeFacility} canEdit={hasSessionFacilities && canManage(activeFacility.facility_code)} />}
+      {isDesk && activeFacility && <Practitioners key={activeFacility.facility_code} facility={activeFacility} canEdit={hasSessionFacilities && canManage(activeFacility.facility_code)} />}
 
       {showManagement && (
-        <Section
-          id="st-facilities"
-          title="Facility management"
-          meta={facilities.length > 0 ? (q ? `${filtered.length} of ${facilities.length}` : `${facilities.length} registered`) : null}
-          tools={facilities.length > 3 && <input className="cv-ctl st-search" placeholder="Search name, code or participant…" aria-label="Search facilities" value={search} onChange={(e) => setSearch(e.target.value)} />}
-        >
+        <>
           {list.error && (
             <div className="st-pad">
               <div className="cv-notice is-warn" role="alert">
@@ -359,97 +359,34 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
                 </Button>
               )}
             </EmptyState>
-          ) : filtered.length === 0 ? (
-            <EmptyState icon={SearchX} iconSize={44} iconOpacity={0.25} title="No matching facilities" description={`Nothing matches "${search.trim()}".`}>
-              <Button variant="outline" size="small" onClick={() => setSearch("")}>
-                Clear search
-              </Button>
-            </EmptyState>
-          ) : (
-            <div className="wq-table-scroll">
-              <table className="st-table st-admin-table">
-                <thead>
-                  <tr>
-                    <th>Facility</th>
-                    <th>Participant · HFR</th>
-                    <th>Scheme · environment</th>
-                    <th>Region</th>
-                    <th>Contact</th>
-                    <th>Key</th>
-                    <th>ABDM</th>
-                    <th className="st-col-actions">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((f) => (
-                    <tr key={f.facility_code}>
-                      <td>
-                        <span className="st-strong">{f.name}</span>
-                        <span className="st-sub">
-                          {f.facility_code}
-                          {!f.active && <span className="is-bad"> · Inactive</span>}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="cv-mono">{f.hcx_participant_code || "—"}</span>
-                        {(f.registry_id || f.hfr_id) && <span className="st-sub cv-mono">{f.registry_id || f.hfr_id}</span>}
-                      </td>
-                      <td>
-                        {f.scheme_code || "—"}
-                        <span className="st-sub">{f.environment === "production" ? "Production" : "Sandbox"}</span>
-                      </td>
-                      <td>
-                        {f.state || "—"}
-                        {f.district && <span className="st-sub">{f.district}</span>}
-                      </td>
-                      <td className="st-contact">
-                        {f.primary_email || "—"}
-                        {f.primary_mobile && <span className="st-sub">{f.primary_mobile}</span>}
-                        {f.endpoint_url && (
-                          <span className="st-sub st-ellipsis" title={f.endpoint_url}>
-                            {f.endpoint_url}
-                          </span>
-                        )}
-                      </td>
-                      <td>{f.private_key_set ? <span className="ep-muted">{keyWord(f)}</span> : <span className="is-bad">{keyWord(f)}</span>}</td>
-                      <td>{f.abdm_registration?.success === false ? <span className="st-warn">{abdmWord(f)}</span> : <span className="ep-muted">{abdmWord(f)}</span>}</td>
-                      <td className="st-col-actions">
-                        {canManage(f.facility_code) && (
-                          <div className="st-row-actions">
-                            {isProduction && !f.abdm_registered && (
-                              <button type="button" className="cv-link" onClick={() => setOnboarding({ step: 2, facility: { ...f } })}>
-                                Finish NHCX registration
-                              </button>
-                            )}
-                            <button type="button" className="cv-link" onClick={() => openEdit(f)}>
-                              <Edit2 size={13} aria-hidden="true" /> Edit
-                            </button>
-                            {f.private_key_set ? (
-                              <button type="button" className="cv-link" onClick={() => setRotate(f)}>
-                                <Key size={13} aria-hidden="true" /> Rotate certificate
-                              </button>
-                            ) : (
-                              <button type="button" className="cv-link" onClick={() => setKeyUpload(f)}>
-                                <Key size={13} aria-hidden="true" /> Upload key
-                              </button>
-                            )}
-                            {readOnly && (
-                              <button type="button" className="cv-link" onClick={() => setDoctorsFor(f)}>
-                                <Stethoscope size={13} aria-hidden="true" /> Doctors
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Section>
+          ) : globalView && !adminFacility ? (
+            <AllFacilities facilities={facilities} search={search} onSearch={setSearch} onOpen={setAdminCode} />
+          ) : adminFacility ? (
+            <FacilityAdmin
+              key={adminFacility.facility_code}
+              facility={adminFacility}
+              canManage={canManage(adminFacility.facility_code)}
+              isProduction={isProduction}
+              onEdit={openEdit}
+              onUploadKey={setKeyUpload}
+              onRotate={setRotate}
+              onOnboard={(f) => setOnboarding({ step: 2, facility: { ...f } })}
+              onBack={globalView ? () => setAdminCode(null) : null}
+              viewingAsAdmin={globalView}
+              switcher={
+                !globalView && facilities.length > 1 ? (
+                  <select className="cv-ctl st-adm-switch" aria-label="Facility" value={adminFacility.facility_code} onChange={(e) => setAdminCode(e.target.value)}>
+                    {facilities.map((f) => (
+                      <option key={f.facility_code} value={f.facility_code}>
+                        {f.name || f.facility_code}
+                      </option>
+                    ))}
+                  </select>
+                ) : null
+              }
+            />
+          ) : null}
+        </>
       )}
 
       <Section id="st-appearance" title="Appearance">
@@ -516,9 +453,6 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
         <KeyUploadDrawer key={`upload-${keyUpload?.facility_code || "none"}`} facility={keyUpload} onClose={() => setKeyUpload(null)} onUploaded={reload} />
         <CertificateRotationDrawer key={`rotate-${rotate?.facility_code || "none"}`} facility={rotate} onClose={() => setRotate(null)} onRotated={reload} />
 
-        <Drawer width={860} stack open={!!doctorsFor} onClose={() => setDoctorsFor(null)} title={`Doctors at ${doctorsFor?.name || doctorsFor?.facility_code || ""}`} subtitle={doctorsFor ? `Code ${doctorsFor.facility_code}` : undefined}>
-          {doctorsFor && <Practitioners key={`doctors-${doctorsFor.facility_code}`} facility={doctorsFor} canEdit={canManage(doctorsFor.facility_code)} embedded />}
-        </Drawer>
       </ReadOnlyContext.Provider>
     </div>
   );

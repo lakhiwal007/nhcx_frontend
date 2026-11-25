@@ -3787,6 +3787,8 @@ const mock = {
           primary_email: "hcx@citygeneral.example",
           primary_mobile: "9876543210",
           abdm_registration: { success: true },
+          abdm_registered: true,
+          cert_expires_at: new Date(Date.now() + 41 * 86400000).toISOString(),
         },
         {
           facility_code: "HOSP-002",
