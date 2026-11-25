@@ -114,7 +114,7 @@ export default function EligibilityPrep({ ctx }) {
       box.querySelector("button, select")?.focus({ preventScroll: true });
     }, 80);
   };
-  const choosing = packagesOpen && (!!full?.next_actions?.includes("choose_package") || (canChange && (editing || tierMissing.length > 0)));
+  const choosing = packagesOpen && (!!full?.next_actions?.includes("choose_package") || (canChange && (editing || picked !== null || tierMissing.length > 0)));
   const setChosen = (change) => setPicked((prev) => change(prev ?? held));
   const canSendNow = !!full?.next_actions?.includes("send_eligibility") && !locked;
   const chosenCodes = new Set(chosen.map((p) => String(p.code)));
@@ -252,7 +252,7 @@ export default function EligibilityPrep({ ctx }) {
       busy: e.sendChecks.busy,
       onClick: () => e.sendChecks.run(),
     },
-    canRerunNow && !(!choosing && (needsRetry || stalled || isStalePending) && tierMissing.length === 0) && {
+    canRerunNow && !choosing && !((needsRetry || stalled || isStalePending) && tierMissing.length === 0) && {
       label: e.rerun.busy ? "Sending…" : needsRetry ? "Retry the checks" : "Send the checks to the payer again",
       busy: e.rerun.busy,
       onClick: tierMissing.length ? showTier : e.rerun.run,

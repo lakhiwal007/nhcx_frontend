@@ -65,9 +65,9 @@ function EventFacts({ event, bundle }) {
           {d.ambiguous && <span className="tl-verify"> · Confirm with the payer.</span>}
         </div>
       )}
-      {event.error && (
+      {event.error && (event.error.message !== event.summary || event.error.code) && (
         <div className="tl-line is-bad">
-          {event.error.message || "No reason given"}
+          {event.error.message !== event.summary && (event.error.message || "No reason given")}
           {event.error.code ? <span className="cv-mono cv-card-meta"> {event.error.code}</span> : null}
         </div>
       )}
