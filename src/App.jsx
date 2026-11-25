@@ -67,7 +67,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || "light");
   const [layoutDirection, setLayoutDirection] = useState(() => localStorage.getItem(LAYOUT_DIRECTION_KEY) || "B");
   const [provider, setProvider] = useState(readProvider);
-  const [session, setSession] = useState({ ready: false, readOnly: false, manageableFacilityCodes: [], managesAnyFacility: false, nhcxEnvironment: "sandbox", facilities: null, userId: null });
+  const [session, setSession] = useState({ ready: false, readOnly: false, manageableFacilityCodes: [], managesAnyFacility: false, nhcxEnvironment: "sandbox", facilities: null, userId: null, userName: null });
   const [blocked, setBlocked] = useState(null);
   const [pageActionsEl, setPageActionsEl] = useState(null);
   const facilityRecoveryAttempted = useRef(false);
@@ -102,6 +102,7 @@ export default function App() {
       nhcxEnvironment: res?.nhcx_environment === "production" ? "production" : "sandbox",
       facilities,
       userId: res?.user?.id ?? null,
+      userName: res?.user?.name ?? null,
     });
     const inAllMode = localStorage.getItem(ALL_FACILITIES_MODE_KEY) === "true";
     if (isReadOnly) {
@@ -267,6 +268,7 @@ export default function App() {
                             nhcxEnvironment={session.nhcxEnvironment}
                             sessionFacilities={session.facilities}
                             sessionUserId={session.userId}
+                            sessionUserName={session.userName}
                             onSessionRefresh={refreshSession}
                             allFacilitiesMode={allFacilitiesMode}
                             theme={theme}

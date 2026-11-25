@@ -187,3 +187,12 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary-fill);
 .cv-ask-group.is-optional .cv-row-title { font-weight: 500; color: var(--text-muted); }
 .cv-ask-group.is-done .cv-row-title { color: var(--text-muted); }
 .cv-ask-why { color: var(--error); }
+
+.st-me { display: flex; align-items: center; gap: 14px; padding: 14px 20px; flex-wrap: wrap; }
+.st-me-av { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--primary-light); color: var(--primary); font-weight: 700; }
+.st-me-who { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 2px; }
+.st-me-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.st-glance { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; margin: 0; padding: 14px 20px; font-size: 13.5px; }
+.st-glance dt { color: var(--text-muted); }
+.st-glance dd { margin: 0; }
+.st-glance dd.is-bad { color: var(--error); }

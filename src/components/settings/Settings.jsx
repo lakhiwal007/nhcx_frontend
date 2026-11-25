@@ -59,7 +59,7 @@ const writeStored = (key, value) => {
 const keyWord = (f) => (f.private_key_set ? "Uploaded" : "Missing");
 const abdmWord = (f) => (f.abdm_registration?.success === undefined ? "—" : f.abdm_registration.success ? "Registered" : "Sync failed");
 
-export default function Settings({ readOnly = false, manageableFacilityCodes = [], managesAnyFacility = false, nhcxEnvironment = "sandbox", sessionFacilities = null, sessionUserId = null, onSessionRefresh, allFacilitiesMode = false, theme = "light", onToggleTheme, layoutDirection = "B", onToggleLayoutDirection }) {
+export default function Settings({ readOnly = false, manageableFacilityCodes = [], managesAnyFacility = false, nhcxEnvironment = "sandbox", sessionFacilities = null, sessionUserId = null, sessionUserName = null, onSessionRefresh, allFacilitiesMode = false, theme = "light", onToggleTheme, layoutDirection = "B", onToggleLayoutDirection }) {
   const navigate = useNavigate();
   const location = useLocation();
   const cameFrom = location.state?.from && location.state.from !== "/settings" ? location.state.from : null;
@@ -82,9 +82,10 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
   const needsFallbackPicker = Array.isArray(sessionFacilities) && sessionFacilities.length === 0 && !sessionUserId;
   const canManage = (code) => managesAnyFacility || manageableFacilityCodes.includes(String(code));
   const showManagement = readOnly || managesAnyFacility || manageableFacilityCodes.length > 0;
+  const isDesk = !showManagement && sessionFacilities?.length > 0;
 
   useEffect(() => {
-    if (!showManagement && !needsFallbackPicker) return undefined;
+    if (!showManagement && !needsFallbackPicker && !isDesk) return undefined;
     let live = true;
     api
       .listFacilities()
@@ -96,10 +97,16 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
     return () => {
       live = false;
     };
-  }, [reloadKey, showManagement, needsFallbackPicker]);
+  }, [reloadKey, showManagement, needsFallbackPicker, isDesk]);
 
   const loading = (showManagement || needsFallbackPicker) && list.key !== reloadKey;
   const facilities = list.facilities || [];
+  const statusOf = (code) => {
+    const f = facilities.find((row) => String(row.facility_code) === String(code));
+    if (!f) return null;
+    return f.abdm_registered && f.private_key_set ? ["Ready for claims", "is-ok"] : ["Setup incomplete", "is-warn"];
+  };
+  const detailOf = (code) => facilities.find((row) => String(row.facility_code) === String(code)) || null;
   const reload = () => setReloadKey((k) => k + 1);
   const afterChange = async () => {
     reload();
@@ -196,6 +203,27 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
         </div>
       )}
 
+      {isDesk && (
+        <section className="st-section st-me" aria-label="You">
+          <span className="st-me-av" aria-hidden="true">
+            {String(sessionUserName || "?")
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((w) => w[0])
+              .join("")
+              .toUpperCase()}
+          </span>
+          <div className="st-me-who">
+            <h2 className="st-section-title">{sessionUserName || "Signed in"}</h2>
+            <span className="st-section-meta">Signed in from the hospital system</span>
+          </div>
+          <div className="st-me-chips">
+            <span className="cv-chip is-ok">Can work cases</span>
+            <span className="cv-chip is-todo">Hospital setup: clinic admin only</span>
+          </div>
+        </section>
+      )}
       {sessionFacilities && !readOnly && (
         <Section id="st-active" title={firstRun ? "Choose the facility you work at" : "Active facility"} meta={!firstRun && activeFacility ? `Working as ${activeFacility.name || activeFacility.facility_code}` : null}>
           {firstRun && (
@@ -232,6 +260,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
                       </th>
                       <th>Facility</th>
                       <th>Participant code</th>
+                      {facilities.length > 0 && <th>Status</th>}
                       <th className="st-col-actions">
                         <span className="sr-only">Actions</span>
                       </th>
@@ -250,6 +279,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
                             <span className="st-sub">{f.facility_code}</span>
                           </td>
                           <td className="cv-mono">{f.hcx_participant_code || "—"}</td>
+                          {facilities.length > 0 && <td>{statusOf(f.facility_code) && <span className={`cv-chip ${statusOf(f.facility_code)[1]}`}>{statusOf(f.facility_code)[0]}</span>}</td>}
                           <td className="st-col-actions" onClick={(e) => e.stopPropagation()}>
                             {hasSessionFacilities && canManage(f.facility_code) && (
                               <div className="st-row-actions">
@@ -291,6 +321,18 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
         </Section>
       )}
 
+      {isDesk && activeFacility && detailOf(activeFacility.facility_code) && (
+        <Section id="st-glance" title={activeFacility.name || activeFacility.facility_code} meta="Setup questions go to your clinic admin">
+          <dl className="st-glance">
+            <dt>NHCX</dt>
+            <dd>{detailOf(activeFacility.facility_code).abdm_registered ? `Registered · ${detailOf(activeFacility.facility_code).environment || "—"}` : "Not registered"}</dd>
+            <dt>Payer answers</dt>
+            <dd className={detailOf(activeFacility.facility_code).private_key_set ? undefined : "is-bad"}>{detailOf(activeFacility.facility_code).private_key_set ? "Can be read" : "Key missing. Ask your clinic admin."}</dd>
+            <dt>Scheme</dt>
+            <dd>{detailOf(activeFacility.facility_code).scheme_code || "—"}</dd>
+          </dl>
+        </Section>
+      )}
       {activeFacility && <Practitioners key={activeFacility.facility_code} facility={activeFacility} canEdit={hasSessionFacilities && canManage(activeFacility.facility_code)} />}
 
       {showManagement && (
