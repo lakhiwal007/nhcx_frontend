@@ -102,7 +102,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
         if (!members.length) return null;
         return (
           <div key={group.rank} className={`cv-ask-group is-${group.title.toLowerCase()}`}>
-            <div className="cv-sub cv-ask-group-title">
+            <div className="cv-ask-group-title">
               {group.title} · {members.length}
             </div>
             {members.map((row) => {
