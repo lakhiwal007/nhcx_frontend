@@ -144,7 +144,7 @@ export function usePreauthDraft(ctx, { submit, locked = false, biometric = null,
   };
   const updateDiagnosis = (idx, field, value) => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
-    setEditedDiagnoses(withPrimary(base.map((d, i) => (i !== idx ? d : field === "code" ? { ...d, code: value, code_system: "", snomed_code: undefined } : { ...d, [field]: value }))));
+    setEditedDiagnoses(withPrimary(base.map((d, i) => (i !== idx ? d : field === "code" ? { ...d, code: value, code_system: "", snomed_code: undefined } : field === "name" ? { ...d, name: value, code: "", code_system: "", snomed_code: undefined } : { ...d, [field]: value }))));
   };
   const pickDiagnosis = (idx, patch) => {
     const base = ensureUids(editedDiagnoses ?? draft?.diagnoses ?? []);
@@ -244,6 +244,7 @@ export function usePreauthDraft(ctx, { submit, locked = false, biometric = null,
     admissionDate: draft?.admission_date,
     principal,
     diagnosisCount: displayDiagnoses.length,
+    uncodedDiagnoses: displayDiagnoses.filter((d) => String(d.name || "").trim() && !String(d.code || "").trim()).length,
     hasPrincipal: displayDiagnoses.some((d) => d.primary) && !hisBlockers.some((f) => /diagnos/i.test(f)),
     justification,
     teamCount: displayCareTeam.length,

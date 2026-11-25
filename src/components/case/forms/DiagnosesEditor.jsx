@@ -1,6 +1,7 @@
 import { Fragment, useState } from "react";
 import { Plus, Search, Trash2 } from "lucide-react";
 import DiagnosisCodeFinder from "./DiagnosisCodeFinder";
+import DiagnosisSuggestions from "./DiagnosisSuggestions";
 import { CODE_SYSTEMS, effectiveSystem } from "./diagnosisCodes";
 
 export default function DiagnosesEditor({ diagnoses, locked, onChange, onPrimary, onAdd, onRemove, onPick, groupName = "primary-diagnosis" }) {
@@ -57,6 +58,13 @@ export default function DiagnosesEditor({ diagnoses, locked, onChange, onPrimary
                   </button>
                 </td>
               </tr>
+              {finding !== i && !locked && onPick && String(diag.name || "").trim() && !String(diag.code || "").trim() && (
+                <tr>
+                  <td colSpan={5}>
+                    <DiagnosisSuggestions name={diag.name} onPick={(patch) => onPick(i, patch)} onSearch={() => setFinding(i)} />
+                  </td>
+                </tr>
+              )}
               {finding === i && !locked && (
                 <tr>
                   <td colSpan={5}>

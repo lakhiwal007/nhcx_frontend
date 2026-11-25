@@ -19,6 +19,8 @@ function clinicalRows(f) {
   const diagnosisFact = f.principal?.code || f.principal?.name || "Principal set";
   const diagnosis = !f.diagnosisCount
     ? { tone: "bad", fact: "Missing", blocks: true }
+    : f.uncodedDiagnoses
+      ? { tone: "bad", fact: f.uncodedDiagnoses === 1 ? "1 without a code" : `${f.uncodedDiagnoses} without a code`, blocks: true }
     : f.hasPrincipal
       ? { tone: "ok", fact: f.diagnosisCount > 1 ? `${diagnosisFact} +${f.diagnosisCount - 1}` : diagnosisFact }
       : { tone: "bad", fact: "Choose the main diagnosis", blocks: true };

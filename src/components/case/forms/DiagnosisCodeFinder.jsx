@@ -8,10 +8,10 @@ const SYSTEMS = [
   { key: "snomed", label: "SNOMED CT" },
 ];
 
-const pickFrom = (row) =>
+export const pickFrom = (row) =>
   row.code_system === SNOMED_CT && row.icd10_code
-    ? { code: row.icd10_code, code_system: ICD_10, snomed_code: row.code }
-    : { code: row.code, code_system: row.code_system, snomed_code: undefined };
+    ? { code: row.icd10_code, code_system: ICD_10, snomed_code: row.code, name: row.display }
+    : { code: row.code, code_system: row.code_system, snomed_code: undefined, name: row.display };
 
 export default function DiagnosisCodeFinder({ name, onPick, onClose }) {
   const [query, setQuery] = useState(name ?? "");
