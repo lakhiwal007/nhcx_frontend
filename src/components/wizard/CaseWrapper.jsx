@@ -364,7 +364,7 @@ function CaseWorkspace({ reportCase }) {
     setPackBusy(true);
     try {
       const res = await buildClaimPack({ caseId: ledgerCaseId, record: { ...effectiveCase, preauth: caseRecord.full?.preauth ?? effectiveCase?.preauth, claim: caseRecord.full?.claim ?? effectiveCase?.claim }, patient, facilityName: effectiveCase?.facility_name });
-      toast.success(res.skipped ? `Claim pack downloaded. ${res.skipped} file${res.skipped === 1 ? "" : "s"} could not be added as pages.` : "Claim pack downloaded");
+      toast.success(res.skipped ? `Claim pack downloaded. ${res.skipped} file${res.skipped === 1 ? "" : "s"} skipped.` : "Claim pack downloaded");
     } catch (err) {
       markHandled(err);
       toast.error(err?.message || "The claim pack could not be built.");
@@ -479,7 +479,7 @@ function CaseWorkspace({ reportCase }) {
         {issueKeys.length > 0 && (
           <div className="cv-notice is-warn">
             <div className="cv-notice-body">
-              Could not refresh {issueKeys.map((k) => ISSUE_LABELS[k] || k).join(", ")}, so what is shown may be out of date.
+              Couldn't refresh {issueKeys.map((k) => ISSUE_LABELS[k] || k).join(", ")}.
               <TechnicalDetails summary="What went wrong" ids={issueKeys.map((k) => ({ label: ISSUE_LABELS[k] || k, value: issues[k] }))} />
             </div>
             <div className="cv-notice-actions">
@@ -496,7 +496,7 @@ function CaseWorkspace({ reportCase }) {
               This case was closed{closure.closed_at ? ` on ${formatDate(closure.closed_at)}` : ""}
               {closure.closed_by_name ? ` by ${closure.closed_by_name}` : ""}
               {closure.reason_label ? `: ${closure.reason_label}` : ""}
-              {closure.note ? ` · ${closure.note}` : ""}. Nothing was sent to the payer about it.
+              {closure.note ? ` · ${closure.note}` : ""}
               {reopen.error && <div className="cv-notice-sub">{reopen.error}</div>}
             </div>
             {!readOnly && (

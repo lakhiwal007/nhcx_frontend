@@ -37,7 +37,7 @@ export default function ResubmitPreauthDrawer({ open, onClose, ctx, preauthRef, 
         open={open}
         onClose={d.send.busy ? undefined : onClose}
         title="Resubmit the pre-auth"
-        subtitle="Correct what the payer named, then send it again. Everything else is rebuilt from the hospital records."
+        subtitle="Fix what the payer named, then resend."
         width={760}
         footer={
           <>

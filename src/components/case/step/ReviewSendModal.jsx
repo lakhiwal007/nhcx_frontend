@@ -11,7 +11,7 @@ export default function ReviewSendModal({ ctx, open, facts, rows, sendLabel, onC
     <ConfirmModal
       open={open}
       title="Check before you send"
-      subtitle="This is what the payer will get. You cannot change it after you send."
+      subtitle="This goes to the payer. You can't change it after."
       confirmLabel={sendLabel}
       cancelLabel="Go back"
       onCancel={onCancel}

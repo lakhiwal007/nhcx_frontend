@@ -55,7 +55,7 @@ const CONDITIONS = [
 ];
 
 function PackageDetail({ benefit, onOpenForm, onChoose, chosen }) {
-  if (!benefit) return <div className="cv-pane cv-card-meta">Pick a package to see everything the payer published for it.</div>;
+  if (!benefit) return <div className="cv-pane cv-card-meta">Pick a package to see its details.</div>;
   const c = benefit.conditions || {};
   const known = new Set(CONDITIONS.map(([k]) => k));
   const conds = [
@@ -267,7 +267,7 @@ export default function PackageBrowser({ correlationId, plan, plannedCodes, onOp
                   <tr><td colSpan={onChoose ? 6 : 5} className="cv-card-meta">Loading packages…</td></tr>
                 )}
                 {!loading && rows.length === 0 && (
-                  <tr><td colSpan={onChoose ? 6 : 5} className="cv-card-meta">{term ? `No package name or code contains "${term}". Shorten or clear the search, or pick a speciality.` : "No package matches these filters."}</td></tr>
+                  <tr><td colSpan={onChoose ? 6 : 5} className="cv-card-meta">{term ? `No match for "${term}".` : "No package matches these filters."}</td></tr>
                 )}
               </tbody>
             </table>

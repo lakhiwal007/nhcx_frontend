@@ -110,7 +110,7 @@ export function AdmissionsLedger({ visits, onOpen }) {
       },
     };
   });
-  return <Ledger columns={columns} rows={rows} label="Admissions" empty="No admissions on record. Admissions are created in the hospital system and appear here." />;
+  return <Ledger columns={columns} rows={rows} label="Admissions" empty="No admissions yet." />;
 }
 
 export function CasesLedger({ cases, tasksFor, onOpen }) {
@@ -152,7 +152,7 @@ export function CasesLedger({ cases, tasksFor, onOpen }) {
       },
     };
   });
-  return <Ledger columns={columns} rows={rows} label="Cashless cases" empty="No cashless case has been started for this patient. If they are admitted and insured, press Start case." />;
+  return <Ledger columns={columns} rows={rows} label="Cashless cases" empty="No case yet. Press Start case." />;
 }
 
 export function MessagesLedger({ communications, onOpen }) {

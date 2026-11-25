@@ -21,7 +21,7 @@ export default function OnboardingWizard({ start, onClose, onDone }) {
     if (!form.name) next.name = "Enter the hospital's name.";
     if (!form.registry_id) next.registry_id = "Enter the HFR id.";
     if (!form.primary_email) next.primary_email = "Enter the email.";
-    if (!/^\d{10}$/.test(form.primary_mobile || "")) next.primary_mobile = "Enter the 10-digit mobile exactly as it is on the HFR record.";
+    if (!/^\d{10}$/.test(form.primary_mobile || "")) next.primary_mobile = "The 10-digit mobile on the HFR record.";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -113,7 +113,7 @@ export default function OnboardingWizard({ start, onClose, onDone }) {
       open
       onClose={busy ? undefined : onClose}
       title="Register on NHCX production"
-      subtitle="NHCX registers a hospital in two steps, and each step is confirmed with a passcode. Both passcodes go to the mobile on the HFR record."
+      subtitle="Two steps, each with a passcode sent to the HFR mobile."
       footer={
         <div className="cv-drawer-actions">
           <button type="button" className="cv-btn" onClick={onClose} disabled={busy}>
@@ -151,7 +151,7 @@ export default function OnboardingWizard({ start, onClose, onDone }) {
             <Field label="HFR id" required htmlFor="ob-hfr" hint="Must be verified in the Health Facility Registry" error={errors.registry_id}>
               <TextInput id="ob-hfr" value={form.registry_id} onChange={(v) => set("registry_id", v)} placeholder="IN2910000001" monospace invalid={!!errors.registry_id} />
             </Field>
-            <Field label="Mobile on the HFR record" required htmlFor="ob-mobile" hint="Both passcodes go here; it must match HFR exactly" error={errors.primary_mobile}>
+            <Field label="Mobile on the HFR record" required htmlFor="ob-mobile" hint="Must match HFR exactly" error={errors.primary_mobile}>
               <TextInput id="ob-mobile" value={form.primary_mobile} onChange={(v) => set("primary_mobile", v.replace(/\D/g, "").slice(0, 10))} placeholder="9876543210" monospace invalid={!!errors.primary_mobile} />
             </Field>
             <Field label="Email" required htmlFor="ob-email" error={errors.primary_email}>
@@ -194,7 +194,7 @@ export default function OnboardingWizard({ start, onClose, onDone }) {
             <Field label="Encryption certificate" required wide htmlFor="ob-cert" hint="Base64 or PEM" error={errors.encryption_cert}>
               <TextArea id="ob-cert" rows={4} value={form.encryption_cert} onChange={(v) => set("encryption_cert", v)} invalid={!!errors.encryption_cert} />
             </Field>
-            <Field label="Private key (PEM)" wide htmlFor="ob-key" hint="Must belong to the certificate; leave empty to keep the key already stored">
+            <Field label="Private key (PEM)" wide htmlFor="ob-key" hint="Leave empty to keep the stored key">
               <TextArea id="ob-key" rows={4} value={form.private_key_pem} onChange={(v) => set("private_key_pem", v)} />
             </Field>
             <Field label="Callback URL" required wide htmlFor="ob-url" hint="https, a domain name with no IP or port, hosted in India" error={errors.endpoint_url}>

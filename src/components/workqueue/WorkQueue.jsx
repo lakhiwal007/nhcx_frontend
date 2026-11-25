@@ -170,7 +170,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       }
     }
     if (!cid) {
-      setPageError((prev) => prev || "This task is not linked to a patient, so its case cannot be opened. Tell your IT team.");
+      setPageError((prev) => prev || "No patient linked. Tell IT.");
       return;
     }
     const path = taskScreen(task.task_type, cid, task.workflow) || `/case/${cid}/`;
@@ -235,7 +235,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       {loadError && (
         <div className="inline-error-banner" role="alert">
           <AlertCircle size={16} />
-          The task list could not be refreshed. This is the last list that loaded. Press Refresh to try again.
+          Couldn't refresh. Showing the last list.
         </div>
       )}
 
@@ -246,7 +246,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
         </div>
       )}
 
-      <Tip className="wq-page-tip">Everything waiting on the hospital, most urgent first. Click a task to see what to do, then open its case.</Tip>
+      <Tip className="wq-page-tip">What needs you, most urgent first.</Tip>
 
       {cutOff && (
         <Tip className="wq-page-tip">
@@ -359,7 +359,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
             title={statusFilter === "pending" ? "No open tasks" : "No completed tasks"}
             description={
               statusFilter === "pending"
-                ? `Nothing is waiting on the hospital${taskTypeFilter ? " for this task type" : ""}. New tasks appear here when a payer answers or a case needs something from you.`
+                ? `Nothing waiting${taskTypeFilter ? " of this type" : ""}.`
                 : `No completed tasks${taskTypeFilter ? " of this type" : ""} yet.`
             }
           />
@@ -432,7 +432,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
       <ConfirmModal
         open={bulk.confirming}
         title={`Mark ${selectedIds.length} ${selectedIds.length === 1 ? "task" : "tasks"} done?`}
-        subtitle="They are removed from the Work Queue. Nothing is sent to the payer, and tasks that need an answer stay open."
+        subtitle="Removed from the queue. Tasks needing an answer stay."
         confirmLabel="Mark done"
         busy={bulk.busy}
         onCancel={bulk.cancel}
@@ -472,7 +472,7 @@ function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
     >
       <td
         className="wq-check"
-        title={selectable && !canBulk ? "Open this task to answer it. It cannot be marked done from the list." : `${bucket[0].toUpperCase()}${bucket.slice(1)} priority`}
+        title={selectable && !canBulk ? "Open it to answer." : `${bucket[0].toUpperCase()}${bucket.slice(1)} priority`}
         onClick={(e) => {
           if (!canBulk) return;
           e.stopPropagation();

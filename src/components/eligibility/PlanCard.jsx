@@ -39,7 +39,7 @@ function DocsAndForms({ plan, forms, onOpenForm }) {
     <div className="cv-card-body cv-cols cv-tab-body">
       <div>
         <div className="cv-sub">Every case on this policy</div>
-        <div className="cv-card-meta cv-sub-note">Requirements on the plan itself, and the forms on its coverage.</div>
+        <div className="cv-card-meta cv-sub-note">Plan rules and forms.</div>
         {docs.length === 0 && <div className="cv-card-meta">The plan lists no policy-wide documents.</div>}
         {docs.map((d, i) => {
           const [label, tone] = STAGE[d.stage] || STAGE.pre;
@@ -59,11 +59,11 @@ function DocsAndForms({ plan, forms, onOpenForm }) {
             </div>
           );
         })}
-        {plan?.plan?.proof_of_presence_required && <div className="cv-card-meta cv-sub-note-top">ADN on the plan means proof of presence: biometrics, or the consent form in its place.</div>}
+        {plan?.plan?.proof_of_presence_required && <div className="cv-card-meta cv-sub-note-top">ADN means biometrics or the consent form.</div>}
       </div>
       <div>
         <div className="cv-sub">Questionnaires in the plan ({forms.length})</div>
-        <div className="cv-card-meta cv-sub-note">A policy form is asked on every case; a package's form only when that package is quoted.</div>
+        <div className="cv-card-meta cv-sub-note">Policy forms on every case. Package forms when quoted.</div>
         {forms.length === 0 && <div className="cv-card-meta">The plan carries no questionnaires.</div>}
         {forms.map((f) => {
           const [label, tone] = STAGE[f.stage] || STAGE.pre;
@@ -123,7 +123,7 @@ function Cover({ rows }) {
       <div className="cv-card-body cv-tab-body">
         <div className="cv-strong">This plan sends no cover benefits.</div>
         <div className="cv-card-meta cv-sub-note-top">
-          Cover benefits are limits on the policy that are not packages, such as Blood, ICU, Oxygen or Ambulance. They show here with their limit when a payer sends them, and are never offered as a line item.
+          Policy limits like Blood, ICU or Ambulance.
         </div>
       </div>
     );
@@ -250,11 +250,11 @@ export default function PlanCard({ plan, state, plannedCodes, forms = [], canFet
               {plan?.subsetted && <div className="cv-notice-title">The payer sent a shortened plan</div>}
               <div className="cv-notice-body">
                 {[
-                  plan?.subsetted && "It is marked as a summary, so packages or forms may be missing.",
+                  plan?.subsetted && "A summary. Some packages may be missing.",
                   missingForms.length > 0 &&
                     `The plan names ${missingForms.length} ${missingForms.length === 1 ? "form" : "forms"} it did not include: ${missingForms.map((f) => (f.title ? `${f.title} (${f.ref})` : `form ${f.ref}`)).join(", ")}.`,
                   missingForms.some((f) => f.ref === "100024" || f.ref === "100466") &&
-                    "Without the consent forms, a PMJAY pre-auth or claim can only go with a biometric scan. Fetch the plan again; if they are still missing, ask the payer.",
+                    "No consent forms. Use biometrics or fetch the plan again.",
                 ]
                   .filter(Boolean)
                   .join(" ")}

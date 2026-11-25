@@ -9,28 +9,28 @@ const CATEGORY = {
   transport: {
     label: "Gateway communication error",
     guidance:
-      "The request could not be delivered to the NHCX gateway. This is usually temporary — retry in a moment.",
+      "Couldn't reach NHCX. Retry shortly.",
     severity: "warning",
     retryable: true,
   },
   authorization: {
     label: "Access denied",
     guidance:
-      "This facility's NHCX participant account is not authorized for this action. Contact your NHCX administrator — retrying will not help.",
+      "Not authorised for this. Contact your NHCX admin.",
     severity: "error",
     retryable: false,
   },
   account_blocked: {
     label: "Account suspended",
     guidance:
-      "The sender or recipient NHCX account is suspended or blocked. Submissions are disabled until this is resolved — escalate to support.",
+      "NHCX account blocked. Contact support.",
     severity: "critical",
     retryable: false,
   },
   protocol: {
     label: "Request could not be processed",
     guidance:
-      "The gateway rejected the request as malformed or invalid. This is a system issue, not a data-entry error — escalate to technical support with the code below.",
+      "System error. Send IT the code below.",
     severity: "error",
     retryable: false,
   },
@@ -47,8 +47,8 @@ function categoryForNumber(n) {
 }
 
 const GUIDANCE = {
-  payer: "The payer refused this request. Fix what it names and send again. If you are not sure what to change, share the code below with your IT team.",
-  nhcx: "NHCX refused the message before it reached the payer. Nothing on this screen will fix it; share the code below with your IT team.",
+  payer: "Payer refused. Fix it and resend.",
+  nhcx: "NHCX refused it. Send IT the code below.",
 };
 
 let guide = null;

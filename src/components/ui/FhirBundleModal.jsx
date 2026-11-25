@@ -77,7 +77,7 @@ export default function FhirBundleModal({ open, onClose, cashlessCaseId, transac
   useEffect(() => { if (open) load(); }, [open, load]);
 
   return (
-    <Modal open={open} onClose={onClose} title={`FHIR bundle — ${TRANSACTION_LABELS[transactionType] || transactionType || ""}`} subtitle={data?.correlation_id ? `Correlation ${data.correlation_id}` : null} width={820}>
+    <Modal open={open} onClose={onClose} title={`FHIR bundle · ${TRANSACTION_LABELS[transactionType] || transactionType || ""}`} subtitle={data?.correlation_id ? `Correlation ${data.correlation_id}` : null} width={820}>
 
       {loading ? (
         <LoadingBlock compact text="Loading bundle…" />

@@ -24,7 +24,7 @@ export default function GiveUpPreauth({ caseId, onDone }) {
     <div className="cv-notice is-warn cv-sub-note-top">
       <div className="cv-notice-body">
         <div>
-          The payer has not answered this request. If you no longer expect an answer, you can give up on it. The case goes back to before the pre-auth was sent, so you can send it again, change the package or close the case. Nothing is cancelled with the payer.
+          No answer from the payer. Give up to resend, change the package or close the case.
         </div>
         {error && <div className="cv-sub-note-top">{error}</div>}
         <div className="cv-sub-note-top">

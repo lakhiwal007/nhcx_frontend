@@ -51,7 +51,7 @@ function RejectionCard({ rejection }) {
             )}
           </>
         ) : (
-          <div className="cv-card-meta">The rejection came without notes. Read the decision on the Claim step and the audit trail before you write.</div>
+          <div className="cv-card-meta">No notes with the rejection. Check the Claim step.</div>
         )}
       </div>
     </Card>
@@ -157,22 +157,22 @@ export default function ReprocessScreen({ ctx }) {
   ];
 
   const notes = [
-    r.send.error && { tone: "bad", text: `Not sent: ${r.send.error} Fix what the message names and send again; your draft is kept.` },
+    r.send.error && { tone: "bad", text: `Not sent: ${r.send.error} Fix it and resend. Draft kept.` },
     lock.viewOnly && { tone: "info", text: lock.reason },
-    r.loadError && { tone: "warn", text: `The case could not be read, so an appeal already sent may not show here: ${r.loadError}`, action: { label: "Retry", onClick: r.reload } },
+    r.loadError && { tone: "warn", text: `Couldn't load the case: ${r.loadError}`, action: { label: "Retry", onClick: r.reload } },
     isFailed && { tone: "bad", text: `${isRefused ? "The payer refused the appeal." : "The appeal did not reach the payer."} ${failureMessage}`.trim() },
-    isNotFound && { tone: "warn", text: "The payer has no record of this appeal yet. Refresh in a while, or look at the audit trail." },
-    isUnclear && { tone: "warn", text: "The payer answered without a clear decision. Read its notes and the audit trail, and call its helpdesk if it stays unclear." },
-    isQueried && { tone: "warn", text: "The payer has a question about the appeal. It is answered on the Claim step, and the decision waits until you do." },
-    isRejected && { tone: "warn", text: "The payer kept its decision. You can appeal again with new evidence or contact the payer directly; if the decision stands, the patient may have to pay." },
-    isPartial && { tone: "warn", text: "The payer accepted part of the appeal. See what it cut under Amounts; the rest can be asked for as a balance on the Claim step." },
-    r.status.error && { tone: "warn", text: `The last check failed, and this page keeps trying: ${r.status.error}` },
-    sent && !isComplete && !isFailed && !isNotFound && r.status.elapsedMs > SOFT_WARNING_MS && { tone: "info", text: "An appeal can take days. You can leave this page; the answer appears here and in the Work Queue." },
+    isNotFound && { tone: "warn", text: "Payer has no record yet. Refresh later." },
+    isUnclear && { tone: "warn", text: "Unclear answer. Read its notes." },
+    isQueried && { tone: "warn", text: "Payer has a question. Answer on the Claim step." },
+    isRejected && { tone: "warn", text: "Decision kept. Appeal again with new evidence." },
+    isPartial && { tone: "warn", text: "Partly accepted. Ask for the balance on the Claim step." },
+    r.status.error && { tone: "warn", text: `Check failed, retrying: ${r.status.error}` },
+    sent && !isComplete && !isFailed && !isNotFound && r.status.elapsedMs > SOFT_WARNING_MS && { tone: "info", text: "Appeals can take days. It will show in the Work Queue." },
   ];
   const tipText = !sent && !r.unavailable && !locked
-    ? "An appeal without new evidence is usually rejected again. Answer each point in the payer's rejection and attach what it asks for."
+    ? "Answer each point and attach evidence."
     : isAccepted
-      ? "The payer accepted the appeal. Track the money on the Payment step."
+      ? "Appeal accepted. Track it on Payment."
       : null;
 
   const summary = sent && isComplete && r.approved != null ? (
@@ -181,7 +181,7 @@ export default function ReprocessScreen({ ctx }) {
       {r.totals.submitted?.value != null ? ` of ${formatMoney(r.totals.submitted.value)} claimed` : " approved"}
     </>
   ) : sent && !isComplete && !isFailed && !isNotFound ? (
-    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : r.send.result ? "just now" : "earlier"} · waiting ${formatDuration(minutes(r.status.elapsedMs))} · checking automatically`
+    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : r.send.result ? "just now" : "earlier"} · waiting ${formatDuration(minutes(r.status.elapsedMs))}`
   ) : !sent && r.claimId ? (
     <>Appeal of claim <span className="cv-mono">{r.claimId}</span></>
   ) : null;
@@ -260,12 +260,12 @@ export default function ReprocessScreen({ ctx }) {
         <Pane id="explanation">
           <div className="cv-pane-stack">
             <RejectionCard rejection={r.rejection} />
-            <Card title="Explanation" meta="Say in plain words why the payer should look again, and point to the evidence you attach.">
+            <Card title="Explanation" meta="Why should the payer look again?">
               <div className="cv-card-body">
                 <textarea
                   className="cv-ctl cv-textarea cv-ctl-fill rp-explain"
                   aria-label="Explanation"
-                  placeholder="Explain why the claim should be re-evaluated, answering the payer's notes…"
+                  placeholder="Your reason…"
                   value={r.description}
                   readOnly={locked}
                   onChange={(e) => r.setDescription(e.target.value)}
@@ -276,7 +276,7 @@ export default function ReprocessScreen({ ctx }) {
         </Pane>
 
         <Pane id="documents">
-          <Card title="Documents" meta="Attach anything the payer's rejection asks for. Attached files stay while you move between steps; reloading the page drops them.">
+          <Card title="Documents" meta="Attach what the payer asked for. Reloading drops files.">
             <div className="cv-card-body">
               {r.documents.error && (
                 <div className="cv-notice is-bad cv-drawer-note" role="alert">
@@ -311,7 +311,7 @@ export default function ReprocessScreen({ ctx }) {
             </Card>
           ) : isNotFound ? (
             <Card title="No answer on record">
-              <div className="cv-card-intro">The payer's system has not registered this appeal yet. It usually appears within a few minutes.</div>
+              <div className="cv-card-intro">Not registered with the payer yet. Usually takes minutes.</div>
               <div className="cv-card-body">
                 <TechnicalDetails ids={[{ label: "Request id", value: r.correlationId }]} bundle={bundle} />
               </div>
@@ -348,7 +348,7 @@ export default function ReprocessScreen({ ctx }) {
         </Pane>
 
         <Pane id="amounts">
-          <Card title="Amounts" meta="What was claimed, what the payer cut, and what it now approves.">
+          <Card title="Amounts" meta="Claimed, cut and approved.">
             <div className="cv-card-body">
               {statement.map((row) => (
                 <div key={row.label} className={`cv-kv${row.total ? " is-total" : ""}`}>
@@ -361,7 +361,7 @@ export default function ReprocessScreen({ ctx }) {
         </Pane>
 
         <Pane id="lines">
-          <Card title="Line by line" meta="The payer's answer for each line of the claim after the appeal.">
+          <Card title="Line by line" meta="Payer's answer per line.">
             <div className="cv-in-card cv-sub-note-top">
               <AdjudicationTable items={r.lines} totals={r.totals} names={names} requestedLabel="Claimed" />
             </div>
@@ -369,7 +369,7 @@ export default function ReprocessScreen({ ctx }) {
         </Pane>
 
         <Pane id="notes">
-          <Card title="Payer's notes" meta="The payer's own words. Read these first when an appeal is queried or rejected.">
+          <Card title="Payer's notes" meta="The payer's own words.">
             <div className="cv-card-body">
               <PayerWords notes={view.notes} errors={r.payerErrors} />
             </div>

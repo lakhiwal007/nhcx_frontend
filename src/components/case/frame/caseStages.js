@@ -3,8 +3,8 @@ import { taskStep } from "../../../domain/tasks";
 import { isDischargeDecision } from "../../../domain/caseStatus.js";
 
 const CORE = [
-  { id: "payer", label: "Policy", path: "payer", hint: "Select the patient's active policy — its payer comes with it." },
-  { id: "prep", label: "Eligibility", path: "prep", hint: "Confirm the plan covers this admission and resolve any missing patient details." },
+  { id: "payer", label: "Policy", path: "payer", hint: "Pick the active policy." },
+  { id: "prep", label: "Eligibility", path: "prep", hint: "Check cover and patient details." },
   { id: "review", label: "Preauth", path: "review", hint: "Review the drafted preauth and submit it to the payer." },
   { id: "status", label: "Approval", path: "status", hint: "Track the payer's preauth decision and respond to any query." },
   { id: "claim", label: "Claim", path: "claim", hint: "Submit the discharge and final claim for the approved care." },
@@ -20,8 +20,8 @@ const BRANCHES = {
 };
 
 const VIEWS = {
-  discover: { label: "Discover a policy", hint: "Ask a payer directly for the patient's cover when the policy lookup does not find it." },
-  timeline: { label: "Audit trail", hint: "Every request, payer response and status change on this case, newest first." },
+  discover: { label: "Discover a policy", hint: "Ask a payer directly for cover." },
+  timeline: { label: "Audit trail", hint: "Everything on this case, newest first." },
 };
 
 // Title and hint for any case path, on the spine or not.
@@ -343,7 +343,7 @@ export function lockFor(record, stage, { readOnly = false, closed = false } = {}
       : movedOnTo
         ? `The case has moved on to ${movedOnLabel}.`
         : claimWithPayer
-          ? "The claim is with the payer, so the pre-auth can no longer change."
+          ? "Claim sent. The pre-auth is locked."
           : null;
   return { locked: !!reason, reason, movedOnTo, movedOnLabel, viewOnly, settled, claimWithPayer };
 }

@@ -89,7 +89,7 @@ export default function PackagePicker({ correlationId, plan, startQuery = "", ch
               {!loading && !error && rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="cv-card-meta">
-                    {term ? `No ${implants ? "implant" : "package"} name or code contains "${term}". Shorten or clear the search, or pick a speciality.` : implants ? "The plan lists no implant here." : "No package in this speciality."}
+                    {term ? `No match for "${term}".` : implants ? "The plan lists no implant here." : "No package in this speciality."}
                   </td>
                 </tr>
               )}

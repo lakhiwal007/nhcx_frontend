@@ -1,11 +1,11 @@
 import { humanize } from "../lib/format.js";
 
 export const REASONS = {
-  tatquery: { label: "Turnaround dispute", hint: "The payer says a reply is overdue. Open the case it names and answer quickly.", tone: "warn" },
-  additionalinfo: { label: "More information needed", hint: "The payer needs more documents before it can go on. Reply with what it asks for.", tone: "warn" },
-  grievance: { label: "Grievance", hint: "Someone needs to own this outside NHCX. Resolve it, then mark the message reviewed.", tone: "warn" },
-  policychange: { label: "Policy changed", hint: "Fetch the patient's policies again before the next step on the case.", tone: "info" },
-  walletupdate: { label: "Wallet updated", hint: "For information. Check the case's eligibility and benefits again if it matters.", tone: "info" },
+  tatquery: { label: "Turnaround dispute", hint: "Reply overdue. Answer now.", tone: "warn" },
+  additionalinfo: { label: "More information needed", hint: "Send the documents it asks for.", tone: "warn" },
+  grievance: { label: "Grievance", hint: "Handle it, then mark reviewed.", tone: "warn" },
+  policychange: { label: "Policy changed", hint: "Fetch the policies again.", tone: "info" },
+  walletupdate: { label: "Wallet updated", hint: "For information only.", tone: "info" },
 };
 
 export const CATEGORY_LABELS = {

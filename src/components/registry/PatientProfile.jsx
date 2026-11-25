@@ -235,7 +235,7 @@ export default function PatientProfile() {
           <BackButton onClick={clearSelection}>All patients</BackButton>
         </div>
         {bad || (ready && !detail.patient) ? (
-          <EmptyState icon={User} title="Patient not found" description={detail.error ? detail.error : `No patient with id ${deepLinkChildId} is registered here. Check the link, or search by name or mobile.`}>
+          <EmptyState icon={User} title="Patient not found" description={detail.error ? detail.error : `No patient ${deepLinkChildId}. Search by name or mobile.`}>
             <BackButton onClick={clearSelection}>All patients</BackButton>
           </EmptyState>
         ) : !ready ? (
@@ -265,7 +265,7 @@ export default function PatientProfile() {
         </div>
       )}
 
-      <Tip className="wq-page-tip">Find the admitted patient by name, patient id or mobile, then press Start case to begin an insurance case.</Tip>
+      <Tip className="wq-page-tip">Find the patient, then press Start case.</Tip>
 
       <div className="wq-panel">
         <div className="wq-toolbar">
@@ -303,7 +303,7 @@ export default function PatientProfile() {
           <EmptyState
             icon={User}
             title={hasSearched || filters.caseState !== "any" ? "No patients found" : "No patients registered yet"}
-            description={filters.caseState !== "any" ? "No patient in this group matches. Try another filter above, or clear the search." : hasSearched ? "Try a different name, patient id or mobile number." : "Patients registered in the hospital system appear here."}
+            description={filters.caseState !== "any" ? "No match. Try another filter." : hasSearched ? "Try a different name, patient id or mobile number." : "Patients registered in the hospital system appear here."}
           />
         ) : narrow ? (
           <ul className="pt-cards">

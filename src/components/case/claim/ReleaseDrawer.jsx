@@ -15,7 +15,7 @@ export default function ReleaseDrawer({ open, onClose, owed, initialAmount, rele
       open={open}
       onClose={release.busy ? undefined : close}
       title="Ask for the balance"
-      subtitle="A decided claim is not sent again. Ask the payer to release what is still owed on it."
+      subtitle="Ask the payer for what is still owed."
       width={520}
       footer={
         <>

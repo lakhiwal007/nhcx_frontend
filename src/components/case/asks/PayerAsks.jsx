@@ -85,7 +85,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
       </div>
       <details className="cv-howto">
         <summary>How this works</summary>
-        <div className="cv-card-intro">From the payer's rule first, then the plan. A row is ticked only by a file or answer filed against it; a row that says it stops the send needed before you can send before sending.</div>
+        <div className="cv-card-intro">From the payer's rules and the plan. Required rows block sending.</div>
       </details>
       {error && <div className="cv-card-body"><div className="cv-notice is-bad"><div className="cv-notice-body">{error}</div></div></div>}
       {forms.error && <div className="cv-card-body"><div className="cv-notice is-warn"><div className="cv-notice-body">{forms.error} Reload the page to try again.</div></div></div>}

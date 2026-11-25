@@ -86,10 +86,10 @@ export default function PreauthEnhancement({ ctx }) {
   const secondary = [{ label: "Back to approval", icon: ArrowLeft, write: false, onClick: back }];
 
   const notes = [
-    e.send.error && { tone: "bad", text: `Not sent: ${e.send.error} Fix what the message names and send again.` },
+    e.send.error && { tone: "bad", text: `Not sent: ${e.send.error} Fix it and resend.` },
     gate.error && { tone: "bad", text: gate.error },
     lock.viewOnly && { tone: "info", text: lock.reason },
-    e.hisBlockers.length > 0 && { tone: "warn", text: `The hospital records are missing ${fieldList(e.hisBlockers)}. Complete them in the hospital system, then open this again.` },
+    e.hisBlockers.length > 0 && { tone: "warn", text: `Missing in hospital records: ${fieldList(e.hisBlockers)}. Add it, then reopen.` },
     e.scopeChanged && !locked && { tone: "info", text: "The amount is recomputed from what is kept.", action: { label: "Reset to the hospital record", onClick: e.resetScope } },
     ...(preview?.warnings || []).map((text) => ({ tone: "warn", text })),
   ];
@@ -126,8 +126,8 @@ export default function PreauthEnhancement({ ctx }) {
           >
             {e.unavailable ||
               (preview?.status === "not_found"
-                ? "Send a pre-auth first; an enhancement adds to one the payer has approved."
-                : "An enhancement needs something new to justify it: a new procedure, or bills above the approved amount. Ask the doctor to record the new procedure or the billing desk to add the charges in the hospital system, then open this again.")}
+                ? "Get a pre-auth approved first."
+                : "Nothing new to add. Record a new procedure or charges first.")}
           </NextStep>
         </Pane>
       </CaseStep>
@@ -175,7 +175,7 @@ export default function PreauthEnhancement({ ctx }) {
             {e.treatment ? (
               <>
                 <div className="cv-card-intro">
-                  Approved packages stay as they are. Add the new package from the payer's plan; it goes for approval at the plan's rate.
+                  Add the new package from the plan.
                   {e.setPackages.error && ` ${e.setPackages.error}`}
                 </div>
                 <PackageLines lines={e.treatment} onRemove={locked ? undefined : e.removePackage} busy={e.setPackages.busy} />
@@ -215,7 +215,7 @@ export default function PreauthEnhancement({ ctx }) {
           <section className="cv-card" aria-label="New line items">
             <div className="cv-card-head">
               <h2 className="cv-card-title">New line items</h2>
-              <span className="cv-card-meta">Untick a line to leave it out, or correct its quantity and price.</span>
+              <span className="cv-card-meta">Untick to leave out. Edit quantity or price.</span>
             </div>
             {e.hisBlockers.length > 0 ? (
               <div className="cv-card-intro">The hospital records are missing {fieldList(e.hisBlockers)}, so the new lines cannot be built yet.</div>
@@ -322,7 +322,7 @@ export default function PreauthEnhancement({ ctx }) {
           <section className="cv-card" aria-label="Documents">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Documents sent with it</h2>
-              <span className="cv-card-meta">A revised estimate helps the payer. Attached files stay until sent, but reloading the page drops them.</span>
+              <span className="cv-card-meta">Attach a revised estimate. Reloading drops files.</span>
             </div>
             <div className="cv-card-body">
               <DocumentChecklist

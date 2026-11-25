@@ -19,12 +19,12 @@ const PERIODS = [
 const WORKFLOW_LABELS = { preauth: "Pre-authorisation", claim: "Final claim", reprocess: "Reprocess" };
 const SLA_NOTE = { preauth: "IRDAI: 1 hour", claim: "IRDAI: 3 hours" };
 const TIPS = {
-  outstanding: "Claims the payer has approved but not yet paid. The money is owed to the hospital.",
-  approval: "Of the claims the payers decided in this period, the share they approved in full or in part.",
-  realisation: "Of what the payers approved on settled claims, the share that reached the bank after deductions and TDS.",
-  tds: "Tax the payer deducts at source and deposits with the tax department in the hospital's name. It is not lost, but it does not reach the bank.",
-  ageing: "Money still owed on open claims, grouped by how long ago the patient was discharged. Older buckets need chasing.",
-  sla: "The time limit the regulator gives a private insurer to answer: one hour for a pre-authorisation, three hours for a claim.",
+  outstanding: "Approved, not yet paid.",
+  approval: "Share of decided claims approved.",
+  realisation: "Share of approved money that reached the bank.",
+  tds: "Tax deducted at source, filed in the hospital's name.",
+  ageing: "Money owed, by days since discharge.",
+  sla: "Private payers: 1 hour for pre-auth, 3 hours for claims.",
 };
 
 const isoDay = (d) => d.toISOString().slice(0, 10);
@@ -231,7 +231,7 @@ export default function Analytics() {
       {loading && !data ? (
         <SkeletonTable rows={6} cols={4} />
       ) : !data ? null : empty ? (
-        <EmptyState icon={BarChart3} title="No claims in this period" description={payer ? "This payer had no claims created in the period. Pick a longer period or all payers." : "Pick a longer period, or come back once cases have been sent to the payers."}>
+        <EmptyState icon={BarChart3} title="No claims in this period" description={payer ? "No claims. Try a longer period." : "No claims yet. Try a longer period."}>
           {(payer || period !== "365") && (
             <Button
               variant="outline"
@@ -259,7 +259,7 @@ export default function Analytics() {
             ))}
           </div>
 
-          <Panel title="Payer turnaround" hint="Time from our submission to the payer's answer, against the regulator's limits for cashless care." tip={TIPS.sla}>
+          <Panel title="Payer turnaround" hint="Time to the payer's answer." tip={TIPS.sla}>
             <div className="an-tat-grid">
               {byWorkflow.map((row) => (
                 <TatCard key={row.workflow} row={row} />
@@ -291,7 +291,7 @@ export default function Analytics() {
             </Panel>
           </div>
 
-          <Panel title="Receivables ageing" hint="Every open claim today, by days since discharge. Approved claims count their approved amount; claims still awaiting a decision count the billed amount." tip={TIPS.ageing}>
+          <Panel title="Receivables ageing" hint="Open claims by days since discharge." tip={TIPS.ageing}>
             {ageing.length === 0 ? (
               <p className="an-panel-hint">No open claims today.</p>
             ) : (
@@ -308,7 +308,7 @@ export default function Analytics() {
             )}
           </Panel>
 
-          <Panel title="By payer" hint="Typical waits are for this period; the last column is the share of pre-authorisations answered later than the regulator's one hour.">
+          <Panel title="By payer" hint="Waits this period. Last column: pre-auths over 1 hour.">
             <div className="wq-table-scroll">
               <table className="wq-table">
                 <thead>

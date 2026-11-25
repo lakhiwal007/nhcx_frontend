@@ -87,7 +87,7 @@ export default function PreauthDraft({ ctx }) {
             : blockers.length
               ? `First: ${blockers.map((r) => r.name.toLowerCase()).join(", ")}.`
               : d.hisBlockers.length
-                ? `The hospital records are missing ${fieldList(d.hisBlockers)}.`
+                ? `Missing in hospital records: ${fieldList(d.hisBlockers)}.`
                 : "Finish the marked items first.",
           onClick: () => setReview(true),
         };
@@ -100,20 +100,20 @@ export default function PreauthDraft({ ctx }) {
   ];
 
   const notes = [
-    d.send.error && { tone: "bad", text: `Not sent: ${d.send.error} Fix what the message names and send again; your draft is kept.` },
+    d.send.error && { tone: "bad", text: `Not sent: ${d.send.error} Fix it and resend. Draft kept.` },
     gate.error && { tone: "bad", text: gate.error },
-    d.asksError && { tone: "warn", text: `We could not reload what the payer needs, so the list may be out of date: ${d.asksError}` },
-    d.notInForce && !preauthAlreadyLive && { tone: "bad", text: "The payer says this policy is not active, so a pre-auth cannot be sent. Choose a renewed or different policy, or treat the patient as cash.", action: { label: "Go to Policy", onClick: () => navigate("../payer") } },
+    d.asksError && { tone: "warn", text: `Couldn't reload the payer's asks: ${d.asksError}` },
+    d.notInForce && !preauthAlreadyLive && { tone: "bad", text: "Policy not active. Pick another, or treat as cash.", action: { label: "Go to Policy", onClick: () => navigate("../payer") } },
     preauthAlreadyLive && {
       tone: "info",
       text: `A pre-auth has already been sent${lock.movedOnLabel ? ` and the case has moved on to ${lock.movedOnLabel}` : ""}. This form is rebuilt from current records, not what was sent.`,
       action: lock.movedOnTo ? { label: `Go to ${lock.movedOnLabel}`, onClick: () => navigate(`../${lock.movedOnTo}`) } : null,
     },
     lock.viewOnly && { tone: "info", text: lock.reason },
-    d.hisBlockers.length > 0 && { tone: "warn", text: `The hospital records are missing ${fieldList(d.hisBlockers)}. Ask the doctor or billing desk to add it, then reload this page.` },
-    d.newbornMissing.length > 0 && !preauthAlreadyLive && { tone: "warn", text: `Newborn case: ${d.newbornMissing.map((f) => NEWBORN_MISSING[f] || fieldList([f])).join("; ")}.` },
-    d.eligibility && d.eligibility.status !== "complete" && !preauthAlreadyLive && { tone: "warn", text: "The eligibility check is not finished, so the payer's answer may still change." },
-    d.memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `This policy has ${d.cardMembers.length} people on it. Choose the one who is the patient.`, action: { label: "Choose the patient", onClick: () => navigate("../prep") } },
+    d.hisBlockers.length > 0 && { tone: "warn", text: `Missing in hospital records: ${fieldList(d.hisBlockers)}. Add it, then reload.` },
+    d.newbornMissing.length > 0 && !preauthAlreadyLive && { tone: "warn", text: `Newborn case: ${d.newbornMissing.map((f) => NEWBORN_MISSING[f] || fieldList([f])).join(", ")}.` },
+    d.eligibility && d.eligibility.status !== "complete" && !preauthAlreadyLive && { tone: "warn", text: "Eligibility not finished yet." },
+    d.memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `${d.cardMembers.length} people on this policy. Choose the patient.`, action: { label: "Choose the patient", onClick: () => navigate("../prep") } },
   ];
 
   const draft = d.draft;
@@ -228,7 +228,7 @@ export default function PreauthDraft({ ctx }) {
           <section className="cv-card" aria-label="Diagnosis">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Diagnosis</h2>
-              <span className="cv-card-meta">From the hospital records; correct it here if needed.</span>
+              <span className="cv-card-meta">From hospital records. Edit if needed.</span>
               {resetLink(d.edited.diagnoses, d.resetDiagnoses)}
             </div>
             <DiagnosesEditor
@@ -293,7 +293,7 @@ export default function PreauthDraft({ ctx }) {
                 </table>
               </fieldset>
             ) : (
-              <div className="cv-card-intro">No doctor is on record for this admission. Ask the ward to add the treating doctor in the hospital system.</div>
+              <div className="cv-card-intro">No treating doctor recorded. Ask the ward to add one.</div>
             )}
           </section>
         </Pane>
@@ -317,7 +317,7 @@ export default function PreauthDraft({ ctx }) {
           <section className="cv-card" aria-label="Treatment and cost">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Treatment and cost</h2>
-              {d.edited.items && <span className="cv-card-meta">Edited; the amount is recomputed from the lines</span>}
+              {d.edited.items && <span className="cv-card-meta">Edited. Amount recalculated.</span>}
               {resetLink(d.edited.items, d.resetItems)}
             </div>
             {d.unbilledProcedures.length > 0 && (
@@ -326,7 +326,7 @@ export default function PreauthDraft({ ctx }) {
             {draft?.treatment?.length > 0 ? (
               <>
                 <div className="cv-card-intro">
-                  This payer is billed by package at its own plan's rates, so these lines are not edited here.
+                  Billed by package at plan rates.
                   {draft?.hospital_bill_amount != null && ` The hospital bill so far is ${formatMoney(draft.hospital_bill_amount)}, for reference.`}
                   {!locked && !preauthAlreadyLive && (
                     <>
@@ -352,7 +352,7 @@ export default function PreauthDraft({ ctx }) {
           <section className="cv-card" aria-label="What the plan covers">
             <div className="cv-card-head">
               <h2 className="cv-card-title">What the plan covers</h2>
-              <span className="cv-card-meta">Warnings; only a package priced at zero or less stops the send.</span>
+              <span className="cv-card-meta">Warnings only. A zero-priced package blocks sending.</span>
             </div>
             <div className="cv-card-body">
               {d.checks.length === 0 && <div className="cv-card-meta">{d.admissibility?.status === "checked" ? "Nothing to look at." : "This draft has not been checked against a plan."}</div>}
@@ -384,7 +384,7 @@ export default function PreauthDraft({ ctx }) {
           <section className="cv-card" aria-label="Other files">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Other files</h2>
-              <span className="cv-card-meta">Sent as supporting information. Attached files stay until sent, but reloading the page drops them.</span>
+              <span className="cv-card-meta">Sent with the pre-auth. Reloading drops files.</span>
             </div>
             <div className="cv-card-body">
               <DocumentChecklist
@@ -427,7 +427,7 @@ export default function PreauthDraft({ ctx }) {
       <ConfirmModal
         open={confirmResend}
         title="Send a fresh pre-auth?"
-        subtitle="The payer receives a new pre-auth request for this case, built from the current records."
+        subtitle="Sends a new pre-auth from current records."
         confirmLabel={`Send ${formatMoney(d.effectiveTotal)} pre-auth`}
         busy={d.send.busy}
         disabled={!canSubmit}
@@ -437,7 +437,7 @@ export default function PreauthDraft({ ctx }) {
           gate.request();
         }}
       >
-        <p>To answer a query, resubmit after a rejection or raise the approved amount, use the Approval stage instead. A fresh pre-auth starts the payer's review over.</p>
+        <p>For queries, rejections or more money, use the Approval step. This restarts the review.</p>
       </ConfirmModal>
 
       <FhirBundleModal open={showSent} onClose={() => setShowSent(false)} cashlessCaseId={d.caseId} transactionType="preauth" correlationId={sentCorrelationId} />

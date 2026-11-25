@@ -89,7 +89,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
         ? { ...hint, ...buildActionBody(taskAction.code, { claim_id: hint.claim_id ?? detail?.claim_id, cashless_case_id: hint.cashless_case_id ?? detail?.cashless_case_id, answer, docs: docs.map(documentFromFile) }) }
         : hint;
       const res = method === "GET" ? await api.rawGet(url, hint) : await api.rawPost(url, body);
-      if (res?.status === "failed") throw new Error(res?.message || "The payer did not accept this. Check what it asks for and send again.");
+      if (res?.status === "failed") throw new Error(res?.message || "Not accepted. Fix it and resend.");
       setReplied(res);
       setAnswer("");
       setDocs([]);
@@ -138,7 +138,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
         : canReply
           ? { tone: "warn", title: "The payer is waiting for your reply", text: "Read the message, then reply below with what it asks for." }
           : answered
-            ? { tone: "ok", title: "Answered", text: "Your reply has been sent. The payer's next answer appears in the case." }
+            ? { tone: "ok", title: "Answered", text: "Reply sent." }
             : detail.kind === "notification"
               ? { tone: "info", title: "For your information", text: "An update from the payer. No reply is needed." }
               : { tone: "info", title: "For your information", text: "A note from the payer. No reply is needed." };
@@ -313,7 +313,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       <ConfirmModal
         open={confirmReviewed}
         title="Mark done without replying?"
-        subtitle="The payer asked a question in this message and has no answer yet. Marking it done only removes the task from your Work Queue. The payer is still waiting."
+        subtitle="Not answered yet. The payer is still waiting."
         confirmLabel="Mark done anyway"
         cancelLabel="Go back"
         busy={complete.busy}

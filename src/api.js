@@ -166,15 +166,15 @@ const refuseIfReadOnly = (path) => {
 const authMessage = (status, raw) => {
   const code = typeof raw === "string" ? raw : "";
   if (code.includes("WRAPPER-ERROR:1012") || status === 401)
-    return { kind: "AUTH_EXPIRED", message: "Your session has expired. Please sign in again from the hospital system." };
+    return { kind: "AUTH_EXPIRED", message: "Session expired. Sign in again." };
   // Check the specific 403 codes before the generic 403 fallback below, which
   // would otherwise misreport them as "no facility linked".
   if (code.includes("WRAPPER-ERROR:1014"))
-    return { kind: "FACILITY_ADMIN", message: "Only a clinic admin of this facility can register or change it." };
+    return { kind: "FACILITY_ADMIN", message: "Only a clinic admin can do this." };
   if (code.includes("WRAPPER-ERROR:1015"))
     return { kind: "READ_ONLY", message: READ_ONLY_MESSAGE };
   if (code.includes("WRAPPER-ERROR:1013") || status === 403)
-    return { kind: "NO_FACILITY", message: "No NHCX facility is linked to your account. Contact your administrator." };
+    return { kind: "NO_FACILITY", message: "No facility linked. Contact your admin." };
   if (code.includes("WRAPPER-ERROR:1011"))
     return { kind: "FACILITY_REQUIRED", message: "Select a facility to act as before performing this action." };
   return null;

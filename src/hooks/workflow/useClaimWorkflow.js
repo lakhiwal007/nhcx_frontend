@@ -274,7 +274,7 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
       if (!res?.enquiry_correlation_id) throw new Error(res?.message || res?.error?.message || "The status enquiry could not be sent.");
       return res;
     },
-    { success: "Asked NHCX where this claim stands. The answer lands in the audit trail." },
+    { success: "Status asked. See History." },
   );
 
   return {

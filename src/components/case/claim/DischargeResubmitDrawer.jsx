@@ -31,8 +31,8 @@ export default function DischargeResubmitDrawer({ open, onClose, queried, notes,
       title={queried ? "Answer the discharge claim query" : "Resend the discharge claim"}
       subtitle={
         queried
-          ? "The discharge claim goes back with your answer, the documents attached on this step and the lines below. The final claim stays untouched."
-          : "The discharge claim goes back with the lines below and the documents attached on this step. The final claim stays untouched."
+          ? "Resends the discharge claim with your answer."
+          : "Resends the discharge claim."
       }
       width={720}
       footer={

@@ -207,7 +207,7 @@
 .cv-ctl:focus { outline: none; border-color: var(--cv-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cv-primary) 18%, transparent); }
 
 .cv-card { background: var(--cv-card); border: 1px solid var(--cv-line); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); min-width: 0; overflow: hidden; }
-.cv-card-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; flex-wrap: wrap; }
+.cv-card-head { display: flex; align-items: center; gap: 8px 12px; padding: 16px 20px; flex-wrap: wrap; }
 .cv-card-head > .refresh-btn.is-icon { margin-left: auto; }
 .cv-card > .cv-card-head:first-child { background: var(--neutral-soft); border-bottom: 1px solid var(--cv-line); padding: 13px 20px; }
 .cv-card > .cv-card-head:first-child + .cv-card-body,
@@ -257,6 +257,9 @@
 .cv-tw tr.is-total td { font-weight: 600; background: var(--cv-wash); }
 .cv-tw .is-num { text-align: right; }
 .cv-in-card { margin: 0 20px 20px; }
+.cv-card-head + .cv-in-card,
+.cv-card-head + .cv-plain > .cv-in-card,
+.cv-card-head + .cv-card-body + .cv-in-card { margin-top: 16px; }
 
 .cv-tabs { display: flex; padding: 0 18px; border-bottom: 1px solid var(--cv-line); overflow-x: auto; gap: 22px; }
 .cv-tab {

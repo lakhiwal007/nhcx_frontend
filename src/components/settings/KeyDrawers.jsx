@@ -26,7 +26,7 @@ export function KeyUploadDrawer({ facility, onClose, onUploaded }) {
       open={!!facility}
       onClose={upload.busy ? undefined : close}
       title={`Upload the key for ${facility?.name || facility?.facility_code || ""}`}
-      subtitle="The key opens the payer answers NHCX seals with this hospital's certificate. It is stored on the server and never shown again."
+      subtitle="Opens payer answers. Stored once, never shown again."
       footer={
         <div className="cv-drawer-actions">
           <button type="button" className="cv-btn" onClick={close} disabled={upload.busy}>
@@ -67,7 +67,7 @@ export function CertificateRotationDrawer({ facility, onClose, onRotated }) {
       open={!!facility}
       onClose={rotate.busy ? undefined : onClose}
       title={`Rotate the certificate for ${facility?.name || facility?.facility_code || ""}`}
-      subtitle="Replaces this hospital's key and the certificate NHCX holds for it in one step. Answers the payers sealed with the old certificate still open."
+      subtitle="Replaces the key and certificate. Old answers still open."
       footer={
         <div className="cv-drawer-actions">
           {result ? (
@@ -91,8 +91,8 @@ export function CertificateRotationDrawer({ facility, onClose, onRotated }) {
         <div className={`cv-notice ${result.registry_matches ? "is-ok" : "is-warn"}`}>
           <div className="cv-notice-body">
             {result.registry_matches
-              ? "NHCX now holds the new certificate. Payers that cached the old one for up to a day still get through."
-              : "The new key is saved and NHCX took the certificate, but NHCX's registry still shows a different one. Check again later, or rotate again with the same key."}
+              ? "New certificate is live."
+              : "Saved, but the registry shows an old one. Check later."}
           </div>
         </div>
       ) : (

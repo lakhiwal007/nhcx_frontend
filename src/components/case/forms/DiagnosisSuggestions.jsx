@@ -27,8 +27,8 @@ export default function DiagnosisSuggestions({ name, onPick, onSearch }) {
   return (
     <div className="cv-code-finder">
       <p className="cv-card-meta">
-        <span className="cv-chip is-bad">Needs a code</span> The payer refuses a diagnosis sent as text only.{" "}
-        {rows && rows.length > 0 ? "Pick the matching one:" : rows ? "No close match; search for it." : "Looking for a match…"}
+        <span className="cv-chip is-bad">Needs a code</span> 
+        {rows && rows.length > 0 ? "Pick one:" : rows ? "No close match. Search for it." : "Looking for a match…"}
       </p>
       {rows && rows.length > 0 && (
         <ul className="cv-code-finder-list">

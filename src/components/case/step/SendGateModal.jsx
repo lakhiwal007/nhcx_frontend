@@ -3,7 +3,7 @@ import ConfirmModal from "../../ui/ConfirmModal";
 export default function SendGateModal({
   gate,
   title = "Send without these?",
-  subtitle = "Only the plan lists them, so the send is allowed, but the payer may query or refuse.",
+  subtitle = "Allowed, but the payer may query.",
   sendLabel = "Send anyway",
   busy = false,
   children,

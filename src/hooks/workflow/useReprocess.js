@@ -21,9 +21,9 @@ export function unavailableReason(claimLeg, closed, shut = closed) {
   if (shut) return "This case is closed. Reopen the case to send an appeal.";
   if (closed) return "This claim is settled, so there is nothing left to appeal.";
   if (!claimLeg || claimLeg === "rejected") return null;
-  if (claimLeg === "approved" || claimLeg === "partial") return "The payer did not reject this claim. To recover an unpaid balance, ask for the balance on the Claim step.";
-  if (claimLeg === "queried") return "The payer has an open query on this claim. Answer it on the Claim step.";
-  if (claimLeg === "submitting") return "The payer has not decided this claim yet. An appeal can follow only a rejection.";
+  if (claimLeg === "approved" || claimLeg === "partial") return "Not rejected. Ask for the balance instead.";
+  if (claimLeg === "queried") return "Answer the open query first.";
+  if (claimLeg === "submitting") return "Not decided yet.";
   return "Only a final claim the payer has rejected can be appealed.";
 }
 

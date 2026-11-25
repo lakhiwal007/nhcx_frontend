@@ -62,7 +62,7 @@ function EventFacts({ event, bundle }) {
         <div className="tl-line">
           <strong>{DECISION_WORDS[String(d.derived_decision || "UNKNOWN").toUpperCase()] || humanize(d.derived_decision)}</strong>
           {reasons.length > 0 && <span> · {reasons.join("; ")}</span>}
-          {d.ambiguous && <span className="tl-verify"> · Verify with the payer: its raw answer does not match this decision.</span>}
+          {d.ambiguous && <span className="tl-verify"> · Confirm with the payer.</span>}
         </div>
       )}
       {event.error && (
@@ -162,9 +162,9 @@ export default function CaseTimeline({ ctx }) {
     "Requests and payer answers appear here as the case moves."
   ) : null;
   const notes = [
-    t.error && all.length > 0 && { tone: "warn", text: `The audit trail could not be refreshed, so what is shown may be out of date: ${t.error}` },
-    partial && t.loadingMore && { tone: "info", text: `Loaded ${all.length} of ${t.total} events, reading the rest…` },
-    partial && !t.loadingMore && { tone: "warn", text: `Only ${all.length} of ${t.total} events could be read. Refresh to try again.` },
+    t.error && all.length > 0 && { tone: "warn", text: `Couldn't refresh: ${t.error}` },
+    partial && t.loadingMore && { tone: "info", text: `${all.length} of ${t.total} loaded…` },
+    partial && !t.loadingMore && { tone: "warn", text: `Only ${all.length} of ${t.total} loaded. Refresh.` },
   ];
   const verdict = <Verdict ctx={ctx} chip={chip[0]} chipTone={chip[1]} summary={summary} notes={notes} />;
 
@@ -173,7 +173,7 @@ export default function CaseTimeline({ ctx }) {
       <CaseStep ctx={ctx} verdict={verdict} checklist={[]} open="none" onOpen={() => {}}>
         <Pane id="none">
           <NextStep tone="info" title="No case yet">
-            The audit trail lists every request and payer answer once the case starts. Start on the Policy step.
+            Nothing yet. Start on the Policy step.
           </NextStep>
         </Pane>
       </CaseStep>
@@ -181,7 +181,7 @@ export default function CaseTimeline({ ctx }) {
   }
 
   if (t.error && !all.length) {
-    return <CaseStep ctx={ctx} verdict={verdict} checklist={[]} open="none" onOpen={() => {}} error={`The audit trail could not be read: ${t.error} The case itself is not affected.`} onRetry={t.refresh} />;
+    return <CaseStep ctx={ctx} verdict={verdict} checklist={[]} open="none" onOpen={() => {}} error={`Couldn't load history: ${t.error}`} onRetry={t.refresh} />;
   }
 
   return (

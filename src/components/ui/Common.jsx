@@ -20,7 +20,7 @@ function FilePreview({ file }) {
   if (preview.kind === "pdf") return <iframe ref={frame} className="fv-frame" title={preview.title} />;
   if (preview.kind === "image") return <img ref={frame} className="fv-image" alt={preview.title} />;
   if (preview.kind === "text") return <pre className="fv-text">{preview.text}</pre>;
-  return <p className="fv-none">This kind of file cannot be shown here. Download it to open it on this computer.</p>;
+  return <p className="fv-none">Can't preview. Download to open.</p>;
 }
 
 export const ViewFile = ({ file, load, name, className = "" }) => {

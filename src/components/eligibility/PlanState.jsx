@@ -12,7 +12,7 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
         tone: "warn",
         title: "The plan has not been requested",
         body: plan?.skip_reason || "Nothing has been asked of the payer for this policy yet.",
-        effect: "Packages cannot be quoted from the plan, and the plan check on the pre-auth shows “not checked”.",
+        effect: "Packages can't be quoted yet.",
         action: "Fetch the insurance plan",
       };
       break;
@@ -20,8 +20,8 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
       view = {
         tone: "info",
         title: "Already being fetched",
-        body: plan?.message || "An earlier request for this policy is still with the payer. This case will use its answer.",
-        effect: "Nothing to do; the plan appears here when it lands.",
+        body: plan?.message || "An earlier request is pending. This case uses its answer.",
+        effect: "Nothing to do. The plan shows here when it arrives.",
       };
       break;
     case "asking":
@@ -31,25 +31,25 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
         body: `Requested ${state.sent ? formatDateTime(state.sent) : "just now"}${state.sent ? `, ${state.minutes} min ago` : ""}. Government payers usually answer within 15 to 60 minutes; this page checks again each time it loads.`,
         effect: "Fill in the clinical details meanwhile.",
         action: "Fetch again",
-        locked: "Allowed after 60 minutes: the payer refuses a second request before then.",
+        locked: "Allowed after 60 minutes.",
       };
       break;
     case "late":
       view = {
         tone: "warn",
         title: "Taking longer than expected",
-        body: `The payer has not answered in ${state.minutes} minutes. The request may have been lost.`,
+        body: `No answer in ${state.minutes} minutes. It may be lost.`,
         effect: "Packages cannot be quoted until the plan arrives.",
         action: "Fetch again",
-        hint: plan?.correlation_id ? "If it still does not arrive, contact NHA support with the request id under the details below." : null,
+        hint: plan?.correlation_id ? "Still nothing? Send NHA the request id below." : null,
       };
       break;
     case "no_plan":
       view = {
         tone: "warn",
         title: "The payer has no plan for this policy",
-        body: `The payer answered with no insurance plan: it has no package master filed under ${policy} for this hospital.`,
-        effect: "The pre-auth can still be sent, but nothing can be checked against a plan. Check the policy number and the hospital's HFR ID.",
+        body: `No plan filed under ${policy} for this hospital.`,
+        effect: "Check the policy number and HFR ID.",
         action: "Fetch again",
       };
       break;
@@ -57,8 +57,8 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
       view = {
         tone: "warn",
         title: "The plan lists no packages",
-        body: plan?.plan?.plan_title ? `The payer sent ${plan.plan.plan_title}, but with no packages for this hospital.` : "The payer sent a plan with no packages for this hospital.",
-        effect: "No package can be quoted. The hospital may not be empanelled for any specialty under this policy.",
+        body: plan?.plan?.plan_title ? `${plan.plan.plan_title} has no packages for this hospital.` : "The payer sent a plan with no packages for this hospital.",
+        effect: "The hospital may not be empanelled.",
         action: "Fetch again",
       };
       break;
@@ -79,7 +79,7 @@ export default function PlanState({ plan, state, canFetch, sending, onFetch, res
         tone: "bad",
         title: "The request did not reach the payer",
         body: state.text || "The plan request could not be sent.",
-        effect: "Nothing reached the payer; nothing is waiting.",
+        effect: "Nothing sent. Nothing waiting.",
         action: "Try again",
         hint: "Share the message with IT if it repeats.",
       };

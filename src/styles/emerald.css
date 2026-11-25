@@ -76,6 +76,7 @@
 .cv-facts-pop .cv-fact { max-width: none; border-left: 0; }
 @media (max-width: 1680px) {
   .cv-fact.is-extra { display: none; }
+  .cv-fact { flex-shrink: 0; }
   .cv-facts-more { display: block; }
 }
 @media (max-width: 760px) {

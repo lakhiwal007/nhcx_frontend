@@ -11,11 +11,11 @@ import CopyButton from "../../ui/CopyButton";
 
 const METHODS = [
   { value: "FACE_AUTH", label: "Face", icon: ScanFace, hint: "The patient scans a code with the ABHA app on their phone." },
-  { value: "FINGERPRINT", label: "Fingerprint", icon: Fingerprint, hint: "A registered fingerprint device on this machine, or a PID block pasted from another." },
-  { value: "IRIS", label: "Iris", icon: Eye, hint: "A registered iris device on this machine, or a PID block pasted from another." },
+  { value: "FINGERPRINT", label: "Fingerprint", icon: Fingerprint, hint: "Fingerprint device here, or a pasted PID block." },
+  { value: "IRIS", label: "Iris", icon: Eye, hint: "Iris device here, or a pasted PID block." },
 ];
 const METHOD_WORD = { FACE_AUTH: "face", FINGERPRINT: "fingerprint", IRIS: "iris" };
-const DEVICE_PROMPT = { FINGERPRINT: "Ask the patient to place a finger on the device, then capture.", IRIS: "Ask the patient to look into the device, then capture." };
+const DEVICE_PROMPT = { FINGERPRINT: "Finger on the device, then capture.", IRIS: "Ask the patient to look into the device, then capture." };
 const TITLES = { Preauth: "Beneficiary verification", Discharge: "Discharge verification" };
 const POLL_MS = 4000;
 
@@ -24,10 +24,10 @@ function sessionState(cycle) {
   const full = cycle.max_sessions != null && count >= cycle.max_sessions;
   const wait = !full && !!cycle.next_allowed_at && new Date(cycle.next_allowed_at) > new Date();
   const text = full
-    ? `All ${cycle.max_sessions} sessions the plan allows are recorded.`
+    ? `All ${cycle.max_sessions} sessions recorded.`
     : wait
-      ? `Sessions are at least 24 hours apart. The next one can be recorded from ${formatDateTime(cycle.next_allowed_at)}.`
-      : "Scan the patient at every session, on the day it is given. The consent form cannot stand in for a scan.";
+      ? `Next session from ${formatDateTime(cycle.next_allowed_at)}.`
+      : "Scan at every session, on the day.";
   return { label: `${count} recorded`, tone: count ? "ok" : "warn", text, closed: full || wait };
 }
 
@@ -35,8 +35,8 @@ function cardState(card) {
   if (card?.sessions) return sessionState(card.sessions);
   const held = card?.current;
   if (held) return { label: "Verified", tone: "ok", text: `Verified by ${METHOD_WORD[held.auth_method] || "biometrics"} at ${formatDateTime(held.verified_at)}.` };
-  if (card?.latest?.status === "verified") return { label: "Lapsed", tone: "warn", text: "The earlier verification has lapsed. Verify the patient again, or let the signed consent form stand in." };
-  return { label: "Not verified", tone: "warn", text: "Until the patient is verified, the signed consent form stands in." };
+  if (card?.latest?.status === "verified") return { label: "Lapsed", tone: "warn", text: "Verification lapsed. Verify again or use the consent form." };
+  return { label: "Not verified", tone: "warn", text: "The consent form counts until verified." };
 }
 
 function Steps({ steps, current }) {
@@ -82,7 +82,7 @@ function FacePanel({ ids, qrUrl, captured, aadhaar, mobile, setAadhaar, setMobil
               Aadhaar number
             </label>
             <input id={`${ids}-aadhaar`} className="cv-ctl cv-ctl-fill cv-mono" type="password" inputMode="numeric" autoComplete="off" maxLength={12} placeholder="12 digits" value={aadhaar} onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, ""))} />
-            <span className="cv-card-meta">Sealed in this browser before it leaves. Never sent or stored in clear.</span>
+            <span className="cv-card-meta">Encrypted before it leaves this browser.</span>
           </div>
           <div className="cv-field-stack">
             <label className="cv-field-key" htmlFor={`${ids}-mobile`}>
@@ -105,7 +105,7 @@ function DevicePanel({ ids, method, pid, setPid, capturing, captured, onDevice }
         <button type="button" className="cv-btn" disabled={capturing} onClick={onDevice}>
           {capturing ? "Looking for the device…" : captured ? "Capture again" : "Capture from the device"}
         </button>
-        {capturing && <span className="cv-card-meta">Checking the machine's RD service. This can take up to twenty seconds.</span>}
+        {capturing && <span className="cv-card-meta">Checking the device. Up to 20 seconds.</span>}
         {captured && !capturing && (
           <span className="bio-wait is-done" role="status">
             <CheckCircle2 size={14} aria-hidden="true" /> Captured from the device.
@@ -317,7 +317,7 @@ function Card({ caseId, stage, readOnly, onVerified, onCard }) {
             <DevicePanel ids={ids} method={panel.attempt.auth_method} pid={pid} setPid={setPid} capturing={busy === "device"} captured={deviceCaptured} onDevice={device} />
           )}
           <div className="bio-actions">
-            <button type="button" className="cv-btn is-primary" disabled={working || !ready} title={ready ? undefined : face ? "Finish the scan and enter the Aadhaar number and mobile first." : "Capture from the device or paste the PID block first."} onClick={verify}>
+            <button type="button" className="cv-btn is-primary" disabled={working || !ready} title={ready ? undefined : face ? "Scan, then enter Aadhaar and mobile." : "Capture from the device or paste the PID block first."} onClick={verify}>
               {busy === "verify" ? "Verifying…" : "Verify"}
             </button>
             {failed && (

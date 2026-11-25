@@ -30,7 +30,7 @@ function ChoosePackage({ choice, visit, plan, planCorrelationId, startQuery }) {
               <span>{value}</span>
             </div>
           ))}
-          {facts.length === 0 && <div className="cv-card-meta">The hospital system has no diagnosis or procedure recorded for this admission yet.</div>}
+          {facts.length === 0 && <div className="cv-card-meta">No diagnosis or procedure recorded yet.</div>}
         </div>
         <div className="cv-card-body cv-split-part">
           <div className="cv-sub">Chosen packages</div>
@@ -65,11 +65,11 @@ function ChoosePackage({ choice, visit, plan, planCorrelationId, startQuery }) {
                 )}
                 {pkg.unspecified && <input className="cv-ctl" aria-label={`Procedure name for ${pkg.code}`} placeholder="Procedure name" value={pkg.name} onChange={(ev) => choice.onEdit(pkg.code, { name: ev.target.value })} />}
                 {pkg.typed && <input className="cv-ctl cv-mono" type="number" min="0" aria-label={`Amount for ${pkg.code}`} placeholder="Amount for one" value={pkg.amount ?? ""} onChange={(ev) => choice.onEdit(pkg.code, { amount: ev.target.value })} />}
-                <div className="cv-card-meta">{price != null ? `${formatMoney(price)}${pkg.typed ? "" : " at the plan's rate"}` : pkg.typed ? "Enter the amount; the plan has no price for this." : "The plan lists no rate."}</div>
+                <div className="cv-card-meta">{price != null ? `${formatMoney(price)}${pkg.typed ? "" : " at the plan's rate"}` : pkg.typed ? "No plan price. Enter the amount." : "The plan lists no rate."}</div>
               </div>
             );
           })}
-          {choice.chosen.length === 0 && <div className="cv-card-meta">None yet. Pick the package that covers this admission from the payer's plan; the pre-auth is raised for it.</div>}
+          {choice.chosen.length === 0 && <div className="cv-card-meta">None yet. Pick a package from the plan.</div>}
         </div>
       </section>
       <PackagePicker
@@ -102,7 +102,7 @@ export default function PlannedTreatment({ procedures, packages, checks, source,
       {treatment?.length > 0 && <PackageLines lines={treatment} />}
       {treatment?.length > 0 ? null : procedures.length === 0 ? (
         <div className="cv-card-body">
-          No planned procedure is recorded for this visit. Ask the doctor to add it in the hospital system, then send the checks again so the payer can rule on it.
+          No procedure recorded. Ask the doctor to add it, then resend.
         </div>
       ) : (
         <div className="cv-tw cv-in-card">

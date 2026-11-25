@@ -48,8 +48,8 @@ export default function FacilityForm({ form, errors = {}, onChange, isEdit }) {
       <Group title="The hospital" intro="How NHCX and the payers know this hospital.">
         {f("facility_code", "Facility code", { field: { required: true, hint: isEdit ? "Cannot change after registration." : "The hospital's clinic id in the HIS, e.g. HOSP-001" }, input: { placeholder: "HOSP-001", disabled: isEdit, monospace: true } })}
         {f("name", "Hospital name", { field: { required: true }, input: { placeholder: "City General Hospital" } })}
-        {f("registry_id", "HFR id", { field: { required: true, hint: "The Health Facility Registry id; ABDM also uses it as the registry id." }, input: { placeholder: "IN1910000151", monospace: true } })}
-        <Field label="Hospital type" htmlFor="fac-ownership" hint="PMJAY refuses a package reserved for public hospitals from a private one.">
+        {f("registry_id", "HFR id", { field: { required: true, hint: "Health Facility Registry id." }, input: { placeholder: "IN1910000151", monospace: true } })}
+        <Field label="Hospital type" htmlFor="fac-ownership" hint="Some PMJAY packages are public only.">
           <Select id="fac-ownership" value={form.ownership} onChange={(v) => onChange("ownership", v)} options={OWNERSHIP_OPTIONS} />
         </Field>
         {f("scheme_code", "Scheme code", { field: { required: true, hint: "e.g. PMJAY" }, input: { placeholder: "PMJAY" } })}
@@ -58,7 +58,7 @@ export default function FacilityForm({ form, errors = {}, onChange, isEdit }) {
         </Field>
         {f("state", "State", { field: { required: true }, input: { placeholder: "AndhraPradesh" } })}
         {f("district", "District", { field: { required: true }, input: { placeholder: "Krishna" } })}
-        {f("hcx_participant_code", "NHCX participant code", { field: { required: isEdit, wide: true, hint: isEdit ? "The code ABDM gave this hospital, e.g. 1000099999@hcx" : "Leave blank; ABDM assigns it at registration. Fill it only to re-link a code that already exists." }, input: { placeholder: isEdit ? "1000099999@hcx" : "Assigned by ABDM", monospace: true } })}
+        {f("hcx_participant_code", "NHCX participant code", { field: { required: isEdit, wide: true, hint: isEdit ? "The code ABDM gave this hospital, e.g. 1000099999@hcx" : "Leave blank. ABDM assigns it." }, input: { placeholder: isEdit ? "1000099999@hcx" : "Assigned by ABDM", monospace: true } })}
         <Field label="Status" htmlFor="fac-active">
           <label className="st-check st-inline-check">
             <input id="fac-active" type="checkbox" checked={!!form.active} onChange={(e) => onChange("active", e.target.checked)} />
@@ -80,10 +80,10 @@ export default function FacilityForm({ form, errors = {}, onChange, isEdit }) {
         <Field label="Linked registries" required wide error={errors.linked_registry_codes} htmlFor="fac-registries" hint="At least one.">
           <Checks id="fac-registries" options={LINKED_REGISTRY_OPTIONS} value={form.linked_registry_codes || []} onChange={(v) => onChange("linked_registry_codes", v)} />
         </Field>
-        {f("signing_cert_path", "Signing certificate URL", { field: { wide: true, hint: "Passed to ABDM at registration; not stored here." }, input: { placeholder: "https://hospital.example/certs/signing.crt", type: "url" } })}
+        {f("signing_cert_path", "Signing certificate URL", { field: { wide: true, hint: "Sent to ABDM. Not stored here." }, input: { placeholder: "https://hospital.example/certs/signing.crt", type: "url" } })}
       </Group>
 
-      <Group title="Encryption" intro="The certificate NHCX seals payer answers with, and the key that opens them.">
+      <Group title="Encryption" intro="Certificate and key for payer answers.">
         {!isEdit && (
           <GenerateKeypairButton
             facilityCode={form.facility_code}
@@ -98,7 +98,7 @@ export default function FacilityForm({ form, errors = {}, onChange, isEdit }) {
           <TextArea id="fac-cert" rows={4} value={form.encryption_cert} onChange={(v) => onChange("encryption_cert", v)} placeholder="TUlJQzJqQ0NBY0tnQXdJQkFnSUJBVEFOQmdrcWhraUc5dzBCQVFzRkFEQVlNUll3..." invalid={!!errors.encryption_cert} />
         </Field>
         {!isEdit && (
-          <Field label="Private key (PEM)" wide htmlFor="fac-key" hint="Optional now; it can be uploaded after registration. Include the BEGIN and END lines.">
+          <Field label="Private key (PEM)" wide htmlFor="fac-key" hint="Optional. Include the BEGIN and END lines.">
             <TextArea id="fac-key" rows={6} value={form.private_key_pem} onChange={(v) => onChange("private_key_pem", v)} placeholder={PEM_PLACEHOLDER} />
           </Field>
         )}

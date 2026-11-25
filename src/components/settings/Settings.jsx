@@ -192,7 +192,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
 
       {readOnly && (
         <div className="cv-notice is-info">
-          <div className="cv-notice-body">{managesAnyFacility ? "This account sees every facility and can manage their settings. Cases and payer replies are view-only." : "This account can view every facility but cannot change anything. Cases, payer replies and facilities are view-only."}</div>
+          <div className="cv-notice-body">{managesAnyFacility ? "Sees all facilities. Cases are view only." : "View only, all facilities."}</div>
         </div>
       )}
 
@@ -202,7 +202,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
             <div className="st-pad">
               <div className="cv-notice is-info">
                 <div className="cv-notice-body">
-                  {pickerFacilities.length === 0 ? "No facility set up for cashless cases is linked to this account yet." : "Every case, task and message belongs to one facility. Choose yours to start; you can change it here later."}
+                  {pickerFacilities.length === 0 ? "No facility linked yet." : "Choose your facility to start."}
                   {cameFrom && pickerFacilities.length > 0 ? ` You will go back to ${cameFrom.startsWith("/case/") ? "the case" : "where you were"} after choosing.` : ""}
                 </div>
               </div>
@@ -211,7 +211,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
           {pickerFacilities.length === 0 ? (
             <div className="st-pad st-stack">
               <div className="cv-notice is-warn">
-                <div className="cv-notice-body">{canRegister ? "No facility set up for cashless cases is linked to your account. As its clinic admin, register it with the Register facility button above." : "No facility set up for cashless cases is linked to your account. Ask your clinic admin to register it."}</div>
+                <div className="cv-notice-body">{canRegister ? "No facility linked. Register one above." : "No facility linked. Ask your clinic admin."}</div>
               </div>
             </div>
           ) : (
@@ -219,7 +219,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
               {!hasSessionFacilities && (
                 <div className="st-pad">
                   <div className="cv-notice is-warn">
-                    <div className="cv-notice-body">No facility is linked to your login. Choose one to continue.</div>
+                    <div className="cv-notice-body">Choose a facility to continue.</div>
                   </div>
                 </div>
               )}
@@ -310,7 +310,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
           {loading && !list.facilities ? (
             <LoadingBlock compact text="Loading the facilities…" />
           ) : facilities.length === 0 ? (
-            <EmptyState icon={Building2} iconSize={44} iconOpacity={0.25} title="No facilities registered" description="Register the hospital's facility to start sending eligibility checks, pre-auths and claims.">
+            <EmptyState icon={Building2} iconSize={44} iconOpacity={0.25} title="No facilities registered" description="Register the facility to start.">
               {canRegister && (
                 <Button variant="primary" size="small" icon={Plus} onClick={openCreate}>
                   Register facility

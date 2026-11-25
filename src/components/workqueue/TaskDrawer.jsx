@@ -43,7 +43,7 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
     async () => {
       const res = await api.reprocessCallback(task.correlation_id);
       if (res?.status !== "reprocessed" && res?.status !== "already_complete") {
-        throw new Error(res?.message || "The payer's answer still could not be read. Tell your IT team.");
+        throw new Error(res?.message || "Still unreadable. Tell IT.");
       }
     },
     { success: "The payer's answer was read", onDone },
@@ -89,7 +89,7 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
       disabled={busy || allFacilitiesMode || task.metadata?.retryable === false}
       disabledReason={
         task.metadata?.retryable === false
-          ? "This answer is too old to be read again. Call the payer to confirm what it decided."
+          ? "Too old to read. Call the payer."
           : undefined
       }
       onClick={retry.run}
@@ -218,7 +218,7 @@ export default function TaskDrawer({ task, open, onClose, onDone, allFacilitiesM
       <ConfirmModal
         open={complete.confirming}
         title="Mark this task done?"
-        subtitle="It is removed from the Work Queue. Nothing is sent to the payer."
+        subtitle="Removed from the queue."
         confirmLabel="Mark done"
         busy={complete.busy}
         onCancel={complete.cancel}

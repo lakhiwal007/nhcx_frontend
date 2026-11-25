@@ -64,7 +64,7 @@ export default function LinkPaymentDrawer({ payment, onClose, onLinked }) {
       open={open}
       onClose={link.busy ? undefined : close}
       title="Link this payment to a case"
-      subtitle="The payer did not name a case this hospital knows. Choose the case this payment is for. After that, the payer can be told the payment arrived."
+      subtitle="Choose the case this payment is for."
       width={560}
       footer={
         <div className="cv-drawer-actions">

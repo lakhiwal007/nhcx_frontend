@@ -11,11 +11,11 @@ const itemKey = (item) => item.service_code ?? item.service_name;
 const procKey = (proc) => proc.code ?? proc.name;
 
 export function unavailableReason(legs, closed = false, shut = closed) {
-  if (shut) return "This case is closed. Reopen the case to enhance the pre-auth.";
-  if (closed) return "This claim is settled, so the pre-auth can no longer be enhanced.";
-  if (CLAIM_WITH_PAYER.includes(legs?.claim)) return "The claim has gone to the payer, so the pre-auth can no longer be enhanced.";
-  if (legs?.preauth === "queried") return "The payer has an open query on this pre-auth. Answer it on Approval first.";
-  if (legs?.preauth === "submitting" || legs?.preauth === "cancelling") return "The payer is still working on this pre-auth. Wait for its answer on Approval.";
+  if (shut) return "Case closed. Reopen to enhance.";
+  if (closed) return "Claim settled. Can't enhance.";
+  if (CLAIM_WITH_PAYER.includes(legs?.claim)) return "Claim sent. Can't enhance.";
+  if (legs?.preauth === "queried") return "Answer the open query first.";
+  if (legs?.preauth === "submitting" || legs?.preauth === "cancelling") return "Wait for the payer's answer.";
   if (legs?.preauth === "cancelled") return "This pre-auth was cancelled, so it cannot be enhanced.";
   return null;
 }

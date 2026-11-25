@@ -37,7 +37,7 @@ export default function SessionsPane({ cycle, docs, documents, readOnly }) {
         </span>
       </div>
       <div className="cv-card-body">
-        {cycle.sessions.length === 0 && <div className="cv-card-meta">No session is recorded yet. Record each one below while the patient is here.</div>}
+        {cycle.sessions.length === 0 && <div className="cv-card-meta">No sessions yet.</div>}
         {cycle.sessions.map((session) => {
           const tied = docs.filter((d) => d.session === session.number);
           const report = tied.find((d) => d.url);
@@ -68,7 +68,7 @@ export default function SessionsPane({ cycle, docs, documents, readOnly }) {
             </div>
           );
         })}
-        {cycle.sessions.length > 0 && <div className="cv-card-meta cv-sub-note-top">A report is optional. A session without one still goes to the payer with its scan times.</div>}
+        {cycle.sessions.length > 0 && <div className="cv-card-meta cv-sub-note-top">Report optional.</div>}
       </div>
     </section>
   );

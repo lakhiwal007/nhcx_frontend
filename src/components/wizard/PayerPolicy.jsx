@@ -306,7 +306,7 @@ export default function PayerPolicy({ ctx }) {
               </span>
               <InfoTip
                 title="How policies are found"
-                text="We look for policies an insurer has linked to the patient's ABHA number, member ID or mobile. Pick the one that pays for this admission."
+                text="Pick the policy for this admission."
               />
             </div>
             {!locked && (
@@ -371,7 +371,7 @@ export default function PayerPolicy({ ctx }) {
             {locked && listedPolicies.length === 0 ? (
               <div className="cv-card-body">
                 <NextStep tone="info" title={lock.reason}>
-                  {lock.viewOnly ? "Looking up a patient's policies asks the payer, which this account cannot do." : "Its policy is not looked up again."}
+                  {lock.viewOnly ? "This account can't look up policies." : "Its policy is not looked up again."}
                 </NextStep>
               </div>
             ) : loading ? (
@@ -391,7 +391,7 @@ export default function PayerPolicy({ ctx }) {
                 tone="bad"
                 className="pp-next"
                 title="Couldn't reach the insurance registry"
-                steps={["Press Search again. A failed lookup is often a short network problem.", "If it keeps failing, ask the insurer directly."]}
+                steps={["Search again.", "If it keeps failing, ask the insurer directly."]}
                 actions={
                   <>
                     <button type="button" className="cv-btn" onClick={() => search()}>
@@ -427,9 +427,9 @@ export default function PayerPolicy({ ctx }) {
                 }
               >
                 {typedMemberId
-                  ? "Check the member ID against the card for a typo. If it is right, ask the insurer directly."
-                  : "Many policies are not linked to an ABHA or mobile yet, so the patient may still be insured. Ask for the insurance card or e-card; a child's cover is often on a parent's card."}
-                {showTips && <div className="pp-next-tip">No insurance at all? Treat them as a cash patient. No cashless case is needed.</div>}
+                  ? "Check the member ID on the card."
+                  : "Ask for the insurance card. A child is often on a parent's card."}
+                {showTips && <div className="pp-next-tip">No insurance? Treat as cash.</div>}
               </NextStep>
             ) : (
               <div className="pp-list" role="radiogroup" aria-label="Policies" style={{ "--pp-cols": columns.template }}>
@@ -586,7 +586,7 @@ export default function PayerPolicy({ ctx }) {
                   )}
                 </>
               ) : (
-                <p className="cv-card-meta">No policy is on this case yet. Pick one from the list, or ask the insurer.</p>
+                <p className="cv-card-meta">No policy yet. Pick one from the list.</p>
               )}
             </div>
           </section>
@@ -606,7 +606,7 @@ export default function PayerPolicy({ ctx }) {
               )}
             </div>
             <div className="cv-card-intro">
-              When the lookup finds nothing, an insurer can be asked directly with the numbers on the patient's card. The answer lists everyone on the cover, so the right person can be chosen.
+              Nothing found? Ask a payer directly with the card numbers.
             </div>
             {discoveries.length > 0 && (
               <div className="cv-card-body cd-sent">

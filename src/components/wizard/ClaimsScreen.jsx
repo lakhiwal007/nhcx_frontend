@@ -58,7 +58,7 @@ function WaitingCard({ title, data, status, correlationId, bundle, onEnquire, en
         <div className="cv-kv"><span>Last checked</span><span>{status.lastCheckedAt ? formatDateTime(new Date(status.lastCheckedAt)) : "checking now"}</span></div>
         {long && (
           <div className="cv-notice is-info cv-sub-note-top">
-            <div className="cv-notice-body">Payer decisions can take minutes to hours. You can leave this page; the answer appears in the Work Queue when it arrives.</div>
+            <div className="cv-notice-body">Answers can take hours. It will show in the Work Queue.</div>
           </div>
         )}
         {canEnquire && (
@@ -208,7 +208,7 @@ export default function ClaimsScreen({ ctx }) {
     rows.length
       ? `First: ${rows.map((r) => r.name.toLowerCase()).join(", ")}.`
       : c.hisBlockers.length
-        ? `The hospital records are missing ${fieldList(c.hisBlockers)}.`
+        ? `Missing in hospital records: ${fieldList(c.hisBlockers)}.`
         : !c.hasPreauthRef
           ? "The payer must approve the pre-auth first."
           : "Finish the marked items first.";
@@ -258,48 +258,48 @@ export default function ClaimsScreen({ ctx }) {
 
   const releaseData = c.release.data;
   const notes = [
-    c.sendDischarge.error && { tone: "bad", text: `Not sent: ${c.sendDischarge.error} Fix what the message names and send again.` },
-    c.sendFinal.error && { tone: "bad", text: `Not sent: ${c.sendFinal.error} Fix what the message names and send again.` },
+    c.sendDischarge.error && { tone: "bad", text: `Not sent: ${c.sendDischarge.error} Fix it and resend.` },
+    c.sendFinal.error && { tone: "bad", text: `Not sent: ${c.sendFinal.error} Fix it and resend.` },
     finalGate.error && { tone: "bad", text: finalGate.error },
     dischargeGate.error && { tone: "bad", text: dischargeGate.error },
     c.askGateway.error && { tone: "warn", text: c.askGateway.error },
     lock.viewOnly && { tone: "info", text: lock.reason },
     !c.error && !c.hasPreauthRef && !c.docsLocked && draft && { tone: "warn", text: "The payer must approve the pre-auth before you can claim.", action: { label: "Open Approval", onClick: () => navigate("../status") } },
-    c.hisBlockers.length > 0 && { tone: "warn", text: `The hospital records are missing ${fieldList(c.hisBlockers)}. Ask the doctor or billing desk to add it, then reload this page.` },
+    c.hisBlockers.length > 0 && { tone: "warn", text: `Missing in hospital records: ${fieldList(c.hisBlockers)}. Add it, then reload.` },
     ...(draft?.reminders || []).map((r) => ({ tone: "info", text: r.message })),
-    c.dischargeRejected && { tone: "bad", text: "The payer rejected the discharge claim. No final claim exists yet, so there is nothing to appeal: correct it and send it again." },
-    c.dischargeQueried && { tone: "warn", text: "The payer has a question about the discharge claim. The final claim cannot go until it is answered." },
-    c.dischargeFailed && { tone: "bad", text: `The discharge claim did not reach the payer. ${c.dischargeView.message || ""}`.trim() },
-    c.finalFailed && { tone: "bad", text: `The final claim did not reach the payer. ${view.message || ""}`.trim() },
-    view.phase === "not_found" && { tone: "warn", text: "The payer's system has no record of this claim yet. Refresh in a while, and call its helpdesk if it stays like this." },
+    c.dischargeRejected && { tone: "bad", text: "Discharge claim rejected. Correct it and resend." },
+    c.dischargeQueried && { tone: "warn", text: "Payer has a question on the discharge claim. Answer it first." },
+    c.dischargeFailed && { tone: "bad", text: `Discharge claim not delivered. ${c.dischargeView.message || ""}`.trim() },
+    c.finalFailed && { tone: "bad", text: `Final claim not delivered. ${view.message || ""}`.trim() },
+    view.phase === "not_found" && { tone: "warn", text: "Payer has no record of it yet. Refresh later." },
     view.refusedSend && {
       tone: "info",
       text: `The payer did not take the final claim${view.refusedSend.message ? `: “${view.refusedSend.message}”` : "."} Its answer to the discharge claim stands.`,
     },
-    c.claimUnclear && { tone: "warn", text: "The payer answered without a clear decision. Read its response under Decision, and call its helpdesk if it is not clear." },
-    c.ambiguous && { tone: "warn", text: "Verify this answer with the payer: its raw response does not corroborate the decision shown." },
+    c.claimUnclear && { tone: "warn", text: "Unclear answer. Read it under Decision." },
+    c.ambiguous && { tone: "warn", text: "Confirm this decision with the payer." },
     c.isPartial && {
       tone: "warn",
       text: c.dischargeIntimation
-        ? "Approved for less than the bill. See what was cut under Decision. If the cut is wrong, ask for the balance with your reason; otherwise bill the patient the difference."
-        : "Approved for less than the bill. See what was cut under Decision. If the cut is wrong, ask for the balance with your reason. A PMJAY beneficiary is never billed the difference.",
+        ? "Partly approved. Ask for the balance or bill the patient."
+        : "Partly approved. Ask for the balance. Never bill a PMJAY patient.",
     },
-    c.isQueried && { tone: "warn", text: "The payer has a question. The payment waits until you answer." },
-    c.isRejected && { tone: "warn", text: "Read the payer's reason under Decision. If you disagree, ask for a reprocess with your evidence." },
-    c.asksError && { tone: "warn", text: `What the payer needs could not be reloaded, so the list may be out of date: ${c.asksError}` },
-    c.final.error && { tone: "warn", text: `The last check failed, and this page keeps trying: ${c.final.error}` },
-    !c.finalId && c.discharge.error && { tone: "warn", text: `The last check failed, and this page keeps trying: ${c.discharge.error}` },
-    c.releaseId && c.release.phase === "waiting" && { tone: "info", text: "The balance request is with the payer. Its answer appears under Decision and in the audit trail." },
-    releaseData?.status === "complete" && { tone: releaseData.answer === "refused" ? "warn" : "info", text: `The payer answered the balance request: ${humanize(releaseData.answer || releaseData.decision || "see the audit trail")}${releaseData.detail ? `. ${releaseData.detail}` : ""}.` },
-    releaseData?.status === "failed" && { tone: "warn", text: `The balance request was refused: ${releaseData.error_message || releaseData.message || "see the audit trail"}.` },
+    c.isQueried && { tone: "warn", text: "Payer has a question. Answer to get paid." },
+    c.isRejected && { tone: "warn", text: "Rejected. Disagree? Ask for a reprocess." },
+    c.asksError && { tone: "warn", text: `Couldn't reload the payer's asks: ${c.asksError}` },
+    c.final.error && { tone: "warn", text: `Check failed, retrying: ${c.final.error}` },
+    !c.finalId && c.discharge.error && { tone: "warn", text: `Check failed, retrying: ${c.discharge.error}` },
+    c.releaseId && c.release.phase === "waiting" && { tone: "info", text: "Balance request sent. Waiting for the payer." },
+    releaseData?.status === "complete" && { tone: releaseData.answer === "refused" ? "warn" : "info", text: `Balance answer: ${humanize(releaseData.answer || releaseData.decision || "see the audit trail")}${releaseData.detail ? `. ${releaseData.detail}` : ""}.` },
+    releaseData?.status === "failed" && { tone: "warn", text: `Balance request refused: ${releaseData.error_message || releaseData.message || "see the audit trail"}.` },
   ];
 
   const tipText = c.claimDecided && c.isApproved
-    ? "Approved in full. The payer's payment notice lands on the Payment step; confirm it against the bank statement when it arrives."
+    ? "Approved in full. Check payment on the Payment step."
     : !c.finalId && !c.error && draft && !locked && activeBlockers.length === 0 && !c.dischargeWaiting
       ? c.dischargeNext
-        ? "Most payers need the discharge claim, with the discharge papers, before the final claim."
-        : "Private insurers must decide a final claim within 3 hours (IRDAI)."
+        ? "Send the discharge claim first."
+        : "Private payers must answer within 3 hours."
       : null;
 
   const summary = c.claimDecided && (c.isApproved || c.isPartial) ? (
@@ -312,7 +312,7 @@ export default function ClaimsScreen({ ctx }) {
       <strong>{money(c.claimRequested)}</strong> claimed
     </>
   ) : c.finalWaiting ? (
-    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : "just now"} · waiting ${formatDuration(minutes(c.final.elapsedMs))} · checking automatically`
+    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : "just now"} · waiting ${formatDuration(minutes(c.final.elapsedMs))}`
   ) : draft ? (
     <>
       <strong>{money(draft.total_amount)}</strong> final bill
@@ -442,7 +442,7 @@ export default function ClaimsScreen({ ctx }) {
         )}
 
         <Pane id="stay">
-          <Card title="Stay & pre-auth" meta="From the hospital records; fix any mistake there first.">
+          <Card title="Stay & pre-auth" meta="From hospital records. Fix mistakes there.">
             <div className="cv-card-body cv-cols">
               <div>
                 <div className="cv-kv"><span>Admitted</span><span>{draft?.admission_date ? formatDate(draft.admission_date) : "—"}</span></div>
@@ -465,7 +465,7 @@ export default function ClaimsScreen({ ctx }) {
         </Pane>
 
         <Pane id="justification">
-          <Card title="Reason for treatment" meta="Coded on the clinical note. The payer reads this to judge the bill.">
+          <Card title="Reason for treatment" meta="Coded from the clinical note.">
             <div className="cv-card-body">
               {c.justification.length ? (
                 c.justification.map(([label, codes]) => (
@@ -520,7 +520,7 @@ export default function ClaimsScreen({ ctx }) {
 
         <Pane id="files">
           {c.docsLocked && <SentFiles caseId={c.caseId} stage="claim" />}
-          <Card title="Other files" meta="Sent with the claim. Attached files stay while you move between steps; reloading the page drops them.">
+          <Card title="Other files" meta="Sent with the claim. Reloading drops attached files.">
             <div className="cv-card-body">
               {c.documents.error && (
                 <div className="cv-notice is-bad cv-drawer-note" role="alert">
@@ -549,11 +549,11 @@ export default function ClaimsScreen({ ctx }) {
             ) : (
               <Card
                 title="Discharge claim"
-                meta="Most payers need this, with the discharge papers, before the final claim."
+                meta="Needed before the final claim."
                 chip={c.dischargeId ? <span className={`cv-chip is-${c.dischargeRejected || c.dischargeFailed ? "bad" : c.dischargeQueried ? "warn" : c.dischargeView.decision ? "ok" : "info"}`}>{dischargeWord}</span> : null}
               >
                 <div className="cv-card-body">
-                  {!c.dischargeId && <div className="cv-card-meta">Not sent yet. It goes out with the files attached on this step.</div>}
+                  {!c.dischargeId && <div className="cv-card-meta">Not sent yet.</div>}
                   {dischargeData?.submitted_at && <div className="cv-kv"><span>Sent</span><span>{formatDateTime(dischargeData.submitted_at)}</span></div>}
                   {c.dischargeView.decision && <div className="cv-kv"><span>Payer's answer</span><span>{humanize(c.dischargeView.decision)}</span></div>}
                   {c.dischargeFailed && <div className="cv-kv"><span>Reason</span><span>{c.dischargeView.message || "No reason given"}</span></div>}
@@ -580,7 +580,7 @@ export default function ClaimsScreen({ ctx }) {
         )}
 
         <Pane id="final">
-          <Card title="Final claim" meta="Asks the payer to pay the final bill. Private insurers must decide within 3 hours (IRDAI).">
+          <Card title="Final claim" meta="The final bill. Private payers answer within 3 hours.">
             <div className="cv-card-body">
               <div className="cv-kv"><span>Status</span><span>{c.finalFailed ? "Not delivered" : c.finalSent ? "Sent" : "Not sent"}</span></div>
               <div className="cv-kv"><span>Final bill</span><span>{money(draft?.total_amount)}</span></div>
@@ -600,7 +600,7 @@ export default function ClaimsScreen({ ctx }) {
             <WaitingCard title="Final claim" data={data} status={c.final} correlationId={c.finalId} bundle={bundleFor("claim", c.finalId)} canEnquire={canEnquire && c.final.elapsedMs > GATEWAY_RECOVERY_MS} enquiring={c.askGateway.busy} onEnquire={c.askGateway.run} />
           ) : view.phase === "not_found" ? (
             <Card title="No answer on record">
-              <div className="cv-card-intro">The payer's system has not registered this claim yet. It usually appears within a few minutes.</div>
+              <div className="cv-card-intro">Not registered with the payer yet. Usually takes minutes.</div>
               <div className="cv-card-body">
                 <TechnicalDetails ids={[{ label: "Request id", value: c.finalId }]} bundle={bundleFor("claim", c.finalId)} />
               </div>
@@ -619,7 +619,7 @@ export default function ClaimsScreen({ ctx }) {
             </Card>
           ) : (
             <div className="cv-pane-stack">
-              <Card title="Payer decision" meta="What you claimed, what the payer cut and why, and what it approved.">
+              <Card title="Payer decision" meta="Claimed, cut and approved.">
                 <div className="cv-card-body">
                   <div className="cv-kv"><span>Decision</span><span>{c.claimDecided ? view.word : "Unclear"}</span></div>
                   {statement.map((r) => (
@@ -642,7 +642,7 @@ export default function ClaimsScreen({ ctx }) {
                 </Card>
               )}
               {(view.notes.length > 0 || view.errors.length > 0) && (
-                <Card title="Payer's notes" meta="The payer's own words. Read these first when a claim is queried, cut or rejected.">
+                <Card title="Payer's notes" meta="The payer's own words.">
                   <div className="cv-card-body">
                     <PayerWords notes={view.notes} errors={view.errors} />
                   </div>

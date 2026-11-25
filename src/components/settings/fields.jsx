@@ -51,7 +51,7 @@ export function GenerateKeypairButton({ facilityCode, facilityName, onGenerated 
           {state.busy ? "Generating…" : state.done ? "Generated and filled in" : "Generate a new key and certificate"}
         </Button>
       </div>
-      <span className="st-hint">Makes a 2048-bit RSA key and a self-signed certificate in this browser and fills in both fields. Nothing leaves this tab until you save.</span>
+      <span className="st-hint">Makes a key and certificate in this browser.</span>
       {state.error && (
         <span className="st-error" role="alert">
           {state.error}

@@ -84,19 +84,19 @@ export default function PaymentReconciliation({ ctx }) {
   const ago = checkedAt(p.status.lastCheckedAt);
 
   const notes = [
-    p.error && { tone: "warn", text: `The last check failed, and this page keeps trying: ${p.error}` },
+    p.error && { tone: "warn", text: `Check failed, retrying: ${p.error}` },
     lock.viewOnly && { tone: "info", text: lock.reason },
-    failed.length > 0 && { tone: "bad", text: "The payer has not been told this payment arrived. Confirm the payment again; until that goes through the payer may chase the hospital." },
-    p.shortBy && { tone: "warn", text: `Paid ${formatMoney(p.shortBy)} less than approved. If TDS or a deduction you agree with does not explain it, ask for the balance.` },
-    p.missingUtr && !failed.length && { tone: "warn", text: "The payer has not sent a UTR, so this payment cannot be matched to the bank statement yet." },
-    p.isNotFound && !p.noPayment && { tone: "info", text: "A payment that arrived without a claim reference waits on the Payments list until it is linked to this case.", action: { label: "See unlinked payments", onClick: () => navigate("/payments?view=unlinked") } },
+    failed.length > 0 && { tone: "bad", text: "Payer not told yet. Confirm the payment again." },
+    p.shortBy && { tone: "warn", text: `Paid ${formatMoney(p.shortBy)} short. Not TDS? Ask for the balance.` },
+    p.missingUtr && !failed.length && { tone: "warn", text: "No UTR yet. Can't match to the bank." },
+    p.isNotFound && !p.noPayment && { tone: "info", text: "Unlinked payments wait on the Payments list.", action: { label: "See unlinked payments", onClick: () => navigate("/payments?view=unlinked") } },
   ];
   const tipText = p.isNotFound && !p.noPayment
-    ? "Payers send payment notices on their own schedule, usually hours to days after approval. This page checks by itself; you can leave it."
+    ? "Payment notices take hours to days. This page checks by itself."
     : p.allSettled && !p.shortBy && !failed.length && !p.missingUtr
-      ? "Match the UTR with the hospital's bank statement. Nothing else is needed for this case."
+      ? "Match the UTR with the bank statement."
       : waiting && p.data && !p.isNotFound
-        ? "More notices may follow. Each is confirmed to the payer automatically and this page updates by itself."
+        ? "More notices may follow. This page updates itself."
         : null;
 
   const summary = p.isNotFound || !p.data ? (
@@ -147,7 +147,7 @@ export default function PaymentReconciliation({ ctx }) {
               {p.noPayment.text}
             </NextStep>
           ) : (
-            <Card title="No payment notice yet" meta="The payer's first notice usually says the payment is initiated; the settled notice carries the UTR.">
+            <Card title="No payment notice yet" meta="The settled notice carries the UTR.">
               <div className="cv-card-body">
                 <div className="cv-kv"><span>Approved by payer</span><span className="money">{money(p.approved)}</span></div>
                 {p.toCollect > 0 && <div className="cv-kv"><span>Patient payable</span><span className="money">{formatMoney(p.toCollect)}</span></div>}
@@ -187,7 +187,7 @@ export default function PaymentReconciliation({ ctx }) {
       </Pane>
 
       <Pane id="utr">
-        <Card title="UTR against the bank statement" meta="The UTR is the bank's transfer reference. Match it with the hospital's statement.">
+        <Card title="UTR against the bank statement" meta="The bank's transfer reference.">
           <div className="cv-tw cv-in-card">
             <table>
               <thead>
@@ -216,13 +216,13 @@ export default function PaymentReconciliation({ ctx }) {
       </Pane>
 
       <Pane id="payments">
-        <Card title="Payments" meta="One row per payment; open a row for its notices, breakdown and references.">
+        <Card title="Payments" meta="One row per payment. Open it for details.">
           <PaymentsTable payments={p.payments} ackOf={p.ackOf} acking={p.acking} results={p.results} onRetry={p.acknowledge} canRetry={canRetry} />
         </Card>
       </Pane>
 
       <Pane id="acks">
-        <Card title="Confirmations" meta="Each notice is confirmed to the payer automatically. Confirm a payment again only when one fails.">
+        <Card title="Confirmations" meta="Confirmed automatically. Retry only if one fails.">
           <PaymentsTable payments={p.payments} ackOf={p.ackOf} acking={p.acking} results={p.results} onRetry={p.acknowledge} canRetry={canRetry} expandFailed />
         </Card>
       </Pane>

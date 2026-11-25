@@ -112,7 +112,7 @@ export default function CaseNotesDrawer({ open, onClose, cashlessCaseId, notes, 
         ) : notes.length === 0 ? (
           <div className="cn-empty">
             <StickyNote size={18} aria-hidden="true" />
-            <span>No notes yet. Record payer calls, promised documents and follow-ups here so the next person on the desk knows where the case stands.</span>
+            <span>No notes yet. Log calls and follow-ups here.</span>
           </div>
         ) : (
           <ul className="cn-list">
@@ -152,7 +152,7 @@ export default function CaseNotesDrawer({ open, onClose, cashlessCaseId, notes, 
       <ConfirmModal
         open={!!deleting}
         title="Delete this note?"
-        subtitle="It is removed for the whole team. The audit trail keeps no copy."
+        subtitle="Deleted for everyone."
         confirmLabel="Delete note"
         danger
         busy={!!deleting && busyId === deleting.id}

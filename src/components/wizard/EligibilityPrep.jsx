@@ -130,33 +130,33 @@ export default function EligibilityPrep({ ctx }) {
   const refusedChecks = checks ? [["benefits", checks.benefits], ["authorisation", checks.auth]].filter(([, check]) => check.state === "error").map(([name]) => name) : [];
   const coverText = inforce ? "The policy is in force." : checks?.validation.sub ? "The cover check is with the payer." : "The payer's plan is loaded.";
   const verdict = closed
-    ? { tone: "todo", label: "Closed", text: "This case is closed; what follows is as it stood when it was closed. Reopen the case to go on with it." }
+    ? { tone: "todo", label: "Closed", text: "Case closed. Reopen to continue." }
     : needsRetry
-    ? { tone: "bad", label: "Check failed", text: full?.prepare_error?.message || "The eligibility request could not be sent.", next: "Send the checks again. If it fails again, go back to the Policy step and check the policy, or share this message with IT." }
+    ? { tone: "bad", label: "Check failed", text: full?.prepare_error?.message || "The eligibility request could not be sent.", next: "Send again. Still failing? Check the policy." }
     : choosing && !notInForce
-      ? { tone: "todo", label: "Choose the package", text: `${coverText} Pick the package for this admission; the benefit and authorisation checks go to the payer with it.`, next: chosen.length ? "Send the checks, or add another package first." : "On Treatment, press Use on the package from the payer's plan, then send the checks." }
+      ? { tone: "todo", label: "Choose the package", text: `${coverText} Pick the package for this admission; the benefit and authorisation checks go to the payer with it.`, next: chosen.length ? "Send the checks, or add another package first." : "Pick a package on Treatment, then send." }
       : waitingOn === "plan" && isStalePending
         ? {
             tone: "warn",
             label: "No plan from the payer",
-            text: "The payer has not sent its insurance plan, so the eligibility checks have not gone out.",
-            next: packageCoded ? "Fetch the plan again from the Insurance plan pane, or call the payer's helpdesk." : "Send the checks without the plan from the More menu, or fetch the plan again.",
+            text: "No plan from the payer yet. Checks not sent.",
+            next: packageCoded ? "Fetch the plan again." : "Fetch the plan again, or send without it from More.",
           }
         : waitingOn === "plan"
-          ? { tone: "info", label: "Waiting for the plan", text: "The eligibility checks go to the payer once its insurance plan arrives." }
+          ? { tone: "info", label: "Waiting for the plan", text: "Checks go out once the plan arrives." }
           : isStalePending
-      ? { tone: "warn", label: "No answer from the payer", text: "The request may have been lost.", next: "Send the checks again. If the payer still does not answer, call its helpdesk." }
+      ? { tone: "warn", label: "No answer from the payer", text: "The request may have been lost.", next: "Send again. No answer? Call the payer." }
       : notInForce
-        ? { tone: "bad", label: "Not eligible", text: "The payer reports the policy as not in force.", next: "Ask the patient for a renewed or different policy and pick it on the Policy step, or treat the patient as cash." }
+        ? { tone: "bad", label: "Not eligible", text: "The payer reports the policy as not in force.", next: "Pick another policy, or treat as cash." }
         : refusedChecks.length > 0
           ? {
               tone: "bad",
               label: "Check refused",
               text: `The payer refused the ${refusedChecks.join(" and ")} check${refusedChecks.length > 1 ? "s" : ""}.`,
-              next: "Open the check marked Failed to read the payer's reason, correct it, then send the checks again from the More menu.",
+              next: "Open the failed check, fix it, resend from More.",
             }
         : e.polling || isPending
-          ? { tone: "info", label: "Waiting for the payer", text: "Answers fill in as each check returns. Private insurers usually answer within minutes; PMJAY can take up to an hour." }
+          ? { tone: "info", label: "Waiting for the payer", text: "Answers arrive in minutes. PMJAY can take an hour." }
           : inforce
             ? { tone: "ok", label: "Eligible", text: "The policy is in force for this admission." }
             : isComplete
@@ -239,13 +239,13 @@ export default function EligibilityPrep({ ctx }) {
 
   const notes = [
     verdict.next && { tone: "info", text: `What to do: ${verdict.next}` },
-    needsResubmit && !isStalePending && { tone: "warn", text: "One or more checks did not finish and will not on their own. Send the checks again." },
-    movedOn && { tone: "info", text: `This case has moved on to ${movedOnLabel}; what follows is as last checked.` },
+    needsResubmit && !isStalePending && { tone: "warn", text: "Some checks stalled. Send again." },
+    movedOn && { tone: "info", text: `Moved on to ${movedOnLabel}. Shown as last checked.` },
     lock.viewOnly && { tone: "info", text: lock.reason },
     e.rerun.error && { tone: "warn", text: e.rerun.error },
     e.sendChecks.error && { tone: "warn", text: e.sendChecks.error },
     e.refresh.error && { tone: "warn", text: e.refresh.error },
-    e.pollError && { tone: "warn", text: `The last check failed${e.polling ? ", and this page keeps trying" : ""}: ${e.pollError}` },
+    e.pollError && { tone: "warn", text: `Check failed${e.polling ? ", retrying" : ""}: ${e.pollError}` },
   ];
 
   if (e.sumInsured) {
@@ -270,7 +270,7 @@ export default function EligibilityPrep({ ctx }) {
               </button>
             }
           >
-            {estimated && limit ? `The estimated bill of ${formatMoney(estimated)} is above this policy's sum insured of ${formatMoney(limit)}.` : e.sumInsured} A cashless case cannot be opened on this policy for this bill.
+            {estimated && limit ? `Bill ${formatMoney(estimated)} is over the ${formatMoney(limit)} cover.` : e.sumInsured} A cashless case cannot be opened on this policy for this bill.
           </NextStep>
         </Pane>
       </CaseStep>
@@ -361,7 +361,7 @@ export default function EligibilityPrep({ ctx }) {
               <div className="cv-card-head">
                 <h2 className="cv-card-title">Who is admitted</h2>
               </div>
-              <div className="cv-card-intro">The payer has not listed the people on this card yet. They appear here with its answer.</div>
+              <div className="cv-card-intro">Not listed yet. Shown when the payer answers.</div>
             </section>
           )}
         </Pane>

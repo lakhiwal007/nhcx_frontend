@@ -8,7 +8,7 @@ const money = (v) => (v == null ? "—" : formatMoney(Number(v)));
 
 function waiting(check) {
   if (check.state === "pending") return "Waiting for the payer's answer to this check.";
-  if (check.state === "unavailable") return "The payer did not answer this check in time. You can still go on to the pre-auth.";
+  if (check.state === "unavailable") return "No answer in time. You can still go on.";
   return null;
 }
 
@@ -162,8 +162,8 @@ export default function PayerAnswer({ id, checks, requirements, discovery, formT
   const held = checks?.waitingOn && check?.state === "pending" && !check.sub;
   const note = held
     ? checks.waitingOn === "package"
-      ? "Not sent yet. This check goes to the payer once a package from its plan is chosen."
-      : "Not sent yet. This check goes to the payer once its insurance plan arrives."
+      ? "Not sent. Choose a package first."
+      : "Not sent. Waiting for the plan."
     : check
       ? waiting(check)
       : null;
@@ -175,7 +175,7 @@ export default function PayerAnswer({ id, checks, requirements, discovery, formT
         {when && <span className="cv-card-meta">Answered {formatDate(when)}</span>}
       </div>
       {!checks ? (
-        <div className="cv-card-intro">Eligibility has not been asked yet. It is sent once the payer's insurance plan arrives.</div>
+        <div className="cv-card-intro">Not asked yet. Waiting for the plan.</div>
       ) : (
         <>
           {note && <div className="cv-card-intro">{note}</div>}

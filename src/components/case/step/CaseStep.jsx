@@ -176,7 +176,7 @@ function TodoList({ need, good, waiting, done, needLabel, onOpen }) {
             <b>
               Good to check <span>{good.length}</span>
             </b>
-            <small>These do not hold the step up, but they help the payer decide faster.</small>
+            <small>Optional. Helps the payer decide faster.</small>
           </div>
           {good.map((row, i) => (
             <TodoRow key={row.id} row={row} index={need.length + waiting.length + i} onOpen={onOpen} />

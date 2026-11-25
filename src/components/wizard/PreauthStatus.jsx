@@ -21,7 +21,7 @@ import { buildApprovalChecklist, firstApprovalItem } from "../case/preauth/appro
 
 const SOFT_WARNING_MS = 120_000;
 const GATEWAY_RECOVERY_MS = 300_000;
-const READ_ONLY_NOTICE = "The claim has gone to the payer, so the pre-auth is read only: no enhancement or change can be made. It can only be cancelled while the payer is deciding the claim.";
+const READ_ONLY_NOTICE = "Claim sent. The pre-auth is read only now.";
 
 const minutes = (ms) => Math.max(1, Math.round((ms || 0) / 60000));
 
@@ -113,27 +113,27 @@ export default function PreauthStatus({ ctx }) {
 
   const guide = isFailed
     ? givenUp
-      ? { tone: "bad", title: "This pre-auth was given up", steps: ["The payer never answered it.", "Go back to the pre-auth draft and send it again when you are ready."] }
+      ? { tone: "bad", title: "This pre-auth was given up", steps: ["The payer never answered it.", "Resend from the pre-auth draft."] }
       : refusedByPayer
-        ? { tone: "bad", title: "The payer refused this pre-auth", steps: ["Read the payer's reason in the Delivery pane.", "Go back to the pre-auth draft, fix what it names, and send again."] }
-        : { tone: "bad", title: "The payer never received this pre-auth", steps: ["Read the reason in the Delivery pane.", "Go back to the pre-auth draft, fix what it names, and send again."] }
+        ? { tone: "bad", title: "The payer refused this pre-auth", steps: ["Read the payer's reason in the Delivery pane.", "Fix it in the draft and resend."] }
+        : { tone: "bad", title: "The payer never received this pre-auth", steps: ["Read the reason in the Delivery pane.", "Fix it in the draft and resend."] }
     : isNotFound
-      ? { tone: "warn", title: "The payer's system has no record of this request yet", text: "Refresh in a while. If it stays like this, ask NHCX where it stands or call the payer's helpdesk." }
+      ? { tone: "warn", title: "The payer's system has no record of this request yet", text: "Refresh later. Still stuck? Call the payer." }
       : !isComplete
-        ? { tone: "info", title: purposeCancel ? "The payer is processing the cancellation" : "The payer is deciding", text: "Private insurers must answer a pre-auth within 1 hour (IRDAI). You can leave this page; the decision appears here and in the Work Queue." }
+        ? { tone: "info", title: purposeCancel ? "The payer is processing the cancellation" : "The payer is deciding", text: "Private payers answer within 1 hour. It will show in the Work Queue." }
         : isUnknown
-          ? { tone: "warn", title: "The payer's answer isn't clear", steps: ["Press Refresh.", "If it stays unclear, ask NHCX where it stands or call the payer's helpdesk."] }
+          ? { tone: "warn", title: "The payer's answer isn't clear", steps: ["Press Refresh.", "Still unclear? Call the payer."] }
           : isApproved
-            ? { tone: "ok", title: "Approved: go ahead with treatment", steps: ["Treat within the approved amount.", "If treatment will cost more, ask for an enhancement before discharge.", "When the patient is discharged, continue to Claim."] }
+            ? { tone: "ok", title: "Approved: go ahead with treatment", steps: ["Treat within the approved amount.", "Costing more? Ask for an enhancement.", "When the patient is discharged, continue to Claim."] }
             : isPartial
-              ? { tone: "warn", title: "Approved for less than you asked", steps: ["See Amounts for what the payer cut and why.", "Tell the patient they may have to pay the difference.", "If you can justify more, ask for an enhancement and attach the reason."] }
+              ? { tone: "warn", title: "Approved for less than you asked", steps: ["See Amounts for what the payer cut and why.", "Tell the patient they may have to pay the difference.", "Need more? Ask for an enhancement."] }
               : isQueried
-                ? { tone: "warn", title: "The payer has a question", steps: ["Read the payer's note to see what it needs.", "Press Answer the query and attach the documents or details it asks for.", "The decision waits until you answer, so reply quickly."] }
+                ? { tone: "warn", title: "The payer has a question", steps: ["Read the payer's note to see what it needs.", "Answer the query with what it asks for.", "The decision waits until you answer, so reply quickly."] }
                 : isRejected
-                  ? { tone: "bad", title: "Rejected", steps: ["Read the payer's reason under Payer notes.", "If you can fix it, such as a missing document or a wrong code, press Resubmit.", "If not, tell the patient. They can continue as a cash patient."] }
+                  ? { tone: "bad", title: "Rejected", steps: ["Read the payer's reason under Payer notes.", "Fixable? Correct it and resubmit.", "If not, the patient can pay cash."] }
                   : isCancelled
-                    ? { tone: "info", title: "Cancelled", text: "This pre-auth was withdrawn. If the patient is admitted again, start a new case." }
-                    : { tone: "warn", title: "Cancellation refused", text: "The payer refused the cancellation, so this pre-auth still stands." };
+                    ? { tone: "info", title: "Cancelled", text: "Withdrawn. Start a new case on readmission." }
+                    : { tone: "warn", title: "Cancellation refused", text: "Cancellation refused. The pre-auth stands." };
 
   const chipTone = isFailed ? "bad" : isNotFound ? "warn" : !isComplete ? "info" : isUnknown || ambiguous ? "warn" : view.tone === "wait" ? "info" : view.tone;
   const chipLabel = isFailed ? failedLabel : isNotFound ? "No record" : !isComplete ? (purposeCancel ? "Awaiting cancellation" : "Waiting for the payer") : isUnknown ? "Unclear answer" : ambiguous ? `${view.word}, verify` : view.word;
@@ -166,19 +166,19 @@ export default function PreauthStatus({ ctx }) {
   const notes = [
     billOver && {
       tone: "warn",
-      text: `The hospital bill is ${formatMoney(bill.value)} and the payer approved ${formatMoney(bill.approved)}, ${formatMoney(bill.over_approved_by)} over. Ask for an enhancement while the patient is still admitted.`,
+      text: `Bill ${formatMoney(bill.value)} is ${formatMoney(bill.over_approved_by)} over approval. Ask for an enhancement.`,
       action: lock.viewOnly ? undefined : { label: "Ask for an enhancement", onClick: () => navigate("../enhancement") },
     },
     !billOver && bill?.approved > 0 && (isApproved || isPartial) && { tone: "info", text: `Bill so far ${formatMoney(bill.value)} of ${formatMoney(bill.approved)} approved.` },
-    isFailed && { tone: givenUp ? "warn" : "bad", text: givenUp ? "No answer came from the payer, so this request was given up. Nothing was cancelled with the payer. Send the pre-auth again when you are ready." : `${refusedByPayer ? "The payer refused the pre-auth." : "The pre-auth could not be delivered to the payer."} ${view.message || ""}`.trim() },
-    p.cancelRefused && { tone: "warn", text: "The payer refused the cancellation, so this pre-auth still stands." },
+    isFailed && { tone: givenUp ? "warn" : "bad", text: givenUp ? "No answer from the payer. Resend when ready." : `${refusedByPayer ? "The payer refused the pre-auth." : "The pre-auth could not be delivered to the payer."} ${view.message || ""}`.trim() },
+    p.cancelRefused && { tone: "warn", text: "Cancellation refused. The pre-auth stands." },
     p.claimWithPayer && { tone: "info", text: READ_ONLY_NOTICE },
     lock.viewOnly && { tone: "info", text: lock.reason },
-    ambiguous && { tone: "warn", text: "Verify this answer with the payer: its raw response does not corroborate the decision shown." },
+    ambiguous && { tone: "warn", text: "Confirm this decision with the payer." },
     p.askGateway.error && { tone: "warn", text: p.askGateway.error },
     p.recheck.error && { tone: "warn", text: p.recheck.error },
     p.cancel.error && !cancelOpen && { tone: "bad", text: p.cancel.error },
-    p.pollError && { tone: "warn", text: `The last check failed, and this page keeps trying: ${p.pollError}` },
+    p.pollError && { tone: "warn", text: `Check failed, retrying: ${p.pollError}` },
     ...(isApproved || isPartial ? [] : location.state?.preauthWarnings || caseState.draftWarnings || []).map((w) => ({ tone: "warn", text: w })),
     !isFailed && (p.canAnswer || !(isQueried || isRejected)) && (guide.tone === "warn" || guide.tone === "bad") && { tone: guide.tone === "bad" ? "warn" : guide.tone, text: guide.steps?.join(" ") || [guide.title, guide.text].filter(Boolean).join(". ") },
   ];
@@ -206,7 +206,7 @@ export default function PreauthStatus({ ctx }) {
       {requestedValue != null ? ` of ${formatMoney(requestedValue)} requested` : " approved"}
     </>
   ) : p.waiting ? (
-    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : "just now"} · waiting ${formatDuration(minutes(p.elapsedMs))} · checking automatically`
+    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : "just now"} · waiting ${formatDuration(minutes(p.elapsedMs))}`
   ) : null;
 
   if (!p.correlationId) {
@@ -224,7 +224,7 @@ export default function PreauthStatus({ ctx }) {
               </>
             }
           >
-            If a pre-auth was sent earlier, its answer appears here and in the Work Queue once the payer responds. Otherwise, send one from the pre-auth draft.
+            No answer yet. Send one from the draft if needed.
           </NextStep>
         </Pane>
       </CaseStep>
@@ -251,7 +251,7 @@ export default function PreauthStatus({ ctx }) {
             <div className="cv-card-head">
               <h2 className="cv-card-title">No answer on record</h2>
             </div>
-            <div className="cv-card-intro">The payer's system has not registered this request yet. It usually appears within a few minutes.</div>
+            <div className="cv-card-intro">Not registered with the payer yet. Usually takes minutes.</div>
             <div className="cv-card-body">
               <TechnicalDetails ids={[{ label: "Request id", value: p.correlationId }]} />
             </div>
@@ -280,7 +280,7 @@ export default function PreauthStatus({ ctx }) {
               <div className="cv-kv"><span>Last checked</span><span>{p.lastCheckedAt ? formatDateTime(new Date(p.lastCheckedAt)) : "—"}</span></div>
               {showSoftWarning && (
                 <div className="cv-notice is-info cv-sub-note-top">
-                  <div className="cv-notice-body">Payer decisions can take minutes to hours. You can leave this page; the answer appears in the Work Queue when it arrives.</div>
+                  <div className="cv-notice-body">Answers can take hours. It will show in the Work Queue.</div>
                 </div>
               )}
               {!caseClosed && p.resolvedCaseId && cashlessCase?.next_actions?.includes("give_up_preauth") && (
@@ -294,7 +294,7 @@ export default function PreauthStatus({ ctx }) {
           <section className="cv-card">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Amounts</h2>
-              <span className="cv-card-meta">What you asked for, what the payer cut and why, and what it approved.</span>
+              <span className="cv-card-meta">Asked, cut and approved.</span>
             </div>
             <div className="cv-card-body">
               {statement.map((r) => (
@@ -324,7 +324,7 @@ export default function PreauthStatus({ ctx }) {
           <section className="cv-card">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Payer's notes</h2>
-              <span className="cv-card-meta">The payer's own words. Read these first when a pre-auth is queried, cut or rejected.</span>
+              <span className="cv-card-meta">The payer's own words.</span>
             </div>
             <div className="cv-card-body">
               <PayerWords notes={data?.process_notes} />
@@ -396,7 +396,7 @@ export default function PreauthStatus({ ctx }) {
           <section className="cv-card">
             <div className="cv-card-head">
               <h2 className="cv-card-title">Payer response</h2>
-              <span className="cv-card-meta">As received over NHCX. Useful for the IT team; you don't need it to act.</span>
+              <span className="cv-card-meta">Raw message, for IT.</span>
             </div>
             <div className="cv-card-body">
               <div className="cv-kv"><span>Decision</span><span>{decision ? humanize(decision) : "—"}</span></div>

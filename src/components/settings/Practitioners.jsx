@@ -26,7 +26,7 @@ function PractitionerDrawer({ facilityCode, doctor, onClose, onSaved }) {
   const save = useSend(
     async () => {
       const saved = await api.savePractitioner(facilityCode, doctor.doctor_id, { ...form, hpr_id: digits, active: true });
-      if (saved?.status === "not_found") throw new Error("This doctor is no longer in the hospital system, so the HPR id was not saved.");
+      if (saved?.status === "not_found") throw new Error("Doctor not in the hospital system. Not saved.");
       onSaved(saved);
       onClose();
       return saved;
@@ -40,7 +40,7 @@ function PractitionerDrawer({ facilityCode, doctor, onClose, onSaved }) {
       open
       onClose={save.busy ? undefined : onClose}
       title={`HPR id for ${doctor.name || doctor.doctor_id}`}
-      subtitle="Sent as this doctor's identity in every pre-auth and claim. PMJAY looks the doctor up by it."
+      subtitle="Sent with every pre-auth and claim."
       footer={
         <div className="cv-drawer-actions">
           <button type="button" className="cv-btn" onClick={onClose} disabled={save.busy}>
@@ -54,10 +54,10 @@ function PractitionerDrawer({ facilityCode, doctor, onClose, onSaved }) {
     >
       <div className="st-form">
         <div className="st-grid">
-          <Field label="HPR id" required wide htmlFor="hpr-id" hint="The 14-digit Healthcare Professionals Registry id. Hyphens are fine." error={form.hpr_id && !valid ? "An HPR id has 14 digits." : save.error}>
+          <Field label="HPR id" required wide htmlFor="hpr-id" hint="14-digit HPR id. Hyphens are fine." error={form.hpr_id && !valid ? "An HPR id has 14 digits." : save.error}>
             <TextInput id="hpr-id" value={form.hpr_id} onChange={set("hpr_id")} placeholder="71-1234-5678-9012" monospace invalid={!!form.hpr_id && !valid} />
           </Field>
-          <Field label="Degrees" wide htmlFor="hpr-deg" hint="As written, e.g. MBBS, MS (Ortho). The highest degree named is sent.">
+          <Field label="Degrees" wide htmlFor="hpr-deg" hint="For example MBBS, MS (Ortho).">
             <TextInput id="hpr-deg" value={form.qualification_display} onChange={set("qualification_display")} placeholder="MBBS, MD (General Medicine)" />
           </Field>
           <Field label="Specialty SNOMED code" htmlFor="hpr-code" hint="Optional. Sent to the payer as the doctor's specialty.">
@@ -123,7 +123,7 @@ export default function Practitioners({ facility, canEdit, embedded = false }) {
       <div className="st-pad">
         <div className={`cv-notice ${missing ? "is-warn" : "is-info"}`}>
           <div className="cv-notice-body">
-            The hospital system does not store HPR ids, so add each doctor's HPR id here. PMJAY refuses a pre-auth or claim that names a doctor without one.
+            Add each doctor's HPR id. PMJAY needs it.
             {!editable && " Only this facility's clinic admin can change them."}
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function Practitioners({ facility, canEdit, embedded = false }) {
       <ConfirmModal
         open={!!retiring}
         title={`Retire ${retiring?.name || "this doctor"}?`}
-        subtitle="The HPR id is kept but no longer sent. PMJAY will refuse pre-auths and claims that name this doctor."
+        subtitle="Not sent anymore. PMJAY will refuse this doctor."
         confirmLabel="Retire"
         danger
         busy={toggle.busy}

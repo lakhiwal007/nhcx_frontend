@@ -25,8 +25,7 @@ export default class ErrorBoundary extends Component {
       <div className="eb-panel" role="alert">
         <h2 className="eb-title">This screen ran into a problem</h2>
         <p className="eb-text">
-          Something unexpected happened while showing this page. Your saved work is not affected. Reload to try
-          again, or go back to the work queue.
+          Something went wrong. Your work is safe. Reload to try again.
         </p>
         {error?.message && <pre className="eb-detail">{String(error.message)}</pre>}
         <div className="eb-actions">

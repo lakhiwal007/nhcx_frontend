@@ -142,7 +142,7 @@ export default function FormEditor({ caseId, stage, form, readOnly, lockedBy, on
       )}
       {form.consent && (
         <div className="ep-notice">
-          Upload the signed declaration. The other questions take the payer's default answer when left blank.
+          Upload the signed declaration. Blank answers use the payer's default.
         </div>
       )}
       {!readOnly && suggestedCount > 0 && (

@@ -121,8 +121,8 @@ export default function DischargeDetailsPane({ claimId, discharge, rules, locked
           <div className="cv-notice is-warn">
             <div className="cv-notice-body">
               {rates.length
-                ? "PMJAY pays a LAMA or DAMA before or during surgery as one LM100 line: the days admitted at the chosen ward's rate. Every other item on the bill drops out of this claim."
-                : "PMJAY pays this discharge as LM100, but the payer's plan held for this case has no LM100 rates. Fetch the plan again on Eligibility."}
+                ? "Claimed as LM100 at the ward rate. Other items drop out."
+                : "No LM100 rates in the plan. Fetch it again."}
             </div>
           </div>
         </div>

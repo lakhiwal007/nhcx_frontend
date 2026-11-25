@@ -181,7 +181,7 @@ export async function buildClaimPack({ caseId, record, patient, facilityName }) 
   if (skipped.length) {
     const tail = writer(pdf, font, bold);
     tail.heading("Not included");
-    tail.text(`These files could not be added as pages; open them from the case: ${skipped.join(", ")}.`);
+    tail.text(`Skipped, open from the case: ${skipped.join(", ")}.`);
   }
 
   const bytes = await pdf.save();

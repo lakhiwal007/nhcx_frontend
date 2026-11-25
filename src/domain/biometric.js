@@ -1,7 +1,7 @@
 const RD_PORTS = Array.from({ length: 21 }, (_, i) => 11100 + i);
 const RD_TIMEOUT_MS = 20000;
 const RD_PROBE_MS = 800;
-const NO_RD_SERVICE = "No RD service answered on this machine (ports 11100 to 11120); paste the PID block from the device instead.";
+const NO_RD_SERVICE = "No device found. Paste the PID block.";
 
 const WADH_SOURCE = { FINGERPRINT: "2.5FYYNN", IRIS: "2.5IYYNN" };
 const CAPTURE_COUNTS = {

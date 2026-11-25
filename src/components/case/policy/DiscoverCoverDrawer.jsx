@@ -42,7 +42,7 @@ const fieldError = (key, value) => {
 
 function refusalFor(payer, form) {
   if (!payer) return "Choose the insurer to ask.";
-  if (!form.policy_number.trim() && !form.member_id.trim()) return "Enter the policy number or the member ID; at least one is needed.";
+  if (!form.policy_number.trim() && !form.member_id.trim()) return "Enter the policy number or member ID.";
   for (const key of Object.keys(DIGIT_RULES)) {
     const message = fieldError(key, form[key]);
     if (message) return message;
@@ -325,12 +325,12 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
       >
         {locked ? (
           <NextStep tone="info" title={lockReason || "This case cannot be changed."}>
-            Discovery asks the payer for a policy, which is not possible here.
+            Not available on this account.
           </NextStep>
         ) : (
           <>
             <Tip className="cd-form-tip">
-              Copy these from the insurance card. The policy number or member ID is needed; the rest helps the insurer find the patient.
+              Copy from the insurance card. Policy number or member ID is needed.
             </Tip>
             <div className="cd-grid">
               <div className="cd-field is-wide">
@@ -434,20 +434,19 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
                 tone="bad"
                 title="The insurer could not answer"
                 steps={[
-                  "Check the policy number and member ID against the card, then ask again.",
-                  "If it fails again, the insurer's system may be down. Try later or call the insurer's helpdesk.",
+                  "Check the numbers on the card and try again.",
+                  "Still failing? Try later or call the payer.",
                 ]}
               >
                 {active.error || "The insurer refused the request."}
               </NextStep>
             ) : (active.covers || []).length === 0 ? (
-              <NextStep tone="warn" title="This insurer has no cover for these details">
-                Check the numbers for typos and that this is the insurer named on the card. If the card names a TPA, try the TPA instead of the
-                insurer, or the other way round.
-                <Tip>No luck at all? Treat the patient as cash for now; a policy can be added to the case later.</Tip>
+              <NextStep tone="warn" title="No cover found for these details">
+                Check the numbers. If the card names a TPA, try the TPA.
+                <Tip>No luck? Treat as cash. Add a policy later.</Tip>
               </NextStep>
             ) : (
-              active.covers.length > 1 && <Tip>Choose the person being admitted. A family card lists everyone on it, so check the name, age and relationship.</Tip>
+              active.covers.length > 1 && <Tip>Choose who is admitted. Check name and age.</Tip>
             )}
             {active.status !== "failed" &&
               groupByPolicy(active.covers).map((covers) => {

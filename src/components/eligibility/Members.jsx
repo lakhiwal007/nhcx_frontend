@@ -17,7 +17,7 @@ export default function Members({ members, chosenId, choosing, onChoose, canChoo
         <h2 className="cv-card-title">Who is admitted</h2>
         {many && !chosenId && <span className="cv-chip is-warn">Choose one</span>}
         {chosenId && <span className="cv-chip is-ok">Chosen</span>}
-        <span className="cv-card-meta">{many ? `${members.length} people on this card. The pre-auth is filed for the person you pick.` : "The member on the card."}</span>
+        <span className="cv-card-meta">{many ? `${members.length} people on this card. Pick the patient.` : "Member on the card"}</span>
       </div>
       {error && <div className="cv-card-body"><div className="cv-notice is-bad"><div className="cv-notice-body">{error}</div></div></div>}
       <div className="cv-tw cv-in-card">
@@ -82,7 +82,7 @@ export default function Members({ members, chosenId, choosing, onChoose, canChoo
             </select>
           </label>
         ) : (
-          <span className="cv-card-meta">For a baby of 6 or under with no member id: pick the parent above and the baby goes as the linked newborn.</span>
+          <span className="cv-card-meta">Baby without a member id? Pick the parent.</span>
         )}
       </div>
     </section>

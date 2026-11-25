@@ -57,7 +57,7 @@ export default function SendMessageDrawer({ open, onClose, defaultPayerId = "", 
         ...(cashlessCaseId && { cashless_case_id: cashlessCaseId }),
       }),
     {
-      success: "Message sent to the payer. The reply will appear in Communications.",
+      success: "Sent. The reply shows in Communications.",
       onDone: (res) => {
         setMessage("");
         setAttachments([]);
@@ -91,7 +91,7 @@ export default function SendMessageDrawer({ open, onClose, defaultPayerId = "", 
       open={open}
       onClose={send.busy ? undefined : close}
       title="Message the payer"
-      subtitle="This goes to the payer. The reply will appear in Communications, not here."
+      subtitle="Goes to the payer. Replies show in Communications."
       width={560}
       footer={
         <div className="cv-drawer-actions">

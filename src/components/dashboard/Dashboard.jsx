@@ -211,7 +211,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
       setNavigating((p) => ({ ...p, [claim.id]: false }));
     }
     if (!cid) {
-      setNavError((prev) => prev || "This case is not linked to a patient, so it cannot be opened. Tell your IT team.");
+      setNavError((prev) => prev || "No patient linked. Tell IT.");
       return;
     }
     const state = { claim_id: claim.claim_id ?? null, cashless_case_id: claim.cashless_case_id ?? claim.id ?? null, from: "/dashboard", ...(action?.openAction ? { openAction: action.openAction } : {}) };
@@ -274,7 +274,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
 
       {allFacilitiesMode && (
         <div className="cv-notice is-info">
-          <div className="cv-notice-body">You are viewing all facilities. This account can see every case but cannot start or change one.</div>
+          <div className="cv-notice-body">All facilities, view only.</div>
         </div>
       )}
 
@@ -342,7 +342,7 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         </div>
       )}
 
-      <Tip className="wq-page-tip">Every insurance case and where it stands. Open a case to see what to do next; the stage tiles and the search narrow the list.</Tip>
+      <Tip className="wq-page-tip">Every case and where it stands.</Tip>
 
       <div className="wq-panel">
         <div className="wq-toolbar">
@@ -399,11 +399,11 @@ export default function Dashboard({ allFacilitiesMode = false }) {
         {loading && !claims ? (
           <SkeletonTable rows={6} cols={columns.length} />
         ) : list.length === 0 ? (
-          <EmptyState icon={Inbox} title="No cashless cases yet" description="To start one, open the Patient Registry, find the admitted patient and press Start case. The new case will appear here." />
+          <EmptyState icon={Inbox} title="No cashless cases yet" description="Start one from the Patient Registry." />
         ) : filtered.length === 0 ? (
           <div className="wq-empty">
             <div className="wq-empty-title">{caseFilter ? `${formatCaseRef(caseFilter)} is not in this list` : "No cases match these filters"}</div>
-            <div className="cc-empty-hint">{caseFilter ? "It may belong to another facility, or be older than the cases loaded here." : "Try a different search term or stage."}</div>
+            <div className="cc-empty-hint">{caseFilter ? "It may be in another facility." : "Try a different search term or stage."}</div>
             {filtersActive && (
               <Button variant="outline" size="small" onClick={clearFilters}>
                 Clear filters
