@@ -133,7 +133,7 @@ export default function EligibilityPrep({ ctx }) {
 
   const closed = !!ctx.caseClosed || full?.status === "closed";
   const refusedChecks = checks ? [["benefits", checks.benefits], ["authorisation", checks.auth]].filter(([, check]) => check.state === "error").map(([name]) => name) : [];
-  const coverText = inforce ? "Policy in force." : checks?.validation.sub ? "Cover check with the payer." : "Plan loaded.";
+  const coverText = inforce ? "Policy in force." : checks?.validation.state === "pending" && checks.validation.sub && checks.validation.sub.status !== "not_found" ? "Cover check with the payer." : checks?.validation.sub?.status === "not_found" ? "Policy not checked yet." : "Plan loaded.";
   const verdict = closed
     ? { tone: "todo", label: "Closed", text: "Case closed. Reopen to continue." }
     : needsRetry
