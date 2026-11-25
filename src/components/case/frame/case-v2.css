@@ -172,10 +172,6 @@
 }
 
 .cv-stage-title { margin: 0 2px 0 0; font-size: 16px; font-weight: 600; color: var(--cv-ink); white-space: nowrap; }
-.cv-stage-tools { order: 99; display: flex; align-items: center; gap: 8px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--cv-line); }
-.cv-stage-tools .cv-link { height: 32px; padding: 0 10px; border: 1px solid var(--cv-line); border-radius: var(--radius-sm); background: var(--cv-card); color: var(--cv-ink); font-size: 13px; font-weight: 500; }
-.cv-stage-tools .cv-link:hover { text-decoration: none; border-color: var(--border-strong); background: var(--neutral-soft); color: var(--cv-ink); }
-.cv-verdict-row:not(:has(.cv-verdict-actions)) .cv-stage-tools { margin-left: auto; }
 
 .cv-chip {
   display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid var(--border-hover); border-radius: var(--radius-sm);
@@ -387,7 +383,6 @@
   .cv-step-btn { padding-inline: 2px; }
   .cv-step-word { display: none; }
   .cv-step-seg { min-width: 6px; }
-  .cv-stage-tools { margin-left: 0; padding-left: 0; border-left: 0; }
   .cv-branch { min-height: 30px; }
   .cv-aside { position: static; max-width: none; }
   .cv-field { flex-wrap: wrap; }
@@ -404,7 +399,6 @@
 .cv-verdict:has(> .cv-verdict-row > .cv-chip.is-info) { background: color-mix(in srgb, var(--info-soft) 50%, var(--cv-card)); border-color: color-mix(in srgb, var(--info-line) 55%, var(--cv-line)); }
 .cv-verdict:has(> .cv-verdict-row > .cv-chip.is-warn) { background: color-mix(in srgb, var(--warning-soft) 50%, var(--cv-card)); border-color: color-mix(in srgb, var(--warning-line) 55%, var(--cv-line)); }
 .cv-verdict:has(> .cv-verdict-row > .cv-chip.is-bad) { background: color-mix(in srgb, var(--error-soft) 50%, var(--cv-card)); border-color: color-mix(in srgb, var(--error-line) 55%, var(--cv-line)); }
-.cv-verdict .cv-stage-tools { border-left-color: color-mix(in srgb, var(--cv-ink) 14%, transparent); }
 .cv-verdict-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cv-verdict-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
 .cv-verdict-note { margin-top: 6px; }

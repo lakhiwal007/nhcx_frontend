@@ -82,6 +82,7 @@ export default function EligibilityPrep({ ctx }) {
   const state = planState(plan);
   const checks = deriveChecks(full?.coverage_eligibility, benefitsTimedOut);
   const checksWaiting = !!checks && [checks.validation, checks.benefits, checks.auth].some((c) => c?.state === "pending" && c?.sub?.status !== "not_found");
+  const stalled = needsResubmit && !isStalePending && !checksWaiting && !e.polling;
   const waitingOn = checks?.waitingOn || null;
   const packageCoded = full?.eligibility_items === "plan_packages";
   const packagesOpen = packageCoded && state.key === "ready" && !locked;
@@ -150,6 +151,8 @@ export default function EligibilityPrep({ ctx }) {
           ? { tone: "info", label: "Waiting for the plan", text: "Checks go out once the plan arrives." }
           : isStalePending
       ? { tone: "warn", label: "No answer from the payer", text: "The request may have been lost.", next: "Send again. No answer? Call the payer." }
+      : stalled && !choosing
+        ? { tone: "warn", label: "Checks stalled", text: "Some checks didn't finish. Send them again." }
       : notInForce
         ? { tone: "bad", label: "Not eligible", text: "Policy not in force.", next: "Pick another policy, or treat as cash." }
         : refusedChecks.length > 0
@@ -208,6 +211,8 @@ export default function EligibilityPrep({ ctx }) {
     ? undefined
     : movedOn
     ? { label: `Continue to ${movedOnLabel}`, icon: ArrowRight, write: false, onClick: () => navigate(`../${movedOn}`) }
+    : canRerunNow && !choosing && (needsRetry || stalled || isStalePending) && tierMissing.length === 0
+      ? { label: e.rerun.busy ? "Sending…" : "Send the checks again", icon: ArrowRight, busy: e.rerun.busy, busyLabel: "Sending…", onClick: e.rerun.run }
     : choosing && !notInForce
       ? chosen.length === 0
         ? { label: "Choose the package", icon: ArrowRight, write: false, onClick: () => pane.setPicked("treatment") }
@@ -235,7 +240,7 @@ export default function EligibilityPrep({ ctx }) {
       busy: e.sendChecks.busy,
       onClick: () => e.sendChecks.run(),
     },
-    canRerunNow && {
+    canRerunNow && !(!choosing && (needsRetry || stalled || isStalePending) && tierMissing.length === 0) && {
       label: e.rerun.busy ? "Sending…" : needsRetry ? "Retry the checks" : "Send the checks to the payer again",
       busy: e.rerun.busy,
       disabled: tierMissing.length > 0,
@@ -246,7 +251,6 @@ export default function EligibilityPrep({ ctx }) {
 
   const notes = [
     verdict.next && { tone: "info", text: verdict.next },
-    needsResubmit && !isStalePending && !checksWaiting && !e.polling && !(choosing && !notInForce) && { tone: "warn", text: "Some checks stalled. Send again." },
     movedOn && { tone: "info", text: `Moved on to ${movedOnLabel}. Shown as last checked.` },
     lock.viewOnly && { tone: "info", text: lock.reason },
     e.rerun.error && { tone: "warn", text: e.rerun.error },

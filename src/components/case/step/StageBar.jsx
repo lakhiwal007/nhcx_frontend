@@ -1,5 +1,4 @@
 import BackButton from "../../ui/BackButton";
-import RefreshButton from "../../ui/RefreshButton";
 
 export default function StageBar({ ctx }) {
   const bar = ctx?.stageBar;
@@ -8,16 +7,6 @@ export default function StageBar({ ctx }) {
     <>
       {bar.back && <BackButton onClick={bar.back.onClick}>{bar.back.label}</BackButton>}
       <h1 className="cv-stage-title">{bar.title}</h1>
-      {(bar.refresh || bar.tools.length > 0) && (
-        <span className="cv-stage-tools">
-          {bar.refresh && <RefreshButton onClick={bar.refresh.onClick} busy={bar.refresh.busy} at={bar.refresh.at} />}
-          {bar.tools.map((tool) => (
-            <button key={tool.label} type="button" className="cv-link" onClick={tool.onClick}>
-              {tool.label}
-            </button>
-          ))}
-        </span>
-      )}
     </>
   );
 }

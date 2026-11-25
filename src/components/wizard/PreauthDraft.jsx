@@ -114,7 +114,7 @@ export default function PreauthDraft({ ctx }) {
     d.hisBlockers.length > 0 && { tone: "warn", text: `Missing in hospital records: ${fieldList(d.hisBlockers)}. Add it, then reload.` },
     d.newbornMissing.length > 0 && !preauthAlreadyLive && { tone: "warn", text: `Newborn case: ${d.newbornMissing.map((f) => NEWBORN_MISSING[f] || fieldList([f])).join(", ")}.` },
     d.eligibility && d.eligibility.status !== "complete" && !preauthAlreadyLive && { tone: "warn", text: "Eligibility not finished yet." },
-    d.memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `${d.cardMembers.length} people on this policy. Choose the patient.`, action: { label: "Choose the patient", onClick: () => navigate("../prep") } },
+    d.memberUnchosen && !preauthAlreadyLive && { tone: "warn", text: `${d.cardMembers.length} people on this policy.`, action: { label: "Choose the patient", onClick: () => navigate("../prep") } },
   ];
 
   const draft = d.draft;

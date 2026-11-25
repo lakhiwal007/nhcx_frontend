@@ -375,7 +375,7 @@ function CaseWorkspace({ reportCase }) {
 
   const stageTools = [];
   if (ledgerCaseId && cashlessCase) stageTools.push({ label: packBusy ? "Building claim pack…" : "Download claim pack", onClick: downloadPack });
-  if (ledgerCaseId && cashlessCase && !readOnly && !caseClosed) stageTools.push({ label: "Close case", onClick: () => setCloseOpen(true) });
+  if (ledgerCaseId && cashlessCase && !readOnly && !caseClosed) stageTools.push({ label: "Close case", danger: true, write: true, onClick: () => setCloseOpen(true) });
   const onTimeline = currentStepPath === "timeline";
   const openHistory = () => navigate(`/case/${id}/timeline${location.search}`, { state: location.state });
   const stageBack = onTimeline ? { label: "Back to case", onClick: () => navigate(`/case/${id}/${location.search}`, { state: location.state }) } : null;

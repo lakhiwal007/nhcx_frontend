@@ -79,6 +79,10 @@
   .cv-fact { flex-shrink: 0; }
   .cv-facts-more { display: block; }
 }
+@media (max-width: 1280px) {
+  .cv-rec .cv-rec-row { flex-wrap: wrap; }
+  .cv-rec-payer { margin-left: auto; }
+}
 @media (max-width: 760px) {
   .cv-rec .cv-rec-row { flex-wrap: wrap; }
   .cv-facts { display: none; }
@@ -88,10 +92,10 @@
 /* Status row: title, chip and sentence on the left; tools and buttons together on the right. */
 .cv-verdict-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .cv-verdict-summary { flex: 1 1 220px; min-width: 0; }
-.cv-verdict-row .cv-stage-tools { order: 99; margin-left: auto; padding-left: 0; border-left: 0; }
 .cv-verdict-actions { order: 100; margin-left: 0; flex-wrap: nowrap; align-items: center; }
-.cv-verdict-row:not(:has(.cv-stage-tools)) .cv-verdict-actions { margin-left: auto; }
-.cv-verdict-actions .cv-btn, .cv-verdict-row .cv-stage-tools .cv-link, .cv-verdict-row .cv-stage-tools button { height: 34px; display: inline-flex; align-items: center; }
+.cv-verdict-row .cv-verdict-actions { margin-left: auto; }
+.cv-verdict-actions .cv-btn { height: 34px; display: inline-flex; align-items: center; }
+.cv-verdict-actions .refresh-btn.is-icon { width: 34px; height: 34px; justify-content: center; }
 
 /* Tabs: no scrollbar, the underline slides. */
 .cv-tabsbar { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }

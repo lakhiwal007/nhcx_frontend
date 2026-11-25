@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { AlertTriangle, Check, Clock, Minus, MoreHorizontal, XCircle } from "lucide-react";
 import { useReadOnly, READ_ONLY_TITLE } from "../../../lib/readOnly";
 import { LoadingBlock } from "../../ui/Common";
+import RefreshButton from "../../ui/RefreshButton";
 import CaseChecklist from "./CaseChecklist";
 import StageBar from "./StageBar";
 
@@ -75,20 +76,22 @@ function MoreMenu({ items }) {
 
 export function Verdict({ ctx, chip, chipTone = "todo", summary, notes = [], primary, secondary = [], more = [], children }) {
   const liveNotes = (notes || []).filter(Boolean);
-  const liveSecondary = (secondary || []).filter(Boolean);
+  const [shownSecondary, ...extraSecondary] = (secondary || []).filter(Boolean);
+  const bar = ctx?.stageBar;
+  const caseTools = (bar?.tools || []).map((tool) => ({ ...tool, write: tool.write ?? false }));
+  const menu = [...extraSecondary, ...(more || []).filter(Boolean), ...caseTools];
   return (
     <>
       <div className="cv-verdict-row">
         <StageBar ctx={ctx} />
         {chip && <span className={`cv-chip is-${chipTone}`}>{chip}</span>}
         {summary && <span className="cv-verdict-summary">{summary}</span>}
-        {(primary || liveSecondary.length > 0 || more.length > 0) && (
+        {(primary || shownSecondary || menu.length > 0 || bar?.refresh) && (
           <div className="cv-verdict-actions">
-            {liveSecondary.map((action) => (
-              <ActionButton key={action.label} action={action} />
-            ))}
+            {bar?.refresh && <RefreshButton iconOnly onClick={bar.refresh.onClick} busy={bar.refresh.busy} at={bar.refresh.at} />}
+            {shownSecondary && <ActionButton action={shownSecondary} />}
             <ActionButton action={primary} primary />
-            <MoreMenu items={more} />
+            <MoreMenu items={menu} />
           </div>
         )}
       </div>
