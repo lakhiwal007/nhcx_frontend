@@ -79,6 +79,7 @@ export default function EligibilityPrep({ ctx }) {
   const plan = full?.insurance_plan;
   const state = planState(plan);
   const checks = deriveChecks(full?.coverage_eligibility, benefitsTimedOut);
+  const checksWaiting = !!checks && [checks.validation, checks.benefits, checks.auth].some((c) => c?.state === "pending");
   const waitingOn = checks?.waitingOn || null;
   const packageCoded = full?.eligibility_items === "plan_packages";
   const packagesOpen = packageCoded && state.key === "ready" && !locked;
@@ -155,7 +156,7 @@ export default function EligibilityPrep({ ctx }) {
               text: `The payer refused the ${refusedChecks.join(" and ")} check${refusedChecks.length > 1 ? "s" : ""}.`,
               next: "Open the failed check, fix it, resend from More.",
             }
-        : e.polling || isPending
+        : e.polling || isPending || checksWaiting
           ? { tone: "info", label: "Waiting for the payer", text: "Answers arrive in minutes. PMJAY can take an hour." }
           : inforce
             ? { tone: "ok", label: "Eligible", text: "Policy in force." }
@@ -240,7 +241,7 @@ export default function EligibilityPrep({ ctx }) {
 
   const notes = [
     verdict.next && { tone: "info", text: verdict.next },
-    needsResubmit && !isStalePending && !(choosing && !notInForce) && { tone: "warn", text: "Some checks stalled. Send again." },
+    needsResubmit && !isStalePending && !checksWaiting && !e.polling && !(choosing && !notInForce) && { tone: "warn", text: "Some checks stalled. Send again." },
     movedOn && { tone: "info", text: `Moved on to ${movedOnLabel}. Shown as last checked.` },
     lock.viewOnly && { tone: "info", text: lock.reason },
     e.rerun.error && { tone: "warn", text: e.rerun.error },
