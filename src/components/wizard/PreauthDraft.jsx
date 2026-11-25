@@ -353,7 +353,7 @@ export default function PreauthDraft({ ctx }) {
           <section className="cv-card" aria-label="What the plan covers">
             <div className="cv-card-head">
               <h2 className="cv-card-title">What the plan covers</h2>
-              <span className="cv-card-meta">Warnings only. A zero-priced package blocks sending.</span>
+              <span className="cv-card-meta">Red items block sending.</span>
             </div>
             <div className="cv-card-body">
               {d.checks.length === 0 && <div className="cv-card-meta">{d.admissibility?.status === "checked" ? "Nothing to look at." : "This draft has not been checked against a plan."}</div>}
