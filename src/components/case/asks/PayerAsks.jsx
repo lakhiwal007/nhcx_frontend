@@ -8,11 +8,18 @@ import { readFileAsAttachment } from "../../../lib/files";
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const SOURCE = { ruling: "payer's rule", plan: "plan, every case", package: "plan, for the package", consent: "PMJAY, in place of biometrics" };
 
+const isDone = (row) => row.status === "attached" || row.status === "answered";
+const rank = (row) => (isDone(row) ? 2 : row.blocking ? 0 : 1);
+const GROUPS = [
+  { rank: 0, title: "Required" },
+  { rank: 1, title: "Optional" },
+  { rank: 2, title: "Done" },
+];
+
 function badge(row) {
-  if (row.kind === "document") return row.status === "attached" ? ["Attached", "is-todo"] : [row.blocking ? "Missing" : "Not attached", "is-warn"];
-  if (row.status === "answered") return ["Answered", "is-todo"];
-  if (row.status === "partial") return [`${row.answered_required} of ${row.required}`, "is-warn"];
-  return ["Not filled", "is-warn"];
+  if (isDone(row)) return [row.kind === "document" ? "Attached" : "Answered", "is-ok"];
+  if (row.status === "partial") return [`${row.answered_required} of ${row.required}`, row.blocking ? "is-bad" : "is-todo"];
+  return row.blocking ? ["Required", "is-bad"] : ["Optional", "is-todo"];
 }
 
 function detail(row) {
@@ -90,9 +97,17 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
       {error && <div className="cv-card-body"><div className="cv-notice is-bad"><div className="cv-notice-body">{error}</div></div></div>}
       {forms.error && <div className="cv-card-body"><div className="cv-notice is-warn"><div className="cv-notice-body">{forms.error} Reload the page to try again.</div></div></div>}
       {rows.length === 0 && <div className="cv-card-body cv-card-meta">The payer asks for nothing extra at this stage.</div>}
-      {rows.map((row) => {
+      {GROUPS.map((group) => {
+        const members = rows.filter((row) => rank(row) === group.rank);
+        if (!members.length) return null;
+        return (
+          <div key={group.rank} className={`cv-ask-group is-${group.title.toLowerCase()}`}>
+            <div className="cv-sub cv-ask-group-title">
+              {group.title} · {members.length}
+            </div>
+            {members.map((row) => {
         const [label, tone] = badge(row);
-        const done = row.status === "attached" || row.status === "answered";
+        const done = isDone(row);
         return (
           <div key={`${row.kind}-${row.form_url || row.code}`} className="cv-row">
             <span className={`cv-chip cv-row-badge ${tone}`}>{label}</span>
@@ -100,7 +115,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
               <div className="cv-row-title">{row.display}</div>
               <div className="cv-row-sub">
                 {detail(row)}
-                {row.blocking && row.reason ? <span style={{ color: "var(--cv-warn)" }}> · needed before you can send: {row.reason}</span> : null}
+                {row.blocking && row.reason ? <span className="cv-ask-why"> · {row.reason}</span> : null}
               </div>
             </div>
             {row.kind === "document" ? (
@@ -115,6 +130,9 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
                 {locked ? "View" : done ? "Edit" : "Fill"}
               </button>
             )}
+          </div>
+        );
+            })}
           </div>
         );
       })}

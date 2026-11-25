@@ -180,3 +180,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary-fill);
 .cv-tier.is-flash { animation: cv-tier-flash 1.2s ease-out 2; }
 @keyframes cv-tier-flash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 55%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
 @media (prefers-reduced-motion: reduce) { .cv-tier.is-flash { animation: none; } }
+
+.cv-ask-group-title { padding: 12px 20px 4px; }
+.cv-ask-group.is-required .cv-ask-group-title { color: var(--error); }
+.cv-ask-group.is-optional .cv-row-title { font-weight: 500; color: var(--text-muted); }
+.cv-ask-group.is-done .cv-row-title { color: var(--text-muted); }
+.cv-ask-why { color: var(--error); }
