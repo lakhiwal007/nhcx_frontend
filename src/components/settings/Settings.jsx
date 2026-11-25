@@ -79,6 +79,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
   const [openError, setOpenError] = useState(null);
   const [activeCode, setActiveCode] = useState(() => readStored("nhcx_default_provider_id"));
   const [adminCode, setAdminCode] = useState(null);
+  const [deskTab, setDeskTab] = useState("you");
 
   const needsFallbackPicker = Array.isArray(sessionFacilities) && sessionFacilities.length === 0 && !sessionUserId;
   const canManage = (code) => managesAnyFacility || manageableFacilityCodes.includes(String(code));
@@ -187,57 +188,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
   const firstRun = !readOnly && sessionFacilities && !activeFacility;
 
 
-  const appearanceSection = (
-        <Section id="st-appearance" title="Appearance">
-          <div className="st-pad st-prefs">
-            <div className="st-pref">
-              <span className="st-pref-label">Theme</span>
-              <Segmented
-                value={theme}
-                onPick={() => onToggleTheme?.()}
-                options={[
-                  { value: "light", label: "Light", icon: Sun },
-                  { value: "dark", label: "Dark", icon: Moon },
-                ]}
-              />
-            </div>
-            <div className="st-pref">
-              <span className="st-pref-label">Navigation</span>
-              <Segmented
-                value={layoutDirection}
-                onPick={() => onToggleLayoutDirection?.()}
-                options={[
-                  { value: "A", label: "Sidebar", icon: PanelLeft, title: "Navigation down the left" },
-                  { value: "B", label: "Top bar", icon: PanelTop, title: "Navigation across the top" },
-                ]}
-              />
-            </div>
-          </div>
-        </Section>
-  );
-
-  return (
-    <div className="st-screen">
-      <PageActions>
-        {(showManagement || needsFallbackPicker) && (
-          <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={reload} title="Reload the facilities">
-            {loading ? "Refreshing…" : "Refresh"}
-          </Button>
-        )}
-        {canRegister && (
-          <Button variant="primary" size="small" icon={Plus} onClick={openCreate}>
-            Register facility
-          </Button>
-        )}
-      </PageActions>
-
-      {readOnly && (
-        <div className="cv-notice is-info">
-          <div className="cv-notice-body">{managesAnyFacility ? "Sees all facilities. Cases are view only." : "View only, all facilities."}</div>
-        </div>
-      )}
-
-      {isDesk && (
+  const deskProfile = isDesk && (
         <section className="st-section st-me" aria-label="You">
           <span className="st-me-av" aria-hidden="true">
             {String(sessionUserName || "?")
@@ -254,11 +205,11 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
           </div>
           <div className="st-me-chips">
             <span className="cv-chip is-ok">Can work cases</span>
-            <span className="cv-chip is-todo">Hospital setup: clinic admin only</span>
+            <span className="cv-chip is-todo">Can't change hospital setup</span>
           </div>
         </section>
-      )}
-      {sessionFacilities && !readOnly && (!showManagement || firstRun) && (
+      );
+  const pickerSection = sessionFacilities && !readOnly && (!showManagement || firstRun) && (
         <Section id="st-active" title={firstRun ? "Choose the facility you work at" : "Active facility"} meta={!firstRun && activeFacility ? `Working as ${activeFacility.name || activeFacility.facility_code}` : null}>
           {firstRun && (
             <div className="st-pad">
@@ -353,9 +304,8 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
             </div>
           )}
         </Section>
-      )}
-
-      {isDesk && activeFacility && detailOf(activeFacility.facility_code) && (
+      );
+  const deskGlance = isDesk && activeFacility && detailOf(activeFacility.facility_code) && (
         <Section id="st-glance" title={activeFacility.name || activeFacility.facility_code} meta="Setup questions go to your clinic admin">
           <dl className="st-glance">
             <dt>NHCX</dt>
@@ -366,8 +316,87 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
             <dd>{detailOf(activeFacility.facility_code).scheme_code || "—"}</dd>
           </dl>
         </Section>
+      );
+  const deskDoctors = isDesk && activeFacility && <Practitioners key={activeFacility.facility_code} facility={activeFacility} canEdit={hasSessionFacilities && canManage(activeFacility.facility_code)} />;
+
+  const appearanceSection = (
+        <Section id="st-appearance" title="Appearance">
+          <div className="st-pad st-prefs">
+            <div className="st-pref">
+              <span className="st-pref-label">Theme</span>
+              <Segmented
+                value={theme}
+                onPick={() => onToggleTheme?.()}
+                options={[
+                  { value: "light", label: "Light", icon: Sun },
+                  { value: "dark", label: "Dark", icon: Moon },
+                ]}
+              />
+            </div>
+            <div className="st-pref">
+              <span className="st-pref-label">Navigation</span>
+              <Segmented
+                value={layoutDirection}
+                onPick={() => onToggleLayoutDirection?.()}
+                options={[
+                  { value: "A", label: "Sidebar", icon: PanelLeft, title: "Navigation down the left" },
+                  { value: "B", label: "Top bar", icon: PanelTop, title: "Navigation across the top" },
+                ]}
+              />
+            </div>
+          </div>
+        </Section>
+  );
+
+  return (
+    <div className="st-screen">
+      <PageActions>
+        {(showManagement || needsFallbackPicker) && (
+          <Button variant="outline" size="small" icon={RefreshCw} disabled={loading} onClick={reload} title="Reload the facilities">
+            {loading ? "Refreshing…" : "Refresh"}
+          </Button>
+        )}
+        {canRegister && (
+          <Button variant="primary" size="small" icon={Plus} onClick={openCreate}>
+            Register facility
+          </Button>
+        )}
+      </PageActions>
+
+      {readOnly && (
+        <div className="cv-notice is-info">
+          <div className="cv-notice-body">{managesAnyFacility ? "Sees all facilities. Cases are view only." : "View only, all facilities."}</div>
+        </div>
       )}
-      {isDesk && activeFacility && <Practitioners key={activeFacility.facility_code} facility={activeFacility} canEdit={hasSessionFacilities && canManage(activeFacility.facility_code)} />}
+
+      {isDesk && (
+        <div className="st-adm">
+          <nav className="st-adm-nav" aria-label="Settings sections">
+            <span className="st-adm-nav-title">Settings</span>
+            <button type="button" className={`st-adm-tab${deskTab === "you" ? " is-on" : ""}`} aria-current={deskTab === "you" ? "page" : undefined} onClick={() => setDeskTab("you")}>
+              You and your hospital
+            </button>
+            <button type="button" className={`st-adm-tab${deskTab === "appearance" ? " is-on" : ""}`} aria-current={deskTab === "appearance" ? "page" : undefined} onClick={() => setDeskTab("appearance")}>
+              Appearance
+            </button>
+          </nav>
+          <div className="st-adm-main">
+            {deskTab === "appearance" ? (
+              appearanceSection
+            ) : (
+              <>
+                {deskProfile}
+                <div className="st-desk-grid">
+                  {pickerSection}
+                  {deskGlance}
+                </div>
+                {deskDoctors}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {!isDesk && pickerSection}
 
       {showManagement && (
         <>
@@ -423,7 +452,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
         </>
       )}
 
-      {!adminFacility && appearanceSection}
+      {!adminFacility && !isDesk && appearanceSection}
 
       <ReadOnlyContext.Provider value={readOnly && !managesAnyFacility}>
         {onboarding && <OnboardingWizard key={`${onboarding.step}-${onboarding.facility?.facility_code || ""}`} start={onboarding} onClose={() => setOnboarding(null)} onDone={afterChange} />}

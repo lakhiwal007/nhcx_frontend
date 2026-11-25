@@ -230,3 +230,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary-fill);
 .st-all-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .st-all-title { margin: 0; font-size: 20px; font-weight: 650; }
 .st-all-head .st-search { margin-left: auto; width: 300px; max-width: 100%; }
+
+.st-desk-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.st-desk-grid > * { margin: 0; }
+@media (max-width: 900px) { .st-desk-grid { grid-template-columns: minmax(0, 1fr); } }
