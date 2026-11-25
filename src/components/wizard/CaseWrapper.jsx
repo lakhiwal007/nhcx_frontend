@@ -354,7 +354,7 @@ function CaseWorkspace({ reportCase }) {
     if (packBusy) return;
     setPackBusy(true);
     try {
-      const res = await buildClaimPack({ caseId: ledgerCaseId, record: effectiveCase, patient, facilityName: effectiveCase?.facility_name });
+      const res = await buildClaimPack({ caseId: ledgerCaseId, record: { ...effectiveCase, preauth: caseRecord.full?.preauth ?? effectiveCase?.preauth, claim: caseRecord.full?.claim ?? effectiveCase?.claim }, patient, facilityName: effectiveCase?.facility_name });
       toast.success(res.skipped ? `Claim pack downloaded. ${res.skipped} file${res.skipped === 1 ? "" : "s"} could not be added as pages.` : "Claim pack downloaded");
     } catch (err) {
       markHandled(err);
