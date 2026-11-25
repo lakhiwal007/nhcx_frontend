@@ -22,12 +22,14 @@ import { buildChecklist, firstOpen } from "../eligibility/checklist";
 
 const yes = (v) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
 
+const tiersOf = (benefit) => (benefit?.extras || []).filter((x) => x.code && Number(x.rate) > 0 && /strat/i.test(`${x.type || ""} ${x.code}`)).map((x) => ({ code: x.code, label: x.label || x.code, rate: Number(x.rate) }));
+
 const packageChoice = (benefit) => ({
   code: benefit.code,
   name: benefit.display || benefit.code,
   category: benefit.category_code || undefined,
   modifier_code: "",
-  tiers: (benefit.extras || []).filter((x) => x.code && Number(x.rate) > 0 && /strat/i.test(`${x.type || ""} ${x.code}`)).map((x) => ({ code: x.code, label: x.label || x.code, rate: Number(x.rate) })),
+  tiers: tiersOf(benefit),
   unspecified: yes(benefit.conditions?.Unspecified) || /^[A-Z]{2}(U100|215)$/i.test(String(benefit.code)),
   kind: benefit.kind,
   quantity: 1,
@@ -79,18 +81,17 @@ export default function EligibilityPrep({ ctx }) {
   const plan = full?.insurance_plan;
   const state = planState(plan);
   const checks = deriveChecks(full?.coverage_eligibility, benefitsTimedOut);
-  const checksWaiting = !!checks && [checks.validation, checks.benefits, checks.auth].some((c) => c?.state === "pending");
+  const checksWaiting = !!checks && [checks.validation, checks.benefits, checks.auth].some((c) => c?.state === "pending" && c?.sub?.status !== "not_found");
   const waitingOn = checks?.waitingOn || null;
   const packageCoded = full?.eligibility_items === "plan_packages";
   const packagesOpen = packageCoded && state.key === "ready" && !locked;
   const canChange = packagesOpen && !!full?.next_actions?.includes("change_package");
-  const choosing = packagesOpen && (!!full?.next_actions?.includes("choose_package") || (canChange && editing));
   const held = (full?.treatment || []).filter((line) => line.status !== "rejected").map((line) => ({
     code: line.code,
     name: line.display || line.code,
     category: line.category_code || undefined,
     modifier_code: line.modifier_code || "",
-    tiers: line.modifier_code ? [{ code: line.modifier_code, label: line.modifier_display || line.modifier_code, rate: line.unit_price }] : [],
+    tiers: line.modifier_code ? [{ code: line.modifier_code, label: line.modifier_display || line.modifier_code, rate: line.unit_price }] : tiersOf(e.plannedPackages[String(line.code)]),
     unspecified: !!line.unspecified,
     kind: line.kind,
     quantity: line.quantity ?? 1,
@@ -99,6 +100,8 @@ export default function EligibilityPrep({ ctx }) {
     rate: line.unit_price,
   }));
   const chosen = picked ?? held;
+  const tierMissing = chosen.filter((p) => p.tiers?.length > 0 && !p.modifier_code);
+  const choosing = packagesOpen && (!!full?.next_actions?.includes("choose_package") || (canChange && (editing || tierMissing.length > 0)));
   const setChosen = (change) => setPicked((prev) => change(prev ?? held));
   const canSendNow = !!full?.next_actions?.includes("send_eligibility") && !locked;
   const chosenCodes = new Set(chosen.map((p) => String(p.code)));
@@ -135,7 +138,7 @@ export default function EligibilityPrep({ ctx }) {
     : needsRetry
     ? { tone: "bad", label: "Check failed", text: full?.prepare_error?.message || "Couldn't send the request.", next: "Send again. Still failing? Check the policy." }
     : choosing && !notInForce
-      ? { tone: "todo", label: "Choose the package", text: `${coverText} ${chosen.length ? "Send the checks." : "Pick a package on Treatment."}` }
+      ? { tone: "todo", label: "Choose the package", text: `${coverText} ${tierMissing.length ? `Choose a ward tier for ${tierMissing.map((p) => p.code).join(", ")}.` : chosen.length ? "Send the checks." : "Pick a package on Treatment."}` }
       : waitingOn === "plan" && isStalePending
         ? {
             tone: "warn",
@@ -208,7 +211,7 @@ export default function EligibilityPrep({ ctx }) {
     : choosing && !notInForce
       ? chosen.length === 0
         ? { label: "Choose the package", icon: ArrowRight, write: false, onClick: () => pane.setPicked("treatment") }
-        : { label: e.sendChecks.busy ? "Sending…" : "Send the checks", icon: ArrowRight, disabled: e.sendChecks.busy, onClick: choice.onSend }
+        : { label: e.sendChecks.busy ? "Sending…" : "Send the checks", icon: ArrowRight, disabled: e.sendChecks.busy || tierMissing.length > 0, reason: tierMissing.length ? `Choose a ward tier for ${tierMissing.map((p) => p.code).join(", ")} on Treatment.` : undefined, onClick: choice.onSend }
       : {
         label: "Continue to pre-auth",
         icon: ArrowRight,
@@ -235,6 +238,8 @@ export default function EligibilityPrep({ ctx }) {
     canRerunNow && {
       label: e.rerun.busy ? "Sending…" : needsRetry ? "Retry the checks" : "Send the checks to the payer again",
       busy: e.rerun.busy,
+      disabled: tierMissing.length > 0,
+      reason: tierMissing.length ? `Choose a ward tier for ${tierMissing.map((p) => p.code).join(", ")} on Treatment.` : undefined,
       onClick: e.rerun.run,
     },
   ];
