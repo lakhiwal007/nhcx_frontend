@@ -8,7 +8,7 @@ const FILTERS = [
   { id: "setup", label: "Not set up", rank: 0, tone: "is-bad" },
 ];
 
-export default function AllFacilities({ facilities, onOpen, search, onSearch }) {
+export default function AllFacilities({ facilities, onOpen, search, onSearch, readOnly = false }) {
   const [filter, setFilter] = useState("all");
   const rows = facilities
     .map((f) => {
@@ -23,6 +23,11 @@ export default function AllFacilities({ facilities, onOpen, search, onSearch }) 
 
   return (
     <div className="st-all">
+      <div className="st-all-head">
+        <h1 className="st-all-title">Facilities</h1>
+        <span className="cv-chip is-info">{readOnly ? "Admin · cases are view only" : "Admin"}</span>
+        <input className="cv-ctl st-search" placeholder="Search name, code or participant" aria-label="Search facilities" value={search} onChange={(e) => onSearch(e.target.value)} />
+      </div>
       <div className="st-all-tiles" role="radiogroup" aria-label="Filter facilities">
         {FILTERS.map((x) => (
           <button key={x.id} type="button" role="radio" aria-checked={filter === x.id} className={`st-all-tile${filter === x.id ? " is-on" : ""} ${x.tone || ""}`} onClick={() => setFilter(x.id)}>
@@ -32,13 +37,6 @@ export default function AllFacilities({ facilities, onOpen, search, onSearch }) 
         ))}
       </div>
       <section className="st-section" aria-label="Facilities">
-        <header className="st-section-head">
-          <h2 className="st-section-title">Facilities</h2>
-          <span className="st-section-meta">{shown.length === rows.length ? `${rows.length} registered` : `${shown.length} of ${rows.length}`}</span>
-          <span className="st-section-tools">
-            <input className="cv-ctl st-search" placeholder="Search name, code or participant" aria-label="Search facilities" value={search} onChange={(e) => onSearch(e.target.value)} />
-          </span>
-        </header>
         {shown.length === 0 ? (
           <p className="st-pad st-quiet">No facility matches.</p>
         ) : (

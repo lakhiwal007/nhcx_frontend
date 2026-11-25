@@ -147,6 +147,7 @@ export default function FacilityAdmin({ facility, canManage, isProduction, onEdi
                 );
               })}
             </section>
+            <Practitioners key={`overview-doctors-${code}`} facility={facility} canEdit={canManage} />
           </>
         )}
 

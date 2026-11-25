@@ -187,6 +187,35 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
   const firstRun = !readOnly && sessionFacilities && !activeFacility;
 
 
+  const appearanceSection = (
+        <Section id="st-appearance" title="Appearance">
+          <div className="st-pad st-prefs">
+            <div className="st-pref">
+              <span className="st-pref-label">Theme</span>
+              <Segmented
+                value={theme}
+                onPick={() => onToggleTheme?.()}
+                options={[
+                  { value: "light", label: "Light", icon: Sun },
+                  { value: "dark", label: "Dark", icon: Moon },
+                ]}
+              />
+            </div>
+            <div className="st-pref">
+              <span className="st-pref-label">Navigation</span>
+              <Segmented
+                value={layoutDirection}
+                onPick={() => onToggleLayoutDirection?.()}
+                options={[
+                  { value: "A", label: "Sidebar", icon: PanelLeft, title: "Navigation down the left" },
+                  { value: "B", label: "Top bar", icon: PanelTop, title: "Navigation across the top" },
+                ]}
+              />
+            </div>
+          </div>
+        </Section>
+  );
+
   return (
     <div className="st-screen">
       <PageActions>
@@ -229,7 +258,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
           </div>
         </section>
       )}
-      {sessionFacilities && !readOnly && (
+      {sessionFacilities && !readOnly && (!showManagement || firstRun) && (
         <Section id="st-active" title={firstRun ? "Choose the facility you work at" : "Active facility"} meta={!firstRun && activeFacility ? `Working as ${activeFacility.name || activeFacility.facility_code}` : null}>
           {firstRun && (
             <div className="st-pad">
@@ -360,7 +389,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
               )}
             </EmptyState>
           ) : globalView && !adminFacility ? (
-            <AllFacilities facilities={facilities} search={search} onSearch={setSearch} onOpen={setAdminCode} />
+            <AllFacilities facilities={facilities} search={search} onSearch={setSearch} onOpen={setAdminCode} readOnly={readOnly} />
           ) : adminFacility ? (
             <FacilityAdmin
               key={adminFacility.facility_code}
@@ -373,9 +402,14 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
               onOnboard={(f) => setOnboarding({ step: 2, facility: { ...f } })}
               onBack={globalView ? () => setAdminCode(null) : null}
               viewingAsAdmin={globalView}
+              appearance={appearanceSection}
               switcher={
                 !globalView && facilities.length > 1 ? (
-                  <select className="cv-ctl st-adm-switch" aria-label="Facility" value={adminFacility.facility_code} onChange={(e) => setAdminCode(e.target.value)}>
+                  <select className="cv-ctl st-adm-switch" aria-label="Facility" value={adminFacility.facility_code} onChange={(e) => {
+                    setAdminCode(e.target.value);
+                    const next = facilities.find((f) => String(f.facility_code) === e.target.value);
+                    if (next?.hcx_participant_code) pickFacility(next);
+                  }}>
                     {facilities.map((f) => (
                       <option key={f.facility_code} value={f.facility_code}>
                         {f.name || f.facility_code}
@@ -389,32 +423,7 @@ export default function Settings({ readOnly = false, manageableFacilityCodes = [
         </>
       )}
 
-      <Section id="st-appearance" title="Appearance">
-        <div className="st-pad st-prefs">
-          <div className="st-pref">
-            <span className="st-pref-label">Theme</span>
-            <Segmented
-              value={theme}
-              onPick={() => onToggleTheme?.()}
-              options={[
-                { value: "light", label: "Light", icon: Sun },
-                { value: "dark", label: "Dark", icon: Moon },
-              ]}
-            />
-          </div>
-          <div className="st-pref">
-            <span className="st-pref-label">Navigation</span>
-            <Segmented
-              value={layoutDirection}
-              onPick={() => onToggleLayoutDirection?.()}
-              options={[
-                { value: "A", label: "Sidebar", icon: PanelLeft, title: "Navigation down the left" },
-                { value: "B", label: "Top bar", icon: PanelTop, title: "Navigation across the top" },
-              ]}
-            />
-          </div>
-        </div>
-      </Section>
+      {!adminFacility && appearanceSection}
 
       <ReadOnlyContext.Provider value={readOnly && !managesAnyFacility}>
         {onboarding && <OnboardingWizard key={`${onboarding.step}-${onboarding.facility?.facility_code || ""}`} start={onboarding} onClose={() => setOnboarding(null)} onDone={afterChange} />}

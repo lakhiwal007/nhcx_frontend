@@ -226,3 +226,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary-fill);
 .st-all { display: flex; flex-direction: column; gap: 14px; }
 .st-quiet { color: var(--text-muted); }
 @media (max-width: 900px) { .st-tiles, .st-all-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .st-adm-nav { flex-basis: 100%; position: static; } }
+
+.st-all-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.st-all-title { margin: 0; font-size: 20px; font-weight: 650; }
+.st-all-head .st-search { margin-left: auto; width: 300px; max-width: 100%; }
