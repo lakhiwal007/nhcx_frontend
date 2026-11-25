@@ -102,6 +102,18 @@ export default function EligibilityPrep({ ctx }) {
   }));
   const chosen = picked ?? held;
   const tierMissing = chosen.filter((p) => p.tiers?.length > 0 && !p.modifier_code);
+  const showTier = () => {
+    pane.setPicked("treatment");
+    setTimeout(() => {
+      const box = document.querySelector(`[data-tier="${tierMissing[0]?.code}"]`);
+      if (!box) return;
+      box.scrollIntoView({ behavior: "smooth", block: "center" });
+      box.classList.remove("is-flash");
+      void box.offsetWidth;
+      box.classList.add("is-flash");
+      box.querySelector("button, select")?.focus({ preventScroll: true });
+    }, 80);
+  };
   const choosing = packagesOpen && (!!full?.next_actions?.includes("choose_package") || (canChange && (editing || tierMissing.length > 0)));
   const setChosen = (change) => setPicked((prev) => change(prev ?? held));
   const canSendNow = !!full?.next_actions?.includes("send_eligibility") && !locked;
@@ -216,7 +228,7 @@ export default function EligibilityPrep({ ctx }) {
     : choosing && !notInForce
       ? chosen.length === 0
         ? { label: "Choose the package", icon: ArrowRight, write: false, onClick: () => pane.setPicked("treatment") }
-        : { label: e.sendChecks.busy ? "Sending…" : "Send the checks", icon: ArrowRight, disabled: e.sendChecks.busy || tierMissing.length > 0, reason: tierMissing.length ? `Choose a ward tier for ${tierMissing.map((p) => p.code).join(", ")} on Treatment.` : undefined, onClick: choice.onSend }
+        : { label: e.sendChecks.busy ? "Sending…" : "Send the checks", icon: ArrowRight, disabled: e.sendChecks.busy, reason: tierMissing.length ? `Choose a ward tier for ${tierMissing.map((p) => p.code).join(", ")}.` : undefined, onClick: tierMissing.length ? showTier : choice.onSend }
       : {
         label: "Continue to pre-auth",
         icon: ArrowRight,
@@ -243,9 +255,7 @@ export default function EligibilityPrep({ ctx }) {
     canRerunNow && !(!choosing && (needsRetry || stalled || isStalePending) && tierMissing.length === 0) && {
       label: e.rerun.busy ? "Sending…" : needsRetry ? "Retry the checks" : "Send the checks to the payer again",
       busy: e.rerun.busy,
-      disabled: tierMissing.length > 0,
-      reason: tierMissing.length ? `Choose a ward tier for ${tierMissing.map((p) => p.code).join(", ")} on Treatment.` : undefined,
-      onClick: e.rerun.run,
+      onClick: tierMissing.length ? showTier : e.rerun.run,
     },
   ];
 
