@@ -65,15 +65,22 @@
 .cv-rec-payer-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-chain { margin-top: 8px; }
 .cv-step-btn { height: 28px; font-size: 13px; }
+.cv-fact.is-due .cv-fact-text { color: var(--error); }
+.cv-fact.is-money { flex-shrink: 0; }
+.cv-rec-notes { flex: none; height: 38px; border-radius: 10px; }
+.cv-rec-row > .cv-chain-trail { margin-left: 0; }
+.cv-chain-history { flex: none; height: 28px; }
+.cv-facts-more { position: relative; flex: none; display: none; }
+.cv-facts-more > .cv-btn { height: 38px; border-radius: 10px; }
+.cv-facts-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 10px 0; width: max-content; max-width: min(520px, 90vw); padding: 12px 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: var(--shadow); }
+.cv-facts-pop .cv-fact { max-width: none; border-left: 0; }
 @media (max-width: 1680px) {
-  .cv-rec .cv-rec-row { flex-wrap: wrap; }
-  .cv-facts { order: 3; flex: 1 1 100%; border-left: 0; padding-top: 8px; border-top: 1px solid var(--border-color); }
-  .cv-fact { flex: 1 1 auto; max-width: none; }
-  .cv-fact:first-child { padding-left: 0; }
+  .cv-fact.is-extra { display: none; }
+  .cv-facts-more { display: block; }
 }
 @media (max-width: 760px) {
-  .cv-facts { flex-wrap: wrap; row-gap: 8px; }
-  .cv-fact { flex: 1 1 40%; padding-left: 0; border-left: 0; }
+  .cv-rec .cv-rec-row { flex-wrap: wrap; }
+  .cv-facts { display: none; }
   .cv-rec-payer { max-width: none; margin-left: 0; }
 }
 

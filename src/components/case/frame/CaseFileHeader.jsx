@@ -1,13 +1,15 @@
+import { useEffect, useRef, useState } from "react";
+import { NotebookPen } from "lucide-react";
 import BackButton from "../../ui/BackButton";
 import PayerName from "../../ui/PayerName";
 import CopyButton from "../../ui/CopyButton";
 import { InfoTip } from "../../ui/Common";
-import { formatAge, formatDateTime, humanize, formatCaseRef, photoSrc } from "../../../lib/format.js";
+import { formatAge, formatDateTime, formatMoney, humanize, formatCaseRef, photoSrc } from "../../../lib/format.js";
 
-function Fact({ label, term, value, note, copy, fit }) {
+function Fact({ label, term, value, note, copy, fit, extra, due, money }) {
   const title = [label, value, note].filter(Boolean).join(" · ");
   return (
-    <div className={`cv-fact${fit ? " is-fit" : ""}`} title={title}>
+    <div className={`cv-fact${fit ? " is-fit" : ""}${extra ? " is-extra" : ""}${due ? " is-due" : ""}${money ? " is-money" : ""}`} title={title}>
       <span className="cv-fact-key">
         {label}
         {term && <InfoTip term={term} />}
@@ -40,7 +42,39 @@ function Avatar({ patient }) {
 
 const when = (value) => (value ? formatDateTime(value) : null);
 
-export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, statusPill, onBack, backLabel = "Back" }) {
+function MoreDetails({ children }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div className="cv-facts-more" ref={ref}>
+      <button type="button" className="cv-btn" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
+        Details
+      </button>
+      {open && (
+        <div className="cv-facts-pop" role="dialog" aria-label="Case details">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function CaseFileHeader({ patient, caseState, effectiveCase, preauthRef, statusPill, onBack, backLabel = "Back", money = {}, notesCount = 0, onOpenNotes, asks = null }) {
   const policyNumber = caseState.policy?.policy_number || effectiveCase.policy_number;
   const payerId = effectiveCase.payer_id;
   const payerName = caseState.payer?.name;
@@ -48,6 +82,18 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
   const meta = [humanize(patient.gender, null), patient.dob ? formatAge(patient.dob) : null].filter(Boolean);
   const caseRef = caseState.cashless_case_id && formatCaseRef(caseState.cashless_case_id);
   const admittedNote = [stay.admission_no, stay.admission_type && humanize(stay.admission_type)].filter(Boolean).join(" · ");
+  const amount = (value) => (value != null ? formatMoney(value) : null);
+  const facts = [
+    caseRef && { label: "Case", term: "cashless", value: caseRef, copy: true, fit: true },
+    (stay.admitted_at || stay.admission_no) && { label: "Admission", value: when(stay.admitted_at) || stay.admission_no, note: stay.admitted_at ? admittedNote : null, extra: true },
+    preauthRef && { label: "Pre-auth ref", term: "preauth", value: preauthRef, copy: true, extra: true },
+    caseState.claim_id && { label: "Claim", term: "claim", value: caseState.claim_id, copy: true, fit: true, extra: true },
+    stay.discharged_at && { label: "Discharge", value: when(stay.discharged_at), note: stay.discharge_how, extra: true },
+    policyNumber && { label: "Policy", term: "policy_number", value: policyNumber, copy: true, fit: true },
+    money.requested && { label: money.requested.label, value: amount(money.requested.value), extra: true, money: true },
+    money.approved && { label: money.approved.label, value: amount(money.approved.value), money: true },
+    money.payable != null && { label: "Patient pays", value: amount(money.payable), note: money.estimate ? "estimate" : null, due: money.payable > 0, money: true },
+  ].filter(Boolean);
 
   return (
     <section className="cv-head cv-rec" aria-label="Patient and ids">
@@ -68,13 +114,17 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
           </div>
         </div>
         <div className="cv-facts">
-          {caseRef && <Fact label="Case" term="cashless" value={caseRef} copy fit />}
-          {(stay.admitted_at || stay.admission_no) && <Fact label="Admission" value={when(stay.admitted_at) || stay.admission_no} note={stay.admitted_at ? admittedNote : null} />}
-          {preauthRef && <Fact label="Pre-auth ref" term="preauth" value={preauthRef} copy />}
-          {caseState.claim_id && <Fact label="Claim" term="claim" value={caseState.claim_id} copy fit />}
-          {stay.discharged_at && <Fact label="Discharge" value={when(stay.discharged_at)} note={stay.discharge_how} />}
-          {policyNumber && <Fact label="Policy" term="policy_number" value={policyNumber} copy fit />}
+          {facts.map((f) => (
+            <Fact key={f.label} {...f} />
+          ))}
         </div>
+        {facts.some((f) => f.extra) && (
+          <MoreDetails>
+            {facts.map((f) => (
+              <Fact key={f.label} {...f} extra={false} />
+            ))}
+          </MoreDetails>
+        )}
         {(payerId || payerName) && (
           <div className="cv-rec-payer">
             <span className="cv-rec-payer-mark" aria-hidden="true">
@@ -87,6 +137,12 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
               <PayerName id={payerId} name={payerName} />
             </span>
           </div>
+        )}
+        {asks}
+        {onOpenNotes && (
+          <button type="button" className="cv-btn cv-rec-notes" onClick={onOpenNotes}>
+            <NotebookPen size={14} aria-hidden="true" /> Notes{notesCount ? ` · ${notesCount}` : ""}
+          </button>
         )}
       </div>
     </section>

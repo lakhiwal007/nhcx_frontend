@@ -42,37 +42,12 @@
 }
 .cv-step.is-urgent.is-active .cv-step-btn { background: var(--error); animation: none; }
 
-.cv-desk { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-.cv-desk.is-solo { grid-template-columns: minmax(0, 1fr); }
-.cv-rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.cv-rcard,
-.cv-rail .cv-panel-asks {
-  padding: 14px 16px; border: 1px solid var(--cv-line); border-radius: 12px; background: var(--bg-card); box-shadow: var(--shadow-xs);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.cv-rail .cv-panel-asks.is-warn { background: var(--warning-soft); border-color: var(--warning-line); }
-.cv-rcard:hover,
-.cv-rail .cv-panel-asks:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-.cv-rcard h3 { margin: 0 0 8px; font-size: 13.5px; font-weight: 700; color: var(--cv-ink); }
+.cv-desk { display: block; min-width: 0; }
 .cv-rkv { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; border-top: 1px solid var(--cv-line); }
-.cv-rcard h3 + .cv-rkv { border-top: 0; padding-top: 0; }
 .cv-rkv span { color: var(--cv-soft); }
 .cv-rkv small { font-size: 12px; }
 .cv-rkv b { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cv-rkv b.is-due { color: var(--cv-warn); }
-.cv-rev { list-style: none; margin: 0; padding: 0; }
-.cv-rev li { position: relative; padding: 0 0 12px 20px; }
-.cv-rev li::before { content: ""; position: absolute; left: 2px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
-.cv-rev li::after { content: ""; position: absolute; left: 5.5px; top: 17px; bottom: 0; width: 1px; background: var(--cv-line); }
-.cv-rev li:last-child { padding-bottom: 0; }
-.cv-rev li:last-child::after { display: none; }
-.cv-rev b { display: block; font-weight: 600; }
-.cv-rev small,
-.cv-rby { display: block; margin: 0; font-size: 12.5px; color: var(--cv-soft); }
-.cv-rnote { margin: 0 0 4px; overflow-wrap: anywhere; }
-.cv-rlink { margin-top: 10px; padding: 0; border: 0; background: none; color: var(--primary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.cv-rlink:hover { text-decoration: underline; }
-.cv-rlink:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 2px; }
 
 .cv-tabwork { display: flex; flex-direction: column; gap: 14px; }
 .cv-tabbed { border: 1px solid var(--cv-line); border-radius: 12px; background: var(--bg-card); box-shadow: var(--shadow-xs); overflow: hidden; }

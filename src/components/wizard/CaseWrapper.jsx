@@ -8,16 +8,16 @@ import { saveWorkflow, loadWorkflow } from "../../lib/workflowStorage";
 import CaseFileHeader from "../case/frame/CaseFileHeader";
 import BackButton from "../ui/BackButton";
 import CaseStepper from "../case/frame/CaseStepper";
-import { NeedsYouChip } from "../case/frame/NeedsYou";
-import CaseRail from "../case/frame/CaseRail";
 import { attentionItems } from "../case/frame/attentionItems";
+import { NeedsYouChip } from "../case/frame/NeedsYou";
 import CaseNotesDrawer from "../case/frame/CaseNotes";
 import AnswerPayerQuery from "../case/asks/AnswerPayerQuery";
 import CloseCaseModal from "../case/frame/CloseCaseModal";
 import TechnicalDetails from "../case/step/TechnicalDetails";
 import { useCaseNotes } from "../../hooks/case/useCaseNotes";
 import CommunicationDetailDrawer from "../communications/CommunicationDetail";
-import { buildStages, landingStage, stageInfo } from "../case/frame/caseStages";
+import { buildStages, landingStage, stageAmounts, stageInfo } from "../case/frame/caseStages";
+import { History } from "lucide-react";
 import { useCaseRecord } from "../../hooks/case/useCaseRecord";
 import { usePoll } from "../../hooks/util/usePoll";
 import { useCasePulse, useOnChange } from "../../lib/pulse";
@@ -319,6 +319,15 @@ function CaseWorkspace({ reportCase }) {
   const effectiveCase = cashlessCase || {};
   const asks = attentionItems({ communications, notes, heldTasks: effectiveCase.held_tasks });
   const askHandlers = { items: asks, onOpenComm: setOpenCommId, onOpenNotes: () => setNotesOpen(true), onReply: readOnly ? null : setReplyTo };
+  const ledgerAmounts = stageAmounts({ moneyLedger: timeline?.money_ledger || null, effectiveCase });
+  const approvedAmount = ledgerAmounts.claim || ledgerAmounts.status;
+  const payable = timeline?.money_ledger?.reconciliation?.to_collect_from_patient ?? timeline?.money_ledger?.patient_payable?.value;
+  const headerMoney = {
+    requested: ledgerAmounts.review && { label: ledgerAmounts.review.word === "billed" ? "Billed" : "Requested", value: ledgerAmounts.review.value },
+    approved: approvedAmount && { label: approvedAmount.word === "approved" ? "Approved" : "Authorised", value: approvedAmount.value },
+    payable,
+    estimate: payable != null && timeline?.money_ledger?.patient_payable?.confidence === "estimated",
+  };
   const preauthRef = caseState.preauthRef || effectiveCase.preauth_ref;
   const preauthDecision = caseState.preauthDecision || effectiveCase.preauth_status;
 
@@ -431,6 +440,10 @@ function CaseWorkspace({ reportCase }) {
           caseState={caseState}
           effectiveCase={effectiveCase}
           preauthRef={preauthRef}
+          money={headerMoney}
+          notesCount={notes.length}
+          onOpenNotes={ledgerCaseId ? () => setNotesOpen(true) : null}
+          asks={asks.length > 0 ? <NeedsYouChip {...askHandlers} /> : null}
           statusPill={
             <>
               {caseShut ? <span className="cv-chip is-todo">Closed · read-only</span> : caseSettled ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
@@ -452,7 +465,14 @@ function CaseWorkspace({ reportCase }) {
             </>
           }
         />
-        <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} trailing={asks.length > 0 ? <NeedsYouChip {...askHandlers} /> : null} />
+        <CaseStepper stages={stages} onNavigate={(path) => navigate(`/case/${id}/${path}`)} trailing={
+            !onTimeline ? (
+              <button type="button" className="cv-btn cv-chain-history" onClick={openHistory}>
+                <History size={14} aria-hidden="true" /> History
+              </button>
+            ) : null
+          }
+        />
       </div>
 
       <div className="cv-page">
@@ -489,7 +509,7 @@ function CaseWorkspace({ reportCase }) {
           </div>
         )}
 
-        <div className={`cv-desk${onTimeline ? " is-solo" : ""}`}>
+        <div className="cv-desk">
         <div className="cv-stage-body">
           <AnimatePresence mode="wait">
             <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
@@ -511,17 +531,6 @@ function CaseWorkspace({ reportCase }) {
             </motion.div>
           </AnimatePresence>
         </div>
-        {!onTimeline && (
-          <CaseRail
-            moneyLedger={timeline?.money_ledger || null}
-            effectiveCase={effectiveCase}
-            asks={askHandlers}
-            events={timeline?.events || []}
-            notes={notes}
-            onOpenNotes={ledgerCaseId ? () => setNotesOpen(true) : null}
-            onOpenHistory={openHistory}
-          />
-        )}
         </div>
       </div>
 

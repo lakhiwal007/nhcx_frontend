@@ -166,7 +166,6 @@
 @container (min-width: 1151px) {
   .cv-head-panels.has-asks { grid-template-columns: minmax(0, 1fr) 320px 300px; }
   .cv-head-panels.has-asks .cv-idgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .cv-chain-trail { display: none; }
 }
 @container (max-width: 1150px) {
   .cv-panel-asks { display: none; }
