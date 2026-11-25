@@ -7,7 +7,7 @@ import { api } from "../../api";
 const names = new Map(); // code -> name (resolved)
 const pending = new Map(); // code -> Promise<name|null>
 
-function lookup(code) {
+export function lookup(code) {
   if (!pending.has(code)) {
     pending.set(
       code,

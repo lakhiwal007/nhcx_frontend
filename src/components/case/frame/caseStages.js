@@ -235,7 +235,7 @@ export function buildStages({ caseState, effectiveCase, preauthRef, preauthDecis
     claim: (() => {
       const label = claimDecision ? String(claimDecision).replace(/_/g, " ") : "";
       if (isDischargeDecision(effectiveCase)) {
-        return { done: false, note: `Discharge ${label.toLowerCase()}`, tone: /reject|denied|quer/i.test(label) ? "urgent" : "wait", live: true };
+        return { done: false, inProgress: true, note: `Discharge ${label.toLowerCase()}`, tone: /reject|denied|quer/i.test(label) ? "urgent" : "wait", live: true };
       }
       if (claimDecision && /reject|denied|short/i.test(String(claimDecision))) return { done: true, note: label, tone: "urgent" };
       if (claimDecision && /approv|paid/i.test(String(claimDecision))) return { done: true, note: label, tone: "approve" };
