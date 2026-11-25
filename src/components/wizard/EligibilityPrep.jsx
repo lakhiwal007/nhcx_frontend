@@ -128,13 +128,13 @@ export default function EligibilityPrep({ ctx }) {
 
   const closed = !!ctx.caseClosed || full?.status === "closed";
   const refusedChecks = checks ? [["benefits", checks.benefits], ["authorisation", checks.auth]].filter(([, check]) => check.state === "error").map(([name]) => name) : [];
-  const coverText = inforce ? "The policy is in force." : checks?.validation.sub ? "The cover check is with the payer." : "The payer's plan is loaded.";
+  const coverText = inforce ? "Policy in force." : checks?.validation.sub ? "Cover check with the payer." : "Plan loaded.";
   const verdict = closed
     ? { tone: "todo", label: "Closed", text: "Case closed. Reopen to continue." }
     : needsRetry
-    ? { tone: "bad", label: "Check failed", text: full?.prepare_error?.message || "The eligibility request could not be sent.", next: "Send again. Still failing? Check the policy." }
+    ? { tone: "bad", label: "Check failed", text: full?.prepare_error?.message || "Couldn't send the request.", next: "Send again. Still failing? Check the policy." }
     : choosing && !notInForce
-      ? { tone: "todo", label: "Choose the package", text: `${coverText} Pick the package for this admission; the benefit and authorisation checks go to the payer with it.`, next: chosen.length ? "Send the checks, or add another package first." : "Pick a package on Treatment, then send." }
+      ? { tone: "todo", label: "Choose the package", text: `${coverText} ${chosen.length ? "Send the checks." : "Pick a package on Treatment."}` }
       : waitingOn === "plan" && isStalePending
         ? {
             tone: "warn",
@@ -147,7 +147,7 @@ export default function EligibilityPrep({ ctx }) {
           : isStalePending
       ? { tone: "warn", label: "No answer from the payer", text: "The request may have been lost.", next: "Send again. No answer? Call the payer." }
       : notInForce
-        ? { tone: "bad", label: "Not eligible", text: "The payer reports the policy as not in force.", next: "Pick another policy, or treat as cash." }
+        ? { tone: "bad", label: "Not eligible", text: "Policy not in force.", next: "Pick another policy, or treat as cash." }
         : refusedChecks.length > 0
           ? {
               tone: "bad",
@@ -158,10 +158,10 @@ export default function EligibilityPrep({ ctx }) {
         : e.polling || isPending
           ? { tone: "info", label: "Waiting for the payer", text: "Answers arrive in minutes. PMJAY can take an hour." }
           : inforce
-            ? { tone: "ok", label: "Eligible", text: "The policy is in force for this admission." }
+            ? { tone: "ok", label: "Eligible", text: "Policy in force." }
             : isComplete
-              ? { tone: "todo", label: "Checks complete", text: "The payer did not state whether the policy is in force." }
-              : { tone: "todo", label: "Not confirmed", text: "Refresh to fetch the latest answer." };
+              ? { tone: "todo", label: "Checks complete", text: "Payer didn't confirm the policy." }
+              : { tone: "todo", label: "Not confirmed", text: "Refresh for the latest answer." };
 
   const ce = full?.coverage_eligibility;
   const members = eligibilityBeneficiaries(ce);
@@ -238,8 +238,8 @@ export default function EligibilityPrep({ ctx }) {
   ];
 
   const notes = [
-    verdict.next && { tone: "info", text: `What to do: ${verdict.next}` },
-    needsResubmit && !isStalePending && { tone: "warn", text: "Some checks stalled. Send again." },
+    verdict.next && { tone: "info", text: verdict.next },
+    needsResubmit && !isStalePending && !(choosing && !notInForce) && { tone: "warn", text: "Some checks stalled. Send again." },
     movedOn && { tone: "info", text: `Moved on to ${movedOnLabel}. Shown as last checked.` },
     lock.viewOnly && { tone: "info", text: lock.reason },
     e.rerun.error && { tone: "warn", text: e.rerun.error },
