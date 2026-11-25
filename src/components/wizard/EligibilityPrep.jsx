@@ -213,6 +213,7 @@ export default function EligibilityPrep({ ctx }) {
         icon: ArrowRight,
         write: false,
         disabled: !canProceed || blockers.length > 0,
+        toTodo: canProceed && blockers.length > 0,
         reason: notInForce
           ? "The payer reports this policy as not in force."
           : blockers.length

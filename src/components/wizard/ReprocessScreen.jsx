@@ -137,6 +137,7 @@ export default function ReprocessScreen({ ctx }) {
       busy: r.send.busy,
       busyLabel: "Sending…",
       disabled: !canSend,
+      toTodo: !!r.claimId && !lock.reason && blockers.length > 0,
       reason: !r.claimId ? "This case has no claim to appeal." : blockers.length ? `First: ${blockers.map((b) => b.name.toLowerCase()).join(", ")}.` : lock.reason,
       onClick: () => setConfirmOpen(true),
     };

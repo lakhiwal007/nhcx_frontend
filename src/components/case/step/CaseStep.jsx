@@ -1,17 +1,23 @@
-import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from "react";
+import { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { AlertTriangle, Check, Clock, Minus, MoreHorizontal, XCircle } from "lucide-react";
 import { useReadOnly, READ_ONLY_TITLE } from "../../../lib/readOnly";
 import { LoadingBlock } from "../../ui/Common";
 import CaseChecklist from "./CaseChecklist";
 import StageBar from "./StageBar";
 
+const ShowTodo = createContext(null);
+
 function ActionButton({ action, primary = false }) {
   const readOnly = useReadOnly();
+  const showTodo = useContext(ShowTodo);
   if (!action) return null;
-  const { label, onClick, disabled = false, reason, busy = false, busyLabel, write = true, danger = false, icon: Icon } = action;
+  const { label, disabled = false, reason, busy = false, busyLabel, write = true, danger = false, icon: Icon, toTodo = false } = action;
   const blocked = write && readOnly;
-  const off = disabled || blocked || busy;
-  const title = blocked ? READ_ONLY_TITLE : off && reason ? reason : undefined;
+  const routed = toTodo && !!showTodo && !blocked && !busy;
+  const off = routed ? false : disabled || blocked || busy;
+  const onClick = routed ? showTodo : action.onClick;
+  const title = blocked ? READ_ONLY_TITLE : (off || routed) && reason ? reason : undefined;
   const cls = ["cv-btn", primary && "is-primary", danger && "is-danger"].filter(Boolean).join(" ");
   return (
     <button type="button" className={cls} onClick={onClick} disabled={off} title={title} aria-disabled={off || undefined}>
@@ -225,7 +231,12 @@ export default function CaseStep({
   children,
 }) {
   const [mode, setMode] = useState(null);
+  const fromTask = useLocation().state?.from === "/work-queue";
   const rootRef = useRef(null);
+  const showTodo = () => {
+    setMode("todo");
+    rootRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
   const barRef = useRef(null);
 
   useEffect(() => {
@@ -252,7 +263,8 @@ export default function CaseStep({
   const hasTodoTab = todo.length + waiting.length + done.length > 0;
   const firstTab = (waiting[0] || allRows.find((r) => paneIds.includes(r.id)))?.tab ?? checklist[0]?.id;
   const openTab = allRows.find((r) => r.id === shown)?.tab ?? firstTab;
-  const onTodo = hasTodoTab && (mode === "todo" || (mode === null && todo.length > 0));
+  const payerSpoke = todo.some((r) => r.tone === "refused");
+  const onTodo = hasTodoTab && (mode === "todo" || (mode === null && todo.length > 0 && (payerSpoke || fromTask)));
   const activeTab = onTodo ? "todo" : mode === null && !paneIds.includes(open) ? firstTab : openTab;
   const tabRows = allRows.filter((r) => r.tab === activeTab);
   const tabShown = activeTab === "todo" ? null : tabRows.some((r) => r.id === shown) ? shown : tabRows.find((r) => paneIds.includes(r.id))?.id ?? null;
@@ -263,6 +275,7 @@ export default function CaseStep({
   const openGroup = (group) => openRow((group.rows.find((r) => paneIds.includes(r.id)) || group.rows[0]).id);
 
   return (
+    <ShowTodo.Provider value={hasTodoTab ? showTodo : null}>
     <div className="cv-elig" ref={rootRef}>
       <div className="cv-notice cv-verdict" ref={barRef}>
         {verdict || <Verdict ctx={ctx} />}
@@ -341,5 +354,6 @@ export default function CaseStep({
         </div>
       )}
     </div>
+    </ShowTodo.Provider>
   );
 }

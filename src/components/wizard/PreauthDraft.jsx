@@ -82,6 +82,7 @@ export default function PreauthDraft({ ctx }) {
           busy: d.send.busy,
           busyLabel: "Sending…",
           disabled: !canSubmit,
+          toTodo: !d.notInForce && blockers.length > 0,
           reason: d.notInForce
             ? "The payer says this policy is not active."
             : blockers.length

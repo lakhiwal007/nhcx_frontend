@@ -80,6 +80,7 @@ export default function PreauthEnhancement({ ctx }) {
         busy: e.send.busy,
         busyLabel: "Sending…",
         disabled: !canSubmit,
+        toTodo: !lock.reason && blockers.length > 0,
         reason: blockers.length ? `First: ${blockers.map((r) => r.name.toLowerCase()).join(", ")}.` : lock.reason || "Nothing new to send.",
         onClick: () => setReview(true),
       };
