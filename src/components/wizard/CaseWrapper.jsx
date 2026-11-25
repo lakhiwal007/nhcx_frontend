@@ -34,7 +34,7 @@ import ReprocessScreen from "./ReprocessScreen";
 import PaymentReconciliation from "./PaymentReconciliation";
 import CaseTimeline from "./CaseTimeline";
 import ErrorBoundary from "../ui/ErrorBoundary";
-import { formatCaseRef, formatDate, formatTime } from "../../lib/format.js";
+import { formatCaseRef, formatDate, formatDuration, formatTime } from "../../lib/format.js";
 import { buildClaimPack } from "../../lib/claimPack.js";
 import { toast } from "../../lib/toast";
 
@@ -436,7 +436,7 @@ function CaseWorkspace({ reportCase }) {
               {caseShut ? <span className="cv-chip is-todo">Closed · read-only</span> : caseSettled ? <span className="cv-chip is-todo">Settled · read-only</span> : readOnly ? <span className="cv-chip is-todo">View only</span> : null}
               {clock && (
                 <span className={`cv-chip ${clockLate ? "is-bad" : "is-info"}`} title={`Sent ${formatDate(clock.sent_at)} ${formatTime(clock.sent_at)}. The payer's time limit is ${clock.limit_minutes >= 60 ? `${clock.limit_minutes / 60} h` : `${clock.limit_minutes} min`}.`}>
-                  {clockLate ? `${stageWord} answer late since ${formatTime(clock.due_at)}` : `${stageWord} answer due by ${formatTime(clock.due_at)}`}
+                  {clockLate ? `${stageWord} answer late by ${formatDuration((Date.now() - new Date(clock.due_at)) / 60000)}` : `${stageWord} answer due by ${formatTime(clock.due_at)}`}
                 </span>
               )}
               {expiry && (

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, Send, Wifi, MessageSquare, Wallet } from "lucide-react";
 import { DocumentChecklist, NextStep, Tip } from "../ui/Common";
-import { formatCaseRef, formatDate, formatDateTime, formatMoney, humanize } from "../../lib/format.js";
+import { formatCaseRef, formatDate, formatDateTime, formatDuration, formatMoney, humanize } from "../../lib/format.js";
 import { useCaseLock } from "../../hooks/case/useCaseLock";
 import { useClaimWorkflow } from "../../hooks/workflow/useClaimWorkflow";
 import { useSendGate } from "../../hooks/util/useSendGate";
@@ -54,7 +54,7 @@ function WaitingCard({ title, data, status, correlationId, bundle, onEnquire, en
     <Card title={title} chip={<span className="cv-chip is-info">Waiting</span>}>
       <div className="cv-card-body">
         <div className="cv-kv"><span>Sent</span><span>{data?.submitted_at ? formatDateTime(data.submitted_at) : "—"}</span></div>
-        <div className="cv-kv"><span>Waiting for</span><span>{status.elapsedMs == null ? "—" : `${minutes(status.elapsedMs)} min`}</span></div>
+        <div className="cv-kv"><span>Waiting for</span><span>{status.elapsedMs == null ? "—" : `${formatDuration(minutes(status.elapsedMs))}`}</span></div>
         <div className="cv-kv"><span>Last checked</span><span>{status.lastCheckedAt ? formatDateTime(new Date(status.lastCheckedAt)) : "checking now"}</span></div>
         {long && (
           <div className="cv-notice is-info cv-sub-note-top">
@@ -312,7 +312,7 @@ export default function ClaimsScreen({ ctx }) {
       <strong>{money(c.claimRequested)}</strong> claimed
     </>
   ) : c.finalWaiting ? (
-    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : "just now"} · waiting ${minutes(c.final.elapsedMs)} min · checking automatically`
+    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : "just now"} · waiting ${formatDuration(minutes(c.final.elapsedMs))} · checking automatically`
   ) : draft ? (
     <>
       <strong>{money(draft.total_amount)}</strong> final bill

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Send } from "lucide-react";
 import { DocumentChecklist, NextStep, Tip } from "../ui/Common";
-import { formatDateTime, formatMoney } from "../../lib/format.js";
+import { formatDateTime, formatDuration, formatMoney } from "../../lib/format.js";
 import Dropdown from "../ui/Dropdown";
 import { useCaseLock } from "../../hooks/case/useCaseLock";
 import { useReprocess, REASON_CODES, reasonName } from "../../hooks/workflow/useReprocess";
@@ -181,7 +181,7 @@ export default function ReprocessScreen({ ctx }) {
       {r.totals.submitted?.value != null ? ` of ${formatMoney(r.totals.submitted.value)} claimed` : " approved"}
     </>
   ) : sent && !isComplete && !isFailed && !isNotFound ? (
-    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : r.send.result ? "just now" : "earlier"} · waiting ${minutes(r.status.elapsedMs)} min · checking automatically`
+    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : r.send.result ? "just now" : "earlier"} · waiting ${formatDuration(minutes(r.status.elapsedMs))} · checking automatically`
   ) : !sent && r.claimId ? (
     <>Appeal of claim <span className="cv-mono">{r.claimId}</span></>
   ) : null;
@@ -320,7 +320,7 @@ export default function ReprocessScreen({ ctx }) {
             <Card title="Waiting for the payer" chip={<span className="cv-chip is-info">Waiting</span>}>
               <div className="cv-card-body">
                 <div className="cv-kv"><span>Sent</span><span>{data?.submitted_at ? formatDateTime(data.submitted_at) : "—"}</span></div>
-                <div className="cv-kv"><span>Waiting for</span><span>{r.status.elapsedMs == null ? "—" : `${minutes(r.status.elapsedMs)} min`}</span></div>
+                <div className="cv-kv"><span>Waiting for</span><span>{r.status.elapsedMs == null ? "—" : `${formatDuration(minutes(r.status.elapsedMs))}`}</span></div>
                 <div className="cv-kv"><span>Last checked</span><span>{r.status.lastCheckedAt ? formatDateTime(new Date(r.status.lastCheckedAt)) : "checking now"}</span></div>
                 <TechnicalDetails ids={[{ label: "Request id", value: r.correlationId }]} bundle={bundle} />
               </div>

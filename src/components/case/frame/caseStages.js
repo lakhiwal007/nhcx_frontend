@@ -128,6 +128,9 @@ export const caseRules = (full) => ({
   held_tasks: full?.held_tasks ?? [],
   next_actions: full?.next_actions ?? [],
   stay: full?.stay ?? null,
+  turnaround: full?.turnaround ?? null,
+  policy_expiry: full?.policy_expiry ?? null,
+  readmission: full?.readmission ?? null,
 });
 
 export function projectCaseStatus(full) {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, RefreshCw, PlusCircle, X, Wifi, Send, MessageSquare } from "lucide-react";
 import { NextStep, Tip } from "../ui/Common";
-import { formatCaseRef, formatDate, formatDateTime, formatMoney, humanize } from "../../lib/format.js";
+import { formatCaseRef, formatDate, formatDateTime, formatDuration, formatMoney, humanize } from "../../lib/format.js";
 import { useCaseLock } from "../../hooks/case/useCaseLock";
 import { usePreauthDecision } from "../../hooks/workflow/usePreauthDecision";
 import { useCasePane } from "../case/step/useCasePane";
@@ -206,7 +206,7 @@ export default function PreauthStatus({ ctx }) {
       {requestedValue != null ? ` of ${formatMoney(requestedValue)} requested` : " approved"}
     </>
   ) : p.waiting ? (
-    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : "just now"} · waiting ${minutes(p.elapsedMs)} min · checking automatically`
+    `Sent ${data?.submitted_at ? formatDateTime(data.submitted_at) : "just now"} · waiting ${formatDuration(minutes(p.elapsedMs))} · checking automatically`
   ) : null;
 
   if (!p.correlationId) {
@@ -276,7 +276,7 @@ export default function PreauthStatus({ ctx }) {
             </div>
             <div className="cv-card-body">
               <div className="cv-kv"><span>Sent</span><span>{data?.submitted_at ? formatDateTime(data.submitted_at) : "—"}</span></div>
-              <div className="cv-kv"><span>Waiting for</span><span>{minutes(p.elapsedMs)} min</span></div>
+              <div className="cv-kv"><span>Waiting for</span><span>{formatDuration(minutes(p.elapsedMs))}</span></div>
               <div className="cv-kv"><span>Last checked</span><span>{p.lastCheckedAt ? formatDateTime(new Date(p.lastCheckedAt)) : "—"}</span></div>
               {showSoftWarning && (
                 <div className="cv-notice is-info cv-sub-note-top">
