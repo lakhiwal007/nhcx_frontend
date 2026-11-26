@@ -4,7 +4,7 @@ import { asRecord } from "../case/step/useCasePane";
 const GROUPS = [
   ["you", "Needs you"],
   ["plan", "Plan"],
-  ["payer", "Payer's answers"],
+  ["payer", "Payer checks"],
 ];
 
 const ATTENTION = new Set(["warn", "bad"]);
@@ -48,25 +48,25 @@ function checkStateRow(check, row, waitingOn) {
 }
 
 function validationRow(checks) {
-  const row = { id: "validation", group: "payer", name: "Validation" };
+  const row = { id: "validation", group: "payer", name: "Policy check" };
   const open = checkStateRow(checks?.validation, row, checks?.waitingOn);
   if (open) return open;
-  if (checks.inforce === false) return { ...row, tone: "refused", fact: "Not in force", blocks: true };
-  return checks.inforce ? { ...row, tone: "ok", fact: "In force" } : { ...row, tone: "idle", fact: "Answered" };
+  if (checks.inforce === false) return { ...row, tone: "refused", fact: "Policy not active", blocks: true };
+  return checks.inforce ? { ...row, tone: "ok", fact: "Policy active" } : { ...row, tone: "idle", fact: "Answered" };
 }
 
 function benefitsRow(checks) {
-  const row = { id: "benefits", group: "payer", name: "Benefits" };
+  const row = { id: "benefits", group: "payer", name: "What is covered" };
   const count = checks?.benefits.items.length || 0;
-  return checkStateRow(checks?.benefits, row, checks?.waitingOn) || { ...row, tone: "ok", fact: count ? `${count} items` : "No item limits" };
+  return checkStateRow(checks?.benefits, row, checks?.waitingOn) || { ...row, tone: "ok", fact: count ? `${count} ${count === 1 ? "item" : "items"}` : "No limits given" };
 }
 
 function authRow(checks, requirements) {
-  const row = { id: "auth", group: "payer", name: "What must be approved first" };
+  const row = { id: "auth", group: "payer", name: "What the payer needs" };
   const open = checkStateRow(checks?.auth, row, checks?.waitingOn);
   if (open) return open;
-  if (requirements.length) return { ...row, tone: "warn", fact: `${requirements.length} ${requirements.length === 1 ? "ask" : "asks"}` };
-  return { ...row, tone: "ok", fact: checks.auth.required === false ? "No pre-auth" : "Nothing asked" };
+  if (requirements.length) return { ...row, tone: "warn", fact: `${requirements.length} ${requirements.length === 1 ? "item" : "items"}` };
+  return { ...row, tone: "ok", fact: checks.auth.required === false ? "Pre-auth not needed" : "Nothing needed" };
 }
 
 function planRow(plan, state) {

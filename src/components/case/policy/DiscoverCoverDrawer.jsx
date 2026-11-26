@@ -41,7 +41,7 @@ const fieldError = (key, value) => {
 };
 
 function refusalFor(payer, form) {
-  if (!payer) return "Choose the insurer to ask.";
+  if (!payer) return "Choose the payer to ask.";
   if (!form.policy_number.trim() && !form.member_id.trim()) return "Enter the policy number or member ID.";
   for (const key of Object.keys(DIGIT_RULES)) {
     const message = fieldError(key, form[key]);
@@ -249,7 +249,7 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
       setPaused(false);
       return res;
     },
-    { success: "Asked the insurer. The answer usually takes under a minute." },
+    { success: "Asked the payer. The answer takes about a minute." },
   );
 
   const ask = () => {
@@ -306,7 +306,7 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
       <Drawer
         open={open}
         onClose={onClose}
-        title="Ask an insurer"
+        title="Ask a payer"
         subtitle={`Whether it covers ${patient?.name || "this patient"}`}
         width={760}
         footer={
@@ -317,7 +317,7 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
             {!locked && (
               <button type="button" className="cv-btn is-primary" disabled={discover.busy || !childId} onClick={ask}>
                 <Radar size={14} aria-hidden="true" />
-                {discover.busy ? "Asking…" : "Ask the insurer"}
+                {discover.busy ? "Asking…" : "Ask the payer"}
               </button>
             )}
           </>
@@ -386,7 +386,7 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
                             ))}
                           </div>
                         ) : (
-                          <div className="cd-payer-note">No insurer matches that name. Try a shorter part of it.</div>
+                          <div className="cd-payer-note">No payer has that name. Try fewer letters.</div>
                         )}
                       </div>
                     )}
@@ -432,13 +432,13 @@ export default function DiscoverCoverDrawer({ open, onClose, ctx, locked = false
             {active.status === "failed" ? (
               <NextStep
                 tone="bad"
-                title="The insurer could not answer"
+                title="The payer could not answer"
                 steps={[
                   "Check the numbers on the card and try again.",
                   "Still failing? Try later or call the payer.",
                 ]}
               >
-                {active.error || "The insurer refused the request."}
+                {active.error || "The payer refused the request."}
               </NextStep>
             ) : (active.covers || []).length === 0 ? (
               <NextStep tone="warn" title="No cover found for these details">

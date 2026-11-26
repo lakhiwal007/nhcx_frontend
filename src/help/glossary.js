@@ -1,12 +1,12 @@
 export const GLOSSARY = {
   cashless: {
     term: "Cashless case",
-    short: "The insurer pays the hospital directly, so the patient doesn't pay the covered amount at discharge.",
+    short: "The payer pays the hospital directly, so the patient doesn't pay the covered amount at discharge.",
     more: "Each admission paid by insurance is one cashless case. It moves through policy, eligibility, preauth, approval, claim and payment.",
   },
   policy: {
     term: "Policy",
-    short: "The patient's health insurance plan. It names the insurer (payer) who pays the bill.",
+    short: "The patient's health insurance plan. It names the payer who pays the bill.",
     more: "The policy number is printed on the insurance card or e-card.",
   },
   payer: {
@@ -15,7 +15,7 @@ export const GLOSSARY = {
   },
   tpa: {
     term: "TPA",
-    short: "A Third Party Administrator handles claims for an insurer. Its name is usually on the patient's insurance card.",
+    short: "A Third Party Administrator handles claims for a payer. Its name is usually on the patient's insurance card.",
   },
   member_id: {
     term: "Member ID",
@@ -33,7 +33,7 @@ export const GLOSSARY = {
   },
   mobile: {
     term: "Mobile number",
-    short: "The patient's 10-digit mobile number, as registered with the insurer.",
+    short: "The patient's 10-digit mobile number, as registered with the payer.",
   },
   aadhaar: {
     term: "Aadhaar number",
@@ -49,7 +49,7 @@ export const GLOSSARY = {
   },
   discovery: {
     term: "Discover with a payer",
-    short: "Ask one insurer directly whether it covers this patient, when the normal lookup finds nothing.",
+    short: "Ask one payer directly whether it covers this patient, when the normal lookup finds nothing.",
     more: "Use it when the patient has an insurance card but the policy isn't linked to their ABHA or mobile. You need the policy number or the member ID from the card.",
   },
   insurance_plan: {
@@ -72,7 +72,7 @@ export const GLOSSARY = {
   },
   query: {
     term: "Query",
-    short: "The payer needs more information or documents before deciding. Answer it from the case's messages; the decision waits until you do.",
+    short: "The payer needs more information or documents before deciding. Answer it from the case's messages. The decision waits until you do.",
   },
   enhancement: {
     term: "Enhancement",
@@ -116,7 +116,7 @@ export const GLOSSARY = {
   },
   waiting: {
     term: "Waiting for the payer",
-    short: "The request reached the payer and it is deciding. Answers usually arrive within minutes to a few hours; you can leave this page.",
+    short: "The request reached the payer and it is deciding. Answers take minutes to a few hours. You can leave this page.",
   },
   tasks: {
     term: "Work queue",

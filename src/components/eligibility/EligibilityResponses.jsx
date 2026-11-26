@@ -7,7 +7,7 @@ const STAGE = { pre: ["Pre-auth", "is-info"], post: ["Claim", "is-todo"] };
 const money = (v) => (v == null ? "—" : formatMoney(Number(v)));
 
 function waiting(check) {
-  if (check.state === "pending") return "Waiting for the payer's answer to this check.";
+  if (check.state === "pending") return "Waiting for the payer.";
   if (check.state === "unavailable") return "No answer in time. You can still go on.";
   return null;
 }
@@ -24,12 +24,12 @@ function ValidationPanel({ check, checks, discovery }) {
       <div className="cv-card-body cv-cols">
         <div>
           <div className="cv-kv"><span>Outcome</span><span>{outcome || "—"}</span></div>
-          <div className="cv-kv"><span>In force</span><span>{checks.inforce == null ? "—" : checks.inforce ? "Yes" : "No"}</span></div>
+          <div className="cv-kv"><span>Policy active</span><span>{checks.inforce == null ? "—" : checks.inforce ? "Yes" : "No"}</span></div>
           <div className="cv-kv"><span>Benefit period</span><span>{period(cov.benefit_period?.start, cov.benefit_period?.end) || "—"}</span></div>
-          <div className="cv-kv"><span>Plan on the card</span><span>{cd.plan_name || cd.plan || "—"}</span></div>
-          <div className="cv-kv"><span>Member checked</span><span className="cv-mono">{cd.member_id || "—"}</span></div>
+          <div className="cv-kv"><span>Plan name</span><span>{cd.plan_name || cd.plan || "—"}</span></div>
+          <div className="cv-kv"><span>Member ID</span><span className="cv-mono">{cd.member_id || "—"}</span></div>
           <div className="cv-kv"><span>Coverage status</span><span>{cd.status ? humanize(cd.status) : "—"}</span></div>
-          {discovery && <div className="cv-kv"><span>Policy source</span><span>Found by discovery</span></div>}
+          {discovery && <div className="cv-kv"><span>Policy source</span><span>Found by search</span></div>}
         </div>
         <div>
           <div className="cv-kv"><span>Sum insured</span><span>{money(w.sum_insured ?? cd.sum_insured)}</span></div>
@@ -55,7 +55,7 @@ function ValidationPanel({ check, checks, discovery }) {
 
 function BenefitsPanel({ check, authItems = [] }) {
   if (check.state === "error") return null;
-  if (!check.items.length) return <div className="cv-card-body cv-card-meta">The payer returned no item limits for this policy.</div>;
+  if (!check.items.length) return <div className="cv-card-body cv-card-meta">The payer gave no limits for this policy.</div>;
   return (
     <div className="cv-tw cv-in-card">
       <table>
@@ -67,7 +67,7 @@ function BenefitsPanel({ check, authItems = [] }) {
             <th className="is-num">Used</th>
             <th className="is-num">Left</th>
             <th>Pre-auth</th>
-            <th>Send with it</th>
+            <th>Attach with it</th>
           </tr>
         </thead>
         <tbody>
@@ -108,18 +108,18 @@ function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
   return (
     <>
       <div className="cv-card-intro">
-        The payer's own ruling for this case{check.required != null ? (check.required ? ": pre-authorisation is required" : ": no pre-authorisation needed") : ""}. Where it speaks, it replaces the plan's lists.
+        {check.required == null ? "" : check.required ? "Pre-auth is needed for this case. " : "Pre-auth is not needed for this case. "}Use this list, not the plan's list.
       </div>
       {requirements.length === 0 ? (
-        <div className="cv-card-body cv-card-meta">The payer asked for no documents or forms.</div>
+        <div className="cv-card-body cv-card-meta">The payer needs no documents or forms.</div>
       ) : (
         <div className="cv-tw cv-in-card">
           <table>
             <thead>
               <tr>
-                <th>Asked for</th>
+                <th>Needed</th>
                 <th>Type</th>
-                <th>For</th>
+                <th>Applies to</th>
                 <th>When</th>
               </tr>
             </thead>
@@ -140,7 +140,7 @@ function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
                       {r.code && name !== r.code && <span className="cv-mono cv-card-meta cv-chip-after">{r.code}</span>}
                     </td>
                     <td>{r.kind ? humanize(r.kind) : "—"}</td>
-                    <td>{r.for_code ? <span className="cv-mono">{r.for_code}</span> : "Every case"}</td>
+                    <td>{r.for_code ? <span className="cv-mono">{r.for_code}</span> : "All treatments"}</td>
                     <td>
                       <span className={`cv-chip ${tone}`}>{label}</span>
                     </td>
@@ -155,7 +155,7 @@ function AuthPanel({ check, requirements, formTitle, onOpenForm }) {
   );
 }
 
-const TITLES = { validation: "Validation", benefits: "Benefits", auth: "What must be approved first" };
+const TITLES = { validation: "Policy check", benefits: "What is covered", auth: "What the payer needs" };
 
 export default function PayerAnswer({ id, checks, requirements, discovery, formTitle, onOpenForm }) {
   const check = checks?.[id];

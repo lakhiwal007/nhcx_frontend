@@ -94,7 +94,7 @@ export function usePreauthDraft(ctx, { submit, locked = false, biometric = null,
       .then((res) => setState((prev) => (prev.draft ? { ...prev, draft: { ...prev.draft, payer_asks: res.payer_asks } } : prev)))
       .catch((err) => {
         markHandled(err);
-        setAsksError(err?.message || "The payer's asks could not be reloaded.");
+        setAsksError(err?.message || "The payer's list did not load. Try again.");
       });
   };
 

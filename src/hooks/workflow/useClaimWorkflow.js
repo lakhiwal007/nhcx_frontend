@@ -81,7 +81,7 @@ export function useClaimWorkflow(ctx, { navState = {}, biometric = null, locked 
       .then((res) => setState((prev) => (prev.draft ? { ...prev, draft: { ...prev.draft, payer_asks: res.payer_asks, items: res.items, total_amount: res.total_amount } } : prev)))
       .catch((err) => {
         markHandled(err);
-        setAsksError(err?.message || "The payer's asks could not be reloaded.");
+        setAsksError(err?.message || "The payer's list did not load. Try again.");
       });
   };
 

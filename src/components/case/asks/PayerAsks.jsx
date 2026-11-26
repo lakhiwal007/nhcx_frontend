@@ -96,7 +96,7 @@ export default function PayerAsks({ caseId, stage, asks, documents, readOnly, on
       </details>
       {error && <div className="cv-card-body"><div className="cv-notice is-bad"><div className="cv-notice-body">{error}</div></div></div>}
       {forms.error && <div className="cv-card-body"><div className="cv-notice is-warn"><div className="cv-notice-body">{forms.error} Reload the page to try again.</div></div></div>}
-      {rows.length === 0 && <div className="cv-card-body cv-card-meta">The payer asks for nothing extra at this stage.</div>}
+      {rows.length === 0 && <div className="cv-card-body cv-card-meta">The payer needs nothing extra now.</div>}
       {GROUPS.map((group) => {
         const members = rows.filter((row) => rank(row) === group.rank);
         if (!members.length) return null;

@@ -192,8 +192,8 @@ export default function PayerPolicy({ ctx }) {
     if (!isUsable(policy)) {
       setRowNotice(
         isExpired(policy)
-          ? `${policy.product_name || policy.policy_number} has ended, so the payer will not cover this admission. Pick another one, or ask the insurer.`
-          : `${policy.product_name || policy.policy_number} is not active with the payer. Pick another one, or ask the insurer.`,
+          ? `${policy.product_name || policy.policy_number} has ended. Choose another policy.`
+          : `${policy.product_name || policy.policy_number} is not active. Choose another policy.`,
       );
       return;
     }
@@ -236,7 +236,7 @@ export default function PayerPolicy({ ctx }) {
     {
       id: "discover",
       group: "more",
-      name: "Ask the insurer",
+      name: "Ask the payer",
       ...(latestDiscovery
         ? {
             tone: DISCOVERY_TONE[latestDiscovery.status] || "idle",
@@ -255,7 +255,7 @@ export default function PayerPolicy({ ctx }) {
   const openDiscover = (activeId = null) => setDiscover((d) => ({ ...d, open: true, activeId, memberId: identifierType === "MemberId" ? memberId.trim() : d.memberId }));
   const closeDiscover = () => setDiscover((d) => ({ ...d, open: false }));
 
-  const askButton = (label = "Ask the insurer") =>
+  const askButton = (label = "Ask the payer") =>
     !locked && (
       <button type="button" className="cv-btn" onClick={() => openDiscover()}>
         <Radar size={14} aria-hidden="true" /> {label}
@@ -315,7 +315,7 @@ export default function PayerPolicy({ ctx }) {
                   Search by
                   <InfoTip
                     title="Search by"
-                    text="Auto tries the ABHA number first, then the mobile number. Choose Member ID to type the number printed on the insurance card; the payer finds the policy fastest that way."
+                    text="Auto tries ABHA, then mobile. Member ID (on the card) is fastest."
                   />
                 </span>
                 <div className="pp-searchby-select">
@@ -391,7 +391,7 @@ export default function PayerPolicy({ ctx }) {
                 tone="bad"
                 className="pp-next"
                 title="Couldn't reach the insurance registry"
-                steps={["Search again.", "If it keeps failing, ask the insurer directly."]}
+                steps={["Search again.", "If it keeps failing, ask the payer."]}
                 actions={
                   <>
                     <button type="button" className="cv-btn" onClick={() => search()}>
@@ -595,12 +595,12 @@ export default function PayerPolicy({ ctx }) {
         <Pane id="discover">
           <section className="cv-card">
             <div className="cv-card-head">
-              <h2 className="cv-card-title">Ask the insurer</h2>
+              <h2 className="cv-card-title">Ask the payer</h2>
               <InfoTip term="discovery" />
               {!locked && (
                 <span className="cv-card-tools">
                   <button type="button" className="cv-btn" onClick={() => openDiscover()}>
-                    <Radar size={14} aria-hidden="true" /> Ask the insurer
+                    <Radar size={14} aria-hidden="true" /> Ask the payer
                   </button>
                 </span>
               )}

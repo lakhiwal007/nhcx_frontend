@@ -136,7 +136,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
       : actionable && !replied
         ? { tone: "warn", title: "The payer needs documents", text: "Send what it lists below. The case waits until you do." }
         : canReply
-          ? { tone: "warn", title: "The payer is waiting for your reply", text: "Read the message, then reply below with what it asks for." }
+          ? { tone: "warn", title: "The payer is waiting for your reply", text: "Read the message, then reply below." }
           : answered
             ? { tone: "ok", title: "Answered", text: "Reply sent." }
             : detail.kind === "notification"
@@ -255,7 +255,7 @@ export default function CommunicationDetailDrawer({ correlationId, open, onClose
 
             {requiredDocs.length > 0 && (
               <section className="cm-section">
-                <h4 className="cv-sub">Documents the payer asks for</h4>
+                <h4 className="cv-sub">Documents the payer wants</h4>
                 <ul className="cm-docs">
                   {requiredDocs.map((doc, i) => (
                     <li key={i}>
