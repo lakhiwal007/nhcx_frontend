@@ -4,7 +4,7 @@ import { formatDate, formatTime } from "../../../lib/format";
 
 const METHOD_WORD = { FACE_AUTH: "face", FINGERPRINT: "fingerprint", IRIS: "iris" };
 
-export default function SessionsPane({ cycle, docs, documents, readOnly }) {
+export default function SessionsPane({ cycle, docs, documents, readOnly, reportsRequired }) {
   const free = docs.filter((d) => d.kind === "health_record" && !d.session && !d.url);
   const options = free.map((d) => ({ value: d.record_id, label: d.event_date ? `${d.name}, visit on ${d.event_date}` : d.name }));
 
@@ -14,7 +14,7 @@ export default function SessionsPane({ cycle, docs, documents, readOnly }) {
   };
   const attachFile = (number, slot, uploaded) => {
     release(number);
-    documents.attachAsk({ code: slot.code, display: slot.name }, { ...uploaded, session: number, optional: true, custom: true });
+    documents.attachAsk({ code: slot.code, display: slot.name }, { ...uploaded, session: number, optional: !reportsRequired, custom: true });
   };
   const attachRecord = (number, recordId) => {
     release(number);
@@ -41,7 +41,7 @@ export default function SessionsPane({ cycle, docs, documents, readOnly }) {
         {cycle.sessions.map((session) => {
           const tied = docs.filter((d) => d.session === session.number);
           const report = tied.find((d) => d.url);
-          const slot = { code: `SESSION-${session.number}`, name: `Session ${session.number} report`, optional: true, custom: true };
+          const slot = { code: `SESSION-${session.number}`, name: `Session ${session.number} report`, optional: !reportsRequired, custom: true };
           const rows = report ? [report] : [...tied, slot];
           return (
             <div key={session.number} className="cyc-session">
@@ -68,7 +68,7 @@ export default function SessionsPane({ cycle, docs, documents, readOnly }) {
             </div>
           );
         })}
-        {cycle.sessions.length > 0 && <div className="cv-card-meta cv-sub-note-top">Report optional.</div>}
+        {cycle.sessions.length > 0 && <div className="cv-card-meta cv-sub-note-top">{reportsRequired ? "Each session needs its report." : "Report optional now, needed for the final claim."}</div>}
       </div>
     </section>
   );

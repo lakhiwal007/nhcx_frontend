@@ -394,7 +394,7 @@ export default function ClaimsScreen({ ctx }) {
       >
         <Pane id={cycle ? "sessions" : "verify"}>
           <div className="cv-pane-stack">
-            {cycle && <SessionsPane cycle={cycle} docs={c.docs} documents={c.documents} readOnly={c.docsLocked} />}
+            {cycle && <SessionsPane cycle={cycle} docs={c.docs} documents={c.documents} readOnly={c.docsLocked} reportsRequired={!c.dischargeNext} />}
             <BiometricCard
               caseId={c.caseId}
               stage="Discharge"
