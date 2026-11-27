@@ -19,7 +19,7 @@ export default function AdjudicationTable({ items = [], totals, names = {}, requ
   const extras = [
     ["Tax", totals?.tax?.value],
     ["Incentive", totals?.incentive?.value],
-    ["Patient share", totals?.patient_liable?.value],
+    ["Patient pays", totals?.patient_liable?.value],
   ].filter(([, value]) => Number(value) > 0);
   return (
     <div className="cv-tw">

@@ -911,7 +911,7 @@ const mockClaimStatus = (res) => {
       ...res,
       decision: "PARTIALLY_APPROVED",
       approved_amount: 30000,
-      totals: { submitted: { value: 40000 }, eligible: { value: 32000 }, copay: { value: 2000 }, benefit: { value: 30000 } },
+      totals: { submitted: { value: 40000 }, eligible: { value: 32000 }, copay: { value: 2000 }, benefit: { value: 30000 }, tax: { value: 540 }, incentive: { value: 1500 }, patient_liable: { value: 2000 } },
       items: [
         {
           sequence: 1,
@@ -2667,6 +2667,8 @@ const mock = {
         eligible: { value: 45000, currency: "INR" },
         benefit: { value: 40000, currency: "INR" },
         copay: { value: 5000, currency: "INR" },
+        tax: { value: 720, currency: "INR" },
+        patient_liable: { value: 5000, currency: "INR" },
       },
       errors: [],
       process_notes: [
