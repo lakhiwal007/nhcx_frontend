@@ -14,8 +14,26 @@ const LM100_STAGES = ["Before Surgery", "During Surgery"];
 
 const toLocalInput = (iso) => (iso ? String(iso).slice(0, 16) : "");
 const fromLocalInput = (value) => (value ? `${value}:00+05:30` : null);
+const instant = (value) => {
+  if (!value) return null;
+  const text = String(value);
+  const ms = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T00:00:00+05:30` : /[zZ]|[+-]\d{2}:?\d{2}$/.test(text) ? text : `${text}+05:30`);
+  return Number.isNaN(ms) ? null : ms;
+};
 
-export default function DischargeDetailsPane({ claimId, discharge, rules, locked, onSaved }) {
+function timeProblem(values, admittedAt) {
+  const admitted = instant(admittedAt);
+  const left = instant(values.discharged_at);
+  const surgery = instant(values.surgery_at);
+  const death = values.type === "DTM" ? instant(values.death_at) : null;
+  if (admitted && left && left < admitted) return "Discharge is before admission. Correct the time.";
+  if (admitted && surgery && surgery < admitted) return "Surgery is before admission. Correct the time.";
+  if (left && surgery && surgery > left) return "Surgery is after discharge. Correct the time.";
+  if (admitted && death && death < admitted) return "Death is before admission. Correct the time.";
+  return null;
+}
+
+export default function DischargeDetailsPane({ claimId, discharge, rules, locked, onSaved, admittedAt }) {
   const initial = {
     type: discharge?.type || "",
     stage: discharge?.stage || "",
@@ -29,6 +47,7 @@ export default function DischargeDetailsPane({ claimId, discharge, rules, locked
   const lm100 = ["LAMA", "DAMA"].includes(values.type) && (rules?.lm100_stages || LM100_STAGES).includes(values.stage);
   const rates = rules?.lm100_rates || [];
   const changed = Object.keys(initial).some((k) => (values[k] || "") !== (initial[k] || ""));
+  const problem = timeProblem(values, admittedAt);
 
   const save = useSend(
     async () => {
@@ -116,6 +135,13 @@ export default function DischargeDetailsPane({ claimId, discharge, rules, locked
           </label>
         )}
       </fieldset>
+      {problem && (
+        <div className="cv-card-body">
+          <div className="cv-notice is-bad" role="alert">
+            <div className="cv-notice-body">{problem}</div>
+          </div>
+        </div>
+      )}
       {lm100 && (
         <div className="cv-card-body">
           <div className="cv-notice is-warn">
@@ -129,7 +155,7 @@ export default function DischargeDetailsPane({ claimId, discharge, rules, locked
       )}
       {!locked && (
         <div className="cv-card-body cv-pane-action">
-          <button type="button" className="cv-btn" disabled={save.busy} onClick={save.run}>
+          <button type="button" className="cv-btn" disabled={save.busy || !!problem} onClick={save.run}>
             {save.busy ? "Saving…" : "Save discharge details"}
           </button>
         </div>

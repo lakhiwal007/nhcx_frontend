@@ -431,6 +431,7 @@ export default function ClaimsScreen({ ctx }) {
               claimId={draft?.claim_id || c.claimId}
               discharge={draft?.discharge}
               rules={c.dischargeRules}
+              admittedAt={draft?.admission_date}
               locked={c.docsLocked}
               onSaved={(remaining) => {
                 pane.setPicked("left");
