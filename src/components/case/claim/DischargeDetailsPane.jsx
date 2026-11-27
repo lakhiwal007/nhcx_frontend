@@ -26,10 +26,10 @@ function timeProblem(values, admittedAt) {
   const left = instant(values.discharged_at);
   const surgery = instant(values.surgery_at);
   const death = values.type === "DTM" ? instant(values.death_at) : null;
-  if (admitted && left && left < admitted) return "Discharge is before admission. Correct the time.";
-  if (admitted && surgery && surgery < admitted) return "Surgery is before admission. Correct the time.";
-  if (left && surgery && surgery > left) return "Surgery is after discharge. Correct the time.";
-  if (admitted && death && death < admitted) return "Death is before admission. Correct the time.";
+  if (admitted && left && left < admitted) return "Discharge is before admission. Correct the dates.";
+  if (admitted && surgery && surgery < admitted) return "Surgery is before admission. Correct the dates.";
+  if (left && surgery && surgery > left) return "Surgery is after discharge. Correct the dates.";
+  if (admitted && death && death < admitted) return "Death is before admission. Correct the dates.";
   return null;
 }
 
