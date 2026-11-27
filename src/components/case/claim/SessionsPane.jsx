@@ -68,7 +68,7 @@ export default function SessionsPane({ cycle, docs, documents, readOnly, reports
             </div>
           );
         })}
-        {cycle.sessions.length > 0 && <div className="cv-card-meta cv-sub-note-top">{reportsRequired ? "Each session needs its report." : "Report optional now, needed for the final claim."}</div>}
+        {cycle.sessions.length > 0 && <div className="cv-card-meta cv-sub-note-top">{reportsRequired ? "Attach a report for each session." : "Attach reports now or before the final claim."}</div>}
       </div>
     </section>
   );
