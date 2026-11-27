@@ -1005,8 +1005,8 @@ const mockCeState = (status) => {
 // ?pa=ready|warn|missing|thin|blocked|empty|not_in_force|load_error on /case/:id/review forces a
 // pre-auth draft state.
 const MOCK_HEALTH_RECORDS = [
-  { kind: "health_record", record_id: 1530519, appointment_id: 88121, name: "OP consultation record", source_name: "Prescription", event_date: "2026-05-02", category: "CD", code: "ODN", content_type: "application/fhir+json" },
-  { kind: "health_record", record_id: 1530344, appointment_id: 87990, name: "OP consultation record", source_name: "Prescription", event_date: "2026-04-18", category: "CD", code: "ODN", content_type: "application/fhir+json" },
+  { kind: "health_record", record_id: 1530519, appointment_id: 88121, name: "OP consultation record", source_name: "Prescription", event_date: "2026-05-02", category: "INF", code: "ODN", content_type: "application/fhir+json" },
+  { kind: "health_record", record_id: 1530344, appointment_id: 87990, name: "OP consultation record", source_name: "Prescription", event_date: "2026-04-18", category: "INF", code: "ODN", content_type: "application/fhir+json" },
 ];
 
 const mockHealthRecord = async (recordId) => {
