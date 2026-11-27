@@ -26,7 +26,8 @@ export function lookup(code) {
 
 // Shows `name` when the row already has one; otherwise the looked-up name,
 // with the code as a tooltip. Falls back to the code (or `fallback`).
-export default function PayerName({ id, name, fallback = "—" }) {
+export default function PayerName({ id, name: given, fallback = "—" }) {
+  const name = given && given !== id ? given : null;
   const [resolved, setResolved] = useState(() => name || (id && names.get(id)) || null);
 
   useEffect(() => {
