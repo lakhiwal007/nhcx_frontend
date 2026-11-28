@@ -43,6 +43,7 @@ export default function DischargeResubmitDrawer({ open, onClose, queried, notes,
           <button
             type="button"
             className="cv-btn is-primary"
+            aria-busy={send.busy}
             disabled={!canSend}
             onClick={() =>
               send.run({ items: edited || undefined, answer }).then((res) => {

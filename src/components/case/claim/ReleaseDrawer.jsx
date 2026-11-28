@@ -25,6 +25,7 @@ export default function ReleaseDrawer({ open, onClose, owed, initialAmount, rele
           <button
             type="button"
             className="cv-btn is-primary"
+            aria-busy={release.busy}
             disabled={release.busy || !valid}
             onClick={() =>
               release.run({ amount, note }).then((res) => {

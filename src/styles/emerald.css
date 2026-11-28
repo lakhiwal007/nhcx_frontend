@@ -72,7 +72,7 @@
 .cv-chain-history { flex: none; height: 28px; }
 .cv-facts-more { position: relative; flex: none; display: none; }
 .cv-facts-more > .cv-btn { height: 38px; border-radius: 10px; }
-.cv-facts-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 10px 0; width: max-content; max-width: min(520px, 90vw); padding: 12px 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: var(--shadow); }
+.cv-facts-pop { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 0; padding: 4px 0 8px; }
 .cv-facts-pop .cv-fact { max-width: none; border-left: 0; }
 @media (max-width: 1680px) {
   .cv-fact.is-extra { display: none; }

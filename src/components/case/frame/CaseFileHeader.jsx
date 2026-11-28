@@ -1,12 +1,34 @@
 import { useEffect, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
+import { Modal } from "../../ui/Overlay";
 import BackButton from "../../ui/BackButton";
 import PayerName from "../../ui/PayerName";
 import CopyButton from "../../ui/CopyButton";
 import { InfoTip } from "../../ui/Common";
 import { formatAge, formatDateTime, formatMoney, humanize, formatCaseRef, photoSrc } from "../../../lib/format.js";
 
-function Fact({ label, term, value, note, copy, fit, extra, due, money }) {
+function CountUp({ value, text }) {
+  const [shown, setShown] = useState(() => (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? value : 0));
+  const from = useRef(shown);
+  useEffect(() => {
+    const start = from.current;
+    if (start === value) return undefined;
+    const t0 = performance.now();
+    let raf = 0;
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / 600);
+      const v = start + (value - start) * (1 - Math.pow(1 - p, 3));
+      from.current = v;
+      setShown(p < 1 ? v : value);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return shown === value ? text : formatMoney(Math.round(shown));
+}
+
+function Fact({ label, term, value, count, note, copy, fit, extra, due, money }) {
   const title = [label, value, note].filter(Boolean).join(" · ");
   return (
     <div className={`cv-fact${fit ? " is-fit" : ""}${extra ? " is-extra" : ""}${due ? " is-due" : ""}${money ? " is-money" : ""}`} title={title}>
@@ -15,7 +37,7 @@ function Fact({ label, term, value, note, copy, fit, extra, due, money }) {
         {term && <InfoTip term={term} />}
       </span>
       <span className="cv-fact-val">
-        <span className={`cv-fact-text${copy ? " is-code" : ""}`}>{value}</span>
+        <span className={`cv-fact-text${copy ? " is-code" : ""}`}>{count != null ? <CountUp value={count} text={value} /> : value}</span>
         {copy && <CopyButton value={String(value)} label={`Copy ${label}`} iconOnly className="cv-idcell-copy" />}
       </span>
       {note && <span className="cv-fact-note">{note}</span>}
@@ -44,32 +66,19 @@ const when = (value) => (value ? formatDateTime(value) : null);
 
 function MoreDetails({ children }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
   return (
-    <div className="cv-facts-more" ref={ref}>
-      <button type="button" className="cv-btn" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
+    <div className="cv-facts-more">
+      <button type="button" className="cv-btn" aria-haspopup="dialog" onClick={() => setOpen(true)}>
         Details
       </button>
-      {open && (
-        <div className="cv-facts-pop" role="dialog" aria-label="Case details">
-          {children}
+      <Modal open={open} onClose={() => setOpen(false)} title="Case details" width={560}>
+        <div className="cv-facts-pop">{children}</div>
+        <div className="confirm-actions">
+          <button type="button" className="cv-btn" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
@@ -90,9 +99,9 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
     caseState.claim_id && { label: "Claim", term: "claim", value: caseState.claim_id, copy: true, fit: true, extra: true },
     stay.discharged_at && { label: "Discharge", value: when(stay.discharged_at), note: stay.discharge_how, extra: true },
     policyNumber && { label: "Policy", term: "policy_number", value: policyNumber, copy: true, fit: true },
-    money.requested && { label: money.requested.label, value: amount(money.requested.value), extra: true, money: true },
-    money.approved && { label: money.approved.label, value: amount(money.approved.value), money: true },
-    money.payable != null && { label: "Patient pays", value: amount(money.payable), note: money.estimate ? "estimate" : null, due: money.payable > 0, money: true },
+    money.requested && { label: money.requested.label, value: amount(money.requested.value), count: Number(money.requested.value), extra: true, money: true },
+    money.approved && { label: money.approved.label, value: amount(money.approved.value), count: Number(money.approved.value), money: true },
+    money.payable != null && { label: "Patient pays", value: amount(money.payable), count: Number(money.payable), note: money.estimate ? "estimate" : null, due: money.payable > 0, money: true },
   ].filter(Boolean);
 
   return (
@@ -121,7 +130,7 @@ export default function CaseFileHeader({ patient, caseState, effectiveCase, prea
         {facts.some((f) => f.extra) && (
           <MoreDetails>
             {facts.map((f) => (
-              <Fact key={f.label} {...f} extra={false} />
+              <Fact key={f.label} {...f} count={null} extra={false} />
             ))}
           </MoreDetails>
         )}

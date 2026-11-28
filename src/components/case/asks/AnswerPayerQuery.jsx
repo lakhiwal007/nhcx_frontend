@@ -62,7 +62,7 @@ export default function AnswerPayerQuery({
           <button type="button" className="cv-btn" onClick={close} disabled={busy}>
             Cancel
           </button>
-          <button type="button" className="cv-btn is-primary" onClick={run} disabled={busy || !answer.trim()}>
+          <button type="button" className="cv-btn is-primary" onClick={run} aria-busy={busy} disabled={busy || !answer.trim()}>
             {busy ? "Sending…" : sendLabel}
           </button>
         </div>

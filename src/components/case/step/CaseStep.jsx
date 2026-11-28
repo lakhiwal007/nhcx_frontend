@@ -1,4 +1,4 @@
-import { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useRef, useState } from "react";
+import { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { AlertTriangle, Check, Clock, Minus, MoreHorizontal, XCircle } from "lucide-react";
 import { useReadOnly, READ_ONLY_TITLE } from "../../../lib/readOnly";
@@ -271,6 +271,15 @@ export default function CaseStep({
   const activeTab = onTodo ? "todo" : mode === null && !paneIds.includes(open) ? firstTab : openTab;
   const tabRows = allRows.filter((r) => r.tab === activeTab);
   const tabShown = activeTab === "todo" ? null : tabRows.some((r) => r.id === shown) ? shown : tabRows.find((r) => paneIds.includes(r.id))?.id ?? null;
+  const tabsRef = useRef(null);
+  useLayoutEffect(() => {
+    const bar = tabsRef.current;
+    const tab = bar?.querySelector('.cv-tab[aria-selected="true"]');
+    if (!bar || !tab) return;
+    bar.style.setProperty("--slide-x", `${tab.offsetLeft + 8}px`);
+    bar.style.setProperty("--slide-w", `${tab.offsetWidth - 16}px`);
+    bar.classList.add("is-measured");
+  });
   const openRow = (id) => {
     setMode("group");
     onOpen(id);
@@ -299,7 +308,7 @@ export default function CaseStep({
       ) : tabs && checklist.length > 0 ? (
         <div className="cv-tabwork">
           <div className="cv-tabbed">
-            <div className="cv-tabsbar" role="tablist" aria-label={checklistLabel}>
+            <div className="cv-tabsbar has-slider" role="tablist" aria-label={checklistLabel} ref={tabsRef}>
               {hasTodoTab && (
                 <button type="button" role="tab" className="cv-tab" aria-selected={activeTab === "todo"} onClick={() => setMode("todo")}>
                   To do {todo.length > 0 && <span className="cv-tab-count">{todo.length}</span>}
@@ -311,6 +320,7 @@ export default function CaseStep({
                   {g.rows.some((r) => r.tone === "bad" || r.tone === "warn" || r.tone === "refused") && <span className="cv-tab-dot" aria-label="has open items" />}
                 </button>
               ))}
+              <span className="cv-tab-slider" aria-hidden="true" />
               {todo.length + done.length > 0 && (
                 <span className="cv-tab-ring" title={`${done.length} of ${todo.length + done.length} done`}>
                   <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">

@@ -47,6 +47,7 @@ export default function ResubmitPreauthDrawer({ open, onClose, ctx, preauthRef, 
             <button
               type="button"
               className="cv-btn is-primary"
+              aria-busy={d.send.busy}
               disabled={!canSend}
               title={!canSend && blockers.length ? `First: ${blockers.map((r) => r.name.toLowerCase()).join(", ")}.` : undefined}
               onClick={gate.request}

@@ -159,3 +159,31 @@
   .cv-todo-row,
   .cv-tabwork .cv-work-pane > [data-pane] { animation: none; }
 }
+
+.cv-btn[aria-busy="true"] { position: relative; cursor: progress; }
+.cv-btn[aria-busy="true"]::after { content: ""; width: 4px; height: 4px; margin-left: 8px; border-radius: 50%; background: currentColor; box-shadow: 7px 0 0 currentColor, 14px 0 0 currentColor; margin-right: 14px; animation: cv-busy 0.9s infinite; }
+@keyframes cv-busy { 0%, 100% { opacity: 0.35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+
+.cv-rec-line .cv-chip { animation: cv-chip-pop 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.cv-rec-line .cv-chip.is-info::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; animation: cv-ring 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite; }
+@keyframes cv-chip-pop { 0% { opacity: 0; transform: scale(0.9); } 60% { opacity: 1; transform: scale(1.06); } 100% { transform: none; } }
+@keyframes cv-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); } 100% { box-shadow: 0 0 0 7px transparent; } }
+
+.cv-tabsbar.has-slider { position: relative; }
+.cv-tabsbar.is-measured .cv-tab::after { display: none; }
+.cv-tab-slider { position: absolute; left: 0; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--primary-fill); width: var(--slide-w, 0); transform: translateX(var(--slide-x, 0)); transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); pointer-events: none; }
+.cv-tabsbar:not(.is-measured) .cv-tab-slider { display: none; }
+
+.cv-dropveil > div { animation: cv-drop-lift 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.cv-dropveil svg { animation: cv-drop-bob 1.2s ease-in-out infinite; }
+@keyframes cv-drop-lift { from { opacity: 0; transform: scale(0.94) translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes cv-drop-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+.info-tip-pop { animation: cv-tip-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; transform-origin: top center; }
+.info-tip-pop[style*="bottom"] { transform-origin: bottom center; }
+@keyframes cv-tip-in { from { opacity: 0; transform: translateY(-3px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-btn[aria-busy="true"]::after, .cv-rec-line .cv-chip, .cv-rec-line .cv-chip.is-info::before, .cv-dropveil > div, .cv-dropveil svg, .info-tip-pop { animation: none; }
+  .cv-tab-slider { transition: none; }
+}
