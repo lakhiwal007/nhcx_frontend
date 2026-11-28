@@ -5923,3 +5923,8 @@ tr.en-excluded td {
 .command-facility-btn {
     text-decoration: none;
 }
+
+.wq-table tbody tr.is-fresh > td { animation: wq-fresh 1.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.wq-table tbody tr.is-fresh > td:first-child { box-shadow: inset 3px 0 0 var(--primary-fill); }
+@keyframes wq-fresh { 0% { background-color: color-mix(in srgb, var(--primary-fill) 18%, transparent); } 100% { background-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .wq-table tbody tr.is-fresh > td { animation: none; } }

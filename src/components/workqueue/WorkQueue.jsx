@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api, markHandled } from "../../api";
@@ -187,6 +187,18 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   const maxPage = Math.max(0, Math.ceil(visible.length / PAGE_SIZE) - 1);
   const currentPage = Math.min(page, maxPage);
   const pageRows = visible.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const seen = useRef({ key: null, ids: new Set() });
+  const [fresh, setFresh] = useState(() => new Set());
+  useEffect(() => {
+    const ids = new Set(data.tasks.map(taskKey));
+    const prev = seen.current;
+    const added = prev.key === data.key ? [...ids].filter((id) => !prev.ids.has(id)) : [];
+    seen.current = { key: data.key, ids };
+    if (!added.length) return undefined;
+    setFresh(new Set(added));
+    const t = setTimeout(() => setFresh(new Set()), 2000);
+    return () => clearTimeout(t);
+  }, [data]);
 
   const selectable = statusFilter === "pending";
   const liveKeys = new Set(tasks.map(taskKey));
@@ -402,6 +414,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
                       task={task}
                       selectable={selectable}
                       checked={!!selected[taskKey(task)]}
+                      fresh={fresh.has(taskKey(task))}
                       onToggle={() => toggleOne(task)}
                       onOpen={() => setSelectedTask(task)}
                     />
@@ -442,7 +455,7 @@ export default function WorkQueue({ allFacilitiesMode = false }) {
   );
 }
 
-function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
+function TaskTableRow({ task, selectable, checked, fresh, onToggle, onOpen }) {
   const bucket = priorityBucket(task);
   const age = task.status === "completed" ? null : ageLabel(task.created_at);
   const title = task.title || task.description;
@@ -459,7 +472,7 @@ function TaskTableRow({ task, selectable, checked, onToggle, onOpen }) {
 
   return (
     <tr
-      className={checked ? "is-selected" : undefined}
+      className={[checked && "is-selected", fresh && "is-fresh"].filter(Boolean).join(" ") || undefined}
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => {
